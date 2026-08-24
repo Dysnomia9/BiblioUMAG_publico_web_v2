@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <!-- El sistema solo corre en producción sobre PostgreSQL (usa 'ilike' en
+             UsuarioController/PortalController y columnas 'date' cuyo formato de
+             almacenamiento de Eloquent solo es truncado correctamente por el tipo
+             DATE nativo de Postgres). Se usa una base de datos Postgres de prueba
+             separada ('biblioteca_test') en vez de SQLite en memoria para que los
+             tests reflejen el comportamiento real.
+
+             IMPORTANTE: NO reutilizar los nombres DB_HOST/DB_DATABASE/
+             DB_USERNAME/DB_PASSWORD acá. docker-compose.yml ya los define
+             como variables de entorno reales del contenedor "backend"
+             (apuntando a 'biblioteca', la base de desarrollo), y Laravel/
+             Dotenv no permite que un <env> de phpunit.xml sobreescriba una
+             variable de entorno que el proceso ya tiene seteada — ni con
+             force="true" (fuerza getenv(), pero Laravel lee de $_ENV/
+             $_SERVER). Reusar esos nombres terminaba corriendo
+             migrate:fresh contra 'biblioteca' (dev) en vez de
+             'biblioteca_test', borrando los datos de desarrollo.
+
+             En vez de eso, se activa la conexión 'pgsql_testing' definida en
+             config/database.php, que usa nombres de variable propios
+             (DB_TEST_*) que Docker nunca define — sin colisión posible. -->
+        <env name="DB_CONNECTION" value="pgsql_testing"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>
