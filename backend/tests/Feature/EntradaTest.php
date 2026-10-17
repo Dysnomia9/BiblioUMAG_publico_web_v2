@@ -75,15 +75,40 @@ class EntradaTest extends TestCase
         $this->assertTrue($entrada->fecha_hora_entrada->equalTo($entrada->fecha_hora_salida));
     }
 
-    public function test_registrar_entrada_dos_veces_el_mismo_dia_ya_no_se_bloquea(): void
+    /** Una persona queda presente una sola vez por día: el segundo intento no crea otra entrada. */
+    public function test_una_persona_no_queda_presente_dos_veces_el_mismo_dia(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $usuario = Usuario::factory()->create(['nombre' => 'Ana', 'apellido' => 'Pérez']);
+
+        $this->postJson('/api/entrada', ['rut' => $usuario->rut])->assertStatus(201);
+        $respuesta = $this->postJson('/api/entrada', ['rut' => $usuario->rut, 'via' => 'qr'])
+            ->assertStatus(409)
+            ->assertJsonPath('entrada.usuario_id', $usuario->id);
+        $this->assertStringStartsWith('Ana Pérez ya marcó su entrada hoy a las', $respuesta->json('message'));
+
+        $this->assertDatabaseCount('entradas', 1);
+    }
+
+    public function test_la_entrada_de_ayer_no_impide_marcar_la_de_hoy(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
         $usuario = Usuario::factory()->create();
+        Entrada::factory()->create(['usuario_id' => $usuario->id, 'fecha_hora_entrada' => now()->subDay()]);
 
-        $this->postJson('/api/entrada', ['rut' => $usuario->rut])->assertStatus(201);
         $this->postJson('/api/entrada', ['rut' => $usuario->rut])->assertStatus(201);
 
         $this->assertDatabaseCount('entradas', 2);
+    }
+
+    public function test_un_externo_tampoco_queda_presente_dos_veces_aunque_escriba_el_rut_distinto(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $this->postJson('/api/entrada/externo', ['rut' => '12.345.678-5', 'nombre' => 'Visitante'])->assertStatus(201);
+        $this->postJson('/api/entrada/visita', ['rut' => '12345678-5'])->assertStatus(409);
+
+        $this->assertDatabaseCount('entradas', 1);
     }
 
     /**
@@ -162,5 +187,41 @@ class EntradaTest extends TestCase
         $response = $this->getJson('/api/entrada');
 
         $response->assertStatus(200)->assertJsonPath('modo', 'dia');
+    }
+
+    public function test_el_resumen_de_hoy_cuenta_personas_distintas_y_como_entraron(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ana = Usuario::factory()->create();
+        $beto = Usuario::factory()->create();
+
+        $this->postJson('/api/entrada', ['rut' => $ana->rut])->assertStatus(201);
+        // Una entrada repetida de antes de la regla de "una vez por día" (no se borran).
+        Entrada::factory()->create(['usuario_id' => $ana->id, 'via' => 'qr']);
+        $this->postJson('/api/entrada', ['rut' => $beto->rut])->assertStatus(201);
+        $this->postJson('/api/entrada/visita', ['rut' => '12.345.678-5', 'nombre' => 'Delegación'])->assertStatus(201);
+        Entrada::factory()->create(['via' => 'portal']);
+        Entrada::factory()->create(['fecha_hora_entrada' => now()->subDay()]);
+
+        // Aunque se mire otro día, el recuadro es de hoy.
+        $this->getJson('/api/entrada?fecha='.now()->subDay()->toDateString())->assertOk()
+            ->assertJsonCount(1, 'entradas')
+            ->assertJsonPath('hoy', ['personas' => 4, 'entradas' => 5, 'qr' => 1, 'portal' => 1, 'manuales' => 3, 'sala' => 0])
+            ->assertJsonPath('aforo', config('biblioteca.aforo'));
+    }
+
+    public function test_la_busqueda_en_el_historial_encuentra_por_nombre_completo_sin_tildes_y_por_rut_sin_puntos(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $usuario = Usuario::factory()->create(['nombre' => 'Sebastián', 'apellido' => 'Sánchez', 'rut' => '15.003.151-6']);
+        Entrada::factory()->create(['usuario_id' => $usuario->id, 'fecha_hora_entrada' => now()->subDays(3)]);
+        Entrada::factory()->create(['usuario_id' => $usuario->id, 'fecha_hora_entrada' => now()->subDay()]);
+        Entrada::factory()->create(['fecha_hora_entrada' => now()->subDay()]);
+
+        foreach (['sebastian sanchez', 'SÁNCHEZ', '150031516', '15.003'] as $busqueda) {
+            $this->getJson('/api/entrada?q='.urlencode($busqueda))->assertOk()
+                ->assertJsonPath('modo', 'busqueda')
+                ->assertJsonCount(2, 'entradas');
+        }
     }
 }

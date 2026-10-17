@@ -23,7 +23,7 @@ class ReservaLibroTest extends TestCase
             'usuario_id' => Usuario::factory()->create()->id,
             'codigo_barras' => 'NO-EXISTE',
             'fecha_reserva' => now()->toDateString(),
-            'fecha_retiro' => now()->addDays(2)->toDateString(),
+            'fecha_retiro' => $this->fechaConAtencion(2),
         ]);
 
         $response->assertStatus(404);
@@ -55,7 +55,7 @@ class ReservaLibroTest extends TestCase
             'usuario_id' => Usuario::factory()->create()->id,
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_reserva' => now()->toDateString(),
-            'fecha_retiro' => now()->addDays(2)->toDateString(),
+            'fecha_retiro' => $this->fechaConAtencion(2),
         ]);
 
         $response->assertStatus(409);
@@ -71,7 +71,7 @@ class ReservaLibroTest extends TestCase
             'usuario_id' => $usuario->id,
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_reserva' => now()->toDateString(),
-            'fecha_retiro' => now()->addDays(2)->toDateString(),
+            'fecha_retiro' => $this->fechaConAtencion(2),
         ]);
 
         $response->assertStatus(201)
@@ -95,6 +95,22 @@ class ReservaLibroTest extends TestCase
         $response = $this->patchJson("/api/reservas-libro/{$reserva->id}/cancelar");
 
         $response->assertStatus(200)->assertJsonPath('estado', 'cancelado');
+        $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => true]);
+    }
+
+    public function test_el_meson_tampoco_puede_pasar_el_maximo_de_reservas_de_una_persona(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $usuario = Usuario::factory()->create();
+        ReservaLibro::factory()->create(['usuario_id' => $usuario->id, 'estado' => 'en_cola']);
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
+
+        $response = $this->postJson('/api/reservas-libro', [
+            'usuario_id' => $usuario->id,
+            'codigo_barras' => $ejemplar->codigo_barras,
+        ]);
+
+        $response->assertStatus(409)->assertJsonPath('message', 'La persona ya tiene una reserva de libro activa (por retirar o en lista de espera), el máximo a la vez: debe retirarla o cancelarla antes de reservar otro libro.');
         $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => true]);
     }
 

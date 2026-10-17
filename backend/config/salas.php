@@ -1,7 +1,9 @@
 <?php
 
-// Reglas de reserva de salas (horario continuo, ver docs/reserva-salas-horario-continuo.md
-// si existe, o CLAUDE.md) — nunca hardcodear estos valores en el service/controller.
+// Reglas de reserva de salas (horario continuo). Servicios y controladores las leen
+// desde acá: no repetir estos valores en el código. Cada día, apertura y cierre se
+// recortan además al horario de la biblioteca (config/biblioteca.php): un sábado se
+// reserva de 09:00 a 14:00 y un domingo no se reserva.
 return [
     'apertura' => '08:00',
     'cierre' => '21:00',

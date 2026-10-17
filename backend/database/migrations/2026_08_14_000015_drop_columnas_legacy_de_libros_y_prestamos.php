@@ -56,6 +56,8 @@ return new class extends Migration
         Schema::table('prestamos', function (Blueprint $table) {
             $table->foreignId('libro_id')->nullable()->after('usuario_id')
                 ->constrained('libros')->restrictOnDelete();
+            // El índice que tenía la columna (2024_01_03_000002).
+            $table->index('libro_id');
         });
     }
 };

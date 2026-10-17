@@ -6,7 +6,7 @@ import LoginBrandPanel from '@/components/auth/LoginBrandPanel.vue'
 import logoUmag from '@/assets/logo-umag.png'
 import { useToast } from '@/composables/useToast'
 
-const email = ref('admin@umag.cl')
+const email = ref('')
 const password = ref('')
 const mostrarPassword = ref(false)
 const recordarme = ref(true)

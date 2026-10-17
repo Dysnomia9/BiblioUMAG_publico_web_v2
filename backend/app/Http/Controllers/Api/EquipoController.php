@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Equipo;
+use App\Support\Bitacora;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class EquipoController extends Controller
 {
@@ -46,10 +48,16 @@ class EquipoController extends Controller
         $data = $request->validate([
             'codigo_inventario' => ['required', 'string', 'max:255', 'unique:equipos,codigo_inventario'],
             'codigo_barras' => ['required', 'string', 'max:255', 'unique:equipos,codigo_barras'],
-            'tipo' => ['required', 'in:audifonos,notebook,cargador'],
+            // La categoría de recurso de apoyo (Administración → Catálogos), solo si está activa.
+            'tipo' => ['required', Rule::exists('categorias_recurso', 'clave')->where('activo', true)],
+        ], [
+            'tipo.exists' => 'Esa categoría de recurso no existe o está desactivada.',
         ]);
 
         $equipo = Equipo::create($data + ['disponible' => true, 'activo' => true]);
+
+        $categoria = $equipo->categoria?->nombre ?? $equipo->tipo;
+        Bitacora::registrar('equipos.agregar', "Agregó el recurso {$equipo->codigo_inventario} ({$categoria}, código {$equipo->codigo_barras})", entidad: $equipo);
 
         return response()->json($equipo, 201);
     }
@@ -60,13 +68,22 @@ class EquipoController extends Controller
             'activo' => ['required', 'boolean'],
         ]);
 
-        // No se puede dar de baja un equipo actualmente prestado (mismo criterio que
+        // No se puede dar de baja un recurso actualmente prestado (mismo criterio que
         // LibroController::cambiarEstado con 'de_baja') — primero debe devolverse.
         if ($data['activo'] === false && ! $equipo->disponible) {
-            return response()->json(['message' => 'No se puede dar de baja un equipo actualmente prestado'], 409);
+            return response()->json(['message' => 'No se puede dar de baja un recurso que está prestado: primero tiene que devolverse.'], 409);
         }
 
+        $estabaActivo = $equipo->activo;
         $equipo->update(['activo' => $data['activo']]);
+
+        if ($estabaActivo !== $data['activo']) {
+            Bitacora::registrar(
+                $data['activo'] ? 'equipos.reactivar' : 'equipos.dar_de_baja',
+                ($data['activo'] ? 'Reactivó' : 'Dio de baja')." el recurso {$equipo->codigo_inventario}",
+                entidad: $equipo,
+            );
+        }
 
         return response()->json($equipo);
     }

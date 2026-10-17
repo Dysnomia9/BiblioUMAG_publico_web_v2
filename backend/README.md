@@ -1,4 +1,4 @@
-# Backend — pruebas y benchmark de rendimiento
+# Backend: pruebas y benchmark de rendimiento
 
 Esta guía documenta cómo reproducir, durante la defensa de la tesis, los resultados
 de las pruebas funcionales (Cuadro 9.1) y de latencia de la API (Cuadro 10.2).
@@ -17,29 +17,30 @@ Todos los comandos siguientes se ejecutan dentro del contenedor `backend`.
 
 ### Base de datos de pruebas
 
-Los tests de `tests/Feature` corren contra una base de datos **PostgreSQL de
-prueba** separada de la de desarrollo (`biblioteca_test`, no `biblioteca`), porque
-el sistema usa operadores específicos de Postgres (`ilike` en
-`UsuarioController`/`PortalController::catalogo`) y columnas `date` cuyo formato de
-almacenamiento de Eloquent solo el tipo `DATE` nativo de Postgres trunca
-correctamente. SQLite en memoria no reproduce ese comportamiento, así que **no se
-usa** para estos tests (ver `phpunit.xml`).
+Los tests de `tests/Feature` corren contra una base de datos **MySQL de prueba**
+separada de la de desarrollo (`biblioteca_test`, no `biblioteca`), con la misma
+collation (`utf8mb4_unicode_ci`). Las búsquedas sin tildes dependen de esa
+collation, y la columna generada `rut_normalizado`, los `CHECK`, las FK y los
+candados dependen del motor: SQLite en memoria no reproduce ese comportamiento,
+así que **no se usa** para estos tests (ver `phpunit.xml`).
 
-`docker-entrypoint.sh` crea `biblioteca_test` automáticamente (de forma
-idempotente) cada vez que el contenedor `backend` arranca, así que no hace falta
-ningún paso manual — basta con `docker compose up`.
+MySQL crea `biblioteca_test` (y le da permisos al usuario `biblioteca`) la primera
+vez que inicializa su volumen, con `docker/mysql/01-biblioteca-test.sql`. Además,
+`docker-entrypoint.sh` la verifica cada vez que el contenedor `backend` arranca y
+la crea si falta, así que no hace falta ningún paso manual: basta con
+`docker compose up`.
 
-Los tests usan una conexión de Eloquent dedicada, `pgsql_testing`
-(`config/database.php`), en vez de reutilizar la conexión `pgsql` de siempre con
+Los tests usan una conexión de Eloquent dedicada, `mysql_testing`
+(`config/database.php`), en vez de reutilizar la conexión `mysql` de siempre con
 variables `DB_DATABASE=biblioteca_test` sobreescritas en `phpunit.xml`. Esto es
 intencional y **no debe "simplificarse"**: `docker-compose.yml` ya define
 `DB_HOST`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD` como variables de entorno
 reales del contenedor `backend` (apuntando a `biblioteca`), y Laravel/Dotenv no
 permite que un `<env>` de `phpunit.xml` sobreescriba una variable de entorno que
-el proceso ya tiene seteada — ni con `force="true"` (eso solo fuerza `getenv()`,
+el proceso ya tiene seteada, ni siquiera con `force="true"` (eso solo fuerza `getenv()`,
 pero Laravel lee la config vía `$_ENV`/`$_SERVER`). Intentarlo así hace que los
 tests terminen corriendo `migrate:fresh` contra `biblioteca` (la base real de
-desarrollo) sin ningún aviso. `pgsql_testing` evita el problema de raíz usando
+desarrollo) sin ningún aviso. `mysql_testing` evita el problema de raíz usando
 nombres de variable propios (`DB_TEST_*`) que Docker nunca define.
 
 ### Ejecutar la suite
@@ -55,7 +56,7 @@ docker compose exec backend vendor/bin/phpunit --testdox
 ```
 
 `RefreshDatabase` migra `biblioteca_test` antes de cada clase de test y la limpia
-después — no afecta los datos de `biblioteca` (la base de desarrollo/demo).
+después, así que no afecta los datos de `biblioteca` (la base de desarrollo/demo).
 
 ## Benchmark de latencia de la API (Cuadro 10.2)
 
@@ -69,7 +70,7 @@ HTTP real, no en proceso) y mide la latencia de:
 - `GET /api/reportes/resumen`
 
 Crea un usuario temporal ("Benchmark API") para el endpoint de entradas y lo
-elimina al finalizar (elimina en cascada sus entradas de prueba) — no deja datos
+elimina al finalizar (elimina en cascada sus entradas de prueba), así que no deja datos
 residuales en `biblioteca`.
 
 ### Ejecutar el benchmark

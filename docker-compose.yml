@@ -1,20 +1,35 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8.4
     restart: unless-stopped
+    # utf8mb4_unicode_ci: las búsquedas con LIKE no distinguen tildes, mayúsculas
+    # ni la ñ («garcia» encuentra «García»). El sistema depende de eso.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_DB: biblioteca
-      POSTGRES_USER: biblioteca
-      POSTGRES_PASSWORD: biblioteca
+      MYSQL_DATABASE: biblioteca
+      MYSQL_USER: biblioteca
+      MYSQL_PASSWORD: biblioteca
+      MYSQL_ROOT_PASSWORD: raiz_local
     volumes:
-      - db_data:/var/lib/postgresql/data
+      # Volumen propio de MySQL: no reutiliza el de la versión PostgreSQL (db_data),
+      # que MySQL no podría leer.
+      - db_mysql_data:/var/lib/mysql
+      # Al crear el volumen por primera vez: la base de pruebas biblioteca_test.
+      - ./backend/docker/mysql:/docker-entrypoint-initdb.d:ro
+    # Solo desde este computador: el backend usa la red interna de Docker, y la
+    # contraseña de desarrollo es conocida.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:3306:3306"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U biblioteca -d biblioteca"]
+      # Por TCP a propósito: mientras MySQL se inicializa por primera vez corre un
+      # servidor temporal sin red, y un ping por socket lo daría por listo antes de tiempo.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u biblioteca -pbiblioteca --silent"]
       interval: 3s
       timeout: 5s
-      retries: 10
+      retries: 30
+      start_period: 30s
 
   backend:
     build:
@@ -24,14 +39,27 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Desarrollo declarado: solo con APP_ENV=local el arranque carga los datos de
+      # prueba (admin@umag.cl / admin123) y crea la base de tests (docker-entrypoint.sh).
+      APP_ENV: local
+      DB_CONNECTION: mysql
       DB_HOST: db
+      DB_PORT: 3306
       DB_DATABASE: biblioteca
       DB_USERNAME: biblioteca
       DB_PASSWORD: biblioteca
       FRONTEND_URL: http://localhost:5173
       SANCTUM_STATEFUL_DOMAINS: localhost:5173
+    volumes:
+      # Solo el reporte de auditoría de dependencias (ver docker-entrypoint.sh)
+      # queda mapeado al host para revisarlo sin entrar al contenedor — el
+      # resto del código sigue horneado en la imagen a propósito (ver README).
+      - ./backend/storage/reports:/var/www/storage/reports
+    # Solo desde este computador, como MySQL: con las cuentas de prueba y el modo
+    # debug, publicarlo a la red dejaría entrar como administrador a cualquiera del
+    # mismo WiFi. Para probar desde el celular, ESCUCHAR_EN=0.0.0.0 (ver README).
     ports:
-      - "8000:8000"
+      - "${ESCUCHAR_EN:-127.0.0.1}:8000:8000"
 
   frontend:
     build:
@@ -43,7 +71,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - "${ESCUCHAR_EN:-127.0.0.1}:5173:5173"
 
 volumes:
-  db_data:
+  db_mysql_data:

@@ -13,10 +13,12 @@ return new class extends Migration
             $table->foreignId('ejemplar_id')->constrained('ejemplares')->restrictOnDelete();
             $table->string('estado_anterior');
             $table->string('estado_nuevo');
+            // Nombres de FK explícitos: los que arma Laravel pasan los 64 caracteres
+            // que acepta MySQL.
             $table->foreignId('estado_personalizado_anterior_id')->nullable()
-                ->constrained('estados_libro_personalizados')->nullOnDelete();
+                ->constrained('estados_libro_personalizados', 'id', 'ejemplar_historial_estado_pers_anterior_foreign')->nullOnDelete();
             $table->foreignId('estado_personalizado_nuevo_id')->nullable()
-                ->constrained('estados_libro_personalizados')->nullOnDelete();
+                ->constrained('estados_libro_personalizados', 'id', 'ejemplar_historial_estado_pers_nuevo_foreign')->nullOnDelete();
             $table->foreignId('staff_id')->nullable()->constrained('staff')->nullOnDelete();
             // Agrupa las filas escritas por una misma operación de cambio masivo — null
             // en un cambio individual (EjemplarController::cambiarEstado).

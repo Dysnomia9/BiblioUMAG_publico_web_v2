@@ -69,9 +69,9 @@ return new class extends Migration
         });
 
         DB::statement('
-            UPDATE ejemplares SET ubicacion = ubicaciones.nombre
-            FROM ubicaciones
-            WHERE ubicaciones.id = ejemplares.ubicacion_id
+            UPDATE ejemplares
+            JOIN ubicaciones ON ubicaciones.id = ejemplares.ubicacion_id
+            SET ejemplares.ubicacion = ubicaciones.nombre
         ');
 
         Schema::table('ejemplares', function (Blueprint $table) {

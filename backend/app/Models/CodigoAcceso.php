@@ -18,7 +18,7 @@ class CodigoAcceso extends Model
 
     public function staff()
     {
-        return $this->belongsTo(Staff::class, 'generado_por');
+        return $this->belongsTo(Staff::class, 'generado_por')->withTrashed();
     }
 
     /** Devuelve el código de acceso vigente, generando uno si aún no existe ninguno. */

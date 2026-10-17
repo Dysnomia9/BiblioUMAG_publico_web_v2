@@ -10,7 +10,7 @@ return new class extends Migration
      * `users`, `password_reset_tokens` y `sessions` son el scaffold default
      * de `laravel new` (guard 'web' + sesión) — esta app nunca lo usó: la
      * auth real es 100% Bearer token vía Sanctum sobre `staff`/`usuarios`
-     * (guards custom, ver CLAUDE.md), y SESSION_DRIVER es 'file', no
+     * (guards custom), y SESSION_DRIVER es 'file', no
      * 'database'. `App\Models\User` y `UserFactory` se eliminaron junto con
      * esta migración.
      */

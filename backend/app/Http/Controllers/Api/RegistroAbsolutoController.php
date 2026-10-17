@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Entrada;
-use App\Models\Prestamo;
-use App\Models\Reserva;
-use App\Models\ReservaLibro;
+use App\Support\Paginacion;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class RegistroAbsolutoController extends Controller
 {
@@ -19,11 +17,12 @@ class RegistroAbsolutoController extends Controller
      * Registro unificado de "operaciones que alguien solicitó": préstamos (libros y
      * equipos), reservas de sala, reservas de libro y entradas. Cada tabla tiene su
      * propia forma — acá se normaliza cada una a una fila común (fecha_hora, usuario,
-     * detalle, estado, atendido_por) para verlas juntas, ordenadas por fecha y
-     * filtrables por rango. Antes de esto, préstamos era el único con listado global;
-     * reservas de sala y entradas solo se podían ver un día a la vez, y reservas de
-     * libro no tenía ningún listado global (ver LibroController/EjemplarController para
-     * el historial de estado de ejemplares, que es un registro aparte y no entra acá).
+     * detalle, estado, atendido_por) con un UNION ALL, y la base ordena por fecha y
+     * entrega solo la página pedida: con años de historial no se trae todo de una vez.
+     *
+     * El SQL usa solo lo que entienden PostgreSQL y MySQL (CAST ... AS CHAR, CONCAT,
+     * CONCAT_WS, CASE, COALESCE): la fecha va como texto 'AAAA-MM-DD HH:MM:SS', que se
+     * ordena igual que la fecha.
      */
     public function index(Request $request)
     {
@@ -36,136 +35,159 @@ class RegistroAbsolutoController extends Controller
 
         $tiposSolicitados = $request->query('tipo');
         $tipos = $tiposSolicitados ? array_intersect((array) $tiposSolicitados, self::TIPOS) : self::TIPOS;
-        $busqueda = $request->query('q');
+        $busqueda = trim((string) $request->query('q'));
 
-        $filas = collect();
+        $partes = array_values(array_filter([
+            in_array('prestamo', $tipos, true) ? $this->prestamos($desde, $hasta, $busqueda) : null,
+            in_array('reserva_sala', $tipos, true) ? $this->reservasSala($desde, $hasta, $busqueda) : null,
+            in_array('reserva_libro', $tipos, true) ? $this->reservasLibro($desde, $hasta, $busqueda) : null,
+            in_array('entrada', $tipos, true) ? $this->entradas($desde, $hasta, $busqueda) : null,
+        ]));
 
-        if (in_array('prestamo', $tipos, true)) {
-            $filas = $filas->concat($this->filasPrestamos($desde, $hasta, $busqueda));
-        }
-        if (in_array('reserva_sala', $tipos, true)) {
-            $filas = $filas->concat($this->filasReservasSala($desde, $hasta, $busqueda));
-        }
-        if (in_array('reserva_libro', $tipos, true)) {
-            $filas = $filas->concat($this->filasReservasLibro($desde, $hasta, $busqueda));
-        }
-        if (in_array('entrada', $tipos, true)) {
-            $filas = $filas->concat($this->filasEntradas($desde, $hasta, $busqueda));
+        $base = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateString()];
+
+        if (! $partes) {
+            return response()->json($base + ['total' => 0, 'operaciones' => [], 'current_page' => 1, 'last_page' => 1, 'per_page' => 0, 'from' => null, 'to' => null]);
         }
 
-        $filas = $filas->sortByDesc('fecha_hora')->values();
+        $union = array_shift($partes);
+        foreach ($partes as $parte) {
+            $union->unionAll($parte);
+        }
 
-        return response()->json([
-            'desde' => $desde->toDateString(),
-            'hasta' => $hasta->toDateString(),
-            'total' => $filas->count(),
-            'operaciones' => $filas,
+        $pagina = DB::query()->fromSub($union, 'operaciones')
+            ->orderByDesc('fecha_hora')
+            ->orderBy('tipo')
+            ->orderByDesc('origen_id')
+            ->paginate(Paginacion::porPagina($request, 50, 500));
+
+        $operaciones = collect($pagina->items())->map(fn ($fila) => [
+            'tipo' => $fila->tipo,
+            'fecha_hora' => $fila->fecha_hora ? Carbon::parse($fila->fecha_hora)->toIso8601String() : null,
+            'usuario_nombre' => $fila->usuario_nombre,
+            'usuario_rut' => $fila->usuario_rut,
+            'detalle' => $fila->detalle,
+            'estado' => $fila->estado,
+            'atendido_por' => $fila->atendido_por,
+            'origen_id' => (int) $fila->origen_id,
+        ]);
+
+        return response()->json($base + [
+            'total' => $pagina->total(),
+            'operaciones' => $operaciones,
+            'current_page' => $pagina->currentPage(),
+            'last_page' => $pagina->lastPage(),
+            'per_page' => $pagina->perPage(),
+            'from' => $pagina->firstItem(),
+            'to' => $pagina->lastItem(),
         ]);
     }
 
-    private function filasPrestamos(Carbon $desde, Carbon $hasta, ?string $busqueda): Collection
+    /** Nombre y apellido del usuario (u), o null si no hay usuario. */
+    private const NOMBRE_USUARIO = "NULLIF(CONCAT_WS(' ', u.nombre, u.apellido), '')";
+
+    /** Persona por nombre (sin tildes) o RUT: el filtro de búsqueda de cada parte. */
+    private function buscarUsuario(Builder $query, string $busqueda, string $columnaRut = 'u.rut'): void
     {
-        $query = Prestamo::with(['usuario:id,nombre,apellido,rut', 'prestadoPorStaff:id,nombre'])
-            ->whereBetween('fecha_prestamo', [$desde, $hasta]);
-
-        if ($busqueda) {
-            $query->whereHas('usuario', fn ($u) => $u->where('nombre', 'ilike', "%{$busqueda}%")
-                ->orWhere('apellido', 'ilike', "%{$busqueda}%")
-                ->orWhere('rut', 'ilike', "%{$busqueda}%"));
-        }
-
-        return $query->latest('fecha_prestamo')->limit(500)->get()->map(fn ($p) => [
-            'tipo' => $p->tipo_item === 'libro' ? 'prestamo_libro' : 'prestamo_equipo',
-            'fecha_hora' => optional($p->fecha_prestamo)->toIso8601String(),
-            'usuario_nombre' => $p->usuario ? trim($p->usuario->nombre.' '.$p->usuario->apellido) : null,
-            'usuario_rut' => $p->usuario->rut ?? null,
-            'detalle' => $p->libro_titulo,
-            'estado' => $p->estado,
-            'atendido_por' => $p->prestadoPorStaff->nombre ?? $p->prestado_por,
-            'origen_id' => $p->id,
-        ]);
+        $query->where(fn ($q) => $q->whereSinTildes('u.nombre', $busqueda)
+            ->orWhereSinTildes('u.apellido', $busqueda)
+            ->orWhereLike($columnaRut, "%{$busqueda}%"));
     }
 
-    private function filasReservasSala(Carbon $desde, Carbon $hasta, ?string $busqueda): Collection
+    private function prestamos(Carbon $desde, Carbon $hasta, string $busqueda): Builder
     {
-        $query = Reserva::with(['sala:id,nombre', 'usuario:id,nombre,apellido,rut', 'prestadoPorStaff:id,nombre'])
-            ->whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()]);
+        $query = DB::table('prestamos as p')
+            ->leftJoin('usuarios as u', 'u.id', '=', 'p.usuario_id')
+            ->leftJoin('staff as s', 's.id', '=', 'p.prestado_por_staff_id')
+            ->whereBetween('p.fecha_prestamo', [$desde, $hasta])
+            ->selectRaw("CASE WHEN p.tipo_item = 'libro' THEN 'prestamo_libro' ELSE 'prestamo_equipo' END AS tipo")
+            ->selectRaw('CAST(p.fecha_prestamo AS CHAR(19)) AS fecha_hora')
+            ->selectRaw(self::NOMBRE_USUARIO.' AS usuario_nombre')
+            ->selectRaw('u.rut AS usuario_rut')
+            ->selectRaw('p.libro_titulo AS detalle')
+            ->selectRaw('p.estado AS estado')
+            ->selectRaw('COALESCE(s.nombre, p.prestado_por) AS atendido_por')
+            ->selectRaw('p.id AS origen_id');
 
-        if ($busqueda) {
-            $query->where(function ($q) use ($busqueda) {
-                $q->where('rut_usuario', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('usuario', fn ($u) => $u->where('nombre', 'ilike', "%{$busqueda}%")
-                        ->orWhere('apellido', 'ilike', "%{$busqueda}%"));
-            });
+        if ($busqueda !== '') {
+            $this->buscarUsuario($query, $busqueda);
         }
 
-        return $query->latest('fecha')->limit(500)->get()->map(fn ($r) => [
-            'tipo' => 'reserva_sala',
-            // hora_inicio/hora_fin son horas enteras (bloques de 2h) — no hay minutos que preservar.
-            'fecha_hora' => Carbon::parse($r->fecha->toDateString())->setTime((int) $r->hora_inicio, 0)->toIso8601String(),
-            'usuario_nombre' => $r->usuario ? trim($r->usuario->nombre.' '.$r->usuario->apellido) : null,
-            'usuario_rut' => $r->rut_usuario,
-            'detalle' => ($r->sala->nombre ?? 'Sala eliminada')." ({$r->hora_inicio}:00–{$r->hora_fin}:00)",
-            'estado' => $r->estado,
-            // prestadoPorStaff es la fuente de verdad (FK real, desde 2026-08-17); el
-            // fallback a prestado_por (texto) cubre reservas anteriores a esa migración.
-            'atendido_por' => $r->prestadoPorStaff->nombre ?? $r->prestado_por,
-            'origen_id' => $r->id,
-        ]);
+        return $query;
     }
 
-    private function filasReservasLibro(Carbon $desde, Carbon $hasta, ?string $busqueda): Collection
+    private function reservasSala(Carbon $desde, Carbon $hasta, string $busqueda): Builder
     {
-        $query = ReservaLibro::with(['usuario:id,nombre,apellido,rut', 'libro:id,titulo', 'registradoPorStaff:id,nombre'])
-            ->whereBetween('fecha_reserva', [$desde->toDateString(), $hasta->toDateString()]);
+        $query = DB::table('reservas as r')
+            ->leftJoin('usuarios as u', 'u.id', '=', 'r.usuario_id')
+            ->leftJoin('salas as sa', 'sa.id', '=', 'r.sala_id')
+            // prestado_por_staff_id es la fuente de verdad (FK real, desde 2026-08-17); el
+            // texto prestado_por cubre reservas anteriores a esa migración.
+            ->leftJoin('staff as s', 's.id', '=', 'r.prestado_por_staff_id')
+            ->whereBetween('r.fecha', [$desde->toDateString(), $hasta->toDateString()])
+            ->selectRaw("'reserva_sala' AS tipo")
+            ->selectRaw("CONCAT(CAST(r.fecha AS CHAR(10)), ' ', CAST(r.hora_inicio AS CHAR(8))) AS fecha_hora")
+            ->selectRaw(self::NOMBRE_USUARIO.' AS usuario_nombre')
+            ->selectRaw('r.rut_usuario AS usuario_rut')
+            ->selectRaw("CONCAT(COALESCE(sa.nombre, 'Sala eliminada'), ' (', SUBSTRING(CAST(r.hora_inicio AS CHAR(8)), 1, 5), '–', SUBSTRING(CAST(r.hora_fin AS CHAR(8)), 1, 5), ')') AS detalle")
+            ->selectRaw('r.estado AS estado')
+            ->selectRaw('COALESCE(s.nombre, r.prestado_por) AS atendido_por')
+            ->selectRaw('r.id AS origen_id');
 
-        if ($busqueda) {
-            $query->whereHas('usuario', fn ($u) => $u->where('nombre', 'ilike', "%{$busqueda}%")
-                ->orWhere('apellido', 'ilike', "%{$busqueda}%")
-                ->orWhere('rut', 'ilike', "%{$busqueda}%"));
+        if ($busqueda !== '') {
+            $this->buscarUsuario($query, $busqueda, 'r.rut_usuario');
         }
 
-        return $query->latest('fecha_reserva')->limit(500)->get()->map(fn ($r) => [
-            'tipo' => 'reserva_libro',
-            'fecha_hora' => Carbon::parse($r->fecha_reserva->toDateString())->toIso8601String(),
-            'usuario_nombre' => $r->usuario ? trim($r->usuario->nombre.' '.$r->usuario->apellido) : null,
-            'usuario_rut' => $r->usuario->rut ?? null,
-            'detalle' => $r->libro->titulo ?? 'Libro eliminado',
-            'estado' => $r->estado,
-            // null cuando la reserva la creó el propio usuario desde el portal de
-            // autoservicio — no hay staff detrás, es un dato real, no uno faltante.
-            'atendido_por' => $r->registradoPorStaff->nombre ?? null,
-            'origen_id' => $r->id,
-        ]);
+        return $query;
     }
 
-    private function filasEntradas(Carbon $desde, Carbon $hasta, ?string $busqueda): Collection
+    private function reservasLibro(Carbon $desde, Carbon $hasta, string $busqueda): Builder
     {
-        $query = Entrada::with(['usuario:id,nombre,apellido,rut', 'registradoPorStaff:id,nombre'])
-            ->whereBetween('fecha_hora_entrada', [$desde, $hasta]);
+        $query = DB::table('reservas_libro as rl')
+            ->leftJoin('usuarios as u', 'u.id', '=', 'rl.usuario_id')
+            ->leftJoin('libros as l', 'l.id', '=', 'rl.libro_id')
+            // Sin personal cuando la reserva la hizo el propio usuario desde el portal.
+            ->leftJoin('staff as s', 's.id', '=', 'rl.registrado_por_staff_id')
+            ->whereBetween('rl.fecha_reserva', [$desde->toDateString(), $hasta->toDateString()])
+            ->selectRaw("'reserva_libro' AS tipo")
+            ->selectRaw("CONCAT(CAST(rl.fecha_reserva AS CHAR(10)), ' 00:00:00') AS fecha_hora")
+            ->selectRaw(self::NOMBRE_USUARIO.' AS usuario_nombre')
+            ->selectRaw('u.rut AS usuario_rut')
+            ->selectRaw("COALESCE(l.titulo, 'Libro eliminado') AS detalle")
+            ->selectRaw('rl.estado AS estado')
+            ->selectRaw('s.nombre AS atendido_por')
+            ->selectRaw('rl.id AS origen_id');
 
-        if ($busqueda) {
-            $query->where(function ($q) use ($busqueda) {
-                $q->where('rut_externo', 'ilike', "%{$busqueda}%")
-                    ->orWhere('nombre_externo', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('usuario', fn ($u) => $u->where('nombre', 'ilike', "%{$busqueda}%")
-                        ->orWhere('apellido', 'ilike', "%{$busqueda}%")
-                        ->orWhere('rut', 'ilike', "%{$busqueda}%"));
-            });
+        if ($busqueda !== '') {
+            $this->buscarUsuario($query, $busqueda);
         }
 
-        return $query->latest('fecha_hora_entrada')->limit(500)->get()->map(fn ($e) => [
-            'tipo' => 'entrada',
-            'fecha_hora' => optional($e->fecha_hora_entrada)->toIso8601String(),
-            'usuario_nombre' => $e->usuario ? trim($e->usuario->nombre.' '.$e->usuario->apellido) : $e->nombre_externo,
-            'usuario_rut' => $e->usuario->rut ?? $e->rut_externo,
-            'detalle' => $e->es_convenio ? 'Entrada (Convenio)' : ($e->es_visita ? 'Entrada (Visita)' : 'Entrada'),
-            // Sin estado real: fecha_hora_salida se estampa igual a fecha_hora_entrada
-            // apenas se crea (ver EntradaController::store) — no hay un ciclo abierto/cerrado.
-            'estado' => null,
-            // null cuando la registró el propio usuario (portal/QR) — no hay staff detrás.
-            'atendido_por' => $e->registradoPorStaff->nombre ?? null,
-            'origen_id' => $e->id,
-        ]);
+        return $query;
+    }
+
+    private function entradas(Carbon $desde, Carbon $hasta, string $busqueda): Builder
+    {
+        $query = DB::table('entradas as e')
+            ->leftJoin('usuarios as u', 'u.id', '=', 'e.usuario_id')
+            // Sin personal cuando la marcó el propio usuario (portal/QR).
+            ->leftJoin('staff as s', 's.id', '=', 'e.registrado_por_staff_id')
+            ->whereBetween('e.fecha_hora_entrada', [$desde, $hasta])
+            ->selectRaw("'entrada' AS tipo")
+            ->selectRaw('CAST(e.fecha_hora_entrada AS CHAR(19)) AS fecha_hora')
+            ->selectRaw('COALESCE('.self::NOMBRE_USUARIO.', e.nombre_externo) AS usuario_nombre')
+            ->selectRaw('COALESCE(u.rut, e.rut_externo) AS usuario_rut')
+            ->selectRaw("CASE WHEN e.es_convenio = TRUE THEN 'Entrada (Convenio)' WHEN e.es_visita = TRUE THEN 'Entrada (Visita)' WHEN e.via = 'sala' THEN 'Entrada (al llegar a una sala reservada)' ELSE 'Entrada' END AS detalle")
+            // Sin estado real: la salida se estampa junto con la entrada (ver EntradaController::store).
+            ->selectRaw('CAST(NULL AS CHAR(20)) AS estado')
+            ->selectRaw('s.nombre AS atendido_por')
+            ->selectRaw('e.id AS origen_id');
+
+        if ($busqueda !== '') {
+            $query->where(fn ($q) => $q->whereLike('e.rut_externo', "%{$busqueda}%")
+                ->orWhereSinTildes('e.nombre_externo', $busqueda)
+                ->orWhere(fn ($u) => $this->buscarUsuario($u, $busqueda)));
+        }
+
+        return $query;
     }
 }

@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PortalLayout from '@/components/layout/PortalLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
+import GuiaUso from '@/components/ui/GuiaUso.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import apiUsuario from '@/services/apiUsuario'
+import { DIAS_SEMANA, diaIso } from '@/utils/horario'
+import { sinTildes } from '@/utils/texto'
 import { useToast } from '@/composables/useToast'
+import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
+import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
-import { formatRut } from '@/composables/useRut'
+import { formatearInputIdentificador } from '@/utils/documento'
 import type { Sala, TramoReserva } from '@/types'
 
 const toast = useToast()
 const auth = useUsuarioAuthStore()
 const router = useRouter()
 
-const hoy = new Date().toISOString().slice(0, 10)
+const hoy = new Date().toLocaleDateString('sv-SE')
 const DURACIONES = [30, 60, 90, 120]
 const CANTIDAD_MIN = 2
 const CANTIDAD_MAX = 5
@@ -27,6 +33,10 @@ const cierre = ref('21:00')
 const granularidad = ref(30)
 const duracionMinima = ref(30)
 const duracionMaxima = ref(120)
+const cuotaDiaria = ref(240)
+const diaCerrado = ref(false)
+const atencion = ref<[string, string] | null>(null)
+const textoDiaCerrado = `Hoy es ${DIAS_SEMANA[diaIso(new Date())]} y la biblioteca no atiende: no se pueden reservar salas.`
 
 function timeToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number)
@@ -44,16 +54,27 @@ function formatMinutos(min: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
-const aperturaMin = computed(() => timeToMinutes(apertura.value))
-const cierreMin = computed(() => timeToMinutes(cierre.value))
-const totalMin = computed(() => cierreMin.value - aperturaMin.value)
+const {
+  aperturaMin,
+  cierreMin,
+  totalMin,
+  cierraMin,
+  primerInicioMin,
+  pctAntesDeAbrir,
+  pctDesdeCierre,
+  horasRotuladas,
+  atiende,
+  horarioReducido,
+  textoFueraDeHorario,
+  posicionTramo,
+} = useHorarioSalas({ apertura, cierre, atencion, granularidad, fecha: ref(hoy) })
 function pct(hhmm: string): number {
   return ((timeToMinutes(hhmm) - aperturaMin.value) / totalMin.value) * 100
 }
 
 /** Ancho del bloque en % de la línea de tiempo, con un piso mínimo para que un tramo corto (ej. 30 min) siga siendo visible. */
 function anchoTramoPct(tramo: TramoReserva): number {
-  return Math.max(pct(tramo.hora_fin) - pct(tramo.hora_inicio), 2.5)
+  return posicionTramo(tramo.hora_inicio, tramo.hora_fin).ancho
 }
 
 const ahora = ref(new Date())
@@ -64,10 +85,24 @@ onMounted(() => {
 onUnmounted(() => clearInterval(relojTimer))
 const ahoraMin = computed(() => ahora.value.getHours() * 60 + ahora.value.getMinutes())
 const nowPct = computed(() => Math.min(100, Math.max(0, ((ahoraMin.value - aperturaMin.value) / totalMin.value) * 100)))
+/** Horas enteras dentro del horario (sin los bordes): una línea guía por cada una. */
+const horasIntermedias = computed(() => {
+  const primera = Math.floor(aperturaMin.value / 60) + 1
+  const ultima = Math.ceil(cierreMin.value / 60) - 1
+  return Array.from({ length: Math.max(0, ultima - primera + 1) }, (_, i) => primera + i)
+})
+const horaActual = computed(() => ahora.value.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }))
+/** El marcador «Ahora» se centra en la línea, salvo en los bordes, donde se apoya hacia adentro. */
+const alineacionAhora = computed(() => (nowPct.value < 8 ? '' : nowPct.value > 92 ? '-translate-x-full' : '-translate-x-1/2'))
+/** Lo rayado: desde la izquierda, lo que ya pasó (o lo de antes de abrir); desde la derecha, lo de después del cierre. */
+const pctPasado = computed(() => {
+  const pasado = diaCerrado.value ? 100 : Math.max(pctAntesDeAbrir.value, nowPct.value)
+  return pasado >= pctDesdeCierre.value ? 100 : pasado
+})
+const pctTrasCierre = computed(() => (pctPasado.value >= 100 ? 0 : 100 - pctDesdeCierre.value))
 
 const modalOpen = ref(false)
 const selectedSala = ref<Sala | null>(null)
-const modalInmediata = ref(false)
 const modalHoraInicio = ref('')
 const modalDuracion = ref(60)
 const enviando = ref(false)
@@ -93,6 +128,9 @@ async function cargar() {
     granularidad.value = data.granularidad
     duracionMinima.value = data.duracion_minima
     duracionMaxima.value = data.duracion_maxima
+    cuotaDiaria.value = data.cuota_diaria
+    diaCerrado.value = data.cerrado
+    atencion.value = data.atencion
     apiError.value = false
   } catch {
     apiError.value = true
@@ -100,24 +138,51 @@ async function cargar() {
   }
 }
 
-onMounted(cargar)
+const lineaTiempo = ref<HTMLElement | null>(null)
+const ANCHO_NOMBRE_SALA = 112
+
+/** Si la línea de tiempo no cabe y se desliza, la deja mostrando la hora actual en vez de las 08:00. */
+async function mostrarHoraActual() {
+  await nextTick()
+  const el = lineaTiempo.value
+  if (!el || el.scrollWidth <= el.clientWidth) return
+  const xAhora = ANCHO_NOMBRE_SALA + (nowPct.value / 100) * (el.scrollWidth - ANCHO_NOMBRE_SALA)
+  el.scrollLeft = Math.max(0, xAhora - ANCHO_NOMBRE_SALA - (el.clientWidth - ANCHO_NOMBRE_SALA) / 3)
+}
+
+onMounted(async () => {
+  await cargar()
+  mostrarHoraActual()
+})
+useRefrescoPeriodico(cargar, 30000)
 
 const filteredSalas = computed(() => {
   if (!busqueda.value.trim()) return salas.value
-  const q = busqueda.value.toLowerCase()
-  return salas.value.filter((s) => s.nombre.toLowerCase().includes(q))
+  const q = sinTildes(busqueda.value.trim())
+  return salas.value.filter((s) => sinTildes(s.nombre).includes(q))
 })
 
+const pasosAyuda = computed(() => [
+  'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca.',
+  `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${CANTIDAD_MIN} a ${CANTIDAD_MAX} personas). El tuyo ya viene escrito.`,
+  'Pulsa <strong>Confirmar</strong>: tu reserva queda en <strong>azul</strong> en la línea de tiempo.',
+  'Preséntate con tu grupo en el mesón dentro de los <strong>15 minutos</strong> desde la hora de inicio; si no, la sala se libera sola.',
+])
+const consejoAyuda = computed(
+  () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul.`,
+)
+
+// La hizo la persona o la incluyeron como integrante (el servidor lo indica en es_mia).
 function esMia(tramo: TramoReserva) {
-  return tramo.usuario_id === auth.usuario?.id
+  return tramo.es_mia ?? tramo.usuario_id === auth.usuario?.id
 }
 
 function disponibilidadDesde(sala: Sala, desdeMin: number): number {
-  if (desdeMin >= cierreMin.value) return 0
+  if (!atiende(desdeMin)) return 0
   const ocupando = sala.tramos.some((t) => timeToMinutes(t.hora_inicio) <= desdeMin && timeToMinutes(t.hora_fin) > desdeMin)
   if (ocupando) return 0
   const siguientes = sala.tramos.map((t) => timeToMinutes(t.hora_inicio)).filter((i) => i >= desdeMin).sort((a, b) => a - b)
-  const limite = siguientes.length ? siguientes[0] : cierreMin.value
+  const limite = Math.min(siguientes.length ? siguientes[0] : cierraMin.value, cierraMin.value)
   return Math.max(0, Math.min(limite - desdeMin, duracionMaxima.value))
 }
 
@@ -127,8 +192,8 @@ const modalDuracionesValidas = computed(() => DURACIONES.filter((d) => d >= dura
 
 const horaInicioOpciones = computed(() => {
   const opciones: string[] = []
-  const minimoInicio = Math.max(aperturaMin.value, Math.ceil(ahoraMin.value / granularidad.value) * granularidad.value)
-  for (let m = minimoInicio; m <= cierreMin.value - duracionMinima.value; m += granularidad.value) {
+  const minimoInicio = Math.max(primerInicioMin.value, Math.ceil(ahoraMin.value / granularidad.value) * granularidad.value)
+  for (let m = minimoInicio; m <= cierraMin.value - duracionMinima.value; m += granularidad.value) {
     opciones.push(minutesToTime(m))
   }
   return opciones
@@ -136,9 +201,8 @@ const horaInicioOpciones = computed(() => {
 
 function abrirModal(sala: Sala, inicioSugeridoMin: number) {
   selectedSala.value = sala
-  modalInmediata.value = false
-  const alineado = Math.max(aperturaMin.value, Math.ceil(inicioSugeridoMin / granularidad.value) * granularidad.value)
-  modalHoraInicio.value = minutesToTime(Math.min(alineado, cierreMin.value - duracionMinima.value))
+  const alineado = Math.max(primerInicioMin.value, Math.ceil(inicioSugeridoMin / granularidad.value) * granularidad.value)
+  modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, timeToMinutes(modalHoraInicio.value)))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = CANTIDAD_MIN
@@ -148,50 +212,38 @@ function abrirModal(sala: Sala, inicioSugeridoMin: number) {
 }
 
 function onTimelineClick(sala: Sala, event: MouseEvent) {
+  if (diaCerrado.value) {
+    toast.error(textoDiaCerrado)
+    return
+  }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   const fraccion = (event.clientX - rect.left) / rect.width
   const minutoClickeado = aperturaMin.value + fraccion * totalMin.value
 
-  if (minutoClickeado < ahoraMin.value) {
-    toast.error('Esa hora ya pasó — elige un horario desde ahora en adelante, o usa "Reservar ahora".')
+  if (!atiende(minutoClickeado)) {
+    toast.error(textoFueraDeHorario.value)
     return
   }
-  if (disponibilidadDesde(sala, Math.ceil(minutoClickeado / granularidad.value) * granularidad.value) <= 0) {
+  if (minutoClickeado < ahoraMin.value) {
+    toast.error('Esa hora ya pasó: elige un horario desde ahora en adelante.')
+    return
+  }
+  // Se propone el bloque de media hora donde cayó el clic o, si ya empezó o está
+  // tomado, el siguiente.
+  const bloque = Math.floor(minutoClickeado / granularidad.value) * granularidad.value
+  const inicio = [bloque, bloque + granularidad.value]
+    .filter((m) => m >= ahoraMin.value)
+    .find((m) => disponibilidadDesde(sala, m) > 0)
+  if (inicio === undefined) {
     toast.error('Esa hora ya está ocupada en esta sala.')
     return
   }
 
-  abrirModal(sala, minutoClickeado)
-}
-
-function reservarAhora() {
-  const candidatas = filteredSalas.value
-    .map((s) => ({ sala: s, disponible: disponibilidadDesde(s, ahoraMin.value) }))
-    .filter((c) => c.disponible >= duracionMinima.value)
-    .sort((a, b) => b.disponible - a.disponible)
-
-  if (!candidatas.length) {
-    toast.error('No hay salas disponibles en este momento')
-    return
-  }
-
-  selectedSala.value = candidatas[0].sala
-  modalInmediata.value = true
-  modalHoraInicio.value = minutesToTime(ahoraMin.value)
-  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= candidatas[0].disponible)
-  modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = CANTIDAD_MIN
-  rutsReserva.value = Array.from({ length: CANTIDAD_MIN }, (_, idx) => (idx === 0 ? (auth.usuario?.rut ?? '') : ''))
-  rutErrores.value = {}
-  modalOpen.value = true
-
-  if (candidatas[0].disponible < duracionMaxima.value) {
-    toast.error(`Ninguna sala tiene ${formatMinutos(duracionMaxima.value)} libres ahora; ${candidatas[0].sala.nombre} está libre ${formatMinutos(candidatas[0].disponible)}`)
-  }
+  abrirModal(sala, inicio)
 }
 
 function onRutInput(index: number, event: Event) {
-  rutsReserva.value[index] = formatRut((event.target as HTMLInputElement).value)
+  rutsReserva.value[index] = formatearInputIdentificador(event)
   if (rutErrores.value[index]) {
     const restantes = { ...rutErrores.value }
     delete restantes[index]
@@ -211,7 +263,7 @@ function primerMensajeError(e: any): string | undefined {
 async function confirmarReserva() {
   if (!selectedSala.value) return
   if (rutsReserva.value.some((r) => !r.trim())) {
-    toast.error('Complete el RUT de cada persona')
+    toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
     return
   }
   enviando.value = true
@@ -221,10 +273,9 @@ async function confirmarReserva() {
       sala_id: selectedSala.value.id,
       fecha: hoy,
       hora_inicio: modalHoraInicio.value,
-      hora_fin: minutesToTime(Math.min(modalInicioMin.value + modalDuracion.value, cierreMin.value)),
+      hora_fin: minutesToTime(Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value)),
       cantidad_personas: cantidadPersonas.value,
       ruts: rutsReserva.value,
-      inmediata: modalInmediata.value,
     })
     toast.success(`${selectedSala.value.nombre} reservada de ${data.hora_inicio.slice(0, 5)} a ${data.hora_fin.slice(0, 5)}`)
     modalOpen.value = false
@@ -249,13 +300,21 @@ async function confirmarReserva() {
   }
 }
 
-async function cancelarPropia(tramo: TramoReserva) {
+const reservaPorCancelar = ref<{ sala: Sala; tramo: TramoReserva } | null>(null)
+const cancelando = ref(false)
+
+async function confirmarCancelacion() {
+  if (!reservaPorCancelar.value) return
+  cancelando.value = true
   try {
-    await apiUsuario.delete(`/mi/reservas/${tramo.reserva_id}`)
+    await apiUsuario.delete(`/mi/reservas/${reservaPorCancelar.value.tramo.reserva_id}`)
     toast.success('Reserva cancelada')
     await cargar()
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'No se pudo cancelar la reserva')
+  } finally {
+    cancelando.value = false
+    reservaPorCancelar.value = null
   }
 }
 </script>
@@ -285,6 +344,8 @@ async function cancelarPropia(tramo: TramoReserva) {
 
       <ApiErrorBanner v-if="apiError" />
 
+      <GuiaUso titulo="¿Cómo reservo una sala?" :pasos="pasosAyuda" :consejo="consejoAyuda" />
+
       <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
         <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -308,24 +369,61 @@ async function cancelarPropia(tramo: TramoReserva) {
         <p class="text-xs text-gray-400 sm:pb-2.5">
           Solo puedes reservar para <strong>hoy</strong>
         </p>
-        <button
-          @click="reservarAhora"
-          class="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shrink-0"
-        >
-          Reservar ahora
-        </button>
       </div>
 
       <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <p class="text-xs text-gray-400 mb-3">
-          Click en cualquier espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.
+        <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+          <p>{{ textoDiaCerrado }}</p>
+        </div>
+        <div v-else-if="horarioReducido" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p>{{ textoFueraDeHorario }}</p>
+        </div>
+        <p v-if="!diaCerrado" class="text-xs text-gray-400">
+          Toca o haz clic en un espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.
         </p>
-        <div class="flex text-[10px] font-medium text-gray-400 mb-2 px-[112px] justify-between">
-          <span v-for="h in [8, 10, 12, 14, 16, 18, 20]" :key="h">{{ String(h).padStart(2, '0') }}:00</span>
+        <p class="md:hidden mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600">
+          Desliza hacia el lado para ver todas las horas
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </p>
+        <!-- En pantallas angostas la línea de tiempo se desliza de lado y el nombre de la sala queda fijo. -->
+        <div ref="lineaTiempo" class="mt-3 overflow-x-auto">
+        <div class="min-w-[720px] md:min-w-0">
+        <div v-if="!diaCerrado && nowPct > 0 && nowPct < 100" class="flex items-end mb-1">
+          <div class="w-[112px] shrink-0 self-stretch sticky left-0 z-30 bg-white"></div>
+          <div class="relative h-7 flex-1">
+            <span
+              class="absolute top-0 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm whitespace-nowrap"
+              :class="alineacionAhora"
+              :style="{ left: nowPct + '%' }"
+            >
+              Ahora · {{ horaActual }}
+            </span>
+            <span class="absolute bottom-0 h-2 w-[3px] -ml-px rounded-full bg-indigo-600" :style="{ left: nowPct + '%' }"></span>
+          </div>
+        </div>
+        <div class="flex items-center mb-2">
+          <div class="w-[112px] shrink-0 self-stretch sticky left-0 z-30 bg-white"></div>
+          <div class="relative h-4 flex-1 text-[10px] font-medium text-gray-400">
+            <span
+              v-for="h in horasRotuladas"
+              :key="h"
+              class="absolute"
+              :class="pct(`${h}:00`) < 3 ? '' : '-translate-x-1/2'"
+              :style="{ left: pct(`${h}:00`) + '%' }"
+            >{{ String(h).padStart(2, '0') }}:00</span>
+          </div>
         </div>
         <div class="space-y-2.5">
-          <div v-for="sala in filteredSalas" :key="sala.id" class="flex items-center gap-3">
-            <div class="w-[100px] shrink-0">
+          <div v-for="sala in filteredSalas" :key="sala.id" class="flex items-center">
+            <div class="w-[112px] shrink-0 self-stretch pr-3 flex flex-col justify-center sticky left-0 z-30 bg-white">
               <div class="font-medium text-sm text-gray-900 truncate">{{ sala.nombre }}</div>
               <div class="text-xs text-gray-400">{{ sala.capacidad }} personas</div>
             </div>
@@ -335,47 +433,55 @@ async function cancelarPropia(tramo: TramoReserva) {
             >
               <div class="absolute inset-0 flex pointer-events-none">
                 <div
-                  v-for="h in [10, 12, 14, 16, 18, 20]"
+                  v-for="h in horasIntermedias"
                   :key="h"
-                  class="absolute inset-y-0 border-l border-emerald-900/[0.06]"
+                  class="absolute inset-y-0 border-l"
+                  :class="h % 2 === 0 ? 'border-emerald-900/[0.09]' : 'border-emerald-900/[0.05]'"
                   :style="{ left: pct(`${h}:00`) + '%' }"
                 />
               </div>
+              <div v-if="pctPasado > 0" class="absolute inset-y-0 left-0 franja-pasada pointer-events-none" :style="{ width: pctPasado + '%' }" />
+              <div v-if="pctTrasCierre > 0" class="absolute inset-y-0 right-0 franja-pasada pointer-events-none" :style="{ width: pctTrasCierre + '%' }" />
               <p
-                v-if="!sala.tramos.length"
-                class="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-emerald-700/60 group-hover:text-emerald-700 pointer-events-none transition-colors"
+                v-if="!sala.tramos.length && 100 - pctPasado - pctTrasCierre > 12"
+                class="absolute inset-y-0 flex items-center justify-center text-[11px] font-medium text-emerald-700/60 group-hover:text-emerald-700 pointer-events-none transition-colors"
+                :style="{ left: pctPasado + '%', right: pctTrasCierre + '%' }"
               >
                 + Click para reservar
               </p>
-              <div class="absolute inset-y-0 left-0 bg-gray-500/[0.06] pointer-events-none" :style="{ width: nowPct + '%' }" />
               <div
-                v-for="tramo in sala.tramos"
+                v-for="tramo in sala.tramos.filter((t) => posicionTramo(t.hora_inicio, t.hora_fin).visible)"
                 :key="tramo.reserva_id"
                 class="absolute inset-y-1 border flex items-center justify-center text-[10px] font-semibold overflow-hidden whitespace-nowrap shadow-sm hover:shadow-md hover:z-20 hover:scale-y-105 transition-all"
                 :class="[esMia(tramo) ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-red-100 border-red-300 text-red-700', anchoTramoPct(tramo) < 6 ? 'rounded-full' : 'rounded-lg px-1.5']"
-                :style="{ left: pct(tramo.hora_inicio) + '%', width: anchoTramoPct(tramo) + '%' }"
-                :title="`${tramo.hora_inicio.slice(0, 5)} – ${tramo.hora_fin.slice(0, 5)}${esMia(tramo) ? ' · tu reserva' : ''}`"
+                :style="{ left: posicionTramo(tramo.hora_inicio, tramo.hora_fin).izquierda + '%', width: anchoTramoPct(tramo) + '%' }"
+                :title="`${tramo.hora_inicio.slice(0, 5)} – ${tramo.hora_fin.slice(0, 5)}${esMia(tramo) ? ' · tu reserva (clic para cancelar)' : ''}`"
               >
-                <button v-if="esMia(tramo)" @click.stop="cancelarPropia(tramo)" class="hover:underline w-full h-full flex items-center justify-center">
-                  <span v-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }} (cancelar)</span>
+                <button v-if="esMia(tramo)" @click.stop="reservaPorCancelar = { sala, tramo }" class="hover:underline w-full h-full flex items-center justify-center">
+                  <span v-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }}<template v-if="anchoTramoPct(tramo) >= 13"> (cancelar)</template></span>
                   <span v-else>×</span>
                 </button>
                 <span v-else-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }}</span>
               </div>
               <div
+                v-if="!diaCerrado"
                 class="absolute inset-y-0 w-[3px] -ml-px bg-indigo-600 pointer-events-none rounded-full shadow-[0_0_0_2px_rgba(79,70,229,0.15)]"
                 :style="{ left: nowPct + '%' }"
               />
             </div>
           </div>
-          <p v-if="!filteredSalas.length" class="text-sm text-gray-400 text-center py-6">Sin salas que coincidan con la búsqueda.</p>
         </div>
+        </div>
+        </div>
+        <p v-if="!filteredSalas.length" class="text-sm text-gray-400 text-center py-6">Sin salas que coincidan con la búsqueda.</p>
       </div>
 
       <div class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 text-xs text-gray-500">
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded border border-emerald-200 bg-emerald-50" /> Disponible (click para reservar)</div>
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded border border-indigo-300 bg-indigo-100" /> Tu reserva</div>
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded border border-red-300 bg-red-100" /> Ocupada</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full border border-red-300 bg-red-100" /> Reserva de 30 min</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded franja-pasada border border-slate-200" /> Ya pasó o fuera de horario</div>
       </div>
 
       <div
@@ -392,15 +498,11 @@ async function cancelarPropia(tramo: TramoReserva) {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Inicio</label>
                 <select
-                  v-if="!modalInmediata"
                   v-model="modalHoraInicio"
                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
                   <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
                 </select>
-                <div v-else class="px-3 py-2.5 border border-gray-200 bg-gray-50 rounded-lg text-gray-600 font-mono text-sm">
-                  Ahora ({{ modalHoraInicio }})
-                </div>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
@@ -431,7 +533,7 @@ async function cancelarPropia(tramo: TramoReserva) {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="block text-sm font-medium text-gray-700">RUT de cada persona</label>
+              <label class="block text-sm font-medium text-gray-700">RUT de cada persona <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span></label>
               <p class="text-xs text-gray-400 -mt-1 mb-1">Deben ser RUT de usuarios registrados en el sistema</p>
               <div v-for="(_, idx) in rutsReserva" :key="idx">
                 <input
@@ -439,8 +541,10 @@ async function cancelarPropia(tramo: TramoReserva) {
                   @input="onRutInput(idx, $event)"
                   type="text"
                   :placeholder="`RUT persona ${idx + 1}`"
-                  maxlength="12"
-                  class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none"
+                  :readonly="idx === 0 && !!auth.usuario?.rut"
+                  :title="idx === 0 && auth.usuario?.rut ? 'Tu RUT: quien reserva siempre va en el grupo' : undefined"
+                  maxlength="20"
+                  class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none read-only:bg-gray-50 read-only:text-gray-600"
                   :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
                 />
                 <p v-if="rutErrores[idx]" class="text-xs text-red-600 mt-1">{{ rutErrores[idx] }}</p>
@@ -466,5 +570,22 @@ async function cancelarPropia(tramo: TramoReserva) {
         </div>
       </div>
     </div>
+
+    <DialogoConfirmacion
+      :abierto="reservaPorCancelar !== null"
+      titulo="¿Cancelar tu reserva?"
+      confirmar="Sí, cancelar"
+      cancelar="No, mantener"
+      tono="peligro"
+      :cargando="cancelando"
+      @confirmar="confirmarCancelacion"
+      @cancelar="reservaPorCancelar = null"
+    >
+      <p v-if="reservaPorCancelar">
+        Se liberará <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
+        <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>
+        y quedará disponible para otras personas.
+      </p>
+    </DialogoConfirmacion>
   </PortalLayout>
 </template>

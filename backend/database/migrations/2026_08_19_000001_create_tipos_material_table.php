@@ -46,7 +46,7 @@ return new class extends Migration
             DB::table('libros')->where('tipo_material', $valorTexto)->update(['tipo_material_id' => $tipoId]);
         }
 
-        DB::statement('ALTER TABLE libros DROP CONSTRAINT IF EXISTS chk_libros_tipo_material');
+        DB::statement('ALTER TABLE libros DROP CONSTRAINT chk_libros_tipo_material');
 
         Schema::table('libros', function (Blueprint $table) {
             $table->dropColumn('tipo_material');
@@ -60,9 +60,9 @@ return new class extends Migration
         });
 
         DB::statement('
-            UPDATE libros SET tipo_material = LOWER(tipos_material.nombre)
-            FROM tipos_material
-            WHERE tipos_material.id = libros.tipo_material_id
+            UPDATE libros
+            JOIN tipos_material ON tipos_material.id = libros.tipo_material_id
+            SET libros.tipo_material = LOWER(tipos_material.nombre)
         ');
 
         Schema::table('libros', function (Blueprint $table) {

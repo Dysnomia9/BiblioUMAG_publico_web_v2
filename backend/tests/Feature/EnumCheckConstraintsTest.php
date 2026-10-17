@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Ejemplar;
 use App\Models\Equipo;
 use App\Models\Libro;
+use App\Models\Multa;
 use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\ReservaLibro;
@@ -35,16 +36,22 @@ class EnumCheckConstraintsTest extends TestCase
         Prestamo::factory()->create(['tipo_item' => 'invalido']);
     }
 
-    public function test_prestamos_multa_estado_invalido_falla_a_nivel_de_base_de_datos(): void
+    public function test_multas_estado_invalido_falla_a_nivel_de_base_de_datos(): void
     {
         $this->expectException(QueryException::class);
-        Prestamo::factory()->create(['multa_estado' => 'invalido']);
+        Multa::factory()->create(['estado' => 'invalido']);
     }
 
-    public function test_prestamos_multa_estado_nulo_es_valido(): void
+    public function test_multas_tipo_invalido_falla_a_nivel_de_base_de_datos(): void
     {
-        $prestamo = Prestamo::factory()->create(['multa_estado' => null]);
-        $this->assertNull($prestamo->multa_estado);
+        $this->expectException(QueryException::class);
+        Multa::factory()->create(['tipo' => 'invalido']);
+    }
+
+    public function test_multas_monto_cero_falla_a_nivel_de_base_de_datos(): void
+    {
+        $this->expectException(QueryException::class);
+        Multa::factory()->create(['monto' => 0]);
     }
 
     public function test_ejemplares_estado_proceso_invalido_falla_a_nivel_de_base_de_datos(): void

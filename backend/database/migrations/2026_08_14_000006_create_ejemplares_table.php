@@ -9,8 +9,7 @@ use Illuminate\Support\Facades\Schema;
  * Separa la copia física ("ejemplar") del registro bibliográfico ("libro" —
  * ver siguientes migraciones de esta tanda, que le quitan a `libros` las
  * columnas que se mudan aquí). Antes 1 fila `libros` = 1 copia física, sin
- * soportar múltiples copias del mismo título (ver checklist de Horizon en
- * CLAUDE.md, punto "Gestión de ejemplares"). Ahora un `libro` puede tener
+ * soportar múltiples copias del mismo título. Ahora un `libro` puede tener
  * N `ejemplares`, cada uno con su propio código de barras y estado.
  */
 return new class extends Migration

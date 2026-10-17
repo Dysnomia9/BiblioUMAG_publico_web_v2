@@ -31,4 +31,10 @@ class Equipo extends Model
     {
         return $this->hasMany(Prestamo::class);
     }
+
+    /** `tipo` es la clave de su categoría de recurso de apoyo (bicicleta, notebook…). */
+    public function categoria()
+    {
+        return $this->belongsTo(CategoriaRecurso::class, 'tipo', 'clave');
+    }
 }

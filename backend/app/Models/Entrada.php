@@ -15,6 +15,8 @@ class Entrada extends Model
         'usuario_id',
         'registrado_por_staff_id',
         'rut_externo',
+        'tipo_documento_externo',
+        'pais_externo',
         'nombre_externo',
         'fecha_hora_entrada',
         'fecha_hora_salida',
@@ -41,6 +43,6 @@ class Entrada extends Model
 
     public function registradoPorStaff()
     {
-        return $this->belongsTo(Staff::class, 'registrado_por_staff_id');
+        return $this->belongsTo(Staff::class, 'registrado_por_staff_id')->withTrashed();
     }
 }

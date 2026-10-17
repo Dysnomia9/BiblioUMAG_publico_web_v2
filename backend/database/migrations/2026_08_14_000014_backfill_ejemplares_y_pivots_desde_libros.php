@@ -71,17 +71,19 @@ return new class extends Migration
         // Backfill de FK: join 1:1 por libro_id (recién creado arriba, un solo
         // ejemplar por libro en este punto de la migración).
         DB::statement('
-            UPDATE prestamos SET ejemplar_id = e.id
-            FROM ejemplares e
-            WHERE e.libro_id = prestamos.libro_id AND prestamos.libro_id IS NOT NULL
+            UPDATE prestamos
+            JOIN ejemplares e ON e.libro_id = prestamos.libro_id
+            SET prestamos.ejemplar_id = e.id
+            WHERE prestamos.libro_id IS NOT NULL
         ');
 
         // 'en_cola' nunca tuvo copia física asignada — se deja ejemplar_id null a
         // propósito, igual que en el diseño nuevo de ReservaLibroService.
         DB::statement("
-            UPDATE reservas_libro SET ejemplar_id = e.id
-            FROM ejemplares e
-            WHERE e.libro_id = reservas_libro.libro_id AND reservas_libro.estado <> 'en_cola'
+            UPDATE reservas_libro
+            JOIN ejemplares e ON e.libro_id = reservas_libro.libro_id
+            SET reservas_libro.ejemplar_id = e.id
+            WHERE reservas_libro.estado <> 'en_cola'
         ");
     }
 

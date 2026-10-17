@@ -37,10 +37,22 @@ export function formatRut(value: string): string {
   return dv ? `${formatted}-${dv}` : formatted
 }
 
+/**
+ * Para el @input de un campo de RUT: formatea lo escrito y deja el campo igual al valor
+ * formateado. Si el valor no cambia (p. ej., al teclear el guion), Vue no repinta el campo
+ * y quedaría el carácter de más, que con maxlength impide escribir el dígito verificador.
+ */
+export function formatearInputRut(event: Event): string {
+  const input = event.target as HTMLInputElement
+  const valor = formatRut(input.value)
+  input.value = valor
+  return valor
+}
+
 export function cleanRut(rut: string): string {
   return rut.replace(/\./g, '').replace('-', '').toUpperCase()
 }
 
 export function useRut() {
-  return { calcularDV, validarRut, formatRut, cleanRut }
+  return { calcularDV, validarRut, formatRut, formatearInputRut, cleanRut }
 }

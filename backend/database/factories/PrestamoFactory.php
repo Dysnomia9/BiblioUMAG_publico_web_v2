@@ -25,10 +25,6 @@ class PrestamoFactory extends Factory
             'estado' => 'activo',
             'prestado_por' => null,
             'devuelto_por' => null,
-            'multa_monto' => null,
-            'multa_estado' => null,
-            'multa_pagada_en' => null,
-            'multa_pagada_por' => null,
         ];
     }
 }

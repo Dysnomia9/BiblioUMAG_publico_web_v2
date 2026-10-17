@@ -14,17 +14,20 @@
 \usepackage{enumitem}
 \usepackage[most]{tcolorbox}
 \usepackage{booktabs}
+\usepackage{tabularx}
 \usepackage{caption}
 \usepackage{needspace}
+\usepackage{etoolbox}
+\usepackage{amssymb}
 \usepackage{hyperref}
 
-% ---------- Paleta institucional (igual a la app) ----------
+% ---------- Paleta institucional (la misma de la app: docs/estilo-visual.md) ----------
+% Morados del degradado de la barra superior y dorado de la pestaña activa.
 \definecolor{umagpurple}{HTML}{3B28A3}
 \definecolor{umagpurpledark}{HTML}{2D1B69}
-\definecolor{umaggold}{HTML}{B5852C}
-\definecolor{umaggreen}{HTML}{3C5A3B}
+\definecolor{umaggold}{HTML}{B08D57}
 \definecolor{umaggray}{HTML}{4B5563}
-\definecolor{cajafondo}{HTML}{F4F6F4}
+\definecolor{cajafondo}{HTML}{F8FAFC}
 
 \hypersetup{
   colorlinks=true,
@@ -65,6 +68,9 @@
   {\normalfont\Large\bfseries\color{umagpurpledark}}{\thesection}{0.6em}{}
 \titleformat{\subsection}
   {\normalfont\large\bfseries\color{umagpurple}}{\thesubsection}{0.6em}{}
+% Un título de sección no queda solo al pie de la página: si no caben él,
+% su etiqueta de permiso y unas líneas de texto, pasa a la página siguiente.
+\pretocmd{\section}{\needspace{7\baselineskip}}{}{}
 
 % ---------- Cajas reutilizables ----------
 \newtcolorbox{nota}{
@@ -78,11 +84,15 @@
   fonttitle=\bfseries, title={Importante},
 }
 % Etiqueta compacta (no una caja que envuelve contenido) para marcar una
-% subsección completa como exclusiva de Administrador, sin arriesgar que una
+% sección que solo ven los roles con cierto permiso, sin arriesgar que una
 % tcolorbox con una captura de pantalla adentro desborde el alto de la página.
-\newcommand{\soloadmin}{%
+% \requierepermiso{nombre del permiso, tal como aparece en Personal y Roles}
+\newtcbox{\etiquetapermiso}{on line, colback=umagpurple, colframe=umagpurple,
+  coltext=white, boxrule=0pt, arc=0pt, left=4pt, right=4pt, top=2pt, bottom=2pt,
+  fontupper=\bfseries\small}
+\newcommand{\requierepermiso}[1]{%
   \needspace{3\baselineskip}%
-  \noindent\colorbox{red!70!black}{\makebox[0.3\textwidth][c]{\strut\color{white}\bfseries\small SOLO ADMINISTRADOR}}\par\vspace{4pt}%
+  \par\noindent\etiquetapermiso{REQUIERE PERMISO: #1}\par\vspace{6pt}%
 }
 
 % ---------- Comando para insertar capturas de pantalla ----------
@@ -137,7 +147,7 @@
 \end{tcolorbox}
 
 \vspace{1cm}
-{\color{umaggray} Versión del documento: agosto de 2026}
+{\color{umaggray} Versión del documento: septiembre de 2026}
 
 \vspace{1cm}
 \end{titlepage}
@@ -156,8 +166,9 @@ Cubre las dos formas de acceder al sistema:
 
 \begin{itemize}
   \item El \textbf{panel de personal}, usado por quienes trabajan en la
-  biblioteca (bibliotecarios y administradores) para atender préstamos,
-  registrar entradas, gestionar el catálogo, generar reportes, etc.
+  biblioteca (asistentes de mesón, bibliotecarios y administradores) para
+  atender préstamos, registrar entradas, gestionar el catálogo, generar
+  reportes, etc.
   \item El \textbf{portal del usuario}, un sitio de autoservicio donde
   estudiantes, docentes y funcionarios pueden marcar su propia entrada,
   consultar el catálogo, reservar salas de estudio y descargar su
@@ -169,10 +180,11 @@ acompañada de capturas de pantalla reales y una explicación de qué hace
 cada botón, campo o filtro.
 
 \begin{nota}
-Las secciones marcadas con el recuadro \textbf{``Solo Administrador''}
-solo están disponibles para el personal con rol de \textit{Administrador}.
-El personal con rol \textit{Staff} (bibliotecario) no verá esas opciones
-en su menú.
+Las secciones marcadas con el recuadro \textbf{``Requiere permiso''} solo
+aparecen para las cuentas cuyo rol incluye ese permiso. Qué incluye cada
+rol se puede ajustar (sección~\ref{cap:personal-roles}); los roles que
+trae el sistema de fábrica se resumen en la
+sección~\ref{sec:roles}.
 \end{nota}
 
 \section{Requisitos}
@@ -222,21 +234,100 @@ desde la misma página de login, con un diseño alternativo. Cumple
 exactamente la misma función; es solo una opción visual distinta.
 \end{nota}
 
-\section{Roles de personal: Staff y Administrador}
+\section{Roles del personal}
+\label{sec:roles}
 
-Cada cuenta de personal tiene un rol asignado:
+Cada persona que atiende tiene \textbf{su propia cuenta}, y cada cuenta
+tiene un \textbf{rol}. El rol define qué módulos aparecen en el menú y qué
+botones se pueden usar. El sistema trae tres roles de fábrica:
 
 \begin{itemize}
-  \item \textbf{Staff (bibliotecario):} puede operar el día a día ---
-  registrar entradas, prestar y devolver libros/equipos, gestionar
-  reservas de salas, y consultar la mayoría de los listados y reportes.
-  \item \textbf{Administrador:} tiene acceso a todo lo anterior, más los
-  módulos sensibles: catalogar libros nuevos, cambios masivos de estado,
-  gestión de equipos, configuración institucional y el Registro Absoluto.
+  \item \textbf{Atención de público:} el personal de mesón. Registra
+  entradas, presta y recibe libros y equipos, y reserva salas. Puede
+  consultar usuarios, multas y listados, pero no cataloga, no cambia
+  estados de libros ni la configuración.
+  \item \textbf{Bibliotecario/a:} lo anterior, más los procesos técnicos y
+  la supervisión: catalogación, estados de libros (incluida la baja),
+  cambio masivo, equipos, cobro y anulación de multas, historiales y
+  reportes.
+  \item \textbf{Administrador/a:} acceso total, incluidos el Registro
+  Absoluto, la configuración institucional, los catálogos del sistema y
+  las cuentas y roles del personal.
 \end{itemize}
 
-Si intentas entrar a una sección exclusiva de Administrador sin tener ese
-rol, el sistema te redirige de vuelta al panel principal.
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}Xccc@{}}
+\toprule
+\textbf{Qué se puede hacer} & \textbf{\shortstack{Atención\\de público}} & \textbf{Bibliotecario/a} & \textbf{Administrador/a} \\
+\midrule
+Registrar entradas & \checkmark & \checkmark & \checkmark \\
+Préstamos, devoluciones y reservas de libros & \checkmark & \checkmark & \checkmark \\
+Salas de estudio & \checkmark & \checkmark & \checkmark \\
+Consultar usuarios y Constancia de No Multa & \checkmark & \checkmark & \checkmark \\
+Ver multas & \checkmark & \checkmark & \checkmark \\
+Listados de préstamos y de libros & \checkmark & \checkmark & \checkmark \\
+Mostrar el código QR de acceso & \checkmark & \checkmark & \checkmark \\
+Reservar salas en horas ya pasadas & --- & \checkmark & \checkmark \\
+Registrar pagos, cursar y anular multas & --- & \checkmark & \checkmark \\
+Catalogar libros e imprimir etiquetas de código & --- & \checkmark & \checkmark \\
+Cambiar el estado de un libro (incluida la baja) & --- & \checkmark & \checkmark \\
+Cambio masivo de estado & --- & \checkmark & \checkmark \\
+Administrar equipos & --- & \checkmark & \checkmark \\
+Historiales y reportes & --- & \checkmark & \checkmark \\
+Regenerar el código QR & --- & \checkmark & \checkmark \\
+Registro Absoluto & --- & --- & \checkmark \\
+Configuración institucional y catálogos & --- & --- & \checkmark \\
+Cuentas y roles del personal & --- & --- & \checkmark \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Un administrador puede cambiar qué incluye cada rol o crear roles nuevos
+(por ejemplo, ``Ayudante de sala'') desde \textbf{Personal y Roles}
+(sección~\ref{cap:personal-roles}). Tu rol aparece en el Panel Principal
+y bajo tu nombre, en la barra superior.
+
+Si intentas abrir un módulo que tu rol no incluye (por ejemplo, escribiendo
+su dirección a mano), el sistema te devuelve al Panel Principal con un
+aviso.
+
+\section{Cambiar mi contraseña}
+
+En la barra superior, pulsa tu nombre (la burbuja con tus iniciales,
+arriba a la derecha) y elige \textbf{Cambiar mi contraseña}: se pide la
+actual y dos veces la nueva (mínimo 8 caracteres). Al pulsar \textbf{Guardar}, el
+sistema pide confirmar el cambio; al confirmarlo se cierran tus otras
+sesiones abiertas, por ejemplo en otro computador.
+
+\captura{31-cambiar-contrasena.png}{Formulario para cambiar la propia contraseña, desde el menú de tu cuenta.}
+
+Si olvidaste tu contraseña, pide a un administrador que la restablezca
+desde Personal y Roles.
+
+\begin{nota}
+Las acciones que cambian datos importantes ---cerrar sesión, cambiar
+contraseñas, roles o permisos, cursar multas, liberar o cancelar
+reservas, dar de baja equipos o exportar a Excel--- piden confirmación
+antes de aplicarse, con un resumen de lo que va a pasar. \textbf{Cancelar}
+no cambia nada.
+\end{nota}
+
+\begin{nota}
+Las búsquedas por título, autor o nombre no distinguen tildes, ñ ni
+mayúsculas: ``calculo'' encuentra ``Cálculo I'' y ``munoz'', ``Muñoz''.
+\end{nota}
+
+\section{Guía ``¿Cómo se usa esta pantalla?''}
+
+Las pantallas de uso diario tienen un botón con los pasos básicos de esa
+pantalla, pensados para personal nuevo: \textbf{¿Cómo se usa?}, arriba a
+la derecha en Entradas y Préstamos, o \textbf{¿Cómo se usa esta
+pantalla?}, bajo el título, en las demás. Al pulsarlo se despliegan los
+pasos; con \textbf{Ocultar} se vuelven a esconder. Cada vez que se entra a
+la pantalla, la guía aparece cerrada.
+
+\captura{32-guia-uso.png}{Guía de uso desplegada en la pantalla de Préstamos.}
 
 % ======================================================================
 \chapter{Panel Principal (Inicio)}
@@ -247,18 +338,35 @@ ver de un vistazo cuántas personas hay en la biblioteca en este momento y
 cuántas entradas se registraron hoy, además de accesos rápidos a los
 módulos más usados.
 
-\captura{02-dashboard.png}{Panel Principal, con indicadores del día y accesos rápidos.}
+\captura{02-dashboard.png}{Panel Principal, con indicadores del día, tu rol y accesos rápidos.}
 
 \begin{itemize}
   \item \textbf{Personas en biblioteca:} cantidad de entradas registradas
   hoy (el sistema no distingue si la persona ya se retiró; es un conteo
   de ingresos del día, no de ocupación en tiempo real).
   \item \textbf{Entradas hoy:} total de registros de entrada del día.
-  \item \textbf{Accesos rápidos:} atajos directos a Registrar Entrada,
-  Préstamos, Reservar Logia y Reportes. Cada tarjeta indica también el
-  atajo de teclado correspondiente (por ejemplo, \texttt{F1} para
-  Registrar Entrada).
+  \item \textbf{Tu rol:} el rol de tu cuenta (sección~\ref{sec:roles}).
+  \item \textbf{Accesos rápidos:} atajos a Registrar Entrada, Préstamos,
+  Reservar Logia y Reportes, solo los que tu rol puede abrir. Cada
+  tarjeta indica su atajo de teclado: \texttt{F1} Entradas, \texttt{F2}
+  Préstamos, \texttt{F3} Salas y \texttt{F4} Reportes. Los atajos
+  funcionan desde cualquier pantalla del panel.
 \end{itemize}
+
+\section{La barra superior}
+
+La barra morada de arriba aparece en todas las pantallas del panel. De
+izquierda a derecha tiene: el logo con la etiqueta \textbf{ADMIN} (vuelve
+al Panel Principal); al centro, \textbf{Inicio} y los módulos principales
+con su atajo de teclado; el botón \textbf{Gestión}
+(capítulo~\ref{cap:gestion}), y tu burbuja, con tus iniciales, tu nombre
+y tu rol. Al pulsarla se abre el menú de tu cuenta, con \textbf{Cambiar mi
+contraseña} y \textbf{Cerrar sesión}, que pide confirmación antes de
+salir. El módulo en el que estás aparece resaltado en dorado.
+
+En pantallas angostas (celular o tablet vertical) los módulos se reúnen en
+un solo botón \textbf{Menú}, que muestra el nombre del módulo actual y
+abre el mismo menú de gestión con los módulos principales arriba.
 
 % ======================================================================
 \chapter{Registro de Entradas}
@@ -266,29 +374,37 @@ módulos más usados.
 
 Este módulo permite marcar el ingreso de una persona a la biblioteca ---
 ya sea un usuario institucional (estudiante, docente o funcionario), un
-visitante externo, una persona de convenio, o una visita puntual.
+visitante externo o una visita puntual.
 
-\captura{03-entradas.png}{Registro de Entradas, con el listado del día.}
+\requierepermiso{Registrar entradas}
+
+\captura{03-entradas.png}{Registro de entrada: el RUT de quien entra, el resumen de hoy y las entradas del día.}
+
+El botón \textbf{¿Cómo se usa?}, arriba a la derecha, despliega los pasos
+para el personal nuevo.
 
 \section{Cómo registrar una entrada, paso a paso}
 
-Se escribe el RUT en el campo de búsqueda, \textbf{con puntos y guión}
-(por ejemplo \texttt{15.003.151-6}) --- el sistema no exige un formato
-exacto de tipeo, pero conviene escribirlo completo para evitar errores.
+Se escribe el RUT en la casilla de \textbf{Registro de entrada}. Los puntos y el guion se agregan solos mientras se
+escribe (por ejemplo \texttt{15.003.151-6}).
 
-\captura{03-entradas-rut-lleno.png}{RUT escrito en el campo de búsqueda, listo para registrar.}
+\captura{03-entradas-rut-lleno.png}{RUT escrito en el recuadro, listo para registrar.}
 
-Al hacer clic en \textbf{Registrar Entrada}, el sistema valida que el
-RUT corresponda a un usuario activo y, si todo está bien, confirma con
-un aviso verde y agrega la fila al historial del día de inmediato --- sin
-recargar la página.
+Al presionar \texttt{Enter} (o el botón \textbf{Registrar}), el
+sistema valida que el RUT corresponda a un usuario activo y, si todo está
+bien, confirma con un aviso verde y agrega la fila a las entradas de hoy
+de inmediato --- sin recargar la página. La entrada queda a nombre de
+quien la atendió, y el recuadro queda vacío y listo para la siguiente
+persona.
 
-\captura{03b-entradas-registrada.png}{Confirmación tras registrar: aviso verde con el nombre de la persona y la fila nueva en el historial.}
+\captura{03b-entradas-registrada.png}{Confirmación tras registrar: aviso verde con el nombre de la persona y la fila nueva en las entradas de hoy.}
 
 \begin{nota}
 Si el RUT no corresponde a ningún usuario, o el usuario está inactivo, el
-sistema rechaza el registro y muestra el motivo --- no hay forma de
-``forzar'' una entrada con un RUT inválido desde esta pantalla.
+sistema rechaza el registro y explica el motivo bajo el recuadro --- no hay
+forma de ``forzar'' una entrada con un RUT inválido. Si la persona no es
+de la universidad, se registra con el botón \textbf{Registrar visitante
+externo}.
 \end{nota}
 
 \section{Tipos de entrada}
@@ -297,22 +413,70 @@ sistema rechaza el registro y muestra el motivo --- no hay forma de
   \item \textbf{Entrada normal (RUT):} para estudiantes, docentes y
   funcionarios ya registrados en el sistema. Se ingresa el RUT y el
   sistema valida que la persona exista y esté activa.
-  \item \textbf{Externo:} para visitantes que no pertenecen a la
-  universidad. Se registra su RUT y nombre tal como los declaran, sin
-  validarlos contra ninguna base de datos.
-  \item \textbf{Convenio:} mismo flujo que Externo, pero para personas
-  que ingresan por un convenio institucional. Queda marcada con una
-  etiqueta ``Convenio'' distinta, para fines de reportería.
-  \item \textbf{Visita:} mismo flujo que Externo, para visitas puntuales
-  (por ejemplo, una comitiva o un tour). Queda marcada con una etiqueta
-  ``Visita''.
+  \item \textbf{Visitante externo:} para quienes no pertenecen a la
+  universidad. El botón \textbf{Registrar visitante externo} abre una
+  ventana donde se elige el tipo de ingreso:
+  \begin{itemize}
+    \item \textbf{Externo:} una persona que no es de la universidad. Se
+    registra su RUT y, si se quiere, su nombre, tal como los declara.
+    \item \textbf{Visita:} una delegación o un colegio (por ejemplo, una
+    comitiva o un tour). Queda marcada como ``Visita'' y se cuenta aparte
+    en los reportes.
+  \end{itemize}
 \end{itemize}
 
+\captura{03c-entradas-externo.png}{Ventana de Registrar visitante externo, con la opción Visita.}
+
+\section{Hoy en la biblioteca}
+
+El recuadro de la derecha resume el día de hoy, aunque abajo se esté
+mirando otro:
+
+\begin{itemize}
+  \item Cuántas \textbf{personas distintas} marcaron su entrada hoy, frente
+  al aforo de la biblioteca (220), con una barra de ocupación. Como el
+  sistema no registra salidas, no es la cantidad de personas que están
+  adentro en este momento.
+  \item Las \textbf{entradas de hoy} ---una persona que sale y vuelve a
+  entrar cuenta dos veces---, y cuántas fueron \textbf{por QR}, por el
+  \textbf{portal digital} y \textbf{manuales}.
+  \item Si la biblioteca está abierta («Abierta · cierra a las 20:30») o
+  cuándo vuelve a abrir.
+\end{itemize}
+
+\section{Entradas del día}
+
+Abajo están las entradas del día, de la más reciente a la más antigua, con
+la hora, la persona, su RUT, su tipo (estudiante, docente, funcionario,
+externo o visita) y la vía: \textbf{Manual} (registrada en mesón),
+\textbf{Portal digital} (marcada por la persona con su RUT desde el
+portal) o \textbf{QR} (escaneada por la persona desde su celular). Las flechas junto a
+la fecha cambian de día ---al pulsar la fecha se elige otra en el
+calendario--- y \textbf{Hoy} vuelve al día actual. Se muestran de a diez,
+con páginas al pie.
+
+\begin{itemize}
+  \item El buscador filtra por nombre o RUT (con o sin puntos), sin
+  importar las tildes.
+  \item \textbf{Todas}, \textbf{Manual}, \textbf{QR} y \textbf{Externo}
+  filtran según cómo entró la persona.
+  \item La columna \textbf{Nota} dice la cuántas es esa entrada de la
+  persona en el día. Si volvió a entrar a menos de diez minutos de la
+  anterior, la nota sale en ámbar: puede ser un escaneo repetido.
+  \item El botón de tres puntos de cada fila lleva a \textbf{Ver todas sus
+  entradas} y, si es un usuario registrado, a \textbf{Ver sus préstamos}.
+\end{itemize}
+
+Para saber cuándo vino alguien en otros días, se escribe su nombre o RUT en
+el buscador y se pulsa \textbf{Buscar en todas las fechas}: el listado pasa
+a mostrar todo su historial, con la fecha de cada entrada, y se puede
+acotar con \textbf{Desde} y \textbf{Hasta}. \textbf{Volver a hoy} regresa
+al día actual.
+
 \begin{nota}
-El listado de esta pantalla muestra las entradas de \textbf{un solo día a
-la vez}. Para consultar el historial de un usuario a través de varios
-días, o buscar por RUT, se usa el módulo \textbf{Registro Absoluto} (solo
-Administrador, ver capítulo~\ref{cap:registro-absoluto}).
+Para ver todo lo que hizo una persona (entradas, préstamos y reservas
+juntos) existe además el \textbf{Registro Absoluto}
+(sección~\ref{cap:registro-absoluto}).
 \end{nota}
 
 % ======================================================================
@@ -321,30 +485,76 @@ Administrador, ver capítulo~\ref{cap:registro-absoluto}).
 
 Este es uno de los módulos más usados del sistema: permite prestar
 libros y equipos (audífonos, notebooks, cargadores), registrar
-devoluciones, cobrar multas y reservar libros para retiro.
+devoluciones y reservar libros para retiro.
+
+\requierepermiso{Préstamos y devoluciones}
 
 \section{Buscar al usuario}
 
-Todo comienza buscando al usuario por su RUT.
+Todo comienza en el recuadro \textbf{RUT del usuario}. El RUT se puede
+escribir con o sin puntos y guion (se ordena solo) o escanear desde el
+carnet; luego se presiona \texttt{Enter} o \textbf{Buscar usuario}. Antes
+de buscar, la pantalla ya muestra lo que vendrá ---la ficha vacía, la tabla
+de préstamos y los recuadros de equipos con cuántos hay disponibles---, todo
+deshabilitado hasta elegir a alguien. El botón \textbf{¿Cómo se usa?} del
+encabezado despliega los pasos para el personal nuevo.
 
-\captura{04-prestamos.png}{Ficha de usuario con sus préstamos vigentes, tras buscar por RUT.}
+\captura{04a-prestamos-buscar.png}{Pantalla de Préstamos antes de buscar: todo listo, esperando el RUT del usuario.}
 
 Al encontrar al usuario, el sistema muestra:
 
 \begin{itemize}
-  \item Sus datos básicos (nombre, RUT, tipo de usuario, correo).
-  \item Un aviso ámbar si tiene \textbf{multas pendientes} --- esto es
-  solo informativo, \textbf{no bloquea} que se le preste un libro nuevo.
-  \item Sus préstamos y reservas vigentes, con botones para
-  \textbf{Devolver} cada ítem o \textbf{Marcar pagada} una multa.
+  \item Su ficha: nombre, RUT, tipo de usuario y correo; si su cuenta está
+  \textbf{Habilitada} o \textbf{Bloqueada por multa}, y un resumen con sus
+  préstamos activos, sus reservas y sus multas. Al lado, los botones
+  \textbf{Nuevo préstamo}, \textbf{Reservar libro} y \textbf{Buscar otro
+  usuario}.
+  \item Un aviso rojo si tiene \textbf{multas pendientes}, con la cantidad
+  y el monto total.
+  \item Las pestañas \textbf{Préstamos} y \textbf{Reservas}, con lo vigente
+  de cada una. En Préstamos están los libros y los equipos que tiene, con
+  la fecha de devolución (y cuánto falta, o hace cuánto venció), el estado,
+  la multa si la tiene y el botón \textbf{Devolver}. Lo ya devuelto queda
+  guardado bajo \textbf{Ver devueltos}, salvo que tenga una multa por
+  pagar. Al pie se indica cuántos libros tiene (el máximo es uno a la vez)
+  y, si tiene reservas listas para entregar, un acceso directo a ellas.
 \end{itemize}
+
+\begin{importante}
+Con \textbf{multas pendientes}, la persona \textbf{no puede llevarse ni
+reservar material} (libros ni equipos): su ficha dice \textbf{Bloqueada por
+multa}, y \textbf{Nuevo préstamo}, \textbf{Reservar libro} y los préstamos
+de equipos quedan deshabilitados hasta que pague. Quien tenga el permiso
+\textit{Registrar pagos} puede registrar el pago ahí mismo; al pagar o
+anular la multa, se desbloquea al instante.
+\end{importante}
+
+\captura{04-prestamos.png}{Ficha de usuario con sus préstamos, tras buscar por RUT.}
+
+\begin{nota}
+Desde \textbf{Usuarios} (botón \textbf{Ver préstamos} de cada fila) y desde
+\textbf{Entradas} (\textbf{Ver sus préstamos}) se llega a esta misma
+pantalla con el RUT ya buscado.
+\end{nota}
 
 \section{Prestar un libro}
 
-Con el botón \textbf{Nuevo Préstamo} se abre el formulario para escanear
-o escribir el código de barras del libro. El sistema busca el ejemplar
-correspondiente y valida que esté disponible y en estante antes de
-prestarlo.
+Con el botón \textbf{Nuevo préstamo} se abre el formulario para escanear
+o escribir el código de barras del libro y elegir la fecha de devolución.
+El sistema busca el ejemplar correspondiente y valida que esté disponible
+y en estante antes de prestarlo.
+
+\begin{nota}
+La fecha de devolución tiene que caer en un día en que la biblioteca
+atiende: si se elige un domingo, el formulario lo avisa en rojo y no deja
+confirmar. Lo mismo vale para la fecha límite de retiro de una reserva.
+\end{nota}
+
+\begin{importante}
+Cada usuario puede tener \textbf{un solo libro prestado a la vez}: si ya
+tiene uno sin devolver, el sistema rechaza el segundo préstamo. Los
+equipos no tienen ese límite.
+\end{importante}
 
 \begin{importante}
 Si el libro que se quiere prestar ya está prestado o reservado por otra
@@ -355,17 +565,40 @@ devuelva, se ofrece automáticamente a la primera persona en la fila.
 
 \section{Reservar un libro}
 
-Con el botón \textbf{Reservar Libro} se aparta una copia para que el
-usuario la retire más adelante (dentro del plazo configurado por la
-biblioteca). Si no hay copias disponibles en ese momento, la persona
-entra a la cola de espera igual que en un préstamo.
+Con el botón \textbf{Reservar libro} se aparta una copia para que el
+usuario la retire más adelante, hasta la fecha límite que se elige. Si no
+hay copias disponibles en ese momento, la persona entra a la cola de
+espera igual que en un préstamo. Ambas cosas piden confirmación, igual que
+\textbf{Cancelar} o \textbf{Salir de la fila} en la pestaña
+\textbf{Reservas}. Cuando el plazo lo pone el sistema (al reservar desde
+el portal o cuando le toca el turno a alguien de la lista de espera), es
+de tres días; si cae en domingo, pasa al lunes.
+
+Cuando la persona viene a retirar su libro, se busca su RUT y, en la
+pestaña \textbf{Reservas} (o con el acceso \textbf{reservas listas para
+entregar} al pie de Préstamos), se pulsa \textbf{Entregar}: se abre
+\textbf{Nuevo préstamo} con esa copia ya escaneada. Solo falta elegir la
+fecha de devolución y confirmar; la reserva queda como retirada. Las
+reservas ya retiradas o canceladas quedan guardadas bajo \textbf{Ver
+retiradas y canceladas}.
+
+\captura{04b-prestamos-entregar.png}{Tras pulsar Entregar: la copia reservada para esta persona, lista para prestar.}
 
 \section{Préstamo de equipos}
 
-Más abajo en la misma pantalla hay tres tarjetas separadas para prestar
-\textbf{audífonos}, \textbf{notebooks} y \textbf{cargadores}. A diferencia
-de los libros, estos préstamos no tienen fecha de devolución fija: se
-devuelven al finalizar la estadía en la biblioteca.
+Más abajo en la misma pantalla hay tres recuadros separados para prestar
+\textbf{audífonos}, \textbf{notebooks} y \textbf{cargadores}; cada uno dice
+cuántos quedan libres y, si la persona ya tiene uno, cuál. A diferencia de
+los libros, estos préstamos no tienen fecha de devolución fija: se
+devuelven al finalizar la estadía en la biblioteca. Al pulsar
+\textbf{Pedir} se confirma el equipo (con su nombre de inventario) antes
+de registrar el préstamo.
+
+El equipo prestado aparece en la pestaña \textbf{Préstamos} con su
+devolución \textbf{Pendiente} y se recibe con su botón \textbf{Devolver},
+igual que un libro; desde ahí queda como \textbf{Devuelto}. Si no se
+devolvió el mismo día, la fila lo marca \textbf{No se devolvió el mismo
+día}.
 
 \begin{nota}
 El préstamo de un equipo se hace \textbf{escaneando su código de
@@ -374,12 +607,20 @@ inventario a mano. El campo visible en pantalla (por ejemplo,
 ``Notebook 01'') es solo el nombre legible del equipo.
 \end{nota}
 
-\section{Multas}
+\section{Devoluciones y multas por atraso}
 
-Cuando un libro se devuelve atrasado, el sistema calcula automáticamente
-una multa (tarifa fija por día de atraso) y queda registrada como
-pendiente. El botón \textbf{Marcar pagada} en el listado de préstamos del
-usuario cierra esa deuda.
+Para recibir un libro o un equipo se pulsa \textbf{Devolver} en su fila y
+se confirma.
+Si el libro llega atrasado, el sistema \textbf{genera la multa solo}: una
+tarifa fija por cada día de atraso (hoy \$15 por día, con un tope de
+\$15.000 por préstamo), que queda pendiente a nombre del usuario y
+registrada a nombre de quien recibió el libro. El aviso de confirmación
+indica el monto.
+
+Las cuentas con el permiso \textbf{Registrar pagos} ven además el botón
+\textbf{Marcar pagada} junto a cada multa pendiente. El resto de la
+gestión de multas (anular, cursar multas por daño o pérdida) está en el
+módulo \textbf{Multas} (sección~\ref{cap:multas}).
 
 \begin{nota}
 Los equipos (audífonos, notebooks, cargadores) nunca generan multa, ya
@@ -392,18 +633,41 @@ que no tienen fecha de devolución fija.
 
 Este módulo administra la reserva de las 15 logias de estudio más las
 salas con nombre propio (Sala de Seminarios, Sala de Postgrado y Sala
-AGACI). Las reservas se hacen por bloques fijos de dos horas, entre las
-08:00 y las 21:00.
+AGACI). Funciona en \textbf{horario continuo}, dentro del horario de
+atención de la biblioteca: de lunes a viernes de 08:45 a 20:30 (la primera
+reserva empieza a las 09:00, porque se agenda a la hora o a la media hora)
+y el sábado de 09:00 a 14:00. Cada reserva dura entre 30 minutos y 2
+horas. Lo que queda fuera de ese horario aparece rayado en la línea de
+tiempo y no se reserva: el sábado, desde las 14:00, con un aviso arriba.
+Los \textbf{domingos} la biblioteca no atiende: al elegir un domingo, la
+línea de tiempo aparece rayada entera, con un aviso.
 
-\captura{05-salas.png}{Vista general de Salas de Estudio, con la grilla de disponibilidad por bloque horario.}
+\requierepermiso{Salas de estudio}
+
+\captura{05-salas.png}{Vista general de Salas de Estudio, con la línea de tiempo de cada sala.}
+
+Cada sala tiene una línea de tiempo del día, con una línea guía por
+cada hora. Los colores indican el estado de cada tramo: disponible
+(verde, se puede hacer clic para reservar), por confirmar, plazo vencido,
+confirmada o en uso, y llave devuelta. La línea azul marca la hora
+actual ---arriba lleva la etiqueta \textbf{Ahora} con la hora--- y lo que
+ya pasó del día aparece rayado.
+
+La pantalla se actualiza sola cada 3 segundos mientras está a la vista,
+y de inmediato al volver a ella: una reserva hecha desde el portal o
+desde otro computador aparece sin recargar la página. Sobre la línea de
+tiempo se indica a qué hora fue la última actualización, junto a un botón
+para actualizar en el momento.
 
 \section{Reservar una sala}
 
-Se hace clic en cualquier casillero ``Disponible'' de la grilla para
-abrir el formulario de reserva: cantidad de personas (entre 2 y 5) y el
-RUT de cada una, escrito con puntos y guión.
+Se hace clic en el espacio verde de la sala, a la hora que se quiere, o
+se usa \textbf{Reservar ahora} para una reserva que empieza de inmediato
+(este botón aparece solo mientras la biblioteca atiende).
+En el formulario se elige la hora de inicio, la duración, la cantidad de
+personas (entre 2 y 5) y el RUT de cada una.
 
-\captura{06-salas-modal-reserva.png}{Formulario de reserva, con los RUT de ambas personas ya completados y listo para confirmar.}
+\captura{06-salas-modal-reserva.png}{Formulario de reserva, con los RUT del grupo ya completados y listo para confirmar.}
 
 Si alguno de los RUT ingresados no corresponde a un usuario registrado,
 o ya tiene otra reserva que choca en el horario, el sistema marca en
@@ -414,15 +678,21 @@ hace falta adivinar cuál de todos los RUT falló.
 Todos los RUT ingresados deben corresponder a usuarios ya registrados en
 el sistema --- no se pueden reservar logias para visitantes externos.
 Además, el sistema no permite que la misma persona quede en dos salas
-distintas al mismo tiempo, ni que acumule más de dos bloques reservados
-el mismo día (salvo para extender su estadía al bloque inmediatamente
-anterior o siguiente, en la misma sala).
+distintas al mismo tiempo, ni que sume más de \textbf{4 horas de reserva
+en el mismo día}, contando todas las salas.
 \end{importante}
+
+\begin{nota}
+Para el día de hoy solo se puede reservar desde la hora actual en
+adelante. Registrar después una reserva que se atendió sin pasar por el
+sistema (en una hora que ya pasó) requiere el permiso
+\textbf{Reservas en horas ya pasadas}.
+\end{nota}
 
 \section{Confirmación de asistencia}
 
-Cada grupo tiene \textbf{15 minutos desde el inicio del bloque} (o desde
-el momento de la reserva, si se reservó dentro de un bloque ya iniciado)
+Cada grupo tiene \textbf{15 minutos desde la hora de inicio} de su reserva
+(o desde el momento de reservar, si reservó con \textbf{Reservar ahora})
 para presentarse y confirmar su llegada. Si el plazo vence sin
 confirmación, la sala se libera automáticamente y queda disponible para
 otra persona.
@@ -432,10 +702,15 @@ superior de esta pantalla, lista las reservas del día que todavía no
 confirmaron llegada, con una cuenta regresiva en vivo. Desde ahí se puede:
 
 \begin{itemize}
-  \item \textbf{Confirmar llegada:} registra que el grupo se presentó.
+  \item \textbf{Confirmar llegada:} abre una ventana con los integrantes
+  de la reserva, con su nombre y RUT, para verificar que estén antes de
+  entregar la llave. La llegada se registra al pulsar \textbf{Confirmar}.
   \item \textbf{Liberar:} libera manualmente una reserva vencida, sin
-  esperar a que expire sola.
+  esperar a que expire sola. Pide confirmar, porque queda registrado que
+  el grupo no se presentó.
 \end{itemize}
+
+\captura{06b-salas-confirmar-llegada.png}{Confirmación de llegada: los integrantes del grupo, con nombre y RUT.}
 
 \begin{nota}
 Ya no hace falta escribir a mano quién confirmó la llegada o la
@@ -460,52 +735,96 @@ código de barras.
 \chapter{Reportes}
 % ======================================================================
 
-El módulo de Reportes entrega estadísticas agregadas del funcionamiento
-de la biblioteca, organizadas en pestañas.
+El módulo de Reportes entrega estadísticas del funcionamiento de la
+biblioteca para un período concreto: un día, una semana, un mes, un
+semestre o un año. Al abrirlo muestra el mes en curso.
 
-\captura{07-reportes-prestamos.png}{Reporte de Número de Préstamos, con gráfico y desgloses por período.}
+\requierepermiso{Reportes}
 
-\section{Pestañas disponibles}
+\captura{07-reportes-prestamos.png}{Reporte de préstamos de un mes, en la vista Gráfico.}
+
+\section{Elegir qué ver}
 
 \begin{itemize}
-  \item \textbf{Número de Préstamos:} cantidad de préstamos por período
-  (día, semana, mes, semestre o año), con desgloses por carrera, sexo,
-  tipo de usuario y hora del día.
-  \item \textbf{Ingresos a Biblioteca:} mismo tipo de desglose, aplicado
-  a las entradas registradas.
-  \item \textbf{Uso de Logias:} uso de salas por período, con un
-  desglose adicional por sala y un mapa de calor de horas más solicitadas
-  por cada logia.
-  \item \textbf{Libros Más Prestados:} ranking de los títulos con más
-  préstamos en el período seleccionado.
+  \item \textbf{Pestañas:} Préstamos, Ingresos, Uso de salas y Libros más
+  prestados.
+  \item \textbf{Período:} Día, Semana, Mes, Semestre (enero a junio o julio
+  a diciembre) o Año. Las flechas junto al nombre del período pasan al
+  anterior o al siguiente; no se puede avanzar más allá del actual.
+  \item \textbf{Filtros:} carrera, año de ingreso, sexo y tipo de usuario.
+  En Préstamos, además, el tipo de préstamo: bibliográfico (libros) o
+  tecnológico (notebooks, audífonos y cargadores).
+  \item \textbf{Gráfico o Tabla:} dos formas de ver los mismos datos.
 \end{itemize}
 
-\captura{08-reportes-logias.png}{Pestaña Uso de Logias, con el mapa de calor de horas por sala.}
+\section{Indicadores}
 
-\captura{09-reportes-libros.png}{Pestaña Libros Más Prestados.}
+Tres tarjetas resumen el período: el total, comparado con el período
+anterior; la carrera con más registros (en Uso de salas, la sala más
+usada; en Libros más prestados, el libro), y el horario de mayor uso ---las
+dos horas seguidas con más registros---.
+
+\section{Vista Gráfico}
+
+Muestra el total dividido según el período: el día por hora, la semana por
+día (los fines de semana, en tono claro, y los días sin atención,
+rayados), el mes por semana ---de lunes a domingo, recortadas al mes--- y
+el semestre y el año por mes y los
+desgloses por carrera, tipo de usuario, sexo, año de ingreso y hora del
+día; en este último, las horas de mayor uso van en color fuerte.
+Préstamos agrega el desglose \textbf{por tipo de préstamo} ---bibliográfico
+o tecnológico, y cuántos de cada recurso---. Uso de
+salas agrega las salas más usadas y un mapa de calor con las horas más
+pedidas en cada sala, y Libros más prestados, el ranking de títulos.
+
+Las horas siguen el \textbf{horario de atención} de la biblioteca: de
+lunes a viernes de 08:45 a 20:30, el sábado de 09:00 a 14:00 y el domingo
+cerrado. En el reporte de un día se ven solo las horas de ese día; en un
+domingo, el reporte avisa que la biblioteca no atiende.
+
+\captura{08-reportes-logias.png}{Pestaña Uso de salas, con las salas más usadas y el mapa de calor de horas por sala.}
+
+\captura{09-reportes-libros.png}{Pestaña Libros más prestados.}
+
+\section{Vista Tabla}
+
+A la izquierda se elige cómo \textbf{agrupar}: carrera, tipo de usuario,
+sexo, año de ingreso, hora del día, día, semana o mes (según el
+período) y, en sus pestañas, tipo
+de préstamo y recurso, sala o libro. La tabla muestra cada grupo con su cantidad y su porcentaje del
+total, y se ordena al hacer clic en los encabezados. \textbf{Exportar
+esta tabla} la descarga en Excel, después de confirmar.
+
+\captura{07b-reportes-tabla.png}{Vista Tabla, agrupada por carrera.}
 
 \section{Exportar datos}
 
-Todos los reportes se pueden exportar a \textbf{Excel} o \textbf{CSV}
-desde el botón de exportar, respetando el período y los filtros
-seleccionados en pantalla.
+\textbf{Exportar} descarga el reporte completo en Excel o CSV, después de
+confirmar: el resumen del período, todas las agrupaciones y, en Uso de
+salas, las horas por sala. Respeta el período y los filtros elegidos en
+pantalla.
 
 % ======================================================================
 \chapter{Módulos de Gestión}
+\label{cap:gestion}
 % ======================================================================
 
 Los módulos secundarios del sistema están agrupados bajo el botón
-\textbf{Menú Gestiones Admin}, disponible en la barra superior. Al hacer
-clic se despliega un panel con todos los accesos disponibles según tu
-rol.
+\textbf{Gestión}, disponible en la barra superior. Al hacer
+clic se abre un panel con los módulos ordenados en cuatro secciones:
+\textbf{Atención de público}, \textbf{Colección}, \textbf{Consultas e
+historiales} y \textbf{Administración del sistema}.
 
-\captura{25-menu-gestiones-admin.png}{Menú de Gestión, con todos los módulos secundarios disponibles.}
+\captura{25-menu-gestiones-admin.png}{Menú de Gestión de una cuenta con rol Administrador/a: todas las secciones y módulos.}
 
-Los módulos marcados con un candado (en la práctica, los recuadros
-``Solo Administrador'' de este manual) solo aparecen aquí si tu cuenta
-tiene el rol de Administrador.
+El menú muestra \textbf{solo los módulos que tu rol puede usar}. Por
+ejemplo, una cuenta de Atención de público ve un menú mucho más corto:
+
+\captura{25b-menu-asistente.png}{El mismo menú visto por una cuenta con rol Atención de público.}
 
 \section{Usuarios}
+
+\requierepermiso{Consultar usuarios}
 
 Listado y ficha de todos los usuarios institucionales (estudiantes,
 docentes y funcionarios), con búsqueda por nombre, apellido, RUT o
@@ -513,73 +832,242 @@ carrera, y filtros por tipo de usuario y estado (activo/inactivo).
 
 \captura{10-usuarios.png}{Listado de Usuarios, con filtros de búsqueda.}
 
-Desde cada fila se puede generar la \textbf{Constancia de No Multa} de
-esa persona en PDF (se bloquea con un aviso si el usuario tiene multas
-pendientes) y acceder al enlace de \textbf{Base de Datos Digital}
-(recursos digitales externos de la universidad).
+Desde cada fila se puede:
 
-\section{Listado de Préstamos}
+\begin{itemize}
+  \item \textbf{Ver préstamos:} abre la pantalla de Préstamos con esa
+  persona ya buscada.
+  \item Generar su \textbf{Constancia de No Multa} en PDF (se bloquea con
+  un aviso si el usuario tiene multas pendientes).
+\end{itemize}
 
-Listado global de todos los préstamos de libros y equipos, de todos los
-usuarios, con filtros por tipo de ítem y estado. Desde acá también se
-pueden procesar devoluciones y marcar multas como pagadas, igual que
-desde la ficha de un usuario en el módulo de Préstamos.
+\section{Multas}
+\label{cap:multas}
 
-\captura{11-listado-prestamos.png}{Listado de Préstamos, con el detalle de cada ítem prestado.}
+\requierepermiso{Ver multas}
+
+Reúne las deudas de los usuarios con la biblioteca: pendientes, pagadas y
+anuladas. Arriba muestra un resumen (usuarios con deuda, multas
+pendientes y monto total pendiente) y dos pestañas:
+
+\begin{itemize}
+  \item \textbf{Deuda por usuario:} cada persona con multas pendientes,
+  con la cantidad y el monto; \textbf{Ver detalle} muestra sus multas.
+  \item \textbf{Todas las multas:} con filtros por estado (pendientes,
+  pagadas, anuladas), por motivo (atraso, deterioro, pérdida u otro) y
+  búsqueda por RUT o nombre.
+\end{itemize}
+
+\captura{22-multas.png}{Módulo de Multas, con el resumen, la deuda por usuario y el listado completo.}
+
+Según el rol, cada cuenta puede además:
+
+\begin{itemize}
+  \item \textbf{Marcar pagada} (permiso \textit{Registrar pagos}): cuando
+  el usuario paga. Queda registrado quién lo hizo y cuándo.
+  \item \textbf{Anular} (permiso \textit{Anular multas}): deja sin efecto
+  una multa cursada por error. Hay que indicar el motivo; la multa
+  \textbf{no se borra}, queda en el historial con el motivo y el nombre de
+  quien la anuló.
+  \item \textbf{Cursar una multa} (permiso \textit{Cursar multas
+  manuales}): para deterioro, pérdida de material u otro motivo, indicando
+  el RUT, el motivo, el monto y una descripción. Antes de cursarla, el
+  sistema muestra el monto y la persona para confirmar. Las multas por
+  atraso no se cursan a mano: se generan solas al devolver.
+\end{itemize}
+
+\begin{nota}
+Mientras tenga multas pendientes, la persona no puede llevarse libros ni
+equipos, ni reservar libros (en mesón ni desde el portal), ni obtener la
+Constancia de No Multa. Al pagar o anular sus multas se desbloquea al
+instante.
+\end{nota}
 
 \section{Listado de Libros}
 
-Catálogo completo de libros (obras), con autor, categoría, tipo de
-material y cantidad de copias. Cada fila se puede expandir para ver el
-detalle de cada copia física (ejemplar) con su propio código de barras.
+\requierepermiso{Listados de préstamos y libros}
+
+Catálogo completo de libros (obras). Arriba a la derecha están las
+pestañas del módulo ---\textbf{Catalogar}, \textbf{Listado},
+\textbf{Historial} y \textbf{Estado de ejemplares}--- para pasar de uno a
+otro sin volver al menú; cada una aparece solo si tu rol puede abrirla.
+
+Cada fila muestra el título y el autor, la clasificación Dewey, la
+categoría, el tipo de material y una barrita por copia: verde si está
+disponible, ámbar si está prestada, violeta si está reservada y gris si
+no está en estante (en inventario, en procesos técnicos, dada de baja,
+etc.). Debajo se resume cuántas quedan, por ejemplo ``2 de 3
+disponibles''.
+
+El buscador encuentra por título, autor, ISBN, clasificación Dewey o
+código de barras, sin importar las tildes. Las píldoras de al lado
+filtran por \textbf{Estado} de las copias, \textbf{Tipo} de material y
+\textbf{Categoría}, y \textbf{Ordenar} cambia el orden entre título y
+tipo de recurso.
 
 \captura{12-listado-libros.png}{Listado de Libros del catálogo.}
 
-\captura{13-listado-libros-detalle.png}{Detalle expandido de un título, mostrando sus copias.}
+La flecha a la izquierda de cada fila la despliega: a un lado, la
+\textbf{ficha bibliográfica completa} ---con la etiqueta MARC de cada
+campo y los de uso interno marcados--- y al otro, cada copia física
+(ejemplar) con su código de barras, su ubicación y si está
+\emph{Disponible}, \emph{Prestado} o \emph{Reservado} (o en qué estado de
+proceso, si no está en estante).
 
-\subsection{Catalogación de Libros}
-\soloadmin
+\captura{13-listado-libros-detalle.png}{Detalle desplegado de un título: ficha bibliográfica completa y copias.}
 
-Formulario para ingresar libros nuevos al catálogo (título, ISBN,
-autores, categorías, carreras asociadas, clasificación, etc.) y para
-agregar copias adicionales a un libro ya existente.
+Con el permiso \textit{Catalogar libros}, \textbf{Editar} abre el título
+en Catalogación para corregirlo, después de confirmar (los cambios se
+guardan recién al pulsar \textbf{Guardar cambios}), y \textbf{+ Agregar
+copia} lleva a Catalogación con la obra ya elegida para sumarle un
+ejemplar. El botón de tres puntos reúne los atajos a lo que se hace con
+ese título en otras pantallas: \textbf{Agregar copia}, \textbf{Historial
+de préstamos} y \textbf{Estado de sus ejemplares}, cada uno visible solo
+si tu rol tiene el permiso correspondiente.
 
-\captura{14-catalogacion-libro-nuevo.png}{Formulario de catalogación de un libro nuevo.}
+\section{Catalogación de Libros}
 
-\captura{15-catalogacion-agregar-copia.png}{Formulario para agregar una copia adicional a un libro ya catalogado.}
+\requierepermiso{Catalogar libros}
+
+La pantalla \textbf{Catalogar material} sirve para ingresar títulos
+nuevos al catálogo y para agregar copias a uno ya existente: bajo el
+título se elige \textbf{Libro nuevo} o \textbf{Agregar copia a libro
+existente}, y las pestañas de arriba a la derecha llevan al
+\textbf{Listado}, al \textbf{Historial} y al \textbf{Estado de
+ejemplares}.
+
+Lo primero es elegir el \textbf{tipo de material}: define la
+\textbf{ficha} del título, es decir, qué etiquetas MARC se catalogan y
+cuáles ve el usuario en el portal, según el documento de etiquetas de la
+biblioteca. Cada campo indica su etiqueta MARC, y el formulario se divide
+en cinco secciones numeradas, cada una de un color:
+
+\begin{itemize}
+  \item \textbf{Identificación:} tipo de material, código de barras de la
+  primera copia (el botón de al lado sugiere el siguiente disponible), ISBN
+  o ISSN, clasificación e idioma.
+  \item \textbf{Título y autoría:} título, edición y autores. El primer
+  autor que se escribe es el \textbf{autor principal} (100) y el resto
+  quedan como \textbf{autores secundarios} (700). El botón
+  \textbf{+ Título alternativo, entidad\ldots} muestra los campos
+  opcionales (246, 110, 111 y 710).
+  \item \textbf{Publicación:} lugar, editorial y año (260; 264 en los
+  juegos), descripción física y, según la ficha, serie, volumen y
+  frecuencia, o nota de tesis.
+  \item \textbf{Materias:} las materias (650), con sugerencias de las que
+  ya existen en el catálogo; \textbf{+ Materia de persona, lugar o enlace}
+  muestra 600, 651 y 856. En los juegos educativos esta sección se llama
+  \textbf{Contenido} (resumen y audiencia).
+  \item \textbf{Ejemplar:} ubicación, colección, volumen, carreras
+  asociadas y precio de la primera copia, y las notas internas. Nada de
+  esto se muestra al usuario.
+\end{itemize}
+
+A la izquierda, el índice de \textbf{Secciones} marca en dorado la que
+estás viendo y en verde las que ya recorriste (en naranja, si les falta
+algo obligatorio); al pulsar una, la página baja hasta ella. A la derecha,
+\textbf{Así se verá en el portal} muestra la tarjeta del catálogo mientras
+escribes, y \textbf{Obligatorios}, lo mínimo para catalogar: código de
+barras, título y autor principal (o la entidad, 110). La creación del
+registro (008) y el catalogador (910) se registran solos.
+
+\textbf{Guardar borrador} deja lo escrito guardado en ese computador,
+después de confirmar (avisa si reemplaza un borrador anterior): al volver a
+la pantalla se ofrece \textbf{Recuperar} o \textbf{Descartar}. Abajo,
+\textbf{Títulos catalogados} lista lo ya ingresado, y \textbf{Editar}
+carga la ficha arriba para corregirla, también después de confirmar: si
+había algo escrito sin guardar, el aviso dice que se perderá. Los datos de
+cada copia, como la ubicación o el precio, no se cambian ahí.
+
+\captura{14-catalogacion-libro-nuevo.png}{Formulario de catalogación con la ficha de libro.}
+
+\captura{14b-catalogacion-tesis.png}{Al elegir el tipo Tesis, el formulario cambia a la ficha de trabajo de titulación.}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.27\textwidth}@{}}
+\toprule
+\textbf{Ficha} & \textbf{Se muestra al usuario} & \textbf{Uso interno} \\
+\midrule
+Libro & 020, 082, 100, 110, 111, 245, 246, 250, 260, 300, 600, 650, 651, 700, 710, 856 & 008, 041, 490, 500, 504, 910 \\
+Trabajo de titulación & 099, 100, 245, 246, 260, 300, 502, 650, 700 (autores secundarios y profesor guía), 710, 856 & 008, 041, 504, 910 \\
+Juego educativo & 099, 245, 246, 264, 300, 520, 521 & 008, 041, 910 \\
+Publicación seriada (revista) & 022, 099, 245, 246, 260, 300, 362, 650, 856 & 008, 041, 310, 500, 546, 590, 910 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{nota}
+Qué ficha usa cada tipo de material se elige en
+\textbf{Administración} (sección~\ref{sec:administracion}). La etiqueta
+000 (líder) no se registra: se genera al exportar registros en formato
+MARC.
+\end{nota}
+
+\captura{15-catalogacion-agregar-copia.png}{Agregar una copia: se busca la obra y se completan los datos de la copia nueva.}
 
 Un libro recién catalogado \textbf{no queda disponible para préstamo de
-inmediato}: nace en estado ``Inventario'' y debe pasar por el módulo
-\textbf{Estado de Libro} para marcarse ``En Estante'' antes de poder
-prestarse.
+inmediato ni aparece en el portal}: nace en estado ``Inventario'' y debe
+pasar por el módulo \textbf{Estado de ejemplares} para marcarse ``En
+estante'' antes de poder prestarse.
 
 El botón de generar código de barras sugiere automáticamente el
 siguiente código disponible, pero siempre se puede editar antes de
 guardar.
 
-\section{Estado de Libro}
+\section{Estado de ejemplares}
 
-Permite buscar una copia por título o código de barras y cambiar su
-estado de proceso físico: en inventario, en procesos técnicos, por
-colocar, en estante, en estantería auxiliar, en colección móvil, dado de
-baja, o un estado personalizado definido por la biblioteca.
+\requierepermiso{Cambiar estado de un libro}
 
-\captura{16-estado-libro.png}{Búsqueda y cambio de estado de un ejemplar.}
+El estado de proceso es de cada copia física, no de la obra, así que esta
+pantalla trabaja copia por copia. A la izquierda, la lista de copias se
+busca por título o código de barras ---al escanear el código con el
+lector, la copia queda elegida sola--- y se filtra con los botones de
+estado, que muestran cuántas copias hay en cada uno. Las copias prestadas
+o reservadas llevan además la marca \emph{Prestada} o \emph{Reservada}.
+
+\captura{16-estado-libro.png}{Estado de ejemplares: la lista de copias y, a la derecha, la copia elegida con su flujo de proceso.}
+
+A la derecha se ve la copia elegida con su \textbf{estado actual} y las
+opciones para cambiarlo:
+
+\begin{itemize}
+  \item \textbf{Flujo de proceso:} el camino normal de una copia nueva,
+  \emph{Inventario} $\rightarrow$ \emph{Procesos técnicos} $\rightarrow$
+  \emph{Por colocar} $\rightarrow$ \emph{En estante}. Los pasos ya
+  recorridos llevan un visto y el actual aparece resaltado.
+  \item \textbf{Otras ubicaciones:} \emph{Estantería auxiliar},
+  \emph{Colección móvil} o un estado \emph{Personalizado} de los que se
+  crean en Administración (al elegirlo se indica cuál).
+  \item \textbf{Dar de baja:} retira la copia de la colección. Pide un
+  \textbf{motivo obligatorio}, que queda en el historial, y no se puede
+  mientras la copia esté prestada o reservada.
+\end{itemize}
+
+Elegido el nuevo estado, se puede escribir una nota opcional (por
+ejemplo, ``se plastificó la portada'') y se pulsa \textbf{Cambiar
+a\ldots}; antes de guardar, el sistema muestra el estado de origen y el
+de destino para confirmar. Con el permiso \textit{Historiales}, debajo
+aparece el \textbf{Historial de cambios} de esa copia: la fecha, quién
+hizo cada cambio y la nota o el motivo.
 
 \begin{importante}
 Un ejemplar solo puede prestarse o reservarse si su estado es
-\textbf{``En Estante''} y además está disponible (no prestado ni
+\textbf{``En estante''} y además está disponible (no prestado ni
 reservado por otra persona). Ambas condiciones son independientes entre
 sí.
 \end{importante}
 
-\subsection{Cambio Masivo de Estado}
-\soloadmin
+\section{Cambio Masivo de Estado}
+
+\requierepermiso{Cambio masivo de estado}
 
 Cambia el estado de muchas copias a la vez, filtrando por ubicación,
 estado actual, tipo de material y/o categoría. Requiere elegir al menos
 un filtro (no se puede aplicar un cambio masivo sin ningún criterio, para
-evitar afectar accidentalmente todo el catálogo).
+evitar afectar accidentalmente todo el catálogo). Su encabezado es de
+color naranjo, a diferencia del resto, para recordar que es una operación
+de riesgo.
 
 \captura{17-cambio-masivo-estado.png}{Vista previa de un cambio masivo de estado, antes de confirmarlo.}
 
@@ -590,7 +1078,78 @@ luego, para ejecutar el cambio de verdad, el sistema pide
 medida de seguridad adicional para una operación que puede afectar
 muchas copias a la vez.
 
+\section{Etiquetas de Código}
+
+\requierepermiso{Catalogar libros}
+
+Genera etiquetas con código de barras real (Code128) a partir de una
+lista de códigos --- útil para reimprimir una etiqueta perdida o preparar
+una tanda de códigos nuevos antes de catalogar. Sirve para libros,
+equipos o cualquier código ya asignado.
+
+\captura{33-etiquetas.png}{Etiquetas de Código, con un rango de códigos listo para imprimir.}
+
+\begin{itemize}
+  \item \textbf{Sugerir siguiente (libros):} completa el rango a partir
+  del primer código de libro que todavía no se usa.
+  \item \textbf{Generar lista con este rango:} arma la lista con el
+  prefijo, el número inicial, la cantidad y los dígitos indicados. También
+  se pueden pegar códigos a mano, uno por línea.
+  \item \textbf{Generar e imprimir:} abre una pestaña nueva con las
+  etiquetas y su botón \textbf{Imprimir}.
+\end{itemize}
+
+\begin{nota}
+Imprimir etiquetas no registra nada en el sistema: los códigos quedan
+asignados recién al catalogar cada copia.
+\end{nota}
+
+\section{Equipos}
+
+\requierepermiso{Administrar equipos}
+
+Catálogo de audífonos, notebooks y cargadores disponibles para préstamo,
+cada uno con su nombre legible, código de barras (lo que se escanea al
+prestar) y estado (disponible/activo).
+
+\captura{21-equipos.png}{Catálogo de Equipos.}
+
+Un equipo dado de baja deja de estar disponible para préstamo aunque no
+esté prestado en ese momento; y no se puede dar de baja un equipo que
+está actualmente prestado. Registrar un equipo y darlo de baja (o
+reactivarlo) piden confirmación. Prestar y recibir equipos no requiere
+este permiso: se hace desde Préstamos.
+
+\section{Listado de Préstamos}
+
+\requierepermiso{Listados de préstamos y libros}
+
+Listado de consulta de todos los préstamos de libros y equipos, de todos
+los usuarios. Las pestañas de arriba muestran cuántos hay en cada grupo:
+\textbf{Activos} (aún no devueltos), \textbf{Vencidos} (pasada la fecha de
+devolución), \textbf{Devueltos} y \textbf{Todos}.
+
+\captura{11-listado-prestamos.png}{Listado de Préstamos: pestañas por estado, búsqueda y filtro por tipo de ítem.}
+
+El buscador encuentra por RUT (con o sin puntos), nombre, título o código
+del ítem, sin importar las tildes, y el selector de la derecha deja ver
+solo \textbf{Libros} o solo \textbf{Equipos}. Cada fila indica quién tiene
+el ítem, cuándo se prestó (y quién lo prestó) y, en
+\textbf{Devolución}, la fecha y cuánto falta (``En 6 días'', ``Vence
+hoy'', ``Vencido hace 2 días''), o \emph{Pendiente} en los equipos, que
+no tienen fecha fija y se devuelven al terminar la estadía. Si el préstamo
+generó una multa, aparece bajo el
+estado: pendiente con su monto, o pagada.
+
+\begin{nota}
+Este listado es solo de consulta: las devoluciones se registran en
+\textbf{Préstamos} (F2) y los pagos de multas, en Préstamos o en el
+módulo \textbf{Multas}.
+\end{nota}
+
 \section{Historial de Estado}
+
+\requierepermiso{Historiales}
 
 Registro completo de todos los cambios de estado realizados sobre
 ejemplares, individuales o masivos, con filtros por título/código,
@@ -601,80 +1160,29 @@ masiva), funcionario que hizo el cambio, y rango de fechas.
 
 \section{Historial de Libros}
 
+\requierepermiso{Historiales}
+
 A diferencia del anterior (que es sobre \emph{estado}), este módulo es
-sobre \emph{préstamos}: busca un libro por título o código y muestra,
-copia por copia, cuántas veces se ha prestado y a quién.
+sobre \emph{préstamos}. A la izquierda están los libros de la \textbf{A a
+la Z}, cada uno con su cantidad de préstamos, y se buscan por título, ISBN
+o código de barras.
 
-\captura{19-historial-prestamos-libro.png}{Historial de préstamos de un libro, desglosado por copia.}
+\captura{19-historial-prestamos-libro.png}{Historial de libros: los libros con su cantidad de préstamos y, a la derecha, el libro elegido con sus indicadores y cada préstamo.}
 
-\section{Código QR de Acceso}
+Al elegir un libro se ven cuatro indicadores ---\textbf{Préstamos},
+\textbf{Duración promedio} de los ya devueltos, \textbf{Devueltos con
+atraso} y la fecha del \textbf{Último préstamo}--- y debajo cada préstamo
+con la copia, el usuario, las fechas de préstamo y devolución, los días y
+su resultado: \emph{A tiempo}, \emph{Atraso} (con los días), \emph{En
+curso} o \emph{Vencido}. \textbf{Ver ficha} abre la ficha bibliográfica
+completa del título. Desde el Listado de Libros, el atajo
+\textbf{Historial de préstamos} abre esta pantalla con ese libro ya
+elegido.
 
-Genera y muestra el código QR único que los usuarios pueden escanear
-desde el portal para marcar su entrada sin escribir su RUT.
-
-\captura{20-codigo-qr.png}{Código QR de acceso, con opción de descarga e impresión.}
-
-\begin{importante}
-Al \textbf{regenerar} el código, el anterior deja de funcionar de
-inmediato --- cualquier copia impresa o pantalla con el QR viejo debe
-reemplazarse.
-\end{importante}
-
-\subsection{Equipos}
-\soloadmin
-
-Catálogo de audífonos, notebooks y cargadores disponibles para préstamo,
-cada uno con su nombre legible, código de barras (lo que se escanea al
-prestar) y estado (disponible/activo).
-
-\captura{21-equipos.png}{Catálogo de Equipos.}
-
-Un equipo dado de baja deja de estar disponible para préstamo aunque no
-esté prestado en ese momento; y no se puede dar de baja un equipo que
-está actualmente prestado.
-
-\section{Multas Pendientes}
-
-Vista consolidada de la deuda por multas de todos los usuarios,
-agrupada por persona, cruzando todos sus préstamos históricos.
-
-\captura{22-multas-pendientes.png}{Listado de usuarios con multas pendientes.}
-
-\begin{nota}
-Tener una multa pendiente \textbf{no bloquea} nuevos préstamos --- es una
-decisión deliberada de la biblioteca, no una limitación técnica. Sí
-bloquea, en cambio, la generación de la Constancia de No Multa de esa
-persona.
-\end{nota}
-
-\subsection{Administración}
-\soloadmin
-
-Configuración general del sistema y catálogos administrables.
-
-\captura{23-administracion.png}{Página de Administración, con sus secciones.}
-
-Esta pantalla reúne varias secciones independientes:
-
-\begin{itemize}
-  \item \textbf{Configuración institucional:} nombre y cargo de quien
-  firma la Constancia de No Multa.
-  \item \textbf{Estados personalizados de libro:} estados adicionales,
-  más allá de los seis fijos del sistema, para necesidades específicas de
-  la biblioteca (por ejemplo, ``Restauración''). Se pueden desactivar
-  sin perder el historial de los ejemplares que ya los tuvieron asignados.
-  \item \textbf{Ubicaciones:} catálogo de sedes o ubicaciones físicas
-  donde puede estar un ejemplar.
-  \item \textbf{Códigos de barra para imprimir:} genera etiquetas con
-  código de barras real (visualmente, con las barras) a partir de una
-  lista de códigos --- útil para reimprimir una etiqueta perdida o
-  preparar una tanda de códigos nuevos antes de catalogar. Se abren en
-  una pestaña nueva, lista para imprimir.
-\end{itemize}
-
-\subsection{Registro Absoluto}
+\section{Registro Absoluto}
 \label{cap:registro-absoluto}
-\soloadmin
+
+\requierepermiso{Registro absoluto}
 
 Un registro unificado de \textbf{todas las operaciones que se solicitan
 en el sistema}: préstamos, reservas de sala, reservas de libro y
@@ -699,8 +1207,132 @@ importar si fue un préstamo, una reserva de sala o una simple entrada.
   --- eso no es un dato faltante, es información real (nadie de personal
   intervino en esa operación puntual).
   \item \textbf{Exportar a Excel:} descarga exactamente lo que está
-  filtrado en pantalla en ese momento.
+  filtrado en pantalla en ese momento, después de confirmar el rango de
+  fechas y la cantidad de operaciones. El archivo incluye nombres y RUT:
+  guárdalo solo donde corresponda.
 \end{itemize}
+
+\section{Código QR de Acceso}
+
+\requierepermiso{Mostrar el código QR de acceso}
+
+Genera y muestra el código QR único que los usuarios pueden escanear
+desde el portal para marcar su entrada sin escribir su RUT.
+
+\captura{20-codigo-qr.png}{Código QR de acceso, con opción de descarga e impresión.}
+
+El texto de 16 letras y números bajo el QR es el mismo código escrito: el
+QR no contiene nada más. Es igual para todos y no identifica a nadie;
+sirve para demostrar que la persona está en la biblioteca. La identidad
+la aporta la sesión del portal: quien escanea ya entró con su RUT y
+contraseña, así que la entrada queda a su nombre, con vía \textbf{QR
+Móvil}. El código no vence solo; si se sospecha que circula una foto de
+él fuera de la biblioteca, conviene regenerarlo.
+
+\begin{importante}
+Al \textbf{regenerar} el código (permiso \textit{Regenerar el código
+QR}), el anterior deja de funcionar de inmediato --- cualquier copia
+impresa o pantalla con el QR viejo debe reemplazarse. Sin ese permiso, la
+pantalla solo muestra, descarga e imprime el código vigente.
+\end{importante}
+
+\section{Administración}
+\label{sec:administracion}
+
+Configuración general del sistema y catálogos administrables, en dos
+pestañas. Cada una aparece solo si el rol tiene su permiso.
+
+\captura{23-administracion.png}{Página de Administración, pestaña de configuración institucional.}
+
+\begin{itemize}
+  \item \textbf{Configuración institucional} (permiso
+  \textit{Configuración institucional}): nombre y cargo de quien firma la
+  Constancia de No Multa.
+  \item \textbf{Catálogos} (permiso \textit{Catálogos del sistema}):
+  \begin{itemize}
+    \item \textbf{Estados personalizados de libro:} estados adicionales,
+    más allá de los siete fijos del sistema, para necesidades específicas
+    de la biblioteca (por ejemplo, ``Restauración''). Se pueden desactivar
+    sin perder el historial de los ejemplares que ya los tuvieron
+    asignados.
+    \item \textbf{Ubicaciones:} sedes o ubicaciones físicas donde puede
+    estar un ejemplar.
+    \item \textbf{Tipos de material:} por ejemplo Libro, Revista, Tesis o DVD.
+    Cada tipo elige su \textbf{ficha} (Libro, Trabajo de titulación,
+    Juego educativo o Publicación seriada), que define qué etiquetas se
+    catalogan y cuáles ve el usuario (ver Catalogación de Libros).
+    Cambiar la ficha de un tipo existente pide confirmación; lo ya
+    catalogado conserva sus datos.
+  \end{itemize}
+\end{itemize}
+
+\captura{23b-administracion-tipos.png}{Tipos de material, cada uno con la ficha que usa.}
+
+\begin{nota}
+Los códigos de barra para imprimir, que antes estaban en esta pantalla,
+ahora son el módulo \textbf{Etiquetas de Código}.
+\end{nota}
+
+\section{Personal y Roles}
+\label{cap:personal-roles}
+
+\requierepermiso{Cuentas y roles del personal}
+
+Administra las cuentas del personal de la biblioteca y qué puede hacer
+cada rol. Tiene dos pestañas.
+
+\subsection{Cuentas del personal}
+
+Lista a cada persona con su correo, rol, estado y último acceso.
+
+\captura{34-personal-cuentas.png}{Personal y Roles, pestaña de cuentas del personal.}
+
+\begin{itemize}
+  \item \textbf{Nueva cuenta:} nombre completo, correo, rol y una
+  contraseña inicial (el formulario propone una generada al azar, con un botón para copiarla). La persona
+  entra con su correo y esa contraseña, y después puede cambiarla desde
+  el menú de su cuenta (su nombre, arriba a la derecha).
+  \item \textbf{Editar:} cambia nombre, correo o rol.
+  \item \textbf{Restablecer contraseña:} asigna una nueva a quien la
+  olvidó: se escribe o se genera al azar con \textbf{Generar}. La actual no
+  se puede ver, porque el sistema la guarda cifrada. Sus sesiones abiertas
+  se cierran.
+  \item \textbf{Desactivar:} para quien deja de trabajar en la
+  biblioteca. Su sesión se cierra al instante y su historial (préstamos,
+  entradas, cambios) se conserva. Se puede reactivar después.
+\end{itemize}
+
+Todas estas acciones piden confirmación. Al editar se muestra lo que
+cambia (por ejemplo, el rol anterior tachado y el nuevo, con un aviso si
+el nuevo tiene acceso total), y al restablecer, la contraseña nueva para
+anotarla antes de confirmar.
+
+\subsection{Roles y permisos}
+
+Muestra cada rol con su descripción y un cuadro \textbf{¿Qué puede hacer
+cada rol?} que compara los permisos de todos los roles.
+
+\captura{35-personal-roles.png}{Pestaña de roles, con la comparación de permisos entre roles.}
+
+\begin{itemize}
+  \item \textbf{Editar permisos:} marca o desmarca lo que incluye un rol.
+  Antes de guardar, el sistema muestra qué permisos se agregan y cuáles
+  se quitan, y a cuántas cuentas afecta, y pide confirmar. El cambio
+  aplica de inmediato a todas las cuentas con ese rol.
+  \item \textbf{Nuevo rol:} por ejemplo ``Ayudante de sala'', que solo
+  registra entradas. Se puede partir desde los permisos de un rol
+  existente. También pide confirmación, con un aviso si no tiene ningún
+  permiso marcado.
+  \item \textbf{Eliminar un rol:} solo si ninguna cuenta lo tiene
+  asignado.
+\end{itemize}
+
+\begin{importante}
+Solo el rol con acceso total (Administrador/a) puede gestionar cuentas y
+roles, para que nadie pueda darse más permisos a sí mismo. Por la misma
+razón, el sistema no permite desactivar la propia cuenta, ni dejar la
+biblioteca sin ninguna cuenta activa con acceso total.
+\end{importante}
 
 % ======================================================================
 \chapter{Portal del Usuario}
@@ -709,6 +1341,24 @@ importar si fue un préstamo, una reserva de sala o una simple entrada.
 El Portal del Usuario es un sitio de autoservicio independiente, pensado
 para que estudiantes, docentes y funcionarios resuelvan trámites simples
 por su cuenta, sin pasar por mesón.
+
+El portal se adapta al equipo desde el que se abre. En un computador
+(ventanas de 1024 píxeles de ancho o más) muestra un panel de inicio con
+la actividad de la persona, las dos formas de marcar entrada lado a lado
+y el catálogo junto a \textbf{Mis reservas}. En teléfonos y tablets usa
+una sola columna, con botones grandes pensados para el tacto.
+
+En la barra superior, las pestañas \textbf{Inicio}, \textbf{Entrada},
+\textbf{Catálogo} y \textbf{Salas} llevan a cada sección. A la derecha
+aparecen el nombre y el tipo de usuario; al pulsarlos se abre un menú con
+el RUT de la cuenta, \textbf{Mi perfil}, \textbf{Mis ingresos} y
+\textbf{Cerrar sesión}. En el teléfono, una barra fija abajo lleva a
+Inicio, Catálogo, Entrada (el botón central), Salas y Perfil.
+
+Las capturas de este capítulo muestran el formato de computador; el de
+teléfono se ve así:
+
+\captura{27b-portal-telefono.png}{El portal en un teléfono: inicio, marcar entrada, catálogo y salas (la línea de tiempo se desliza de lado).}
 
 \section{Inicio de sesión}
 
@@ -730,35 +1380,66 @@ que el personal se la restablezca.
 
 \section{Página de Inicio}
 
-Punto de partida del portal, con un resumen de personas en la biblioteca
-en este momento y accesos directos a cada función.
+En el computador, el inicio es un panel con lo más importante del día:
 
-\captura{27-portal-home.png}{Página de inicio del portal, con los accesos disponibles.}
+\captura{27-portal-home.png}{Inicio del portal en el computador: ingreso de hoy, actividad y accesos rápidos.}
 
 \begin{itemize}
-  \item \textbf{Marcar entrada:} registrar el propio ingreso, con RUT o
-  QR.
-  \item \textbf{Ver catálogo:} consultar disponibilidad de libros.
-  \item \textbf{Reservar logia:} pedir una sala de estudio.
-  \item \textbf{Recursos Digitales:} enlace externo a la base de datos
-  digital de la universidad (\url{https://umag.elogim.com/}); no es parte
-  del sistema de biblioteca, es un catálogo externo distinto.
-  \item \textbf{Constancia de No Multa:} descarga en PDF, bloqueada
-  automáticamente si la persona tiene multas pendientes.
+  \item \textbf{¿Llegaste a la biblioteca?:} indica si la persona ya marcó
+  su ingreso hoy (y a qué hora) y ofrece \textbf{Escanear QR} o
+  \textbf{Usar mi RUT}, que llevan directo a Marcar Entrada con la cámara
+  encendida o con el cursor en el campo del RUT.
+  \item \textbf{Ingresos de hoy:} cuántas personas marcaron su entrada
+  hoy, frente al aforo de la biblioteca. Como el sistema no registra
+  salidas, no es la cantidad de personas que están adentro en este
+  momento.
+  \item \textbf{Buscador:} busca en el catálogo por título, autor o ISBN.
+  \item \textbf{Tu actividad:} los préstamos vigentes con su fecha de
+  devolución (con un aviso si vencen en los próximos días o están
+  atrasados), las reservas de libros, las reservas de sala de hoy y el
+  estado de multas. Sin multas pendientes, desde ahí se descarga la
+  \textbf{Constancia de No Multa} en PDF.
+  \item \textbf{Accesos rápidos:} reservar sala, explorar el catálogo y
+  \textbf{Recursos digitales} (\url{https://umag.elogim.com/}), la base de
+  datos digital de la universidad, que es un sitio externo al sistema de
+  biblioteca.
 \end{itemize}
+
+Arriba a la derecha, una etiqueta indica si la biblioteca está abierta
+(«Abierta · cierra a las 20:30») o, si está cerrada, cuándo vuelve a
+abrir (por ejemplo, «Cerrada · abre el lunes a las 08:45»), según el
+horario de atención: lunes a viernes de 08:45 a 20:30 y sábado de 09:00 a
+14:00.
+
+En el teléfono, el inicio saluda con la fecha, el horario de la
+biblioteca y los ingresos del día. Debajo están el aviso
+\textbf{¿Llegaste a la biblioteca?} con \textbf{Escanear QR} y
+\textbf{Usar mi RUT}, el buscador del catálogo y \textbf{Explorar}:
+Catálogo, Reservar sala, Recursos digitales y Mis ingresos. La Constancia
+de No Multa, en el teléfono, está en \textbf{Perfil}.
 
 \section{Marcar Entrada}
 
-Permite registrar el propio ingreso escribiendo el RUT o escaneando el
-código QR institucional que muestra el personal en pantalla. Al entrar a
-esta sección aparecen las dos opciones:
+Permite registrar el propio ingreso de dos formas, cada una en su
+tarjeta. Arriba a la derecha se indica si la biblioteca está abierta y
+hasta qué hora.
 
-\captura{28-portal-entrada.png}{Menú de Marcar Entrada: Escanear QR o Ingresar RUT.}
+\captura{28-portal-entrada.png}{Marcar Entrada: escanear el código QR o ingresar con el RUT.}
 
-Al elegir \textbf{Ingresar RUT} se abre un teclado numérico en pantalla
-(pensado para usarse desde el celular) para escribir el propio RUT.
+\begin{itemize}
+  \item \textbf{Escanear código QR} (recomendado en el celular):
+  \textbf{Abrir cámara} enciende la cámara dentro de la misma tarjeta; al
+  leer el código QR de la biblioteca, la entrada queda registrada. La
+  primera vez, el navegador pide permiso para usar la cámara.
+  \item \textbf{Ingresar con RUT} (ideal en el computador): se escribe el
+  RUT sin puntos ni guion ---el sistema lo formatea--- y se pulsa
+  \textbf{Registrar entrada} o \textbf{Enter}.
+\end{itemize}
 
-\captura{28b-portal-entrada-teclado-rut.png}{Teclado numérico para confirmar el RUT propio.}
+Si algo falla ---por ejemplo, un RUT que no es el de la cuenta--- el aviso
+aparece en la misma tarjeta, sin salir de la pantalla.
+
+\captura{28b-portal-entrada-rut.png}{El RUT escrito no es el de la cuenta: el aviso aparece en la tarjeta.}
 
 \begin{nota}
 El sistema exige que el RUT ingresado coincida exactamente con el de la
@@ -766,37 +1447,111 @@ cuenta que inició sesión --- un usuario no puede marcar la entrada de
 otra persona desde su propia sesión del portal.
 \end{nota}
 
-Al presionar \textbf{Confirmar}, la entrada queda registrada de
-inmediato y el sistema muestra una pantalla de bienvenida antes de
-volver solo al inicio del portal.
+Con el RUT correcto, la entrada queda registrada de inmediato y el
+sistema muestra una bienvenida antes de volver solo al inicio del
+portal.
 
 \captura{28c-portal-entrada-exito.png}{Confirmación de entrada registrada.}
 
 \section{Catálogo}
 
-Consulta de disponibilidad de libros por título, autor o categoría. Cada
-libro muestra si hay copias disponibles ahora mismo, y permite
-\textbf{reservar} o \textbf{unirse a la lista de espera} directamente,
-sin necesidad de ir a mesón.
+Consulta de disponibilidad de libros y revistas. El buscador acepta
+título, autor, área o ISBN (con o sin guiones) e indica cuántos
+resultados hay; los botones \textbf{Todos} y \textbf{Disponibles ahora} y
+el selector de \textbf{Área} filtran la lista.
 
-\captura{29-portal-catalogo.png}{Catálogo del portal, con disponibilidad y reserva directa.}
+\captura{29-portal-catalogo.png}{Catálogo del portal, con filtros, disponibilidad y reserva directa.}
 
-La sección \textbf{Mis reservas}, en la misma pantalla, muestra el estado
-de cada reserva del usuario, incluida su posición en la fila si está en
-lista de espera.
+Cada título muestra una portada con sus iniciales (del color de su área),
+su estado y la acción que corresponde:
+
+\begin{itemize}
+  \item \textbf{Disponible}, con cuántos ejemplares hay en estantería:
+  botón \textbf{Reservar}.
+  \item \textbf{Prestado}, con la fecha aproximada en que vuelve una copia:
+  botón \textbf{Avisarme al volver}, que deja a la persona en la lista de
+  espera. \textbf{No disponible} indica que no hay copias libres aunque
+  ninguna esté prestada (por ejemplo, porque está apartada para otra
+  persona).
+  \item \textbf{Lista para retirar} o \textbf{En lista de espera}, si la
+  persona ya lo reservó: en lugar del botón aparece \textbf{En tus
+  reservas}.
+\end{itemize}
+
+\textbf{Ver ficha}, junto a cada título, muestra sus datos
+bibliográficos públicos según el tipo de material (ISBN, clasificación,
+pie de imprenta, materias, acceso electrónico\ldots). En el computador
+se despliega dentro de la lista; en el teléfono se abre una ventana con
+el resumen del título ---portada, estado, ficha y el botón para
+reservar--- sin alargar la página. Los datos de uso interno de la
+biblioteca no se muestran.
+
+\captura{29b-portal-ficha.png}{Ficha de un título en el portal: solo los datos públicos.}
+
+Reservar siempre pide confirmación. \textbf{Reservar} y
+\textbf{Avisarme al volver} abren una ventana con el título y lo que va a
+pasar: en el primer caso se aparta una copia a nombre de la persona para
+retirarla en el mesón antes de la fecha límite; en el segundo, queda en la
+lista de espera y, cuando llega su turno, se le aparta una copia y se le
+avisa por correo si tiene uno registrado. Nada se registra hasta pulsar
+\textbf{Confirmar}; \textbf{Cancelar} cierra la ventana sin reservar.
+
+\captura{29c-portal-confirmar-reserva.png}{Confirmación antes de reservar un libro.}
+
+\textbf{Mis reservas} (a la derecha en el computador; sobre la lista en el
+teléfono) muestra cada reserva con su estado, el plazo para retirarla o
+el lugar en la fila, y permite cancelarla o salir de la fila (también
+con confirmación). Debajo, \textbf{¿Cómo retiro
+un libro?} recuerda que, cuando la reserva diga «Lista para retirar», hay
+que pasar al mesón de préstamo con el RUT dentro del plazo indicado.
+
+\begin{nota}
+Con multas pendientes, el portal no permite reservar ni unirse a la lista
+de espera: muestra el monto adeudado y pide pagarlo en la biblioteca.
+\end{nota}
+
+\section{Mi perfil y Mis ingresos}
+
+\textbf{Mi perfil} (en el menú de la cuenta, o \textbf{Perfil} en la
+barra inferior del teléfono) muestra el nombre, el tipo de usuario, el
+RUT, la carrera y el correo, y reúne la \textbf{Constancia de No Multa}
+(se bloquea si hay multas pendientes), el acceso a \textbf{Mis ingresos}
+y \textbf{Cerrar sesión}.
+
+\textbf{Mis ingresos} muestra cuántas veces marcó la persona su entrada
+este mes y su historial reciente, agrupado por día, con la hora y cómo se
+registró: con el código QR, con su RUT en el portal o en el mesón.
+
+\captura{27c-portal-perfil-ingresos.png}{Mi perfil y Mis ingresos, en el teléfono.}
 
 \section{Salas de Estudio}
 
-Reserva de logias desde el portal, con la misma grilla de bloques
-horarios que usa el personal.
+Reserva de logias desde el portal, con la misma línea de tiempo por sala
+que usa el personal: lo que ya pasó aparece rayado y la línea azul, con
+la etiqueta \textbf{Ahora}, marca la hora actual. Las reservas de 30
+minutos, por ser cortas, se dibujan como un punto; al pasar el cursor
+sobre cualquier bloque se ve su horario. El botón \textbf{¿Cómo reservo
+una sala?} despliega los pasos, y la página se actualiza sola cada 30
+segundos. Lo que queda fuera del horario de la biblioteca también aparece
+rayado (el sábado, desde las 14:00, con un aviso), y los domingos, como la
+biblioteca no atiende, la pantalla lo avisa y no permite reservar. En el
+teléfono, la línea de tiempo se desliza hacia el lado, con
+el nombre de cada sala fijo a la izquierda, y se abre mostrando la hora
+actual.
 
 \captura{30-portal-salas.png}{Reserva de salas de estudio desde el portal.}
 
-Al hacer clic en un bloque disponible se abre el mismo formulario de
+Al hacer clic en un espacio disponible se abre el mismo formulario de
 reserva que usa el personal, con una diferencia: el RUT de la propia
-persona ya viene completado automáticamente en el primer campo.
+persona ya viene completado automáticamente en el primer campo. En el
+portal las reservas empiezan a la hora o a la media hora; la opción
+\textbf{Reservar ahora}, que empieza en el minuto exacto, es solo del
+personal.
 
 \captura{30b-portal-salas-modal-reserva.png}{Formulario de reserva desde el portal --- el primer RUT ya viene precargado con la cuenta propia.}
+
+Las reservas propias aparecen en otro color. Al pulsar una, el portal
+pregunta \textbf{¿Cancelar tu reserva?} antes de liberarla.
 
 \begin{importante}
 Desde el portal, los usuarios \textbf{solo pueden reservar salas para el
@@ -811,33 +1566,52 @@ desde el panel interno.
 
 \begin{description}[leftmargin=0pt,style=nextline]
   \item[¿Por qué no puedo prestar un libro que aparece en el catálogo?]
-  Verifica su estado en el módulo \textbf{Estado de Libro}: solo los
-  ejemplares ``En Estante'' y sin prestar/reservar por otra persona se
+  Verifica su estado en el módulo \textbf{Estado de ejemplares}: solo los
+  ejemplares ``En estante'' y sin prestar/reservar por otra persona se
   pueden prestar. Un libro recién catalogado nace en ``Inventario'', no
   en estante.
 
   \item[¿Un usuario con multa pendiente puede seguir pidiendo libros?]
-  Sí. La multa solo muestra un aviso informativo al personal; no bloquea
-  nuevos préstamos. Sí bloquea la Constancia de No Multa.
+  No. Mientras tenga multas pendientes no puede llevarse libros ni
+  equipos, ni reservar libros, ni obtener la Constancia de No Multa.
+  Apenas se registra el pago (o se anula la multa), puede volver a pedir.
 
   \item[¿Por qué no encuentro el módulo X en mi menú?]
-  Probablemente está reservado para el rol Administrador. Revisa los
-  recuadros ``Solo Administrador'' de este manual.
+  Porque tu rol no incluye ese permiso. Los recuadros ``Requiere
+  permiso'' de este manual indican cuál hace falta; si lo necesitas para
+  tu trabajo, pídele a un administrador que lo agregue a tu rol o que te
+  asigne otro (Personal y Roles).
+
+  \item[Olvidé mi contraseña de personal. ¿Qué hago?]
+  Un administrador puede restablecerla desde Personal y Roles
+  (botón \textbf{Contraseña} en tu fila). Después, cámbiala por una
+  propia desde el menú de tu cuenta (tu nombre, arriba a la derecha).
+
+  \item[Un compañero dejó la biblioteca. ¿Borro su cuenta?]
+  No: se \textbf{desactiva} desde Personal y Roles. Así no puede volver a
+  entrar, y su nombre sigue apareciendo en los préstamos, entradas y
+  cambios que atendió.
+
+  \item[Una multa se cursó por error. ¿Se puede borrar?]
+  No se borra: se \textbf{anula} desde el módulo Multas, indicando el
+  motivo (requiere el permiso \textit{Anular multas}). Queda en el
+  historial con el motivo y el nombre de quien la anuló.
 
   \item[¿Puedo reservar una sala para la próxima semana desde el portal?]
-  No. El portal solo permite reservar para el día de hoy. El personal sí
-  puede reservar para otras fechas desde el panel interno.
+  No. El portal solo permite reservar para el día de hoy (y nunca un
+  domingo, que la biblioteca no atiende). El personal sí puede reservar
+  para otras fechas desde el panel interno.
 
   \item[¿Qué pasa si un grupo reserva una sala y no llega?]
-  Tiene 15 minutos desde el inicio del bloque para confirmar su llegada.
-  Si no lo hace, la sala se libera automáticamente y queda disponible
-  para otra persona.
+  Tiene 15 minutos desde la hora de inicio de su reserva para confirmar
+  su llegada. Si no lo hace, la sala se libera automáticamente y queda
+  disponible para otra persona.
 
   \item[¿Cómo sé quién atendió una operación puntual?]
-  El módulo \textbf{Registro Absoluto} (solo Administrador) muestra el
-  nombre del funcionario que atendió cada préstamo, reserva de sala o
-  reserva de libro --- salvo que la haya hecho el propio usuario desde el
-  portal, en cuyo caso no hay funcionario involucrado.
+  El módulo \textbf{Registro Absoluto} (permiso \textit{Registro
+  absoluto}) muestra el nombre del funcionario que atendió cada préstamo,
+  reserva de sala o reserva de libro --- salvo que la haya hecho el propio
+  usuario desde el portal, en cuyo caso no hay funcionario involucrado.
 
   \item[¿El sistema funciona si no hay conexión con el servidor?]
   No: ninguna pantalla muestra datos de ejemplo o ficticios si falla la
@@ -860,13 +1634,31 @@ desde el panel interno.
   estante, en estantería auxiliar, en colección móvil, dado de baja, o
   un estado personalizado.
 
+  \item[Ficha bibliográfica] Los datos de un título organizados por
+  etiquetas MARC. Qué etiquetas lleva, y cuáles ve el usuario, depende del
+  tipo de material.
+
   \item[Disponible] Indica si un ejemplar está prestado/reservado en
   este momento o no. Es independiente del estado de proceso --- un
   ejemplar puede estar ``en estante'' pero no disponible porque otra
   persona lo tiene prestado.
 
   \item[Logia] Nombre que usa la biblioteca para sus salas de estudio
-  individuales (15 en total), reservables por bloques de dos horas.
+  individuales (15 en total), reservables en horario continuo por hasta
+  dos horas cada vez.
+
+  \item[Multa] Deuda de un usuario con la biblioteca. Las de atraso se
+  generan solas al devolver un libro fuera de plazo; las de deterioro,
+  pérdida u otro motivo se cursan a mano. Se pagan o se anulan, pero
+  nunca se borran.
+
+  \item[Permiso] Una acción concreta del panel de personal (por ejemplo
+  ``Catalogar libros'' o ``Anular multas''). Los permisos se agrupan en
+  roles.
+
+  \item[Rol] Conjunto de permisos que se asigna a una cuenta del
+  personal: Atención de público, Bibliotecario/a, Administrador/a u otro
+  creado por la biblioteca.
 
   \item[Cola de espera] Lista de personas esperando que se libere una
   copia de un libro agotado, en orden de llegada (primero en pedirlo,

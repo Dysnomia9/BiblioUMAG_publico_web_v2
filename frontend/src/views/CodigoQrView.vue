@@ -4,9 +4,11 @@ import QRCode from 'qrcode'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import type { CodigoAcceso } from '@/types'
 
 const toast = useToast()
+const auth = useAuthStore()
 
 const codigo = ref<CodigoAcceso | null>(null)
 const cargando = ref(true)
@@ -115,6 +117,7 @@ onMounted(cargar)
               Descargar PNG
             </button>
             <button
+              v-if="auth.puede('codigo_qr.regenerar')"
               @click="pedirConfirmacionRegenerar"
               :disabled="regenerando"
               class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg font-medium text-sm transition-colors"

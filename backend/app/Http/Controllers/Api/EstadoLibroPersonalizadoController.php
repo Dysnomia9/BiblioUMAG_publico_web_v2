@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\EstadoLibroPersonalizado;
+use App\Support\Bitacora;
 use Illuminate\Http\Request;
 
 class EstadoLibroPersonalizadoController extends Controller
@@ -29,6 +30,8 @@ class EstadoLibroPersonalizadoController extends Controller
 
         $estado = EstadoLibroPersonalizado::create($data + ['activo' => true]);
 
+        Bitacora::registrar('configuracion.crear_estado', "Creó el estado personalizado «{$estado->nombre}»", entidad: $estado);
+
         return response()->json($estado, 201);
     }
 
@@ -39,6 +42,12 @@ class EstadoLibroPersonalizadoController extends Controller
         ]);
 
         $estadoLibroPersonalizado->update(['activo' => $data['activo']]);
+
+        Bitacora::registrar(
+            'configuracion.activar_estado',
+            ($data['activo'] ? 'Reactivó' : 'Desactivó')." el estado personalizado «{$estadoLibroPersonalizado->nombre}»",
+            entidad: $estadoLibroPersonalizado,
+        );
 
         return response()->json($estadoLibroPersonalizado);
     }

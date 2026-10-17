@@ -24,7 +24,7 @@ class EstadoLibroPersonalizadoTest extends TestCase
 
     public function test_staff_no_admin_no_puede_crear_un_estado_personalizado(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->postJson('/api/estados-libro-personalizados', ['nombre' => 'Restauración']);
 

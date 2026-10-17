@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
+use App\Support\Bitacora;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,10 +16,10 @@ class EjemplarController extends Controller
 {
     private const ESTADOS = 'inventario,procesos_tecnicos,por_colocar,en_estante,estanteria_auxiliar,de_baja,coleccion_movil,personalizado';
 
-    /** Busca una copia física por su código de barras (escaneo en préstamo/reserva/estado). */
+    /** Busca una copia física por su código de barras o su código de lomo (escaneo en préstamo/reserva/estado). */
     public function buscarPorCodigo(string $codigo)
     {
-        $ejemplar = Ejemplar::where('codigo_barras', $codigo)->with(['libro', 'ubicacion'])->first();
+        $ejemplar = Ejemplar::porCodigo($codigo)->with(['libro', 'ubicacion'])->first();
 
         if (! $ejemplar) {
             return response()->json(['message' => 'Código de barras no encontrado en el sistema'], 404);
@@ -32,10 +33,11 @@ class EjemplarController extends Controller
     {
         $data = $request->validate([
             'libro_id' => ['required', 'exists:libros,id'],
-            'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras'],
+            'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo'],
             'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
             'volumen' => ['nullable', 'string', 'max:100'],
             'precio' => ['nullable', 'numeric', 'min:0'],
+            'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
         ]);
 
         $ejemplar = DB::transaction(function () use ($data) {
@@ -48,11 +50,21 @@ class EjemplarController extends Controller
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
                 'volumen' => $data['volumen'] ?? null,
                 'precio' => $data['precio'] ?? null,
+                'forma_adquisicion' => $data['forma_adquisicion'] ?? null,
                 'estado_proceso' => 'inventario',
             ]);
         });
 
-        return response()->json($ejemplar->load(['libro', 'ubicacion']), 201);
+        // refresh(): trae lo que completa la base al insertar (valores por defecto).
+        $ejemplar->refresh()->load(['libro', 'ubicacion']);
+        Bitacora::registrar(
+            'libros.agregar_copia',
+            "Agregó la copia {$ejemplar->numero_copia} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras}, lomo {$ejemplar->codigo_lomo})",
+            entidad: $ejemplar,
+            datos: ['codigo_barras' => $ejemplar->codigo_barras, 'codigo_lomo' => $ejemplar->codigo_lomo],
+        );
+
+        return response()->json($ejemplar, 201);
     }
 
     /**
@@ -66,7 +78,7 @@ class EjemplarController extends Controller
      */
     public function siguienteCodigoBarras()
     {
-        $ultimoNumero = Ejemplar::whereRaw("codigo_barras ~ '^[0-9]{14}$'")
+        $ultimoNumero = Ejemplar::whereRaw("codigo_barras REGEXP '^[0-9]{14}$'")
             ->get(['codigo_barras'])
             ->map(fn ($e) => (int) $e->codigo_barras)
             ->max();
@@ -78,17 +90,75 @@ class EjemplarController extends Controller
 
     public function cambiarEstado(Request $request, Ejemplar $ejemplar)
     {
-        $data = $request->validate($this->reglasEstado());
+        $data = $request->validate(
+            [...$this->reglasEstado(), 'motivo' => ['required_if:estado_proceso,de_baja', 'nullable', 'string', 'max:500']],
+            ['motivo.required_if' => 'Indica el motivo de la baja: queda registrado en el historial.'],
+        );
 
         if ($data['estado_proceso'] === 'de_baja' && ! $ejemplar->disponible) {
             return response()->json(['message' => 'No se puede dar de baja un ejemplar actualmente prestado o reservado'], 409);
         }
 
+        $estadoAnterior = $ejemplar->estado_proceso;
+
         DB::transaction(function () use ($ejemplar, $data, $request) {
             $this->aplicarCambioDeEstado($ejemplar, $data['estado_proceso'], $data['estado_personalizado_id'] ?? null, $request->user()->id, null, $data['motivo'] ?? null);
         });
 
+        $ejemplar->loadMissing('libro:id,titulo');
+        Bitacora::registrar(
+            $data['estado_proceso'] === 'de_baja' ? 'libros.dar_de_baja' : 'libros.cambiar_estado',
+            "Cambió el estado de «{$ejemplar->libro?->titulo}» copia {$ejemplar->numero_copia} ({$ejemplar->codigo_barras}): ".self::nombreEstado($estadoAnterior).' → '.self::nombreEstado($data['estado_proceso'])
+                .(! empty($data['motivo']) ? ". Motivo: {$data['motivo']}" : ''),
+            entidad: $ejemplar,
+            datos: ['estado' => [$estadoAnterior, $data['estado_proceso']], 'motivo' => $data['motivo'] ?? null],
+        );
+
         return response()->json($ejemplar->fresh(['libro', 'estadoPersonalizado', 'ubicacion']));
+    }
+
+    /**
+     * Datos para imprimir etiquetas de lomo: por cada código escaneado o escrito (el de
+     * 14 dígitos o el de lomo) y/o por cada título elegido (todas sus copias), la
+     * clasificación del libro y el código de lomo de la copia. No escribe nada.
+     */
+    public function etiquetasLomo(Request $request)
+    {
+        $data = $request->validate([
+            'codigos' => ['nullable', 'array', 'max:500'],
+            'codigos.*' => ['string', 'max:255'],
+            'libro_ids' => ['nullable', 'array', 'max:200'],
+            'libro_ids.*' => ['integer'],
+        ]);
+
+        $etiqueta = fn (Ejemplar $e) => [
+            'id' => $e->id,
+            'codigo_barras' => $e->codigo_barras,
+            'codigo_lomo' => $e->codigo_lomo,
+            'numero_copia' => $e->numero_copia,
+            'volumen' => $e->volumen,
+            'titulo' => $e->libro?->titulo,
+            'clasificacion' => $e->libro?->clasificacion,
+        ];
+
+        $encontradas = collect();
+        $noEncontrados = [];
+
+        foreach (array_unique(array_filter(array_map('trim', $data['codigos'] ?? []))) as $codigo) {
+            $ejemplar = Ejemplar::porCodigo($codigo)->with('libro:id,titulo,clasificacion')->first();
+            $ejemplar ? $encontradas->push($ejemplar) : $noEncontrados[] = $codigo;
+        }
+
+        if (! empty($data['libro_ids'])) {
+            $encontradas = $encontradas->concat(
+                Ejemplar::whereIn('libro_id', $data['libro_ids'])->with('libro:id,titulo,clasificacion')->orderBy('libro_id')->orderBy('numero_copia')->get()
+            );
+        }
+
+        return response()->json([
+            'etiquetas' => $encontradas->unique('id')->values()->map($etiqueta),
+            'no_encontrados' => $noEncontrados,
+        ]);
     }
 
     /** Vista previa de un cambio masivo: cuenta y muestra los ejemplares que matchean el filtro, sin escribir nada. */
@@ -136,6 +206,17 @@ class EjemplarController extends Controller
             return $actualizados;
         });
 
+        Bitacora::registrar(
+            'libros.cambio_masivo',
+            "Cambio masivo de estado: {$totalActualizados} ".($totalActualizados === 1 ? 'copia pasó' : 'copias pasaron').' a '.self::nombreEstado($data['nuevo_estado']),
+            datos: [
+                'lote_id' => $loteId,
+                'total' => $totalActualizados,
+                'filtro' => array_filter($request->only(['ubicacion_id', 'estado_proceso_actual', 'tipo_material_id', 'categoria_id', 'q'])),
+                'motivo' => $data['motivo'] ?? null,
+            ],
+        );
+
         return response()->json(['lote_id' => $loteId, 'total_actualizados' => $totalActualizados]);
     }
 
@@ -163,8 +244,8 @@ class EjemplarController extends Controller
 
         if ($busqueda = $request->query('q')) {
             $query->whereHas('ejemplar', function ($e) use ($busqueda) {
-                $e->where('codigo_barras', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('libro', fn ($l) => $l->where('titulo', 'ilike', "%{$busqueda}%"));
+                $e->where(fn ($c) => $c->where('codigo_barras', 'like', "%{$busqueda}%")->orWhere('codigo_lomo', 'like', "%{$busqueda}%"))
+                    ->orWhereHas('libro', fn ($l) => $l->whereSinTildes('titulo', $busqueda));
             });
         }
 
@@ -176,7 +257,33 @@ class EjemplarController extends Controller
             $query->whereDate('created_at', '<=', $hasta);
         }
 
+        // El estado al que pasó la copia (los chips de estado del Historial de estado).
+        if ($estado = $request->query('estado')) {
+            $query->where('estado_nuevo', $estado);
+        }
+
+        // Cuántas copias movió en total el cambio masivo de cada fila («Lote 3a9dbcff · 2 copias»),
+        // aunque los filtros o el límite dejen ver solo algunas. 0 en los cambios individuales.
+        $query->addSelect(['lote_total' => EjemplarEstadoHistorial::from('ejemplar_estado_historial as del_lote')
+            ->selectRaw('count(*)')
+            ->whereColumn('del_lote.lote_id', 'ejemplar_estado_historial.lote_id'),
+        ])->withCasts(['lote_total' => 'integer']);
+
         return response()->json($query->latest()->limit(200)->get());
+    }
+
+    private static function nombreEstado(string $estado): string
+    {
+        return [
+            'inventario' => 'Inventario',
+            'procesos_tecnicos' => 'Procesos técnicos',
+            'por_colocar' => 'Por colocar',
+            'en_estante' => 'En estante',
+            'estanteria_auxiliar' => 'Estantería auxiliar',
+            'coleccion_movil' => 'Colección móvil',
+            'personalizado' => 'Personalizado',
+            'de_baja' => 'De baja',
+        ][$estado] ?? $estado;
     }
 
     private function aplicarCambioDeEstado(Ejemplar $ejemplar, string $nuevoEstado, ?int $estadoPersonalizadoId, int $staffId, ?string $loteId = null, ?string $motivo = null): void
@@ -225,8 +332,9 @@ class EjemplarController extends Controller
 
         if ($busqueda = $request->input('q')) {
             $query->where(function ($qq) use ($busqueda) {
-                $qq->where('codigo_barras', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('libro', fn ($l) => $l->where('titulo', 'ilike', "%{$busqueda}%"));
+                $qq->where('codigo_barras', 'like', "%{$busqueda}%")
+                    ->orWhere('codigo_lomo', 'like', "%{$busqueda}%")
+                    ->orWhereHas('libro', fn ($l) => $l->whereSinTildes('titulo', $busqueda));
             });
         }
 

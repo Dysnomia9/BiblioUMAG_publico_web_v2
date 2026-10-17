@@ -15,26 +15,23 @@ return new class extends Migration
     {
         DB::statement(<<<'SQL'
             UPDATE prestamos
-            SET prestado_por_staff_id = staff.id
-            FROM staff
-            WHERE staff.nombre = prestamos.prestado_por
-              AND prestamos.prestado_por_staff_id IS NULL
+            JOIN staff ON staff.nombre = prestamos.prestado_por
+            SET prestamos.prestado_por_staff_id = staff.id
+            WHERE prestamos.prestado_por_staff_id IS NULL
         SQL);
 
         DB::statement(<<<'SQL'
             UPDATE prestamos
-            SET devuelto_por_staff_id = staff.id
-            FROM staff
-            WHERE staff.nombre = prestamos.devuelto_por
-              AND prestamos.devuelto_por_staff_id IS NULL
+            JOIN staff ON staff.nombre = prestamos.devuelto_por
+            SET prestamos.devuelto_por_staff_id = staff.id
+            WHERE prestamos.devuelto_por_staff_id IS NULL
         SQL);
 
         DB::statement(<<<'SQL'
             UPDATE prestamos
-            SET multa_pagada_por_staff_id = staff.id
-            FROM staff
-            WHERE staff.nombre = prestamos.multa_pagada_por
-              AND prestamos.multa_pagada_por_staff_id IS NULL
+            JOIN staff ON staff.nombre = prestamos.multa_pagada_por
+            SET prestamos.multa_pagada_por_staff_id = staff.id
+            WHERE prestamos.multa_pagada_por_staff_id IS NULL
         SQL);
     }
 

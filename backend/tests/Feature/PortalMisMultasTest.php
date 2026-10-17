@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Prestamo;
+use App\Models\Multa;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,12 +16,7 @@ class PortalMisMultasTest extends TestCase
     public function test_usuario_ve_sus_propias_multas_pendientes(): void
     {
         $usuario = Usuario::factory()->create();
-        Prestamo::factory()->create([
-            'usuario_id' => $usuario->id,
-            'estado' => 'devuelto',
-            'multa_estado' => 'pendiente',
-            'multa_monto' => 5000,
-        ]);
+        Multa::factory()->create(['usuario_id' => $usuario->id, 'monto' => 5000]);
 
         Sanctum::actingAs($usuario);
 
@@ -29,7 +24,22 @@ class PortalMisMultasTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('multas_pendientes.cantidad', 1)
-            ->assertJsonPath('multas_pendientes.monto_total', 5000);
+            ->assertJsonPath('multas_pendientes.monto_total', 5000)
+            ->assertJsonCount(1, 'multas');
+    }
+
+    public function test_multas_pagadas_o_anuladas_no_cuentan_como_deuda(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Multa::factory()->pagada()->create(['usuario_id' => $usuario->id]);
+        Multa::factory()->anulada()->create(['usuario_id' => $usuario->id]);
+
+        Sanctum::actingAs($usuario);
+
+        $this->getJson('/api/mi/multas')
+            ->assertStatus(200)
+            ->assertJsonPath('multas_pendientes.cantidad', 0)
+            ->assertJsonCount(0, 'multas');
     }
 
     public function test_usuario_sin_multas_pendientes_ve_cantidad_cero(): void
@@ -48,12 +58,7 @@ class PortalMisMultasTest extends TestCase
     {
         $usuario = Usuario::factory()->create();
         $otro = Usuario::factory()->create();
-        Prestamo::factory()->create([
-            'usuario_id' => $otro->id,
-            'estado' => 'devuelto',
-            'multa_estado' => 'pendiente',
-            'multa_monto' => 9000,
-        ]);
+        Multa::factory()->create(['usuario_id' => $otro->id, 'monto' => 9000]);
 
         Sanctum::actingAs($usuario);
 

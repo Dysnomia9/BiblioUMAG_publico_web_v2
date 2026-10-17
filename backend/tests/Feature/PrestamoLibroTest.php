@@ -23,7 +23,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => 'NO-EXISTE',
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(404);
@@ -39,7 +39,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(409);
@@ -55,7 +55,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(409);
@@ -73,7 +73,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(201)
@@ -96,7 +96,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $copiaDos->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(201)->assertJsonPath('libro_titulo', 'Título con copias (Copia 2)');
@@ -131,7 +131,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $yaPrestado->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ])->assertStatus(201);
 
         $response = $this->postJson('/api/prestamos', [
@@ -139,7 +139,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $nuevoLibro->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(409)
@@ -160,7 +160,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $primero->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ])->json();
 
         $this->patchJson("/api/prestamos/{$prestamo['id']}/devolver")->assertStatus(200);
@@ -170,7 +170,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $segundo->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
         $response->assertStatus(201);
@@ -188,7 +188,7 @@ class PrestamoLibroTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $libro->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
         ])->assertStatus(201);
 
         $response = $this->postJson('/api/prestamos', [

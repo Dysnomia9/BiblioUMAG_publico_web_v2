@@ -20,12 +20,11 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <!-- El sistema solo corre en producción sobre PostgreSQL (usa 'ilike' en
-             UsuarioController/PortalController y columnas 'date' cuyo formato de
-             almacenamiento de Eloquent solo es truncado correctamente por el tipo
-             DATE nativo de Postgres). Se usa una base de datos Postgres de prueba
-             separada ('biblioteca_test') en vez de SQLite en memoria para que los
-             tests reflejen el comportamiento real.
+        <!-- Los tests corren contra una base MySQL de prueba separada
+             ('biblioteca_test', con la misma collation utf8mb4_unicode_ci que la
+             real) en vez de SQLite en memoria: las búsquedas sin tildes, las
+             columnas generadas, los CHECK y los candados dependen del motor, y los
+             tests tienen que reflejar el comportamiento real.
 
              IMPORTANTE: NO reutilizar los nombres DB_HOST/DB_DATABASE/
              DB_USERNAME/DB_PASSWORD acá. docker-compose.yml ya los define
@@ -38,10 +37,10 @@
              migrate:fresh contra 'biblioteca' (dev) en vez de
              'biblioteca_test', borrando los datos de desarrollo.
 
-             En vez de eso, se activa la conexión 'pgsql_testing' definida en
+             En vez de eso, se activa la conexión 'mysql_testing' definida en
              config/database.php, que usa nombres de variable propios
              (DB_TEST_*) que Docker nunca define — sin colisión posible. -->
-        <env name="DB_CONNECTION" value="pgsql_testing"/>
+        <env name="DB_CONNECTION" value="mysql_testing"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

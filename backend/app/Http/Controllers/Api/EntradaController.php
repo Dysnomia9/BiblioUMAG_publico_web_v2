@@ -5,7 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Entrada;
 use App\Models\Usuario;
+use App\Services\EntradaService;
+use App\Support\Bitacora;
+use App\Support\Busqueda;
+use App\Support\Documento;
+use App\Support\HorarioBiblioteca;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class EntradaController extends Controller
 {
@@ -25,7 +31,7 @@ class EntradaController extends Controller
         $busqueda = trim((string) $request->query('q', ''));
 
         if ($desde || $hasta || $busqueda !== '') {
-            $query = Entrada::with('usuario:id,nombre,apellido,rut,tipo');
+            $query = Entrada::with('usuario:id,nombre,apellido,rut,tipo,tipo_documento,pais');
 
             if ($desde) {
                 $query->whereDate('fecha_hora_entrada', '>=', $desde);
@@ -36,13 +42,22 @@ class EntradaController extends Controller
             }
 
             if ($busqueda !== '') {
-                $query->where(function ($q) use ($busqueda) {
-                    $q->where('rut_externo', 'ilike', "%{$busqueda}%")
-                        ->orWhere('nombre_externo', 'ilike', "%{$busqueda}%")
-                        ->orWhereHas('usuario', function ($u) use ($busqueda) {
-                            $u->where('rut', 'ilike', "%{$busqueda}%")
-                                ->orWhere('nombre', 'ilike', "%{$busqueda}%")
-                                ->orWhere('apellido', 'ilike', "%{$busqueda}%");
+                // Nombre completo sin importar tildes, y RUT con o sin puntos ni guion. Un
+                // pasaporte o DNI (letras y números) se busca igual, sin espacios ni guiones.
+                $digitos = preg_replace('/[^0-9kK]/', '', $busqueda);
+                $rutSinFormato = "REGEXP_REPLACE(%s, '[^0-9kK]', '') LIKE ?";
+                $documento = Documento::normalizar($busqueda);
+                $esDocumento = strlen($documento) >= 4 && preg_match('/\d/', $documento) && preg_match('/[A-JL-Z]/', $documento);
+                $query->where(function ($q) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
+                    $q->where('rut_externo', 'like', "%{$busqueda}%")
+                        ->orWhereSinTildes('nombre_externo', $busqueda)
+                        ->when(strlen($digitos) >= 3, fn ($q) => $q->orWhereRaw(sprintf($rutSinFormato, 'rut_externo'), ["%{$digitos}%"]))
+                        ->when($esDocumento, fn ($q) => $q->orWhereRaw(Documento::sql('rut_externo').' like ?', ["%{$documento}%"]))
+                        ->orWhereHas('usuario', function ($u) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
+                            $u->where('rut', 'like', "%{$busqueda}%")
+                                ->orWhereRaw(Busqueda::sinTildes(Busqueda::nombreCompleto()).' LIKE ?', [Busqueda::patron($busqueda)])
+                                ->when(strlen($digitos) >= 3, fn ($u) => $u->orWhereRaw(sprintf($rutSinFormato, 'rut'), ["%{$digitos}%"]))
+                                ->when($esDocumento, fn ($u) => $u->orWhereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
                         });
                 });
             }
@@ -55,12 +70,13 @@ class EntradaController extends Controller
             return response()->json([
                 'modo' => 'busqueda',
                 'entradas' => $entradas,
+                ...$this->resumenDeHoy(),
             ]);
         }
 
         $fecha = $request->query('fecha', now()->toDateString());
 
-        $entradas = Entrada::with('usuario:id,nombre,apellido,rut,tipo')
+        $entradas = Entrada::with('usuario:id,nombre,apellido,rut,tipo,tipo_documento,pais')
             ->whereDate('fecha_hora_entrada', $fecha)
             ->latest('fecha_hora_entrada')
             ->get();
@@ -74,17 +90,43 @@ class EntradaController extends Controller
             // "Personas en sala" es, en la práctica, el total de ingresos del día — no
             // un conteo en tiempo real de quién no ha salido.
             'personasEnSala' => $entradas->count(),
+            ...$this->resumenDeHoy(),
         ]);
     }
 
-    public function store(Request $request)
+    /**
+     * El recuadro de hoy de la pantalla Entradas, se esté mirando el día que sea:
+     * personas distintas que vinieron (contra el aforo), cuántas entradas hubo y cómo
+     * se registraron. Más el horario, para el aviso «Abierta · cierra a las…».
+     */
+    private function resumenDeHoy(): array
+    {
+        $hoy = fn () => Entrada::whereDate('fecha_hora_entrada', now()->toDateString());
+
+        return [
+            'hoy' => [
+                'personas' => (int) $hoy()->selectRaw("COUNT(DISTINCT COALESCE(CAST(usuario_id AS CHAR), CONCAT('externo:', rut_externo))) AS total")->value('total'),
+                'entradas' => $hoy()->count(),
+                'qr' => $hoy()->where('via', 'qr')->count(),
+                'portal' => $hoy()->where('via', 'portal')->count(),
+                'manuales' => $hoy()->where('via', 'manual')->count(),
+                // Marcadas solas al confirmar la llegada del grupo a una sala reservada.
+                'sala' => $hoy()->where('via', 'sala')->count(),
+            ],
+            'aforo' => config('biblioteca.aforo'),
+            'horario' => HorarioBiblioteca::semana(),
+        ];
+    }
+
+    public function store(Request $request, EntradaService $entradas)
     {
         $data = $request->validate([
             'rut' => ['required', 'string'],
             'via' => ['sometimes', 'in:manual,qr'],
         ]);
 
-        $usuario = Usuario::where('rut', $data['rut'])->first();
+        // RUT, pasaporte o DNI, escrito con o sin puntos y guion.
+        $usuario = Usuario::buscarPorIdentificador($data['rut']);
 
         if (! $usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
@@ -98,94 +140,102 @@ class EntradaController extends Controller
         // código de barras del puesto de trabajo: se estampa siempre automáticamente, nunca
         // se tipea a mano. La salida se marca en el mismo instante que la entrada — Horizon
         // no registra un evento de salida por separado, así que no tiene sentido modelar un
-        // estado "activo" que dependa de fecha_hora_salida (antes quedaba una entrada
-        // "abierta" indefinidamente si nadie la cerraba a mano, incluso días después). Se usa
-        // el mismo timestamp para ambos campos (no dos now() distintos) para que salida no
-        // quede unos milisegundos después de entrada.
-        $ahora = now();
-        $entrada = Entrada::create([
-            'usuario_id' => $usuario->id,
+        // estado "activo" que dependa de fecha_hora_salida. Lo que sí se controla es que la
+        // persona quede presente una sola vez por día (ver EntradaService).
+        [$entrada, $creada] = $entradas->registrarUsuario($usuario, [
             'registrado_por_staff_id' => $request->user()->id,
             'via' => $data['via'] ?? 'manual',
             'codigo_barras' => config('horizon_barcodes.puesto_generico'),
-            'fecha_hora_entrada' => $ahora,
-            'fecha_hora_salida' => $ahora,
         ]);
 
-        $entrada->load('usuario:id,nombre,apellido,rut,tipo');
+        $entrada->load('usuario:id,nombre,apellido,rut,tipo,tipo_documento,pais');
+
+        if (! $creada) {
+            return response()->json([
+                'message' => $entradas->mensajeYaPresente($entrada, trim("{$usuario->nombre} {$usuario->apellido}")),
+                'entrada' => $entrada,
+            ], 409);
+        }
+
+        Bitacora::registrar(
+            'entradas.registrar',
+            ($entrada->via === 'qr' ? 'Registró la entrada con el lector QR' : 'Registró la entrada en el mesón'),
+            entidad: $entrada,
+            afectado: $usuario,
+        );
 
         return response()->json($entrada, 201);
     }
 
-    public function storeExterno(Request $request)
+    /** Visitantes externos: no están en la base institucional, se registran con el documento (y nombre opcional) que declaran. */
+    public function storeExterno(Request $request, EntradaService $entradas)
     {
-        $data = $request->validate([
-            'rut' => ['required', 'string'],
-            'nombre' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        // Visitantes externos no están en la base de datos institucional: se
-        // registran directamente con el RUT (y nombre opcional) que declaran,
-        // sin validar contra la tabla de usuarios.
-        $ahora = now();
-        $entrada = Entrada::create([
-            'rut_externo' => $data['rut'],
-            'nombre_externo' => $data['nombre'] ?? null,
-            'registrado_por_staff_id' => $request->user()->id,
-            'via' => 'manual',
-            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
-            'fecha_hora_entrada' => $ahora,
-            'fecha_hora_salida' => $ahora,
-        ]);
-
-        return response()->json($entrada, 201);
+        return $this->registrarExterno($request, $entradas, [], 'de un visitante externo');
     }
 
-    public function storeConvenio(Request $request)
+    /**
+     * Personas de convenio institucional: mismo flujo que un externo (no están en la
+     * base de datos institucional), pero se marcan aparte para reportería.
+     */
+    public function storeConvenio(Request $request, EntradaService $entradas)
     {
-        $data = $request->validate([
-            'rut' => ['required', 'string'],
-            'nombre' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        // Personas de convenio institucional: mismo flujo que un externo (no están en la
-        // base de datos institucional), pero se marcan aparte para reportería.
-        $ahora = now();
-        $entrada = Entrada::create([
-            'rut_externo' => $data['rut'],
-            'nombre_externo' => $data['nombre'] ?? null,
-            'es_convenio' => true,
-            'registrado_por_staff_id' => $request->user()->id,
-            'via' => 'manual',
-            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
-            'fecha_hora_entrada' => $ahora,
-            'fecha_hora_salida' => $ahora,
-        ]);
-
-        return response()->json($entrada, 201);
+        return $this->registrarExterno($request, $entradas, ['es_convenio' => true], 'de una persona de convenio');
     }
 
-    public function storeVisita(Request $request)
+    /**
+     * Igual que storeExterno(): no está en la base institucional, se registra tal
+     * cual declara el documento/nombre. Se distingue de "Externo" solo para
+     * reportería/UI (badge "Visita" en vez de "Externo" en el historial).
+     */
+    public function storeVisita(Request $request, EntradaService $entradas)
+    {
+        return $this->registrarExterno($request, $entradas, ['es_visita' => true], 'de una visita');
+    }
+
+    private function registrarExterno(Request $request, EntradaService $entradas, array $marca, string $deQuien)
     {
         $data = $request->validate([
-            'rut' => ['required', 'string'],
+            'rut' => ['required', 'string', 'max:30'],
             'nombre' => ['nullable', 'string', 'max:255'],
+            // Extranjeros: pasaporte o el documento de su país. Sin tipo, se deduce del valor.
+            'tipo_documento' => ['nullable', Rule::in(array_keys(Documento::TIPOS))],
+            'pais' => ['nullable', 'string', 'max:100'],
         ]);
 
-        // Igual que storeExterno(): no está en la base institucional, se registra tal
-        // cual declara el RUT/nombre. Se distingue de "Externo" solo para reportería/UI
-        // (badge "Visita" en vez de "Externo" en el historial).
-        $ahora = now();
-        $entrada = Entrada::create([
-            'rut_externo' => $data['rut'],
+        $tipo = $data['tipo_documento'] ?? Documento::detectarTipo($data['rut']);
+        if ($error = Documento::validar($data['rut'], $tipo)) {
+            if (isset($data['tipo_documento'])) {
+                return response()->json(['message' => $error, 'errors' => ['rut' => [$error]]], 422);
+            }
+            // Sin tipo declarado y sin forma reconocible: se guarda como lo declaró.
+            $tipo = 'otro';
+        }
+
+        $documento = Documento::formatear($data['rut'], $tipo);
+        $pais = $tipo === 'rut' ? null : ($data['pais'] ?? null);
+
+        [$entrada, $creada] = $entradas->registrarExterno($documento, [
+            ...$marca,
+            'tipo_documento_externo' => $tipo,
+            'pais_externo' => $pais,
             'nombre_externo' => $data['nombre'] ?? null,
-            'es_visita' => true,
             'registrado_por_staff_id' => $request->user()->id,
             'via' => 'manual',
             'codigo_barras' => config('horizon_barcodes.puesto_generico'),
-            'fecha_hora_entrada' => $ahora,
-            'fecha_hora_salida' => $ahora,
         ]);
+
+        $quien = $entrada->nombre_externo ?: Documento::describir($entrada->rut_externo, $entrada->tipo_documento_externo, $entrada->pais_externo);
+
+        if (! $creada) {
+            return response()->json(['message' => $entradas->mensajeYaPresente($entrada, $quien), 'entrada' => $entrada], 409);
+        }
+
+        Bitacora::registrar(
+            'entradas.registrar_externo',
+            "Registró la entrada {$deQuien}",
+            entidad: $entrada,
+            afectado: trim(($entrada->nombre_externo ? "{$entrada->nombre_externo} " : '').'('.Documento::describir($documento, $tipo, $pais).')'),
+        );
 
         return response()->json($entrada, 201);
     }

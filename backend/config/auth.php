@@ -59,14 +59,11 @@ return [
     |
     */
 
-    // El guard 'web'/provider 'users' de arriba y el modelo Eloquent que
-    // describía ('App\Models\User', el scaffold default de Laravel) no se
-    // usan en esta app — la auth real es 100% Bearer token vía Sanctum sobre
-    // los guards custom 'staff'/'usuario' (ver EnsureIsStaff/EnsureIsUsuario
-    // en app/Http/Middleware/ y CLAUDE.md). Se removió App\Models\User y la
-    // tabla `users` (ver migración drop_default_laravel_auth_tables). No le
-    // agregues un modelo acá salvo que reactives sesión/guard 'web' de
-    // verdad.
+    // El guard 'web' y el provider 'users' de arriba no se usan: la autenticación
+    // es por token Bearer vía Sanctum sobre los guards 'staff'/'usuario' (ver
+    // EnsureIsStaff/EnsureIsUsuario en app/Http/Middleware/). No hay modelo User
+    // ni tabla `users` (ver migración drop_default_laravel_auth_tables); no le
+    // agregues un modelo acá salvo que se reactive la sesión 'web'.
     'providers' => [
         'users' => [
             'driver' => 'eloquent',

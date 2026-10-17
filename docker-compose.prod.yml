@@ -1,6 +1,6 @@
 # Compose de referencia para producción — a diferencia de docker-compose.yml
 # (desarrollo): sin bind mounts, sin credenciales hardcodeadas (vienen del
-# entorno del host/CI), sin exponer el puerto de Postgres al host. No es
+# entorno del host/CI), sin exponer el puerto de MySQL al host. No es
 # "listo para usar tal cual" — reemplazar los ${VAR} desde el gestor de
 # secretos del entorno de despliegue real antes de levantar.
 #
@@ -8,37 +8,41 @@
 
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8.4
     restart: unless-stopped
+    # Misma collation que en desarrollo: de ella dependen las búsquedas sin tildes.
+    # Si Informática entrega un servidor MySQL propio, este servicio sobra; la base
+    # de allá tiene que crearse con CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_DB: ${DB_DATABASE}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
-      - db_data:/var/lib/postgresql/data
-    # Sin "ports:" a propósito — solo backend accede a Postgres, dentro de la
-    # red interna de compose. No publicar 5432 al host.
+      - db_mysql_data:/var/lib/mysql
+    # Sin "ports:" a propósito — solo backend accede a MySQL, dentro de la
+    # red interna de compose. No publicar 3306 al host.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
       interval: 3s
       timeout: 5s
-      retries: 10
+      retries: 30
+      start_period: 30s
 
-  # pgbouncer (opcional, recomendado si el tráfico lo justifica): PHP-FPM abre
-  # una conexión nueva por request, sin pool delante. Si se agrega, apuntar
-  # DB_HOST del backend a este servicio en vez de a "db" directamente.
-  # pgbouncer:
-  #   image: edoburu/pgbouncer
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@db:5432/${DB_DATABASE}
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  # Sin pool de conexiones delante: PHP-FPM abre una conexión por request, y MySQL
+  # las abre mucho más barato que PostgreSQL (un hilo por conexión, no un proceso).
+  # Con el tope de procesos de backend/docker/php-fpm.conf no se llega al
+  # max_connections por defecto de MySQL (151).
 
+  # Laravel con PHP-FPM: varios procesos atendiendo en paralelo (ver
+  # backend/docker/php-fpm.conf). No publica puertos: lo alcanza solo el nginx "api".
   backend:
     build:
       context: ./backend
+      target: app
     restart: unless-stopped
     depends_on:
       db:
@@ -46,18 +50,20 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
+      SERVIDOR: fpm
+      DB_CONNECTION: mysql
       DB_HOST: db
+      DB_PORT: 3306
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_SSLMODE: require
+      # Si la base es un servidor externo que exige TLS: ruta al certificado de su CA.
+      MYSQL_ATTR_SSL_CA: ${MYSQL_ATTR_SSL_CA:-}
       FRONTEND_URL: ${FRONTEND_URL}
       SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS}
       # Notificaciones, Google y LDAP (ver backend/.env.production.example y
-      # docs/login-externo-pendientes.md) — antes esta lista no las reenviaba
-      # al contenedor, así que completarlas en .env.production no alcanzaba
-      # para activarlas. Todas opcionales: si quedan vacías, cada feature
-      # responde "no configurado" en vez de fallar (ver CLAUDE.md).
+      # docs/login-externo-pendientes.md). Todas opcionales: si quedan vacías,
+      # cada función responde "no configurado" en vez de fallar.
       MAIL_MAILER: ${MAIL_MAILER:-log}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -68,6 +74,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_DOMINIOS: ${GOOGLE_DOMINIOS:-}
       LDAP_HOST: ${LDAP_HOST:-}
       LDAP_PORT: ${LDAP_PORT:-389}
       LDAP_BASE_DN: ${LDAP_BASE_DN:-}
@@ -76,17 +83,30 @@ services:
       LDAP_USER_ATTRIBUTE: ${LDAP_USER_ATTRIBUTE:-}
       LDAP_EMAIL_ATTRIBUTE: ${LDAP_EMAIL_ATTRIBUTE:-}
       LDAP_TLS: ${LDAP_TLS:-false}
+
+  # La puerta de entrada de la API (puerto 8000, el mismo de siempre): nginx recibe
+  # las peticiones y se las pasa a PHP-FPM del servicio "backend".
+  api:
+    build:
+      context: ./backend
+      target: nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
     ports:
       - "8000:8000"
 
   frontend:
     build:
       context: ./frontend
+      # Aplicación compilada servida por nginx (ver frontend/Dockerfile), no el
+      # servidor de desarrollo de Vite.
+      target: produccion
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "5173:5173"
+      - "5173:80"
 
 volumes:
-  db_data:
+  db_mysql_data:

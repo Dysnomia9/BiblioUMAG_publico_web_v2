@@ -25,10 +25,14 @@ class LibroHistorialTest extends TestCase
         Prestamo::factory()->count(2)->create(['ejemplar_id' => $copiaUno->id, 'usuario_id' => Usuario::factory(), 'tipo_item' => 'libro']);
         Prestamo::factory()->create(['ejemplar_id' => $copiaDos->id, 'usuario_id' => Usuario::factory(), 'tipo_item' => 'libro']);
 
-        $response = $this->getJson('/api/libros/historial?q=Soledad');
+        // La lista trae los totales del título; el detalle, copia por copia.
+        $this->getJson('/api/libros/historial?q=Soledad')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.copias', 2)
+            ->assertJsonPath('data.0.total_prestamos', 3);
 
-        $response->assertStatus(200)->assertJsonCount(1);
-        $data = $response->json('0');
+        $data = $this->getJson("/api/libros/{$libro->id}/historial")->assertOk()->json();
         $this->assertSame(3, $data['total_prestamos']);
         $this->assertSame(2, collect($data['ejemplares'])->firstWhere('id', $copiaUno->id)['total_prestamos']);
         $this->assertSame(1, collect($data['ejemplares'])->firstWhere('id', $copiaDos->id)['total_prestamos']);
@@ -42,18 +46,18 @@ class LibroHistorialTest extends TestCase
 
         $response = $this->getJson('/api/libros/historial?q=UMAG000055');
 
-        $response->assertStatus(200)->assertJsonCount(1);
-        $this->assertSame('Otro título', $response->json('0.libro.titulo'));
+        $response->assertStatus(200)->assertJsonCount(1, 'data');
+        $this->assertSame('Otro título', $response->json('data.0.libro.titulo'));
     }
 
-    public function test_historial_sin_busqueda_devuelve_todos_los_libros(): void
+    public function test_historial_sin_busqueda_devuelve_todos_los_libros_por_paginas(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
         Ejemplar::factory()->for(Libro::factory())->create();
         Ejemplar::factory()->for(Libro::factory())->create();
+        Ejemplar::factory()->for(Libro::factory())->create();
 
-        $response = $this->getJson('/api/libros/historial');
-
-        $response->assertStatus(200)->assertJsonCount(2);
+        $this->getJson('/api/libros/historial')->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('total', 3);
+        $this->getJson('/api/libros/historial?por_pagina=2&page=2')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('last_page', 2);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Multa;
 use App\Models\Prestamo;
 use App\Models\Staff;
 use App\Models\Usuario;
@@ -13,47 +14,53 @@ class PrestamoMultaTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function prestamoLibro(array $atributos = []): Prestamo
+    {
+        return Prestamo::factory()->create($atributos + [
+            'usuario_id' => Usuario::factory()->create()->id,
+            'tipo_item' => 'libro',
+            'estado' => 'activo',
+        ]);
+    }
+
     public function test_devolucion_a_tiempo_no_genera_multa(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'libro',
-            'fecha_devolucion' => now()->addDays(2),
-            'estado' => 'activo',
-        ]);
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->addDays(2)]);
 
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/devolver");
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")
+            ->assertStatus(200)
+            ->assertJsonCount(0, 'multas');
 
-        $response->assertStatus(200)
-            ->assertJsonPath('multa_monto', null)
-            ->assertJsonPath('multa_estado', null);
+        $this->assertDatabaseCount('multas', 0);
     }
 
     public function test_devolucion_atrasada_genera_multa_pendiente_con_monto_correcto(): void
     {
-        Sanctum::actingAs(Staff::factory()->create());
+        $staff = Staff::factory()->create();
+        Sanctum::actingAs($staff);
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'libro',
-            'fecha_devolucion' => now()->subDays(5),
-            'estado' => 'activo',
-        ]);
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(5)]);
 
         $response = $this->patchJson("/api/prestamos/{$prestamo->id}/devolver");
 
         $montoEsperado = 5 * config('multas.monto_dia');
 
         $response->assertStatus(200)
-            ->assertJsonPath('multa_monto', $montoEsperado)
-            ->assertJsonPath('multa_estado', 'pendiente');
+            ->assertJsonPath('multas.0.monto', $montoEsperado)
+            ->assertJsonPath('multas.0.estado', 'pendiente')
+            ->assertJsonPath('multas.0.tipo', 'atraso');
 
-        $this->assertDatabaseHas('prestamos', [
-            'id' => $prestamo->id,
-            'multa_monto' => $montoEsperado,
-            'multa_estado' => 'pendiente',
+        $this->assertDatabaseHas('multas', [
+            'prestamo_id' => $prestamo->id,
+            'usuario_id' => $prestamo->usuario_id,
+            'tipo' => 'atraso',
+            'monto' => $montoEsperado,
+            'estado' => 'pendiente',
+            'dias_atraso' => 5,
+            'origen' => 'sistema',
+            'registrada_por_staff_id' => $staff->id,
         ]);
     }
 
@@ -64,18 +71,11 @@ class PrestamoMultaTest extends TestCase
         // 4.09 días — el monto siempre debe ser un múltiplo exacto de monto_dia.
         Sanctum::actingAs(Staff::factory()->create());
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'libro',
-            'fecha_devolucion' => now()->subDays(4)->subHours(2),
-            'estado' => 'activo',
-        ]);
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(4)->subHours(2)]);
 
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/devolver");
-
-        $montoEsperado = 4 * config('multas.monto_dia');
-
-        $response->assertStatus(200)->assertJsonPath('multa_monto', $montoEsperado);
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")
+            ->assertStatus(200)
+            ->assertJsonPath('multas.0.monto', 4 * config('multas.monto_dia'));
     }
 
     public function test_multa_respeta_el_tope_maximo(): void
@@ -86,74 +86,45 @@ class PrestamoMultaTest extends TestCase
         // diaria configurada (evita que el test dependa de un monto_dia hardcodeado).
         $diasParaSuperarTope = (int) ceil(config('multas.tope_maximo') / config('multas.monto_dia')) + 10;
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'libro',
-            'fecha_devolucion' => now()->subDays($diasParaSuperarTope),
-            'estado' => 'activo',
-        ]);
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays($diasParaSuperarTope)]);
 
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/devolver");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('multa_monto', config('multas.tope_maximo'));
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")
+            ->assertStatus(200)
+            ->assertJsonPath('multas.0.monto', config('multas.tope_maximo'));
     }
 
     public function test_prestamo_de_equipo_nunca_genera_multa(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'audifonos',
-            'fecha_devolucion' => null,
-            'estado' => 'activo',
-        ]);
+        $prestamo = $this->prestamoLibro(['tipo_item' => 'audifonos', 'fecha_devolucion' => null]);
 
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/devolver");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('multa_monto', null)
-            ->assertJsonPath('multa_estado', null);
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")
+            ->assertStatus(200)
+            ->assertJsonCount(0, 'multas');
     }
 
-    public function test_marcar_multa_como_pagada(): void
-    {
-        $staff = Staff::factory()->create(['nombre' => 'Juan Pérez']);
-        Sanctum::actingAs($staff);
-
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'tipo_item' => 'libro',
-            'estado' => 'devuelto',
-            'multa_monto' => 1500,
-            'multa_estado' => 'pendiente',
-        ]);
-
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/multa/pagar");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('multa_estado', 'pagada')
-            ->assertJsonPath('multa_pagada_por', 'Juan Pérez')
-            ->assertJsonPath('multa_pagada_por_staff_id', $staff->id);
-
-        $prestamo->refresh();
-        $this->assertNotNull($prestamo->multa_pagada_en);
-    }
-
-    public function test_pagar_multa_sin_pendiente_devuelve_409(): void
+    public function test_devolver_dos_veces_no_duplica_la_multa(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $prestamo = Prestamo::factory()->create([
-            'usuario_id' => Usuario::factory()->create()->id,
-            'estado' => 'devuelto',
-            'multa_monto' => null,
-            'multa_estado' => null,
-        ]);
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(3)]);
 
-        $response = $this->patchJson("/api/prestamos/{$prestamo->id}/multa/pagar");
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertStatus(200);
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertStatus(409);
 
-        $response->assertStatus(409);
+        $this->assertSame(1, Multa::where('prestamo_id', $prestamo->id)->count());
+    }
+
+    public function test_listado_de_prestamos_incluye_sus_multas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $prestamo = $this->prestamoLibro(['estado' => 'devuelto']);
+        Multa::factory()->create(['usuario_id' => $prestamo->usuario_id, 'prestamo_id' => $prestamo->id, 'monto' => 1500]);
+
+        $this->getJson("/api/prestamos?usuario_id={$prestamo->usuario_id}")
+            ->assertStatus(200)
+            ->assertJsonPath('0.multas.0.monto', 1500);
     }
 }

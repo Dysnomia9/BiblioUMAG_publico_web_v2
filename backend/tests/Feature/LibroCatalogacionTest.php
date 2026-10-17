@@ -152,6 +152,34 @@ class LibroCatalogacionTest extends TestCase
         $this->assertSame(2, Ejemplar::where('libro_id', $libro->id)->count());
     }
 
+    public function test_la_forma_de_adquisicion_se_guarda_en_cada_copia(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+
+        $this->postJson('/api/libros', [
+            'codigo_barras' => 'UMAG000092',
+            'titulo' => 'Título donado',
+            'forma_adquisicion' => 'donacion',
+        ])->assertStatus(201)->assertJsonPath('ejemplares.0.forma_adquisicion', 'donacion');
+
+        $this->postJson('/api/ejemplares', [
+            'libro_id' => Libro::where('titulo', 'Título donado')->value('id'),
+            'codigo_barras' => 'UMAG000091',
+            'forma_adquisicion' => 'compra',
+        ])->assertStatus(201)->assertJsonPath('forma_adquisicion', 'compra');
+    }
+
+    public function test_forma_de_adquisicion_desconocida_falla_validacion(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+
+        $this->postJson('/api/ejemplares', [
+            'libro_id' => Libro::factory()->create()->id,
+            'codigo_barras' => 'UMAG000090',
+            'forma_adquisicion' => 'regalo',
+        ])->assertStatus(422)->assertJsonValidationErrors('forma_adquisicion');
+    }
+
     public function test_siguiente_codigo_de_barras_empieza_en_1_sin_datos(): void
     {
         Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
@@ -184,7 +212,7 @@ class LibroCatalogacionTest extends TestCase
 
     public function test_staff_no_admin_no_puede_generar_codigo_de_barras(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->getJson('/api/ejemplares/siguiente-codigo-barras');
 

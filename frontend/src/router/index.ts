@@ -1,9 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
+import { useToast } from '@/composables/useToast'
+import { itemPorRuta } from '@/navegacion'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
       path: '/login',
@@ -48,104 +51,41 @@ const router = createRouter({
       meta: { portal: true },
     },
     {
-      path: '/',
-      redirect: '/dashboard',
+      path: '/portal/perfil',
+      name: 'portal-perfil',
+      component: () => import('@/views/portal/PortalPerfilView.vue'),
+      meta: { portal: true },
     },
     {
-      path: '/dashboard',
-      name: 'dashboard',
-      component: () => import('@/views/DashboardView.vue'),
+      path: '/portal/ingresos',
+      name: 'portal-ingresos',
+      component: () => import('@/views/portal/PortalIngresosView.vue'),
+      meta: { portal: true },
     },
-    {
-      path: '/entrada',
-      name: 'entrada',
-      component: () => import('@/views/EntradaView.vue'),
-    },
-    {
-      path: '/prestamo',
-      name: 'prestamo',
-      component: () => import('@/views/PrestamoView.vue'),
-    },
-    {
-      path: '/usuarios',
-      name: 'usuarios',
-      component: () => import('@/views/UsuariosView.vue'),
-    },
-    {
-      path: '/salas',
-      name: 'salas',
-      component: () => import('@/views/SalasView.vue'),
-    },
-    {
-      path: '/reportes',
-      name: 'reportes',
-      component: () => import('@/views/ReportesView.vue'),
-    },
-    {
-      path: '/codigo-qr',
-      name: 'codigo-qr',
-      component: () => import('@/views/CodigoQrView.vue'),
-    },
-    {
-      path: '/prestamos/listado',
-      name: 'listado-prestamos',
-      component: () => import('@/views/ListadoPrestamosView.vue'),
-    },
-    {
-      path: '/libros/listado',
-      name: 'listado-libros',
-      component: () => import('@/views/ListadoLibrosView.vue'),
-    },
-    {
-      path: '/libros/catalogacion',
-      name: 'catalogacion-libros',
-      component: () => import('@/views/CatalogacionLibrosView.vue'),
-      meta: { requiresAdmin: true },
-    },
-    {
-      path: '/libros/estado',
-      name: 'estado-libro',
-      component: () => import('@/views/EstadoLibroView.vue'),
-    },
-    {
-      path: '/libros/cambio-masivo',
-      name: 'cambio-masivo-estado',
-      component: () => import('@/views/CambioMasivoEstadoView.vue'),
-      meta: { requiresAdmin: true },
-    },
-    {
-      path: '/libros/historial-estado',
-      name: 'historial-estado-libro',
-      component: () => import('@/views/HistorialEstadoLibroView.vue'),
-    },
-    {
-      path: '/libros/historial-prestamos',
-      name: 'historial-prestamos-libro',
-      component: () => import('@/views/HistorialPrestamosLibroView.vue'),
-    },
-    {
-      path: '/equipos',
-      name: 'equipos',
-      component: () => import('@/views/EquiposView.vue'),
-      meta: { requiresAdmin: true },
-    },
-    {
-      path: '/reportes/multas-pendientes',
-      name: 'multas-pendientes',
-      component: () => import('@/views/MultasPendientesView.vue'),
-    },
-    {
-      path: '/administracion',
-      name: 'administracion',
-      component: () => import('@/views/AdministracionView.vue'),
-      meta: { requiresAdmin: true },
-    },
-    {
-      path: '/registro-absoluto',
-      name: 'registro-absoluto',
-      component: () => import('@/views/RegistroAbsolutoView.vue'),
-      meta: { requiresAdmin: true },
-    },
+    { path: '/', redirect: '/dashboard' },
+    { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+    { path: '/entrada', name: 'entrada', component: () => import('@/views/EntradaView.vue') },
+    { path: '/prestamo', name: 'prestamo', component: () => import('@/views/PrestamoView.vue') },
+    { path: '/usuarios', name: 'usuarios', component: () => import('@/views/UsuariosView.vue') },
+    { path: '/salas', name: 'salas', component: () => import('@/views/SalasView.vue') },
+    { path: '/multas', name: 'multas', component: () => import('@/views/MultasView.vue') },
+    { path: '/reportes/multas-pendientes', redirect: '/multas' },
+    { path: '/reportes', name: 'reportes', component: () => import('@/views/ReportesView.vue') },
+    { path: '/codigo-qr', name: 'codigo-qr', component: () => import('@/views/CodigoQrView.vue') },
+    { path: '/prestamos/listado', name: 'listado-prestamos', component: () => import('@/views/ListadoPrestamosView.vue') },
+    { path: '/salas/reservas', name: 'listado-reservas', component: () => import('@/views/ListadoReservasView.vue') },
+    { path: '/libros/listado', name: 'listado-libros', component: () => import('@/views/ListadoLibrosView.vue') },
+    { path: '/libros/catalogacion', name: 'catalogacion-libros', component: () => import('@/views/CatalogacionLibrosView.vue') },
+    { path: '/libros/estado', name: 'estado-libro', component: () => import('@/views/EstadoLibroView.vue') },
+    { path: '/libros/cambio-masivo', name: 'cambio-masivo-estado', component: () => import('@/views/CambioMasivoEstadoView.vue') },
+    { path: '/libros/etiquetas', name: 'etiquetas', component: () => import('@/views/EtiquetasView.vue') },
+    { path: '/libros/historial-estado', name: 'historial-estado-libro', component: () => import('@/views/HistorialEstadoLibroView.vue') },
+    { path: '/libros/historial-prestamos', name: 'historial-prestamos-libro', component: () => import('@/views/HistorialPrestamosLibroView.vue') },
+    { path: '/equipos', name: 'equipos', component: () => import('@/views/EquiposView.vue') },
+    { path: '/administracion', name: 'administracion', component: () => import('@/views/AdministracionView.vue') },
+    { path: '/personal', name: 'personal', component: () => import('@/views/PersonalView.vue') },
+    { path: '/registro-absoluto', name: 'registro-absoluto', component: () => import('@/views/RegistroAbsolutoView.vue') },
+    { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })
 
@@ -184,7 +124,11 @@ router.beforeEach(async (to) => {
   if (to.name === 'login' && auth.token) {
     return { name: 'dashboard' }
   }
-  if (to.meta.requiresAdmin && auth.staff?.rol !== 'admin') {
+
+  // Cada módulo exige el mismo permiso que su entrada en el menú (navegacion.ts).
+  const modulo = itemPorRuta(to.name)
+  if (modulo && auth.staff && !auth.puedeAlguno(modulo.permiso)) {
+    useToast().error(`Tu rol no tiene acceso a «${modulo.label}». Si lo necesitas, pídeselo a un administrador.`)
     return { name: 'dashboard' }
   }
 })

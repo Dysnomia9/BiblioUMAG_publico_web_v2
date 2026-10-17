@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,6 +54,9 @@ return [
             'password' => env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
+            // utf8mb4_unicode_ci hace que LIKE no distinga tildes, mayúsculas ni la ñ
+            // («garcia» encuentra «García»): las búsquedas del sistema dependen de eso.
+            // MySQL 8 también acepta utf8mb4_0900_ai_ci; MariaDB, solo esta.
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
             'prefix_indexes' => true,
@@ -110,19 +113,24 @@ return [
         // corriendo migrate:fresh contra la base real. Esta conexión usa
         // nombres de variable propios (DB_TEST_*) que Docker nunca define,
         // para que no haya colisión posible.
-        'pgsql_testing' => [
-            'driver' => 'pgsql',
+        'mysql_testing' => [
+            'driver' => 'mysql',
             'url' => env('DB_TEST_URL'),
             'host' => env('DB_TEST_HOST', 'db'),
-            'port' => env('DB_TEST_PORT', '5432'),
+            'port' => env('DB_TEST_PORT', '3306'),
             'database' => env('DB_TEST_DATABASE', 'biblioteca_test'),
             'username' => env('DB_TEST_USERNAME', 'biblioteca'),
             'password' => env('DB_TEST_PASSWORD', 'biblioteca'),
-            'charset' => env('DB_CHARSET', 'utf8'),
+            'unix_socket' => '',
+            // La collation tiene que ser la misma que la de la base real: de ella
+            // depende que las búsquedas no distingan tildes ni mayúsculas.
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'strict' => true,
+            'engine' => null,
+            'options' => [],
         ],
 
         'sqlsrv' => [
