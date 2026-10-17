@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Autor;
 use App\Models\Carrera;
 use App\Models\Categoria;
+use App\Models\CategoriaRecurso;
 use App\Models\Ejemplar;
 use App\Models\Entrada;
 use App\Models\Equipo;
@@ -17,15 +18,21 @@ use App\Models\Staff;
 use App\Models\TipoMaterial;
 use App\Models\Ubicacion;
 use App\Models\Usuario;
+use App\Services\MultaService;
+use App\Services\ReservaSalaService;
+use App\Support\HorarioBiblioteca;
 use App\Support\Rut;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class SeedMockupData extends Command
 {
-    protected $signature = 'mockup:datos {--fresh : Borra los datos de prueba existentes antes de crear los nuevos}';
+    protected $signature = 'mockup:datos
+        {--fresh : Borra los datos de prueba existentes antes de crear los nuevos}
+        {--force : Permite correrlo aunque APP_ENV sea production}';
 
     protected $description = 'Carga datos de prueba (mockup) para desarrollo: staff, usuarios con carrera, salas, entradas, préstamos y reservas.';
 
@@ -59,7 +66,7 @@ class SeedMockupData extends Command
         'Gómez', 'Sánchez', 'Reyes', 'Castro',
     ];
 
-    /** Catálogo completo de biblioteca (título/autor/área) para el portal de usuario — adaptado de DEPRECATED/catalogo/page.tsx */
+    /** Catálogo completo de biblioteca (título/autor/área) para el portal de usuario. */
     private array $catalogoLibros = [
         ['codigo' => '9789561228351', 'titulo' => 'Introducción a la Programación en Python', 'autor' => 'John V. Guttag', 'categoria' => 'Computación'],
         ['codigo' => '9789706868824', 'titulo' => 'Cálculo Diferencial e Integral - Stewart', 'autor' => 'James Stewart', 'categoria' => 'Matemáticas'],
@@ -123,6 +130,15 @@ class SeedMockupData extends Command
 
     public function handle(): int
     {
+        // Crea cuentas con contraseñas conocidas (admin@umag.cl / admin123 tiene
+        // acceso total) y 30 personas ficticias: nunca en producción por descuido.
+        if (app()->isProduction() && ! $this->option('force')) {
+            $this->error('mockup:datos carga datos ficticios y cuentas con contraseñas conocidas: no se corre en producción.');
+            $this->line('Para crear la primera cuenta real: php artisan personal:crear-admin <correo> --nombre="Nombre Apellido"');
+
+            return self::FAILURE;
+        }
+
         if ($this->option('fresh')) {
             $this->info('Eliminando datos de prueba existentes...');
             // Orden importa: prestamos/entradas/reservas_libro/ejemplares tienen FK
@@ -133,6 +149,7 @@ class SeedMockupData extends Command
             // catálogos que se reutilizan entre corridas (firstOrCreate por nombre), no
             // datos de prueba transaccionales — carreras además solo se siembra una vez
             // desde su migración, borrarla aquí la dejaría vacía para siempre.
+            DB::table('multas')->delete();
             DB::table('ejemplar_estado_historial')->delete();
             DB::table('reservas_libro')->delete();
             DB::table('prestamos')->delete();
@@ -160,9 +177,14 @@ class SeedMockupData extends Command
         $equipos = $this->seedEquipos();
         $ejemplares = $this->seedLibros();
         $this->seedPrestamos($usuarios, $equipos, $ejemplares);
+        $this->seedMultas($usuarios);
+        // Después de las multas, para que estas salgan de los préstamos recientes.
+        $this->seedPrestamosHistoricos($usuarios, $equipos, $ejemplares);
         $salas = $this->seedSalas();
         $this->seedReservas($salas, $usuarios);
         $this->seedReservasLibro($ejemplares, $usuarios);
+        $this->seedEscenarioDemostracion();
+        $this->seedHistorialEstado();
 
         $this->info('Datos de prueba cargados correctamente.');
 
@@ -178,7 +200,78 @@ class SeedMockupData extends Command
             'rol' => 'admin',
         ]);
 
-        $this->line('  · Staff creado (admin@umag.cl / admin123)');
+        // Una cuenta por cada rol por defecto, para poder probar qué ve cada uno.
+        Staff::create([
+            'email' => 'bibliotecaria@umag.cl',
+            'password' => Hash::make('biblio123'),
+            'nombre' => 'Carolina Muñoz',
+            'rol' => 'bibliotecario',
+        ]);
+
+        Staff::create([
+            'email' => 'meson@umag.cl',
+            'password' => Hash::make('meson123'),
+            'nombre' => 'Pedro Soto',
+            'rol' => 'asistente',
+        ]);
+
+        $this->line('  · Staff creado: admin@umag.cl / admin123 (Administrador/a), bibliotecaria@umag.cl / biblio123 (Bibliotecario/a), meson@umag.cl / meson123 (Atención de público)');
+    }
+
+    /**
+     * Multas de ejemplo: algunas por atraso (a partir de préstamos devueltos tarde,
+     * calculadas con la misma tarifa que usa la devolución real) y un par cursadas a
+     * mano, en distintos estados.
+     */
+    private function seedMultas($usuarios): void
+    {
+        $multaService = app(MultaService::class);
+        $staff = Staff::where('rol', 'admin')->first();
+        $total = 0;
+
+        // Solo préstamos cuyo plazo ya venció hace al menos un día: la devolución
+        // "tardía" simulada no puede quedar en el futuro.
+        $devueltos = Prestamo::where('tipo_item', 'libro')
+            ->where('estado', 'devuelto')
+            ->where('fecha_devolucion', '<', now()->subDay())
+            ->inRandomOrder()
+            ->limit(6)
+            ->get();
+
+        foreach ($devueltos as $i => $prestamo) {
+            $diasDisponibles = max(1, (int) floor($prestamo->fecha_devolucion->diffInDays(now())));
+            $fechaReal = $this->dentroDelHorario($prestamo->fecha_devolucion->copy()->addDays(random_int(1, min(9, $diasDisponibles))), haciaAtras: false);
+            if ($fechaReal->isFuture()) {
+                $fechaReal = $this->momentoEnHorario(0);
+            }
+            $prestamo->update(['fecha_devolucion_real' => $fechaReal]);
+
+            $multa = $multaService->generarPorAtraso($prestamo, $fechaReal, $staff);
+            if (! $multa) {
+                continue;
+            }
+            $multa->forceFill(['created_at' => $fechaReal])->save();
+            if ($i >= 4) {
+                $multaService->registrarPago($multa, $staff);
+            }
+            $total++;
+        }
+
+        $conDeuda = $usuarios->random(2)->values();
+        $multaService->crearManual($conDeuda[0], [
+            'tipo' => 'perdida',
+            'monto' => 25000,
+            'detalle' => 'Pérdida de "Cálculo de una variable" — reposición del ejemplar',
+        ], $staff);
+        $anulada = $multaService->crearManual($conDeuda[1], [
+            'tipo' => 'deterioro',
+            'monto' => 4000,
+            'detalle' => 'Páginas rayadas con destacador',
+        ], $staff);
+        $multaService->anular($anulada, 'El daño ya venía registrado de un préstamo anterior', $staff);
+        $total += 2;
+
+        $this->line("  · {$total} multas creadas (atraso, pagadas, manuales y una anulada)");
     }
 
     /** @return \Illuminate\Support\Collection<int, Usuario> */
@@ -196,7 +289,7 @@ class SeedMockupData extends Command
                 'rut' => $this->formatearRut($rutNum),
                 'nombre' => $nombre,
                 'apellido' => $apellido,
-                'email' => strtolower($nombre.'.'.$apellido.$i).'@umag.cl',
+                'email' => Str::lower(Str::ascii("{$nombre}.{$apellido}{$i}")).'@umag.cl',
                 'password' => Hash::make('umag123'),
                 'tipo' => $this->tiposUsuario[array_rand($this->tiposUsuario)],
                 'carrera' => $this->carreras[array_rand($this->carreras)],
@@ -215,23 +308,40 @@ class SeedMockupData extends Command
     private function seedEntradas($usuarios): void
     {
         $total = 0;
-        $horaActual = now()->hour;
+
+        // Cómo entró cada uno: solo desde el portal (QR o su RUT, sin personal de por
+        // medio) o en el mesón, donde queda quién lo atendió.
+        $meson = Staff::where('email', 'meson@umag.cl')->first();
+        $via = function () use ($meson): array {
+            $azar = random_int(0, 99);
+
+            return match (true) {
+                $azar < 35 => ['via' => 'qr'],
+                $azar < 60 => ['via' => 'portal'],
+                default => ['via' => 'manual', 'registrado_por_staff_id' => $meson?->id],
+            };
+        };
+
+        $diasConEntrada = [];
 
         foreach ($usuarios as $i => $usuario) {
-            // Cada usuario tiene entre 1 y 4 entradas distribuidas en los últimos 14 días
-            $numEntradas = random_int(1, 4);
+            // Cada usuario tiene entre 1 y 4 entradas distribuidas en los últimos 14 días,
+            // en días distintos: una persona queda presente una sola vez por día.
+            $dias = collect(range(0, 13))->shuffle()->take(random_int(1, 4));
 
-            for ($j = 0; $j < $numEntradas; $j++) {
-                $diasAtras = random_int(0, 13);
-                $hora = $diasAtras === 0 ? random_int(8, max(8, $horaActual)) : $this->horaConSesgo();
-                $entrada = now()->subDays($diasAtras)->setTime($hora, random_int(0, 59));
-                $conSalida = $diasAtras > 0 && random_int(0, 100) < 70;
+            foreach ($dias as $dia) {
+                $entrada = $this->momentoEnHorario($dia);
+                if (isset($diasConEntrada[$usuario->id][$entrada->toDateString()])) {
+                    continue; // momentoEnHorario() corre al último día con atención: dos días pueden caer en el mismo.
+                }
+                $diasConEntrada[$usuario->id][$entrada->toDateString()] = true;
+                $conSalida = ! $entrada->isToday() && random_int(0, 100) < 70;
 
                 Entrada::create([
                     'usuario_id' => $usuario->id,
                     'fecha_hora_entrada' => $entrada,
                     'fecha_hora_salida' => $conSalida ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
-                    'via' => random_int(0, 100) < 35 ? 'qr' : 'manual',
+                    ...$via(),
                     'codigo_barras' => config('horizon_barcodes.puesto_generico'),
                 ]);
                 $total++;
@@ -239,16 +349,20 @@ class SeedMockupData extends Command
         }
 
         // Garantiza una porción de entradas de hoy, para que "Registro de Entrada"
-        // no se vea vacío justo tras correr el seed en cualquier momento del día.
+        // no se vea vacío justo tras correr el seed (si hoy la biblioteca no atiende o
+        // todavía no abre, quedan en el último día con atención).
         foreach ($usuarios->random(min(12, $usuarios->count())) as $usuario) {
-            $hora = random_int(8, max(8, $horaActual));
-            $entrada = now()->setTime($hora, random_int(0, 59));
+            $entrada = $this->momentoEnHorario(0);
+            if (isset($diasConEntrada[$usuario->id][$entrada->toDateString()])) {
+                continue;
+            }
+            $diasConEntrada[$usuario->id][$entrada->toDateString()] = true;
 
             Entrada::create([
                 'usuario_id' => $usuario->id,
                 'fecha_hora_entrada' => $entrada,
                 'fecha_hora_salida' => random_int(0, 100) < 60 ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
-                'via' => random_int(0, 100) < 35 ? 'qr' : 'manual',
+                ...$via(),
                 'codigo_barras' => config('horizon_barcodes.puesto_generico'),
             ]);
             $total++;
@@ -257,14 +371,14 @@ class SeedMockupData extends Command
         // Un par de visitantes externos y de convenio para hoy, para que las etiquetas
         // "Externo"/"Convenio" del historial tengan ejemplos reales tras el seed.
         foreach ([false, false, true, true] as $esConvenio) {
-            $hora = random_int(8, max(8, $horaActual));
-            $entrada = now()->setTime($hora, random_int(0, 59));
+            $entrada = $this->momentoEnHorario(0);
             $rutVisitante = $this->formatearRut(random_int(9000000, 9999999));
 
             Entrada::create([
                 'rut_externo' => $rutVisitante,
                 'nombre_externo' => $this->nombres[array_rand($this->nombres)].' '.$this->apellidos[array_rand($this->apellidos)],
                 'es_convenio' => $esConvenio,
+                'registrado_por_staff_id' => $meson?->id,
                 'fecha_hora_entrada' => $entrada,
                 'fecha_hora_salida' => random_int(0, 100) < 60 ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
                 'via' => 'manual',
@@ -280,7 +394,6 @@ class SeedMockupData extends Command
     private function seedPrestamos($usuarios, $equipos, $ejemplares): void
     {
         $total = 0;
-        $horaActual = now()->hour;
 
         // Préstamos de libro: se identifican por un ejemplar real (código de barras),
         // igual que exige PrestamoController::store() — se limita el sorteo a
@@ -302,9 +415,7 @@ class SeedMockupData extends Command
 
                 $ejemplar = $disponibles->random();
 
-                $diasAtras = random_int(0, 20);
-                $hora = $diasAtras === 0 ? random_int(8, max(8, $horaActual)) : $this->horaConSesgo();
-                $fechaPrestamo = now()->subDays($diasAtras)->setTime($hora, random_int(0, 59));
+                $fechaPrestamo = $this->momentoEnHorario(random_int(0, 20));
                 $fechaDevolucion = $fechaPrestamo->copy()->addDays(7);
 
                 $devuelto = random_int(0, 100) < 40;
@@ -317,7 +428,7 @@ class SeedMockupData extends Command
                     'codigo_barras' => $ejemplar->codigo_barras,
                     'fecha_prestamo' => $fechaPrestamo,
                     'fecha_devolucion' => $fechaDevolucion,
-                    'fecha_devolucion_real' => $devuelto ? $fechaDevolucion->copy()->subDays(random_int(0, 3)) : null,
+                    'fecha_devolucion_real' => $devuelto ? $this->dentroDelHorario($fechaDevolucion->copy()->subDays(random_int(0, 3))) : null,
                     'estado' => $devuelto ? 'devuelto' : ($atrasado ? 'atrasado' : 'activo'),
                 ]);
 
@@ -329,13 +440,13 @@ class SeedMockupData extends Command
             }
         }
 
-        // Préstamos de equipos (audífonos, notebooks y cargadores): se identifican por
+        // Préstamos de recursos de apoyo (audífonos, notebooks, cargadores y bicicletas): se identifican por
         // código de barras real (tabla `equipos`), no tienen fecha de vencimiento — se
         // devuelven al término de la estadía en la biblioteca. Se limita el sorteo a
         // equipos realmente disponibles del tipo elegido para no simular dos préstamos
         // activos simultáneos del mismo código físico.
         foreach ($usuarios->random(min(10, $usuarios->count())) as $usuario) {
-            $tipo = ['audifonos', 'notebook', 'cargador'][random_int(0, 2)];
+            $tipo = ['audifonos', 'notebook', 'cargador', 'bicicleta'][random_int(0, 3)];
             $disponibles = $equipos->where('tipo', $tipo)->where('disponible', true);
 
             if ($disponibles->isEmpty()) {
@@ -343,10 +454,16 @@ class SeedMockupData extends Command
             }
 
             $equipo = $disponibles->random();
-            $diasAtras = random_int(0, 5);
-            $hora = $diasAtras === 0 ? random_int(8, max(8, $horaActual)) : $this->horaConSesgo();
-            $fechaPrestamo = now()->subDays($diasAtras)->setTime($hora, random_int(0, 59));
-            $devuelto = $diasAtras > 0 || random_int(0, 100) < 50;
+            $fechaPrestamo = $this->momentoEnHorario(random_int(0, 5));
+            $devuelto = ! $fechaPrestamo->isToday() || random_int(0, 100) < 50;
+            $cierre = $fechaPrestamo->copy()->setTimeFromTimeString(HorarioBiblioteca::semana()[$fechaPrestamo->dayOfWeekIso][1]);
+            $vuelta = $fechaPrestamo->copy()->addMinutes(random_int(60, 360));
+            if ($vuelta->greaterThanOrEqualTo($cierre)) {
+                $vuelta = $fechaPrestamo->copy()->addMinutes((int) floor($fechaPrestamo->diffInMinutes($cierre) / 2));
+            }
+            if ($vuelta->isFuture()) {
+                $vuelta = now();
+            }
 
             Prestamo::create([
                 'usuario_id' => $usuario->id,
@@ -356,7 +473,7 @@ class SeedMockupData extends Command
                 'codigo_barras' => $equipo->codigo_barras,
                 'fecha_prestamo' => $fechaPrestamo,
                 'fecha_devolucion' => null,
-                'fecha_devolucion_real' => $devuelto ? $fechaPrestamo->copy()->addHours(random_int(1, 6)) : null,
+                'fecha_devolucion_real' => $devuelto ? $vuelta : null,
                 'estado' => $devuelto ? 'devuelto' : 'activo',
             ]);
 
@@ -368,6 +485,183 @@ class SeedMockupData extends Command
         }
 
         $this->line("  · {$total} préstamos creados (libros y equipos)");
+    }
+
+    /**
+     * Historial de estado de las copias, coherente con el estado de cada una: la
+     * catalogación inicial de la colección en tres cambios masivos (febrero de 2023,
+     * antes de los préstamos históricos), el proceso de las copias de la demostración,
+     * reparaciones que ya volvieron al estante, una reubicación por lote y, hoy fuera del
+     * estante, dos copias dadas de baja y una en reparación. Los cambios recientes solo
+     * tocan copias que no estaban prestadas en esas fechas.
+     */
+    private function seedHistorialEstado(): void
+    {
+        $bibliotecaria = Staff::where('email', 'bibliotecaria@umag.cl')->firstOrFail();
+        $admin = Staff::where('email', 'admin@umag.cl')->firstOrFail();
+        [$demo, $coleccion] = Ejemplar::orderBy('id')->get()
+            ->partition(fn (Ejemplar $e) => str_starts_with((string) $e->codigo_barras, '3000000000090'));
+        $filas = [];
+        $cambio = function (Ejemplar $copia, string $de, string $a, Carbon $cuando, Staff $quien, ?string $motivo = null, ?string $lote = null) use (&$filas) {
+            $filas[] = [
+                'ejemplar_id' => $copia->id,
+                'estado_anterior' => $de,
+                'estado_nuevo' => $a,
+                'staff_id' => $quien->id,
+                'lote_id' => $lote,
+                'motivo' => $motivo,
+                'created_at' => $cuando->copy(),
+                'updated_at' => $cuando->copy(),
+            ];
+        };
+        $sinPrestamo = fn (Ejemplar $copia, Carbon $desde, Carbon $hasta) => ! Prestamo::where('ejemplar_id', $copia->id)
+            ->where('fecha_prestamo', '<=', $hasta)
+            ->where(fn ($q) => $q->whereNull('fecha_devolucion_real')->orWhere('fecha_devolucion_real', '>=', $desde))
+            ->exists();
+        $dia = fn (int $diasAtras) => $this->dentroDelHorario(now()->subDays($diasAtras), haciaAtras: false);
+
+        // 1. Catalogación inicial de la colección, en tres cambios masivos.
+        foreach ([
+            ['2023-02-06 10:15', 'inventario', 'procesos_tecnicos', 'Catalogación inicial de la colección'],
+            ['2023-02-15 11:40', 'procesos_tecnicos', 'por_colocar', 'Etiquetado y forrado terminados'],
+            ['2023-02-22 09:30', 'por_colocar', 'en_estante', 'Colección ubicada en la sala general'],
+        ] as [$cuando, $de, $a, $motivo]) {
+            $lote = (string) Str::uuid();
+            foreach ($coleccion as $copia) {
+                $cambio($copia, $de, $a, Carbon::parse($cuando), $bibliotecaria, $motivo, $lote);
+            }
+        }
+
+        // 2. Las copias de la demostración, una por una, antes de sus préstamos y reservas.
+        foreach ($demo->values() as $i => $copia) {
+            $inicio = $dia(62 - 2 * $i);
+            $cambio($copia, 'inventario', 'procesos_tecnicos', $inicio, $bibliotecaria);
+            $cambio($copia, 'procesos_tecnicos', 'por_colocar', $this->dentroDelHorario($inicio->copy()->addDays(3), haciaAtras: false), $bibliotecaria);
+            $cambio($copia, 'por_colocar', 'en_estante', $this->dentroDelHorario($inicio->copy()->addDays(5), haciaAtras: false), $bibliotecaria);
+        }
+
+        // 3. Reparaciones que ya volvieron al estante.
+        $reparaciones = ['Reparación de lomo', 'Cambio de etiqueta de código de barras', 'Limpieza por humedad', 'Refuerzo de tapas'];
+        foreach ($coleccion->shuffle() as $copia) {
+            if (! $reparaciones) {
+                break;
+            }
+            $sale = $dia(random_int(25, 110));
+            $vuelve = $this->dentroDelHorario($sale->copy()->addDays(random_int(2, 6)), haciaAtras: false);
+            if (! $sinPrestamo($copia, $sale, $vuelve)) {
+                continue;
+            }
+            $cambio($copia, 'en_estante', 'procesos_tecnicos', $sale, $bibliotecaria, array_shift($reparaciones));
+            $cambio($copia, 'procesos_tecnicos', 'en_estante', $vuelve, $bibliotecaria, 'Reparación terminada');
+        }
+
+        // 4. Reubicación por lote: cuatro copias salen del estante y vuelven dos días después.
+        [$sale, $vuelve] = [$dia(12), $dia(10)];
+        $reubicadas = $coleccion->shuffle()->filter(fn (Ejemplar $e) => $sinPrestamo($e, $sale, $vuelve))->take(4);
+        foreach ([[$sale, 'en_estante', 'por_colocar', 'Cambio de estanterías en la sala general'], [$vuelve, 'por_colocar', 'en_estante', 'Reubicación terminada']] as [$cuando, $de, $a, $motivo]) {
+            $lote = (string) Str::uuid();
+            foreach ($reubicadas as $copia) {
+                $cambio($copia, $de, $a, $cuando, $bibliotecaria, $motivo, $lote);
+            }
+        }
+
+        // 5. Hoy fuera del estante, sin préstamo ni reserva: dos dadas de baja, de títulos
+        //    con más de una copia (así siguen en el catálogo), y una en reparación.
+        $copiasPorLibro = $coleccion->countBy('libro_id');
+        $libres = $coleccion->where('disponible', true)->filter(fn (Ejemplar $e) => $sinPrestamo($e, now()->subDays(9), now()))->shuffle();
+        $deBaja = $libres->filter(fn (Ejemplar $e) => $copiasPorLibro[$e->libro_id] > 1)->unique('libro_id')->take(2)->values();
+        $enReparacion = $libres->whereNotIn('libro_id', $deBaja->pluck('libro_id'))->first();
+        foreach ([
+            [$deBaja[0] ?? null, 9, 'de_baja', 'Deterioro irreparable: páginas sueltas y daño por humedad', $bibliotecaria],
+            [$deBaja[1] ?? null, 4, 'de_baja', 'Extraviado: no se encontró en el inventario de la sala', $admin],
+            [$enReparacion, 2, 'procesos_tecnicos', 'Reparación de encuadernación', $bibliotecaria],
+        ] as [$copia, $diasAtras, $estado, $motivo, $quien]) {
+            if ($copia) {
+                $cambio($copia, 'en_estante', $estado, $dia($diasAtras), $quien, $motivo);
+                $copia->update(['estado_proceso' => $estado]);
+            }
+        }
+
+        foreach (array_chunk($filas, 500) as $bloque) {
+            DB::table('ejemplar_estado_historial')->insert($bloque);
+        }
+
+        $total = count($filas);
+        $this->line("  · {$total} cambios de estado de copias (catalogación, reparaciones, una reubicación por lote y bajas)");
+    }
+
+    /**
+     * Préstamos ya devueltos desde marzo de 2023 hasta donde empiezan los recientes
+     * (seedPrestamos(), las últimas tres semanas), para que los reportes por mes,
+     * semestre y año tengan historia con qué compararse. Siguen el calendario
+     * académico: poco en enero, febrero y julio; más en abril–junio y octubre–noviembre,
+     * y algo más cada año. Uno de cada cuatro es de un equipo. Son miles, así que se
+     * insertan por bloques.
+     */
+    private function seedPrestamosHistoricos($usuarios, $equipos, $ejemplares): void
+    {
+        $temporada = [1 => 0.25, 2 => 0.15, 3 => 0.9, 4 => 1.2, 5 => 1.3, 6 => 1.15, 7 => 0.45, 8 => 1.0, 9 => 0.85, 10 => 1.25, 11 => 1.3, 12 => 0.55];
+        $hasta = now()->subDays(21)->startOfDay();
+        // Cuándo vuelve cada copia o equipo, para no prestar dos veces lo mismo a la vez.
+        $vuelveEl = [];
+        $filas = [];
+
+        for ($dia = Carbon::create(2023, 3, 1); $dia->lt($hasta); $dia->addDay()) {
+            $horario = HorarioBiblioteca::delDia($dia);
+            if (! $horario) {
+                continue;
+            }
+            $apertura = $dia->copy()->setTimeFromTimeString($horario[0]);
+            $cierre = $dia->copy()->setTimeFromTimeString($horario[1])->subMinute();
+            $esperado = 2.4 * $temporada[$dia->month] * (0.85 + 0.07 * ($dia->year - 2023)) * ($dia->isSaturday() ? 0.4 : 1);
+
+            for ($i = (int) round($esperado * random_int(60, 140) / 100); $i > 0; $i--) {
+                $momento = $dia->copy()->setTime($this->horaConSesgo(), random_int(0, 59));
+                if (! $momento->between($apertura, $cierre)) {
+                    $momento = $apertura->copy()->addMinutes(random_int(0, (int) $apertura->diffInMinutes($cierre)));
+                }
+
+                $esEquipo = random_int(1, 100) <= 25;
+                $item = $esEquipo ? $equipos->random() : $ejemplares->random();
+                $clave = ($esEquipo ? 'equipo-' : 'copia-').$item->id;
+                if (isset($vuelveEl[$clave]) && $vuelveEl[$clave]->gt($momento)) {
+                    continue;
+                }
+
+                if ($esEquipo) {
+                    // Los equipos vuelven el mismo día, antes del cierre.
+                    $vence = null;
+                    $vuelta = $momento->copy()->addMinutes(random_int(60, 300))->min($cierre);
+                } else {
+                    // Plazo de 7 días; uno de cada siete vuelve con atraso.
+                    $vence = $momento->copy()->addDays(7);
+                    $vuelta = $this->dentroDelHorario($momento->copy()->addDays(random_int(1, 100) <= 15 ? random_int(8, 14) : random_int(1, 7)), haciaAtras: false);
+                }
+                $vuelveEl[$clave] = $vuelta;
+
+                $filas[] = [
+                    'usuario_id' => $usuarios->random()->id,
+                    'ejemplar_id' => $esEquipo ? null : $item->id,
+                    'equipo_id' => $esEquipo ? $item->id : null,
+                    'libro_titulo' => $esEquipo ? $item->codigo_inventario : $item->tituloConCopia(),
+                    'tipo_item' => $esEquipo ? $item->tipo : 'libro',
+                    'codigo_barras' => $item->codigo_barras,
+                    'fecha_prestamo' => $momento,
+                    'fecha_devolucion' => $vence,
+                    'fecha_devolucion_real' => $vuelta,
+                    'estado' => 'devuelto',
+                    'created_at' => $momento,
+                    'updated_at' => $vuelta,
+                ];
+            }
+        }
+
+        foreach (array_chunk($filas, 500) as $bloque) {
+            DB::table('prestamos')->insert($bloque);
+        }
+
+        $total = count($filas);
+        $this->line("  · {$total} préstamos históricos devueltos (desde marzo de 2023), para los reportes por mes, semestre y año");
     }
 
     /**
@@ -386,10 +680,17 @@ class SeedMockupData extends Command
             'audifonos' => ['Audífonos 01', 'Audífonos 02', 'Audífonos 03', 'Audífonos 04'],
             'notebook' => ['Notebook 01', 'Notebook 02', 'Notebook 03'],
             'cargador' => ['Cargador 01', 'Cargador 02', 'Cargador 03'],
+            'bicicleta' => ['Bicicleta 01', 'Bicicleta 02', 'Bicicleta 03'],
         ];
 
+        // Las categorías son un catálogo (no se borran con --fresh): la de bicicletas la
+        // crea la migración, pero alguien pudo desactivarla.
+        CategoriaRecurso::where('clave', 'bicicleta')->update(['activo' => true]);
+
         $equipos = collect();
-        $secuencia = 1;
+        // Desde 101: los códigos 7510000000011 en adelante son los recursos fijos del
+        // escenario de demostración (docs/recorrido-presentacion.md).
+        $secuencia = 101;
 
         foreach ($nombres as $tipo => $nombresTipo) {
             foreach ($nombresTipo as $nombre) {
@@ -403,7 +704,7 @@ class SeedMockupData extends Command
             }
         }
 
-        $this->line("  · {$equipos->count()} equipos creados (audífonos, notebooks y cargadores)");
+        $this->line("  · {$equipos->count()} recursos de apoyo creados (audífonos, notebooks, cargadores y bicicletas)");
 
         return $equipos;
     }
@@ -411,14 +712,15 @@ class SeedMockupData extends Command
     /** @return \Illuminate\Support\Collection<int, Sala> */
     private function seedSalas()
     {
-        // 15 logias de estudio, todas en la misma ubicación (ya no se distingue
-        // por piso — ver CLAUDE.md), más 3 salas especiales con nombre propio.
+        // 15 logias de estudio, todas en la misma ubicación, más 3 salas
+        // especiales con nombre propio.
         $capacidades = [2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4];
         $salas = collect();
 
+        // Por nombre: en una base nueva las salas ya las creó la migración
+        // crear_salas_iniciales (sin códigos de barras); acá solo se completan.
         for ($i = 0; $i < 15; $i++) {
-            $salas->push(Sala::create([
-                'nombre' => 'Logia '.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+            $salas->push(Sala::updateOrCreate(['nombre' => 'Logia '.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)], [
                 'capacidad' => $capacidades[$i],
                 'tipo' => 'logia',
                 // Código de barras hardcodeado por logia (Horizon aún no entrega los
@@ -435,19 +737,18 @@ class SeedMockupData extends Command
         $salasEspeciales = [
             ['nombre' => 'Sala de Seminarios', 'capacidad' => 30],
             ['nombre' => 'Sala de Postgrado', 'capacidad' => 20],
-            ['nombre' => 'Sala AGACI (Apoyo a la Inclusión)', 'capacidad' => 10],
+            ['nombre' => 'Sala AGACI', 'capacidad' => 10],
         ];
 
         foreach ($salasEspeciales as $especial) {
-            $salas->push(Sala::create([
-                'nombre' => $especial['nombre'],
+            $salas->push(Sala::updateOrCreate(['nombre' => $especial['nombre']], [
                 'capacidad' => $especial['capacidad'],
                 'tipo' => 'sala',
                 'codigo_barras' => null,
             ]));
         }
 
-        $this->line('  · '.$salas->count().' salas creadas (15 logias + Seminarios + Postgrado + AGACI)');
+        $this->line('  · '.$salas->count().' salas listas (15 logias + Seminarios + Postgrado + AGACI)');
 
         return $salas;
     }
@@ -466,8 +767,7 @@ class SeedMockupData extends Command
      */
     private function seedReservas($salas, $usuarios): void
     {
-        // Horario continuo (inicio libre, duración de hasta 2 horas) — ya no son
-        // bloques fijos, ver spec "reserva de salas con horario continuo". Cada sala
+        // Horario continuo (inicio libre, duración de hasta 2 horas). Cada sala
         // se recorre desde la apertura sorteando si se reserva o no un tramo de
         // duración aleatoria (alineada a la granularidad de config/salas.php).
         $duraciones = [30, 60, 90, 120];
@@ -476,13 +776,21 @@ class SeedMockupData extends Command
 
         // Reservas para hoy y algunos días recientes (no solo "hoy"), para que la
         // demo siga viéndose poblada aunque pasen días sin volver a correr el seed.
+        $granularidad = config('salas.granularidad');
+        $servicioSalas = app(ReservaSalaService::class);
         foreach (range(0, 3) as $diasAtras) {
+            $ventana = $servicioSalas->ventanaDelDia($ahora->copy()->subDays($diasAtras));
+            if (! $ventana) {
+                continue;
+            }
             $fecha = $ahora->copy()->subDays($diasAtras)->toDateString();
             $esHoy = $diasAtras === 0;
 
             foreach ($salas as $sala) {
-                $cursor = Carbon::parse(config('salas.apertura'));
-                $cierre = Carbon::parse(config('salas.cierre'));
+                // Desde el primer inicio alineado a la granularidad: con apertura 08:45, las 09:00.
+                $cursor = Carbon::parse($ventana[0]);
+                $cursor->addMinutes(($granularidad - $cursor->minute % $granularidad) % $granularidad);
+                $cierre = Carbon::parse($ventana[1]);
 
                 while ($cursor->lessThan($cierre)) {
                     // 25% de probabilidad de ocupar cada tramo candidato — da una ocupación
@@ -492,7 +800,7 @@ class SeedMockupData extends Command
                     // huecos reales para poder probar el flujo de "reservar en un espacio
                     // libre" en la demo.
                     if (random_int(0, 100) > 25) {
-                        $cursor->addMinutes(config('salas.granularidad'));
+                        $cursor->addMinutes($granularidad);
 
                         continue;
                     }
@@ -527,6 +835,16 @@ class SeedMockupData extends Command
         if ($finActual->lessThanOrEqualTo($ahora)) {
             $finActual = $ahora->copy()->addMinutes(60);
         }
+        // Solo si la biblioteca atiende a esta hora, y sin pasar del cierre. Pasada la
+        // medianoche el inicio caería en el día anterior (un tramo 23:50-00:50 de hoy).
+        $ventanaHoy = $servicioSalas->ventanaDelDia($ahora);
+        $dentroDelHorario = $ventanaHoy
+            && $inicioActual->isSameDay($ahora)
+            && $inicioActual->format('H:i') >= $ventanaHoy[0]
+            && $ahora->format('H:i') < $ventanaHoy[1];
+        if ($dentroDelHorario && $finActual->format('H:i') > $ventanaHoy[1]) {
+            $finActual = Carbon::parse($ventanaHoy[1]);
+        }
 
         $salasLibres = $salas->reject(
             fn ($sala) => Reserva::where('sala_id', $sala->id)->where('fecha', $fechaHoy)
@@ -536,7 +854,8 @@ class SeedMockupData extends Command
         );
 
         $porConfirmar = 0;
-        foreach ($salasLibres->random(min(3, $salasLibres->count())) as $sala) {
+        $cuantas = $dentroDelHorario ? min(3, $salasLibres->count()) : 0;
+        foreach ($salasLibres->random($cuantas) as $sala) {
             $this->crearReservaMockup($sala, $usuarios, $fechaHoy, $inicioActual->format('H:i:s'), $finActual->format('H:i:s'), fase: 'en_curso', minutosParaVencer: random_int(2, 5));
             $porConfirmar++;
             $total++;
@@ -710,8 +1029,8 @@ class SeedMockupData extends Command
 
         foreach ($ejemplares->where('disponible', true)->random(min(4, $ejemplares->where('disponible', true)->count())) as $ejemplar) {
             $usuario = $usuarios->random();
-            $fechaReserva = now()->subDays(random_int(0, 5));
-            $fechaRetiro = $fechaReserva->copy()->addDays(4);
+            $fechaReserva = $this->momentoEnHorario(random_int(0, 5));
+            $fechaRetiro = $this->dentroDelHorario($fechaReserva->copy()->addDays(4), haciaAtras: false);
             $retirado = $fechaRetiro->isPast();
 
             ReservaLibro::create([
@@ -741,7 +1060,267 @@ class SeedMockupData extends Command
         return Rut::formatear($numero);
     }
 
-    /** Horario biblioteca 8-21 hrs */
+    /**
+     * Casos fijos para mostrar cada función, con RUT, títulos y códigos que no
+     * cambian entre corridas (el resto de los datos es aleatorio). Los usa
+     * docs/recorrido-presentacion.md paso a paso.
+     */
+    private function seedEscenarioDemostracion(): void
+    {
+        $bibliotecaria = Staff::where('email', 'bibliotecaria@umag.cl')->firstOrFail();
+        $meson = Staff::where('email', 'meson@umag.cl')->firstOrFail();
+        $ubicacion = Ubicacion::firstOrCreate(['nombre' => 'Biblioteca Central']);
+
+        $persona = fn (int $rut, string $nombre, string $apellido, string $tipo, string $carrera, string $sexo) => Usuario::create([
+            'rut' => $this->formatearRut($rut),
+            'nombre' => $nombre,
+            'apellido' => $apellido,
+            'email' => Str::lower(Str::ascii("{$nombre}.{$apellido}")).'@umag.cl',
+            'password' => Hash::make('umag123'),
+            'tipo' => $tipo,
+            'carrera' => $carrera,
+            'anio_ingreso' => 2023,
+            'sexo' => $sexo,
+            'activo' => true,
+            'qr_code' => strtoupper(uniqid('QR')),
+        ]);
+
+        $valentina = $persona(11111111, 'Valentina', 'Soto', 'estudiante', 'Ingeniería Civil Informática', 'Femenino');
+        $matias = $persona(22222222, 'Matías', 'Rojas', 'estudiante', 'Derecho', 'Masculino');
+        $francisca = $persona(33333333, 'Francisca', 'Díaz', 'estudiante', 'Enfermería', 'Femenino');
+        $benjamin = $persona(44444444, 'Benjamín', 'Torres', 'funcionario', 'Construcción Civil', 'Masculino');
+        $camila = $persona(55555555, 'Camila', 'Fernández', 'docente', 'Trabajo Social', 'Femenino');
+        $diego = $persona(66666666, 'Diego', 'Herrera', 'estudiante', 'Ingeniería Civil Informática', 'Masculino');
+
+        // Estudiantes extranjeros: se identifican con su DNI o pasaporte en vez de RUT
+        // (en el mesón, el portal y las salas basta con escribir ese número).
+        $extranjero = fn (string $documento, string $tipoDocumento, string $pais, string $nombre, string $apellido, string $carrera, string $sexo) => Usuario::create([
+            'rut' => $documento,
+            'tipo_documento' => $tipoDocumento,
+            'pais' => $pais,
+            'nombre' => $nombre,
+            'apellido' => $apellido,
+            'email' => Str::lower(Str::ascii("{$nombre}.{$apellido}")).'@umag.cl',
+            'password' => Hash::make('umag123'),
+            'tipo' => 'estudiante',
+            'carrera' => $carrera,
+            'anio_ingreso' => 2026,
+            'sexo' => $sexo,
+            'activo' => true,
+            'qr_code' => strtoupper(uniqid('QR')),
+        ]);
+        $extranjero('38456123', 'dni', 'Argentina', 'Martina', 'Gómez', 'Pedagogía en Educación Básica', 'Femenino');
+        $extranjero('FT482913', 'pasaporte', 'Brasil', 'Lucas', 'Silva', 'Ingeniería Comercial', 'Masculino');
+
+        [, $flora] = $this->libroDemostracion('libro', [
+            'titulo' => 'Flora de la Patagonia austral',
+            'titulo_alternativo' => 'Plantas de Magallanes y Tierra del Fuego',
+            'isbn' => '978-956-7189-50-1',
+            'clasificacion' => '581.9836 P678f 2019',
+            'edicion' => '2a ed.',
+            'lugar_publicacion' => 'Punta Arenas',
+            'editorial' => 'Ediciones Universidad de Magallanes',
+            'anio_publicacion' => 2019,
+            'descripcion_fisica' => '312 p. : il. col. ; 24 cm',
+            'materias_geograficas' => 'Magallanes (Chile)',
+            'url_acceso' => 'https://www.umag.cl',
+            'idioma' => 'Español',
+            'serie' => 'Colección Patagonia',
+            'nota_interna' => 'Donación de la Facultad de Ciencias',
+            'nota_bibliografia' => 'Bibliografía: p. 301-310',
+            'coleccion' => 'General',
+        ], ['Pisano, Edmundo', 'Domínguez, Erwin'], ['Botánica', 'Flora'], ['30000000000901', '30000000000902'], $bibliotecaria, $ubicacion);
+
+        [$tesis] = $this->libroDemostracion('trabajo_titulacion', [
+            'titulo' => 'Sistema web para la gestión de la biblioteca de la Universidad de Magallanes',
+            'clasificacion' => 'T 005.1 V297s 2025',
+            'lugar_publicacion' => 'Punta Arenas',
+            'editorial' => 'Universidad de Magallanes',
+            'anio_publicacion' => 2025,
+            'descripcion_fisica' => '98 h. : il. ; 30 cm',
+            'nota_tesis' => 'Tesis (Ingeniero Civil en Computación e Informática) -- Universidad de Magallanes, 2025',
+            'profesor_guia' => 'Pérez, Ana',
+            'entidad_secundaria' => 'Universidad de Magallanes. Departamento de Ingeniería en Computación',
+            'url_acceso' => 'https://www.umag.cl',
+            'idioma' => 'Español',
+            'nota_bibliografia' => 'Bibliografía: h. 92-98',
+            'coleccion' => 'Tesis',
+        ], ['Vargas Soto, Catalina'], ['Sistemas de información', 'Bibliotecas universitarias'], ['30000000000903'], $bibliotecaria, $ubicacion);
+
+        [$juego, [$copiaJuego]] = $this->libroDemostracion('juego_educativo', [
+            'titulo' => 'Memorice de la fauna magallánica',
+            'titulo_alternativo' => 'Memorice austral',
+            'clasificacion' => 'JE 591.9836 M533 2022',
+            'lugar_publicacion' => 'Punta Arenas',
+            'editorial' => 'Didácticos Australes',
+            'anio_publicacion' => 2022,
+            'descripcion_fisica' => '1 caja (48 cartas) : col. ; 20 x 15 cm',
+            'resumen' => 'Juego de memoria con 24 pares de cartas ilustradas de animales de la región de Magallanes, con una ficha informativa por especie.',
+            'audiencia' => 'Niños de 6 a 10 años',
+            'idioma' => 'Español',
+            'coleccion' => 'Material didáctico',
+        ], [], ['Zoología', 'Material didáctico'], ['30000000000904'], $bibliotecaria, $ubicacion);
+
+        [$revista, [$copiaRevista]] = $this->libroDemostracion('publicacion_seriada', [
+            'titulo' => 'Cuadernos de Estudios Australes',
+            'issn' => '0718-5480',
+            'clasificacion' => 'R 918.36 C961 2024',
+            'lugar_publicacion' => 'Punta Arenas',
+            'editorial' => 'Ediciones Universidad de Magallanes',
+            'anio_publicacion' => 2024,
+            'descripcion_fisica' => '180 p. : il. ; 27 cm',
+            'designacion_volumen' => 'Vol. 12, n.º 2 (jul.-dic. 2024)',
+            'url_acceso' => 'https://www.umag.cl',
+            'idioma' => 'Español',
+            'frecuencia' => 'Semestral',
+            'nota_interna' => 'Número especial de aniversario',
+            'nota_idioma' => 'Resúmenes en español e inglés',
+            'nota_local' => 'Canje con la Universidad de Chile',
+            'coleccion' => 'Hemeroteca',
+        ], [], ['Historia regional', 'Patagonia'], ['30000000000905'], $bibliotecaria, $ubicacion);
+
+        // Matías tiene un libro atrasado: al devolverlo se genera la multa sola.
+        $copiaAtrasada = $flora[1];
+        Prestamo::create([
+            'usuario_id' => $matias->id,
+            'ejemplar_id' => $copiaAtrasada->id,
+            'libro_titulo' => $copiaAtrasada->tituloConCopia(),
+            'tipo_item' => 'libro',
+            'codigo_barras' => $copiaAtrasada->codigo_barras,
+            'fecha_prestamo' => $this->momentoEnHorario(17),
+            'fecha_devolucion' => $this->dentroDelHorario(now()->subDays(10), haciaAtras: false),
+            'estado' => 'atrasado',
+            'prestado_por' => $meson->nombre,
+            'prestado_por_staff_id' => $meson->id,
+        ]);
+        $copiaAtrasada->update(['disponible' => false]);
+
+        // Francisca debe una multa: no puede llevarse ni reservar material hasta pagar.
+        app(MultaService::class)->crearManual($francisca, [
+            'tipo' => 'deterioro',
+            'monto' => 3500,
+            'detalle' => 'Libro devuelto con páginas rayadas y la tapa doblada',
+        ], $bibliotecaria);
+
+        // Benjamín tiene el juego reservado y listo para retirar.
+        ReservaLibro::create([
+            'usuario_id' => $benjamin->id,
+            'libro_id' => $juego->id,
+            'ejemplar_id' => $copiaJuego->id,
+            'fecha_reserva' => now()->toDateString(),
+            'fecha_retiro' => $this->dentroDelHorario(now()->addDays(3), haciaAtras: false)->toDateString(),
+            'estado' => 'pendiente',
+            'registrado_por_staff_id' => $meson->id,
+        ]);
+        $copiaJuego->update(['disponible' => false]);
+
+        // Diego tiene la única copia de la revista y Camila espera su turno.
+        Prestamo::create([
+            'usuario_id' => $diego->id,
+            'ejemplar_id' => $copiaRevista->id,
+            'libro_titulo' => $copiaRevista->tituloConCopia(),
+            'tipo_item' => 'libro',
+            'codigo_barras' => $copiaRevista->codigo_barras,
+            'fecha_prestamo' => $this->momentoEnHorario(2),
+            'fecha_devolucion' => $this->dentroDelHorario(now()->addDays(5), haciaAtras: false),
+            'estado' => 'activo',
+            'prestado_por' => $meson->nombre,
+            'prestado_por_staff_id' => $meson->id,
+        ]);
+        $copiaRevista->update(['disponible' => false]);
+        ReservaLibro::create([
+            'usuario_id' => $camila->id,
+            'libro_id' => $revista->id,
+            'ejemplar_id' => null,
+            'fecha_reserva' => now()->toDateString(),
+            'fecha_retiro' => null,
+            'estado' => 'en_cola',
+        ]);
+
+        // Recursos de apoyo que siempre parten disponibles, para prestar durante la demostración.
+        foreach ([['Audífonos 05', 'audifonos', '7510000000011'], ['Notebook 04', 'notebook', '7510000000012'], ['Bicicleta 04', 'bicicleta', '7510000000013']] as [$nombre, $tipo, $codigo]) {
+            Equipo::create(['codigo_inventario' => $nombre, 'codigo_barras' => $codigo, 'tipo' => $tipo, 'disponible' => true, 'activo' => true]);
+        }
+
+        $this->line("  · Escenario de demostración: {$valentina->rut} a {$diego->rut}, 4 títulos con ficha completa ({$tesis->titulo}...) y 3 recursos de apoyo");
+    }
+
+    /**
+     * Crea un título completo de la plantilla indicada, con sus copias en estante.
+     *
+     * @return array{0: Libro, 1: array<int, Ejemplar>}
+     */
+    private function libroDemostracion(string $plantilla, array $campos, array $autores, array $materias, array $codigos, Staff $catalogador, Ubicacion $ubicacion): array
+    {
+        $tipo = TipoMaterial::where('plantilla', $plantilla)->orderBy('id')->firstOrFail();
+
+        $libro = Libro::create([...$campos, 'tipo_material_id' => $tipo->id, 'catalogado_por_staff_id' => $catalogador->id]);
+        $libro->autores()->sync(collect($autores)->values()->mapWithKeys(
+            fn ($nombre, $i) => [Autor::firstOrCreate(['nombre' => $nombre])->id => ['orden' => $i + 1]]
+        )->all());
+        $libro->categorias()->sync(collect($materias)->map(fn ($nombre) => Categoria::firstOrCreate(['nombre' => $nombre])->id)->all());
+
+        $copias = collect($codigos)->values()->map(fn ($codigo, $i) => Ejemplar::create([
+            'libro_id' => $libro->id,
+            'numero_copia' => $i + 1,
+            'codigo_barras' => $codigo,
+            'ubicacion_id' => $ubicacion->id,
+            'estado_proceso' => 'en_estante',
+            'disponible' => true,
+        ]))->all();
+
+        return [$libro, $copias];
+    }
+
+    /**
+     * Un momento dentro del horario de atención (config/biblioteca.php), $diasAtras días
+     * antes de hoy. Si ese día la biblioteca no atiende, o es hoy y todavía no abre, se
+     * usa el último día con atención; hoy nunca pasa de la hora actual.
+     */
+    private function momentoEnHorario(int $diasAtras): Carbon
+    {
+        $dia = now()->subDays($diasAtras)->startOfDay();
+        for ($intento = 0; $intento < 7; $intento++, $dia->subDay()) {
+            $horario = HorarioBiblioteca::semana()[$dia->dayOfWeekIso] ?? null;
+            if (! $horario) {
+                continue;
+            }
+            $apertura = $dia->copy()->setTimeFromTimeString($horario[0]);
+            $cierre = $dia->copy()->setTimeFromTimeString($horario[1])->subMinute();
+            if ($dia->isToday() && $cierre->greaterThan(now())) {
+                $cierre = now();
+            }
+            if ($cierre->lessThanOrEqualTo($apertura)) {
+                continue;
+            }
+            $momento = $dia->copy()->setTime($this->horaConSesgo(), random_int(0, 59));
+
+            return $momento->between($apertura, $cierre)
+                ? $momento
+                : $apertura->copy()->addMinutes(random_int(0, (int) $apertura->diffInMinutes($cierre)));
+        }
+
+        return now();
+    }
+
+    /**
+     * Lleva un momento a un día con atención (hacia atrás o hacia adelante) y deja la hora
+     * dentro del horario de ese día.
+     */
+    private function dentroDelHorario(Carbon $momento, bool $haciaAtras = true): Carbon
+    {
+        $dia = $momento->copy();
+        for ($i = 0; $i < 7 && HorarioBiblioteca::cerrado($dia); $i++) {
+            $haciaAtras ? $dia->subDay() : $dia->addDay();
+        }
+        [$apertura, $cierre] = HorarioBiblioteca::semana()[$dia->dayOfWeekIso];
+        $desde = $dia->copy()->setTimeFromTimeString($apertura);
+        $hasta = $dia->copy()->setTimeFromTimeString($cierre)->subMinute();
+
+        return $dia->between($desde, $hasta) ? $dia : $desde->copy()->addMinutes(random_int(0, (int) $desde->diffInMinutes($hasta)));
+    }
+
+    /** Más movimiento a media mañana y a media tarde; momentoEnHorario() lo ajusta al horario de cada día. */
     private function horaConSesgo(): int
     {
         $r = random_int(0, 100) / 100;

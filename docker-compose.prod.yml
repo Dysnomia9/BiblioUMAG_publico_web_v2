@@ -36,9 +36,12 @@ services:
   #     db:
   #       condition: service_healthy
 
+  # Laravel con PHP-FPM: varios procesos atendiendo en paralelo (ver
+  # backend/docker/php-fpm.conf). No publica puertos: lo alcanza solo el nginx "api".
   backend:
     build:
       context: ./backend
+      target: app
     restart: unless-stopped
     depends_on:
       db:
@@ -46,6 +49,7 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
+      SERVIDOR: fpm
       DB_HOST: db
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
@@ -54,10 +58,8 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS}
       # Notificaciones, Google y LDAP (ver backend/.env.production.example y
-      # docs/login-externo-pendientes.md) — antes esta lista no las reenviaba
-      # al contenedor, así que completarlas en .env.production no alcanzaba
-      # para activarlas. Todas opcionales: si quedan vacías, cada feature
-      # responde "no configurado" en vez de fallar (ver CLAUDE.md).
+      # docs/login-externo-pendientes.md). Todas opcionales: si quedan vacías,
+      # cada función responde "no configurado" en vez de fallar.
       MAIL_MAILER: ${MAIL_MAILER:-log}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -68,6 +70,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_DOMINIOS: ${GOOGLE_DOMINIOS:-}
       LDAP_HOST: ${LDAP_HOST:-}
       LDAP_PORT: ${LDAP_PORT:-389}
       LDAP_BASE_DN: ${LDAP_BASE_DN:-}
@@ -76,17 +79,30 @@ services:
       LDAP_USER_ATTRIBUTE: ${LDAP_USER_ATTRIBUTE:-}
       LDAP_EMAIL_ATTRIBUTE: ${LDAP_EMAIL_ATTRIBUTE:-}
       LDAP_TLS: ${LDAP_TLS:-false}
+
+  # La puerta de entrada de la API (puerto 8000, el mismo de siempre): nginx recibe
+  # las peticiones y se las pasa a PHP-FPM del servicio "backend".
+  api:
+    build:
+      context: ./backend
+      target: nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
     ports:
       - "8000:8000"
 
   frontend:
     build:
       context: ./frontend
+      # Aplicación compilada servida por nginx (ver frontend/Dockerfile), no el
+      # servidor de desarrollo de Vite.
+      target: produccion
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "5173:5173"
+      - "5173:80"
 
 volumes:
   db_data:

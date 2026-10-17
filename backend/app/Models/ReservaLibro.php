@@ -46,6 +46,6 @@ class ReservaLibro extends Model
 
     public function registradoPorStaff()
     {
-        return $this->belongsTo(Staff::class, 'registrado_por_staff_id');
+        return $this->belongsTo(Staff::class, 'registrado_por_staff_id')->withTrashed();
     }
 }

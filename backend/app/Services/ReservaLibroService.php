@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Ejemplar;
 use App\Models\Prestamo;
 use App\Models\ReservaLibro;
+use App\Models\Usuario;
 use App\Notifications\ReservaListaParaRetirarNotification;
+use App\Support\HorarioBiblioteca;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +27,7 @@ class ReservaLibroService
     public function reservarOEncolar(string $codigoBarras, int $usuarioId, ?string $fechaReserva = null, ?string $fechaRetiro = null, ?int $registradoPorStaffId = null): array
     {
         return DB::transaction(function () use ($codigoBarras, $usuarioId, $fechaReserva, $fechaRetiro, $registradoPorStaffId) {
-            $ejemplar = Ejemplar::where('codigo_barras', $codigoBarras)->lockForUpdate()->first();
+            $ejemplar = Ejemplar::porCodigo($codigoBarras)->lockForUpdate()->first();
 
             if (! $ejemplar) {
                 return [null, 'Código de barras no encontrado en el sistema', 404];
@@ -79,13 +81,17 @@ class ReservaLibroService
             return [null, 'Ya tienes una reserva o un lugar en la cola de espera activo para este libro', 409];
         }
 
+        if ($limite = $this->mensajeLimite($usuarioId, $registradoPorStaffId !== null)) {
+            return [null, $limite, 409];
+        }
+
         if ($ejemplar->disponible) {
             $reserva = ReservaLibro::create([
                 'usuario_id' => $usuarioId,
                 'libro_id' => $ejemplar->libro_id,
                 'ejemplar_id' => $ejemplar->id,
                 'fecha_reserva' => $fechaReserva ?? now()->toDateString(),
-                'fecha_retiro' => $fechaRetiro ?? now()->addDays(config('reservas_libro.dias_para_retirar'))->toDateString(),
+                'fecha_retiro' => $fechaRetiro ?? $this->fechaLimiteDeRetiro(),
                 'estado' => 'pendiente',
                 'registrado_por_staff_id' => $registradoPorStaffId,
             ]);
@@ -118,8 +124,7 @@ class ReservaLibroService
      * cuándo podría liberarse una copia, no una promesa exacta: no considera cuántas
      * personas hay delante en la fila ni cuántas copias existen, solo la fecha
      * acordada más cercana). Compartido entre ReservaLibroController (staff) y
-     * PortalReservaLibroController (portal) para no duplicar esta lógica dos veces
-     * (ya pasó una vez con la posición en la cola — ver convención 4 de CLAUDE.md).
+     * PortalReservaLibroController (portal) para no duplicar esta lógica.
      *
      * @param  Collection<int, ReservaLibro>  $reservas
      */
@@ -191,7 +196,7 @@ class ReservaLibroService
         $siguiente->update([
             'estado' => 'pendiente',
             'ejemplar_id' => $ejemplar->id,
-            'fecha_retiro' => now()->addDays(config('reservas_libro.dias_para_retirar'))->toDateString(),
+            'fecha_retiro' => $this->fechaLimiteDeRetiro(),
         ]);
 
         // Sin SMTP configurado (ver .env.example), esto solo queda escrito en
@@ -200,5 +205,36 @@ class ReservaLibroService
         if ($siguiente->usuario?->email) {
             $siguiente->usuario->notify(new ReservaListaParaRetirarNotification($siguiente));
         }
+    }
+
+    /**
+     * Null si la persona todavía puede tener otra reserva; si no, el mensaje de por
+     * qué no. Cuentan juntas las por retirar y las listas de espera (máximo de
+     * config/reservas_libro.php, 1 de fábrica).
+     */
+    private function mensajeLimite(int $usuarioId, bool $paraStaff): ?string
+    {
+        // Bloquea a la persona hasta el final de la transacción: dos reservas
+        // simultáneas de distintos libros no pueden contar las dos bajo el máximo.
+        Usuario::whereKey($usuarioId)->lockForUpdate()->first();
+
+        $maximo = (int) config('reservas_libro.maximo_por_persona', 1);
+        $activas = ReservaLibro::where('usuario_id', $usuarioId)->whereIn('estado', ['pendiente', 'en_cola'])->count();
+
+        if ($activas < $maximo) {
+            return null;
+        }
+
+        $cuantas = $maximo === 1 ? 'una reserva de libro activa' : "{$maximo} reservas de libros activas";
+
+        return $paraStaff
+            ? "La persona ya tiene {$cuantas} (por retirar o en lista de espera), el máximo a la vez: debe retirarla o cancelarla antes de reservar otro libro."
+            : "Ya tienes {$cuantas} (por retirar o en lista de espera), el máximo a la vez: retírala o cancélala en «Mis reservas» antes de reservar otro libro.";
+    }
+
+    /** Los días de config/reservas_libro.php desde hoy; si el plazo cae en un día sin atención, se corre al siguiente. */
+    public function fechaLimiteDeRetiro(): string
+    {
+        return HorarioBiblioteca::proximoDiaConAtencion(now()->addDays(config('reservas_libro.dias_para_retirar')))->toDateString();
     }
 }

@@ -14,7 +14,7 @@ class TipoMaterialTest extends TestCase
 
     public function test_todo_staff_puede_listar_los_tipos_de_material(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->getJson('/api/tipos-material');
 
@@ -34,7 +34,7 @@ class TipoMaterialTest extends TestCase
 
     public function test_staff_no_admin_no_puede_crear_un_tipo_de_material(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->postJson('/api/tipos-material', ['nombre' => 'Mapa']);
 

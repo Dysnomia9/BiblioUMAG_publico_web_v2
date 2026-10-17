@@ -17,7 +17,8 @@ class UsuarioAuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $usuario = Usuario::where('rut', $data['rut'])->first();
+        // RUT, pasaporte o DNI (estudiantes extranjeros), con o sin puntos y guion.
+        $usuario = Usuario::buscarPorIdentificador($data['rut']);
 
         if (! $usuario || ! $usuario->password || ! Hash::check($data['password'], $usuario->password)) {
             throw ValidationException::withMessages([

@@ -48,7 +48,7 @@ class PrestamoConcurrenciaTest extends TestCase
                 'tipo_item' => 'libro',
                 'codigo_barras' => $ejemplar->codigo_barras,
                 'fecha_prestamo' => now()->toDateString(),
-                'fecha_devolucion' => now()->addDays(7)->toDateString(),
+                'fecha_devolucion' => $this->fechaConAtencion(7),
             ])->assertStatus(201);
         });
 
@@ -84,7 +84,7 @@ class PrestamoConcurrenciaTest extends TestCase
                 'usuario_id' => $usuario->id,
                 'codigo_barras' => $ejemplar->codigo_barras,
                 'fecha_reserva' => now()->toDateString(),
-                'fecha_retiro' => now()->addDays(2)->toDateString(),
+                'fecha_retiro' => $this->fechaConAtencion(2),
             ])->assertStatus(201);
         });
 

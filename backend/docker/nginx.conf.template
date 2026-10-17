@@ -1,0 +1,32 @@
+# nginx de la API en producción (servicio "api" de docker-compose.prod.yml): recibe
+# las peticiones en el puerto 8000 y se las pasa a PHP-FPM (servicio "backend").
+# Es una plantilla: la imagen oficial de nginx reemplaza ${PHP_FPM_HOST} al arrancar.
+server {
+    listen 8000;
+    server_tokens off;
+
+    # La carga masiva de estudiantes manda hasta 5.000 filas en un JSON.
+    client_max_body_size 20m;
+
+    # Las respuestas JSON (listados, exportaciones por páginas) viajan comprimidas.
+    gzip on;
+    gzip_types application/json;
+    gzip_min_length 1024;
+
+    # Se vuelve a resolver el nombre del backend cada 10 s: si su contenedor se
+    # reinicia con otra IP, nginx lo sigue encontrando sin reiniciarse.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $php_fpm ${PHP_FPM_HOST}:9000;
+
+    # Es una API: todo lo resuelve Laravel en public/index.php, no hay archivos estáticos.
+    location / {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /var/www/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT /var/www/public;
+        fastcgi_pass $php_fpm;
+        fastcgi_read_timeout 120s;
+        fastcgi_buffers 16 32k;
+        fastcgi_buffer_size 64k;
+    }
+}

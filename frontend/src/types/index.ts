@@ -2,12 +2,55 @@ export type Staff = {
   id: number
   email: string
   nombre: string
-  rol: 'admin' | 'staff'
+  rol: string
+  rol_nombre: string | null
+  rol_acceso_total: boolean
+  permisos: string[]
+  activo: boolean
+}
+
+export type PermisoCatalogo = {
+  clave: string
+  nombre: string
+  descripcion: string
+  solo_acceso_total: boolean
+}
+
+export type GrupoPermisos = {
+  clave: string
+  nombre: string
+  descripcion: string
+  permisos: PermisoCatalogo[]
+}
+
+export type Rol = {
+  id: number
+  clave: string
+  nombre: string
+  descripcion: string | null
+  nivel: number
+  acceso_total: boolean
+  permisos: string[]
+  staff_count: number
+}
+
+export type CuentaPersonal = {
+  id: number
+  nombre: string
+  email: string
+  rol: string
+  rol_nombre: string | null
+  activo: boolean
+  ultimo_acceso: string | null
+  created_at: string
 }
 
 export type Usuario = {
   id: number
+  /** RUT con puntos y guion o, si es extranjero, el número de pasaporte/DNI (ver tipo_documento). */
   rut: string
+  tipo_documento?: 'rut' | 'pasaporte' | 'dni' | 'otro'
+  pais?: string | null
   nombre: string
   apellido: string
   email: string | null
@@ -20,27 +63,60 @@ export type Usuario = {
   multas_pendientes?: { cantidad: number; monto_total: number }
 }
 
+/** Un recurso de apoyo físico (notebook, bicicleta…): `tipo` es la clave de su categoría. */
 export type Equipo = {
   id: number
   codigo_inventario: string
   codigo_barras: string
-  tipo: 'audifonos' | 'notebook' | 'cargador'
+  tipo: string
   disponible: boolean
   activo: boolean
+}
+
+/** Categoría de recurso de apoyo (Administración → Catálogos): audífonos, notebook, bicicleta… */
+export type CategoriaRecurso = {
+  id: number
+  clave: string
+  nombre: string
+  nombre_plural: string
+  icono: string
+  color: string
+  limite_por_persona: number | null
+  indicaciones: string | null
+  activo: boolean
+  recursos_total?: number
+  recursos_activos?: number
+  recursos_disponibles?: number
 }
 
 export type Entrada = {
   id: number
   usuario_id: number | null
   rut_externo: string | null
+  tipo_documento_externo?: 'rut' | 'pasaporte' | 'dni' | 'otro' | null
+  pais_externo?: string | null
   nombre_externo: string | null
   fecha_hora_entrada: string
   fecha_hora_salida: string | null
-  via: 'manual' | 'qr'
+  /**
+   * manual: la registró el personal; portal: la persona, con su RUT en el portal; qr: escaneó
+   * el código; sala: quedó presente al confirmar la llegada a una sala reservada.
+   */
+  via: 'manual' | 'portal' | 'qr' | 'sala'
   codigo_barras: string | null
   es_convenio: boolean
   es_visita: boolean
-  usuario?: Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'rut' | 'tipo'>
+  usuario?: Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'rut' | 'tipo' | 'tipo_documento' | 'pais'>
+}
+
+/** GET /entrada: las entradas de un día (o de una búsqueda) y el recuadro de hoy. */
+export type RespuestaEntradas = {
+  modo: 'dia' | 'busqueda'
+  fecha?: string
+  entradas: Entrada[]
+  hoy: { personas: number; entradas: number; qr: number; portal: number; manuales: number; sala: number }
+  aforo: number
+  horario: HorarioBiblioteca
 }
 
 export type Prestamo = {
@@ -49,7 +125,9 @@ export type Prestamo = {
   ejemplar_id: number | null
   equipo_id: number | null
   libro_titulo: string
-  tipo_item: 'libro' | 'audifonos' | 'notebook' | 'cargador'
+  /** 'libro' o la clave de una categoría de recurso de apoyo. */
+  tipo_item: string
+  codigo_barras: string | null
   fecha_prestamo: string
   fecha_devolucion: string | null
   fecha_devolucion_real: string | null
@@ -58,18 +136,40 @@ export type Prestamo = {
   prestado_por_staff_id?: number | null
   devuelto_por: string | null
   devuelto_por_staff_id?: number | null
-  multa_monto: number | null
-  multa_estado: 'pendiente' | 'pagada' | null
-  multa_pagada_en: string | null
-  multa_pagada_por: string | null
-  multa_pagada_por_staff_id?: number | null
   usuario?: Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'rut'>
+  multas?: Pick<Multa, 'id' | 'prestamo_id' | 'tipo' | 'monto' | 'estado'>[]
+}
+
+export type TipoMulta = 'atraso' | 'deterioro' | 'perdida' | 'otro'
+export type EstadoMulta = 'pendiente' | 'pagada' | 'anulada'
+
+export type Multa = {
+  id: number
+  usuario_id: number
+  prestamo_id: number | null
+  tipo: TipoMulta
+  monto: number
+  estado: EstadoMulta
+  detalle: string | null
+  dias_atraso: number | null
+  origen: 'sistema' | 'manual' | 'importada'
+  referencia_externa: string | null
+  pagada_en: string | null
+  anulada_en: string | null
+  motivo_anulacion: string | null
+  created_at: string
+  usuario?: Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'rut' | 'email'>
+  prestamo?: Pick<Prestamo, 'id' | 'libro_titulo' | 'tipo_item' | 'fecha_prestamo' | 'fecha_devolucion' | 'fecha_devolucion_real'> | null
+  registrada_por?: { id: number; nombre: string } | null
+  pagada_por?: { id: number; nombre: string } | null
+  anulada_por?: { id: number; nombre: string } | null
 }
 
 export type ResumenDashboard = {
   usuariosActivos: number
   entradasHoy: number
   personasEnSala: number
+  aforo: number
   prestamosActivos: number
   prestamosAtrasados: number
   ultimasEntradas: Entrada[]
@@ -90,7 +190,33 @@ export type Autor = { id: number; nombre: string }
 export type Categoria = { id: number; nombre: string }
 export type Carrera = { id: number; nombre: string }
 export type Ubicacion = { id: number; nombre: string }
-export type TipoMaterial = { id: number; nombre: string }
+export type PlantillaFichaClave = 'libro' | 'trabajo_titulacion' | 'juego_educativo' | 'publicacion_seriada'
+
+export type TipoMaterial = { id: number; nombre: string; plantilla: PlantillaFichaClave }
+
+/** Una fila de la ficha bibliográfica (etiqueta MARC, nombre del campo y su valor). */
+export type FilaFicha = { etiqueta: string; campo: string; valor: string; interno: boolean }
+
+/** Título tal como lo entrega el catálogo del portal: solo datos públicos. */
+export type LibroCatalogo = {
+  id: number
+  titulo: string
+  tipo_material: string | null
+  autores: { id: number; nombre: string }[]
+  categorias: { id: number; nombre: string }[]
+  ejemplares_total: number
+  ejemplares_disponibles: number
+  // Devolución más próxima entre las copias prestadas (null si ninguna lo está).
+  proxima_devolucion: string | null
+  ficha: FilaFicha[]
+}
+
+/** Qué etiquetas lleva la ficha de un tipo de material y cuáles ve el usuario. */
+export type PlantillaFicha = {
+  clave: PlantillaFichaClave
+  nombre: string
+  campos: { clave: string; etiqueta: string; nombre: string; publico: boolean }[]
+}
 
 export type EstadoLibroPersonalizado = {
   id: number
@@ -105,6 +231,8 @@ export type Ejemplar = {
   libro_id: number
   numero_copia: number
   codigo_barras: string
+  /** Segundo código de barras, de 8 dígitos, para la etiqueta de lomo (lo asigna el sistema). */
+  codigo_lomo: string
   disponible: boolean
   estado_proceso: EstadoProcesoEjemplar
   estado_personalizado_id: number | null
@@ -113,7 +241,11 @@ export type Ejemplar = {
   ubicacion?: Ubicacion | null
   volumen: string | null
   precio: string | null
+  forma_adquisicion: 'compra' | 'donacion' | 'canje' | null
   fecha_inventario: string | null
+  // En /libros: si tiene un préstamo activo o una reserva lista para retirar.
+  prestado?: boolean
+  reservado?: boolean
   libro?: Libro
 }
 
@@ -130,6 +262,30 @@ export type Libro = {
   tipo_material?: TipoMaterial | null
   nota_interna: string | null
   nota_publica: string | null
+  titulo_alternativo?: string | null
+  edicion?: string | null
+  lugar_publicacion?: string | null
+  descripcion_fisica?: string | null
+  entidad_corporativa?: string | null
+  reunion?: string | null
+  entidad_secundaria?: string | null
+  materias_personales?: string | null
+  materias_geograficas?: string | null
+  url_acceso?: string | null
+  issn?: string | null
+  designacion_volumen?: string | null
+  nota_tesis?: string | null
+  profesor_guia?: string | null
+  resumen?: string | null
+  audiencia?: string | null
+  idioma?: string | null
+  serie?: string | null
+  nota_bibliografia?: string | null
+  frecuencia?: string | null
+  nota_idioma?: string | null
+  nota_local?: string | null
+  catalogado_por?: { id: number; nombre: string } | null
+  ficha?: FilaFicha[]
   autores?: Autor[]
   categorias?: Categoria[]
   carreras?: Carrera[]
@@ -148,6 +304,8 @@ export type EjemplarEstadoHistorial = {
   estado_personalizado_nuevo_id: number | null
   staff_id: number | null
   lote_id: string | null
+  // Copias que movió en total el cambio masivo, aunque los filtros muestren menos (0 si fue individual).
+  lote_total?: number
   motivo: string | null
   created_at: string
   ejemplar?: Ejemplar & { libro?: Pick<Libro, 'id' | 'titulo'> }
@@ -180,13 +338,14 @@ export type LibroHistorialEjemplar = {
     id: number
     usuario: string | null
     fecha_prestamo: string
+    fecha_devolucion: string | null
     fecha_devolucion_real: string | null
     estado: string
   }[]
 }
 
 export type LibroHistorial = {
-  libro: Pick<Libro, 'id' | 'titulo' | 'isbn'>
+  libro: Pick<Libro, 'id' | 'titulo' | 'isbn' | 'clasificacion'>
   ejemplares: LibroHistorialEjemplar[]
   total_prestamos: number
 }
@@ -201,6 +360,20 @@ export type EstadoPortal = {
   usuario: Usuario
   personasEnSala: number
   capacidad: number
+  horario: HorarioBiblioteca
+}
+
+export type IngresosPortal = {
+  este_mes: number
+  entradas: { id: number; fecha: string; hora: string; origen: 'qr' | 'rut' | 'meson' }[]
+}
+
+export type ActividadPortal = {
+  entrada_hoy: string | null
+  prestamos: { id: number; titulo: string; tipo_item: string; fecha_devolucion: string | null }[]
+  reservas_libro: { id: number; titulo: string | null; estado: 'pendiente' | 'en_cola'; fecha_retiro: string | null; posicion: number | null }[]
+  reservas_sala: { id: number; sala: string | null; hora_inicio: string; hora_fin: string }[]
+  multas: { cantidad: number; monto_total: number }
 }
 
 export type ReservaLibro = {
@@ -221,10 +394,20 @@ export type ReservaLibro = {
   ejemplar?: Ejemplar
 }
 
-// Tramo reservado dentro de una sala — horario continuo (hora_inicio/hora_fin en
-// formato "H:i"), ya no bloques fijos de 2 horas. Forma parte de Sala.tramos, la
-// respuesta de SalaController::index()/PortalController::salas() (ver
-// ReservaSalaService::vistaDelDia()).
+// GET /mi/reservas-libro/condiciones: lo que el portal muestra antes de confirmar una
+// reserva. fecha_retiro (AAAA-MM-DD) es el plazo que tendría si reserva ahora.
+export type CondicionesReservaLibro = {
+  fecha_retiro: string
+  dias_para_retirar: number
+  /** Reservas activas a la vez, sumando las por retirar y las listas de espera. */
+  maximo_por_persona: number
+  /** Motivo por el que no puede reservar (multas pendientes), o null. */
+  bloqueo: string | null
+}
+
+// Tramo reservado dentro de una sala, en horario continuo (hora_inicio/hora_fin en
+// formato "H:i"). Forma parte de Sala.tramos, la respuesta de
+// SalaController::index()/PortalController::salas() (ver ReservaSalaService::vistaDelDia()).
 export type TramoReserva = {
   reserva_id: number
   hora_inicio: string
@@ -240,6 +423,8 @@ export type TramoReserva = {
   hora_devolucion_real: string | null
   plazo_confirmacion: string
   vencida_sin_confirmar: boolean
+  /** Solo en el portal: la hizo la persona o la incluyeron como integrante. */
+  es_mia?: boolean
 }
 
 export type Sala = {
@@ -256,8 +441,13 @@ export type Sala = {
 
 export type VistaSalasDia = {
   fecha: string
+  // Día en que la biblioteca no atiende (config/biblioteca.php): no se reservan salas.
+  cerrado: boolean
+  // Lo que abarca la línea de tiempo (lo más amplio de la semana)…
   apertura: string
   cierre: string
+  // …y lo que atiende la biblioteca ese día: fuera de eso no se reserva.
+  atencion: [string, string] | null
   granularidad: number
   duracion_minima: number
   duracion_maxima: number
@@ -268,7 +458,13 @@ export type VistaSalasDia = {
 export type SerieItem = {
   label: string
   value: number
+  // Solo en el gráfico principal por días: fines de semana en tono claro, días sin atención rayados.
+  finDeSemana?: boolean
+  cerrado?: boolean
 }
+
+/** Horario de atención por día ISO (1 = lunes ... 7 = domingo): [apertura, cierre] o null si no abre. */
+export type HorarioBiblioteca = Record<string, [string, string] | null>
 
 export type HoraPorSala = {
   sala: string
@@ -276,16 +472,24 @@ export type HoraPorSala = {
 }
 
 export type ReporteResumen = {
+  rango: { desde: string; hasta: string }
   total: number
+  totalAnterior: number
   promedioPorPeriodo: number
   categoriaMasFrecuente: string
+  // Bloque de dos horas seguidas con más registros (null si no hay ninguno).
+  horarioPico: { desde: string; hasta: string; value: number } | null
+  horario: HorarioBiblioteca
   serie: SerieItem[]
   porCarrera: SerieItem[]
   porSexo: SerieItem[]
   porAnioIngreso: SerieItem[]
   porTipoUsuario: SerieItem[]
   porHora: SerieItem[]
-  // Solo con contenido cuando tab === 'logias' / tab === 'libros' respectivamente.
+  // Solo con contenido en su pestaña: préstamos (tipo y recurso), logias (sala) y libros.
+  // Tipo: bibliografico | recursos_apoyo. Recurso: libro o la clave de una categoría de recurso de apoyo.
+  porTipoPrestamo: SerieItem[]
+  porRecurso: SerieItem[]
   porSala: SerieItem[]
   porLibro: SerieItem[]
   porHoraPorSala: HoraPorSala[]
@@ -296,24 +500,29 @@ export type ReporteOpciones = {
   aniosIngreso: number[]
   sexos: string[]
   tiposUsuario: string[]
+  /** Nombre de cada recurso que se presta: «libro» y las claves de las categorías de recursos de apoyo. */
+  recursos: Record<string, string>
 }
 
 export type Periodo = 'dia' | 'semana' | 'mes' | 'semestre' | 'anio'
 export type ReporteTab = 'prestamos' | 'ingresos' | 'logias' | 'libros'
 
-export type MultaPendienteUsuario = {
+export type DeudaUsuario = {
   usuario_id: number
   nombre: string
   apellido: string
   rut: string
-  cantidad_prestamos: number
+  email: string | null
+  cantidad_multas: number
   monto_total: number
+  desde: string
 }
 
-export type MultasPendientesResumen = {
+export type MultasResumen = {
   total_usuarios: number
+  total_multas: number
   monto_total: number
-  usuarios: MultaPendienteUsuario[]
+  usuarios: DeudaUsuario[]
 }
 
 export type CodigoAcceso = {
@@ -339,9 +548,142 @@ export type OperacionRegistro = {
   origen_id: number
 }
 
+/** Una página del Registro absoluto (las operaciones vienen ordenadas por fecha, de la más nueva). */
 export type RegistroAbsolutoResumen = {
   desde: string
   hasta: string
   total: number
   operaciones: OperacionRegistro[]
+  current_page: number
+  last_page: number
+  per_page: number
+  from: number | null
+  to: number | null
 }
+
+/** Lo que hizo alguien en el sistema (Registro absoluto → Acciones del personal). */
+export type AccionBitacora = {
+  id: number
+  fecha_hora: string
+  actor: string
+  actor_tipo: 'staff' | 'usuario' | 'sistema'
+  modulo: string
+  accion: string
+  descripcion: string
+  afectado: string | null
+  datos: Record<string, unknown> | null
+}
+
+export type BitacoraResumen = {
+  desde: string
+  hasta: string
+  total: number
+  acciones: AccionBitacora[]
+  current_page: number
+  last_page: number
+  per_page: number
+  from: number | null
+  to: number | null
+}
+
+export type BitacoraOpciones = {
+  modulos: { clave: string; nombre: string }[]
+  /** Incluye las cuentas eliminadas: sus acciones siguen en la bitácora. */
+  personal: { id: number; nombre: string; activo: boolean; eliminada?: boolean }[]
+}
+
+/** Llegada a una sala: quiénes quedaron presentes recién y quiénes ya habían entrado hoy. */
+export type AsistenciaSala = { registradas: string[]; ya_presentes: string[] }
+
+/** Respuesta al modificar los integrantes de una reserva de sala. */
+export type IntegrantesReserva = {
+  reserva_id: number
+  cantidad_personas: number
+  personas: TramoReserva['personas']
+  // Solo si la llegada ya estaba confirmada y se sumó alguien: quedó presente.
+  asistencia: AsistenciaSala | null
+}
+
+export type OpcionesUsuarios = {
+  carreras: string[]
+  tipos_documento: { clave: 'rut' | 'pasaporte' | 'dni' | 'otro'; nombre: string }[]
+  tipos: Usuario['tipo'][]
+  sexos: string[]
+}
+
+export type EstadoFilaImportacion = 'nuevo' | 'existe' | 'duplicado' | 'invalido'
+
+export type FilaImportacion = {
+  fila: number
+  estado: EstadoFilaImportacion
+  datos: Partial<Usuario> & { rut: string }
+  mensajes: string[]
+  existente: Pick<Usuario, 'id' | 'rut' | 'nombre' | 'apellido'> | null
+}
+
+export type ResultadoImportacion = {
+  resumen: { total: number; nuevos: number; existentes: number; duplicados: number; invalidos: number }
+  filas: FilaImportacion[]
+  creados?: number
+}
+
+/** Respuesta por páginas de la API (paginate() de Laravel): una página de filas y el total. */
+export type Paginado<T> = {
+  data: T[]
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number | null
+  to: number | null
+}
+
+/** Historial de libros: una fila de la lista (el detalle de préstamos se pide aparte). */
+export type LibroHistorialItem = {
+  libro: Pick<Libro, 'id' | 'titulo' | 'isbn' | 'clasificacion'>
+  copias: number
+  total_prestamos: number
+}
+
+export type VistaPrestamos = 'activos' | 'vencidos' | 'devueltos' | 'todos'
+
+/** Listado de préstamos: la página de la pestaña elegida y cuántos hay en cada pestaña. */
+export type ListadoPrestamos = Paginado<Prestamo> & { conteos: Record<VistaPrestamos, number> }
+
+export type VistaReservas = 'activas' | 'finalizadas' | 'no_show' | 'canceladas' | 'todas'
+
+/**
+ * En qué está una reserva de sala: pendiente de llegada, en uso, con la llave sin
+ * devolver (ya terminó su horario) o su estado final (ReservaSalaService::situacion()).
+ */
+export type SituacionReserva = 'pendiente' | 'en_uso' | 'sin_devolver' | 'finalizada' | 'no_show' | 'cancelada'
+
+/** Una reserva de sala en el Listado de reservas (ReservaSalaService::paraListado()). */
+export type ReservaListado = {
+  id: number
+  sala: Pick<Sala, 'id' | 'nombre' | 'tipo'> | null
+  fecha: string
+  hora_inicio: string
+  hora_fin: string
+  duracion_minutos: number
+  estado: 'activa' | 'finalizada' | 'no_show' | 'cancelada'
+  situacion: SituacionReserva
+  cantidad_personas: number
+  titular: { rut: string; nombre: string | null }
+  personas: TramoReserva['personas']
+  prestado_por: string | null
+  devuelto_por: string | null
+  hora_prestamo_real: string | null
+  hora_devolucion_real: string | null
+  /** Cómo se entregó la llave: 'BC' (código de barras) o 'manual'. */
+  via: string | null
+  plazo_confirmacion: string
+  created_at: string
+}
+
+/** Listado de reservas: la página de la pestaña elegida, cuántas hay en cada pestaña y las salas para filtrar. */
+export type ListadoReservas = Paginado<ReservaListado> & {
+  conteos: Record<VistaReservas, number>
+  salas: Pick<Sala, 'id' | 'nombre' | 'tipo'>[]
+}
+

@@ -12,7 +12,8 @@ class TipoMaterial extends Model
 
     protected $table = 'tipos_material';
 
-    protected $fillable = ['nombre'];
+    /** plantilla: qué ficha bibliográfica usa (ver App\Support\FichaBibliografica::PLANTILLAS). */
+    protected $fillable = ['nombre', 'plantilla'];
 
     public function libros(): HasMany
     {

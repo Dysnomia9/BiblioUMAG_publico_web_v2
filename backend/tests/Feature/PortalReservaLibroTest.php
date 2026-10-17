@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Ejemplar;
 use App\Models\Libro;
+use App\Models\Multa;
 use App\Models\Prestamo;
 use App\Models\ReservaLibro;
 use App\Models\Usuario;
@@ -139,6 +140,77 @@ class PortalReservaLibroTest extends TestCase
         $response = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $libro->id]);
 
         $response->assertStatus(404);
+    }
+
+    public function test_usuario_tiene_una_sola_reserva_de_libro_a_la_vez(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        [$primero, $segundo] = Ejemplar::factory()->count(2)->sequence(fn () => ['libro_id' => Libro::factory()])->create();
+
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(201);
+        $response = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id]);
+
+        $response->assertStatus(409)->assertJsonPath('message', 'Ya tienes una reserva de libro activa (por retirar o en lista de espera), el máximo a la vez: retírala o cancélala en «Mis reservas» antes de reservar otro libro.');
+        $this->assertDatabaseHas('ejemplares', ['id' => $segundo->id, 'disponible' => true]);
+        $this->assertDatabaseMissing('reservas_libro', ['usuario_id' => $usuario->id, 'libro_id' => $segundo->libro_id]);
+    }
+
+    public function test_cancelar_una_reserva_libera_el_cupo_para_otra(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        [$primero, $segundo] = Ejemplar::factory()->count(2)->sequence(fn () => ['libro_id' => Libro::factory()])->create();
+
+        $reserva = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(201)->json();
+        $this->patchJson("/api/mi/reservas-libro/{$reserva['id']}/cancelar")->assertStatus(200);
+
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(201)->assertJsonPath('estado', 'pendiente');
+    }
+
+    /** La lista de espera también es su reserva: así la cola nunca le aparta dos libros. */
+    public function test_las_listas_de_espera_cuentan_dentro_de_la_misma_reserva(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        [$ocupado, $otroOcupado] = Ejemplar::factory()->count(2)->sequence(fn () => ['libro_id' => Libro::factory()])->create(['disponible' => false]);
+        $disponible = Ejemplar::factory()->for(Libro::factory())->create();
+
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $ocupado->libro_id])->assertStatus(201)->assertJsonPath('estado', 'en_cola');
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $otroOcupado->libro_id])->assertStatus(409);
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $disponible->libro_id])->assertStatus(409);
+
+        $this->assertSame(1, ReservaLibro::where('usuario_id', $usuario->id)->count());
+        $this->assertDatabaseHas('ejemplares', ['id' => $disponible->id, 'disponible' => true]);
+    }
+
+    public function test_condiciones_anticipan_la_fecha_de_retiro_que_tendra_la_reserva(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
+
+        $condiciones = $this->getJson('/api/mi/reservas-libro/condiciones');
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $ejemplar->libro_id])->assertStatus(201);
+
+        $condiciones->assertStatus(200)->assertJson([
+            'dias_para_retirar' => config('reservas_libro.dias_para_retirar'),
+            'maximo_por_persona' => 1,
+        ]);
+        $reserva = ReservaLibro::where('usuario_id', $usuario->id)->first();
+        $this->assertSame($reserva->fecha_retiro->toDateString(), $condiciones->json('fecha_retiro'));
+        $this->assertNull($condiciones->json('bloqueo'));
+    }
+
+    public function test_condiciones_avisan_el_bloqueo_por_multas_pendientes(): void
+    {
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        Multa::factory()->for($usuario)->create(['monto' => 1500]);
+
+        $this->getJson('/api/mi/reservas-libro/condiciones')
+            ->assertStatus(200)
+            ->assertJsonPath('bloqueo', 'Tienes 1 multa pendiente por $1.500: debes pagarla en la biblioteca antes de reservar libros.');
     }
 
     public function test_staff_no_puede_usar_las_rutas_del_portal(): void

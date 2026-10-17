@@ -3,20 +3,32 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Categoria;
 use App\Models\CodigoAcceso;
 use App\Models\Entrada;
 use App\Models\Libro;
+use App\Models\Prestamo;
 use App\Models\Reserva;
+use App\Models\ReservaLibro;
 use App\Models\Sala;
 use App\Models\Usuario;
+use App\Services\EntradaService;
+use App\Services\MultaService;
+use App\Services\ReservaLibroService;
 use App\Services\ReservaSalaService;
+use App\Support\Bitacora;
+use App\Support\Busqueda;
+use App\Support\BusquedaLibros;
+use App\Support\Documento;
+use App\Support\FichaBibliografica;
+use App\Support\HorarioBiblioteca;
+use App\Support\Paginacion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 class PortalController extends Controller
 {
-    private const CAPACIDAD_SALA = 220;
-
     public function __construct(private ReservaSalaService $reservaSalaService)
     {
     }
@@ -31,7 +43,8 @@ class PortalController extends Controller
             // se cierra en el mismo instante en que se registra (ver registrarEntrada()).
             // "Personas en sala" es, en la práctica, el total de ingresos del día.
             'personasEnSala' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
-            'capacidad' => self::CAPACIDAD_SALA,
+            'capacidad' => config('biblioteca.aforo'),
+            'horario' => HorarioBiblioteca::semana(),
         ]);
     }
 
@@ -41,24 +54,104 @@ class PortalController extends Controller
      * portal — no recibe RUT por parámetro para no poder consultar la deuda de otra
      * persona).
      */
-    public function misMultas(Request $request)
+    /**
+     * Resumen para el inicio del portal: si ya marcó su ingreso hoy, lo que tiene
+     * prestado, sus reservas vigentes y sus multas. Solo datos del propio usuario.
+     */
+    public function actividad(Request $request, MultaService $multaService, ReservaLibroService $reservaLibroService)
+    {
+        $usuario = $request->user();
+        $hoy = now()->toDateString();
+
+        $ultimaEntrada = Entrada::where('usuario_id', $usuario->id)
+            ->whereDate('fecha_hora_entrada', $hoy)
+            ->max('fecha_hora_entrada');
+
+        $prestamos = $usuario->prestamos()
+            ->where('estado', '!=', 'devuelto')
+            ->orderByRaw('fecha_devolucion IS NULL, fecha_devolucion')
+            ->get()
+            ->map(fn (Prestamo $prestamo) => [
+                'id' => $prestamo->id,
+                'titulo' => $prestamo->libro_titulo,
+                'tipo_item' => $prestamo->tipo_item,
+                'fecha_devolucion' => $prestamo->fecha_devolucion?->toDateString(),
+            ]);
+
+        $reservasLibro = ReservaLibro::with('libro:id,titulo')
+            ->where('usuario_id', $usuario->id)
+            ->whereIn('estado', ['pendiente', 'en_cola'])
+            ->orderBy('created_at')
+            ->get();
+        $reservaLibroService->enriquecerColaLibro($reservasLibro);
+
+        $reservasSala = Reserva::with('sala:id,nombre')
+            ->whereHas('participantes', fn ($q) => $q->where('usuarios.id', $usuario->id))
+            ->where('fecha', $hoy)
+            ->where('estado', 'activa')
+            ->where('hora_fin', '>', now()->format('H:i:s'))
+            ->orderBy('hora_inicio')
+            ->get()
+            ->map(fn (Reserva $reserva) => [
+                'id' => $reserva->id,
+                'sala' => $reserva->sala?->nombre,
+                'hora_inicio' => substr($reserva->hora_inicio, 0, 5),
+                'hora_fin' => substr($reserva->hora_fin, 0, 5),
+            ]);
+
+        return response()->json([
+            'entrada_hoy' => $ultimaEntrada ? Carbon::parse($ultimaEntrada)->format('H:i') : null,
+            'prestamos' => $prestamos,
+            'reservas_libro' => $reservasLibro->map(fn (ReservaLibro $reserva) => [
+                'id' => $reserva->id,
+                'titulo' => $reserva->libro?->titulo,
+                'estado' => $reserva->estado,
+                'fecha_retiro' => $reserva->fecha_retiro?->toDateString(),
+                'posicion' => $reserva->posicion,
+            ]),
+            'reservas_sala' => $reservasSala,
+            'multas' => $multaService->resumenPendiente($usuario),
+        ]);
+    }
+
+    /** Historial de ingresos de la propia persona (los últimos 60) y cuántos lleva este mes. */
+    public function ingresos(Request $request)
+    {
+        $usuarioId = $request->user()->id;
+
+        $entradas = Entrada::where('usuario_id', $usuarioId)
+            ->latest('fecha_hora_entrada')
+            ->limit(60)
+            ->get(['id', 'fecha_hora_entrada', 'via', 'registrado_por_staff_id']);
+
+        return response()->json([
+            'este_mes' => Entrada::where('usuario_id', $usuarioId)
+                ->where('fecha_hora_entrada', '>=', now()->startOfMonth())
+                ->count(),
+            'entradas' => $entradas->map(fn (Entrada $entrada) => [
+                'id' => $entrada->id,
+                'fecha' => $entrada->fecha_hora_entrada->toDateString(),
+                'hora' => $entrada->fecha_hora_entrada->format('H:i'),
+                // qr: escaneó el código; rut: marcó con su RUT en el portal; meson: la registró el personal.
+                'origen' => $entrada->via === 'qr' ? 'qr' : ($entrada->registrado_por_staff_id ? 'meson' : 'rut'),
+            ]),
+        ]);
+    }
+
+    public function misMultas(Request $request, MultaService $multaService)
     {
         $usuario = $request->user();
 
-        $multas = $usuario->prestamos()
-            ->where('multa_estado', 'pendiente')
-            ->selectRaw('COUNT(*) as cantidad, COALESCE(SUM(multa_monto), 0) as monto_total')
-            ->first();
-
-        $usuario->setAttribute('multas_pendientes', [
-            'cantidad' => (int) $multas->cantidad,
-            'monto_total' => (int) $multas->monto_total,
-        ]);
+        $usuario->setAttribute('multas_pendientes', $multaService->resumenPendiente($usuario));
+        $usuario->setAttribute('multas', $usuario->multas()
+            ->pendientes()
+            ->latest()
+            ->get(['id', 'tipo', 'monto', 'detalle', 'created_at']));
 
         return response()->json($usuario);
     }
 
-    public function registrarEntrada(Request $request)
+    public function registrarEntrada(Request $request, EntradaService $entradas)
     {
         $data = $request->validate([
             'rut' => ['sometimes', 'string'],
@@ -68,24 +161,36 @@ class PortalController extends Controller
 
         $usuario = $request->user();
 
-        if ($data['via'] === 'manual' && ($data['rut'] ?? null) !== $usuario->rut) {
-            return response()->json(['message' => 'El RUT ingresado no coincide con tu cuenta'], 422);
+        // RUT, pasaporte o DNI: se compara sin puntos, guiones ni espacios.
+        if ($data['via'] === 'manual' && Documento::normalizar($data['rut'] ?? '') !== Documento::normalizar($usuario->rut)) {
+            return response()->json(['message' => 'El RUT o documento ingresado no coincide con tu cuenta'], 422);
         }
 
         if ($data['via'] === 'qr' && $data['codigo'] !== CodigoAcceso::vigente()->codigo) {
             return response()->json(['message' => 'El código QR no es válido. Pide al personal que lo actualice.'], 422);
         }
 
-        // La salida se marca en el mismo instante que la entrada — ver la nota en
-        // EntradaController::store() sobre por qué (Horizon no registra un evento de
-        // salida por separado). Se usa el mismo timestamp para ambos campos.
-        $ahora = now();
-        $entrada = Entrada::create([
-            'usuario_id' => $usuario->id,
-            'via' => $data['via'],
-            'fecha_hora_entrada' => $ahora,
-            'fecha_hora_salida' => $ahora,
+        // Con el RUT desde el portal queda como 'portal' (no 'manual'), para que en
+        // Entradas se distinga de lo que registra el personal en el mesón. Una persona
+        // queda presente una sola vez por día (ver EntradaService).
+        [$entrada, $creada] = $entradas->registrarUsuario($usuario, [
+            'via' => $data['via'] === 'qr' ? 'qr' : 'portal',
         ]);
+
+        if (! $creada) {
+            return response()->json([
+                'message' => 'Ya marcaste tu entrada hoy a las '.$entrada->fecha_hora_entrada->format('H:i').'. Solo se registra una vez por día.',
+                'entrada' => $entrada,
+                'ya_registrada' => true,
+            ], 409);
+        }
+
+        Bitacora::registrar(
+            'entradas.registrar',
+            $entrada->via === 'qr' ? 'Marcó su entrada con el código QR' : 'Marcó su entrada desde el portal',
+            entidad: $entrada,
+            afectado: $usuario,
+        );
 
         return response()->json([
             'entrada' => $entrada,
@@ -98,22 +203,58 @@ class PortalController extends Controller
         // Solo obras con al menos un ejemplar en estante (aunque esté prestado ahora
         // mismo — el usuario puede reservarlo/unirse a la cola desde el portal).
         $query = Libro::whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
-            ->with(['autores', 'categorias'])
+            ->with(['autores', 'categorias', 'tipoMaterial'])
             ->withCount([
                 'ejemplares as ejemplares_total' => fn ($q) => $q->where('estado_proceso', 'en_estante'),
                 'ejemplares as ejemplares_disponibles' => fn ($q) => $q->where('estado_proceso', 'en_estante')->where('disponible', true),
+            ])
+            // Fecha de devolución más próxima entre las copias prestadas ("vuelve aprox. el...").
+            ->addSelect(['proxima_devolucion' => Prestamo::query()
+                ->selectRaw('MIN(prestamos.fecha_devolucion)')
+                ->join('ejemplares', 'ejemplares.id', '=', 'prestamos.ejemplar_id')
+                ->whereColumn('ejemplares.libro_id', 'libros.id')
+                ->where('prestamos.estado', '!=', 'devuelto'),
             ]);
 
-        if ($busqueda = $request->query('q')) {
-            $query->where(function ($q) use ($busqueda) {
-                $q->where('titulo', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('autores', fn ($a) => $a->where('nombre', 'ilike', "%{$busqueda}%"))
-                    ->orWhereHas('categorias', fn ($c) => $c->where('nombre', 'ilike', "%{$busqueda}%"));
-            });
+        // «Solo disponibles» y el área se filtran acá, no en el navegador: el catálogo va por páginas.
+        if (filter_var($request->query('disponibles'), FILTER_VALIDATE_BOOLEAN)) {
+            $query->whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante')->where('disponible', true));
         }
 
+        if ($categoriaId = $request->query('categoria_id')) {
+            $query->whereHas('categorias', fn ($q) => $q->where('categorias.id', $categoriaId));
+        }
+
+        // Cada palabra tiene que aparecer en algún campo, en cualquier orden (ver Busqueda::palabras()):
+        // título, autor, área o ISBN (sin guiones, para que "9789567189501" encuentre
+        // "978-956-7189-50-1"). Ver BusquedaLibros.
+        foreach (Busqueda::palabras((string) $request->query('q')) as $palabra) {
+            $query->whereIn('libros.id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PORTAL));
+        }
+
+        // Solo lo que la biblioteca definió como público para cada tipo de material:
+        // los campos de uso interno (notas, catalogador, procedencia...) no salen de acá.
+        // Por páginas: el teléfono pide más al llegar al final de la lista.
+        return response()->json($query->orderBy('titulo')->orderBy('id')->paginate(Paginacion::porPagina($request, 24, 100))->through(fn (Libro $libro) => [
+            'id' => $libro->id,
+            'titulo' => $libro->titulo,
+            'tipo_material' => $libro->tipoMaterial?->nombre,
+            'autores' => $libro->autores->map->only(['id', 'nombre'])->values(),
+            'categorias' => $libro->categorias->map->only(['id', 'nombre'])->values(),
+            'ejemplares_total' => $libro->ejemplares_total,
+            'ejemplares_disponibles' => $libro->ejemplares_disponibles,
+            'proxima_devolucion' => $libro->proxima_devolucion ? Carbon::parse($libro->proxima_devolucion)->toDateString() : null,
+            'ficha' => FichaBibliografica::ficha($libro),
+        ]));
+    }
+
+    /** Áreas (categorías) que tienen al menos un título en estante: las opciones del filtro del catálogo. */
+    public function areasCatalogo()
+    {
         return response()->json(
-            $query->orderBy('titulo')->get()
+            Categoria::whereHas('libros.ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
+                ->orderBy('nombre')
+                ->get(['id', 'nombre'])
         );
     }
 
@@ -121,16 +262,36 @@ class PortalController extends Controller
     {
         $fecha = $request->query('fecha', now()->toDateString());
         $salas = Sala::orderBy('id')->get();
+        $usuarioId = (int) $request->user()->id;
+
+        // De las reservas ajenas el usuario solo ve el horario: ni nombres ni RUT
+        // de los integrantes, ni quién del personal entregó o recibió la llave.
+        // Es «suya» la que hizo y también aquella en que la incluyeron como integrante:
+        // así puede verla y cancelarla aunque la haya hecho otra persona.
+        $rutPropio = $request->user()->rut;
+        $vista = $this->reservaSalaService->vistaDelDia($salas, $fecha)->map(function (array $sala) use ($usuarioId, $rutPropio) {
+            $sala['tramos'] = $sala['tramos']->map(fn (array $tramo) => (int) $tramo['usuario_id'] === $usuarioId || in_array($rutPropio, array_column($tramo['personas'], 'rut'), true)
+                ? ['es_mia' => true] + $tramo
+                : ['usuario_id' => null, 'es_mia' => false] + Arr::except($tramo, ['personas', 'rut_usuario', 'usuario_id', 'prestado_por', 'devuelto_por'])
+            )->values();
+
+            return $sala;
+        });
+
+        [$apertura, $cierre] = $this->reservaSalaService->rangoDeLaSemana();
+        $atencion = $this->reservaSalaService->ventanaDelDia(Carbon::parse($fecha));
 
         return response()->json([
             'fecha' => $fecha,
-            'apertura' => config('salas.apertura'),
-            'cierre' => config('salas.cierre'),
+            'apertura' => $apertura,
+            'cierre' => $cierre,
+            'atencion' => $atencion,
             'granularidad' => config('salas.granularidad'),
             'duracion_minima' => config('salas.duracion_minima'),
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
-            'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
+            'cerrado' => $atencion === null,
+            'salas' => $vista,
         ]);
     }
 
@@ -144,13 +305,12 @@ class PortalController extends Controller
             'cantidad_personas' => ['required', 'integer', 'min:2', 'max:5'],
             'inmediata' => ['sometimes', 'boolean'],
             'ruts' => ['required', 'array'],
-            // A diferencia del registro de entrada externo, aquí los RUT deben
-            // pertenecer a usuarios ya registrados: no se admiten visitantes externos.
-            'ruts.*' => ['required', 'string', 'distinct', 'exists:usuarios,rut'],
-        ], [
-            'ruts.*.exists' => 'Uno de los RUT ingresados no corresponde a un usuario registrado en el sistema.',
-            'ruts.*.distinct' => 'No puedes ingresar el mismo RUT más de una vez en la misma reserva.',
+            'ruts.*' => ['required', 'string'],
         ]);
+
+        // A diferencia del registro de entrada externo, aquí los RUT (o pasaportes/DNI)
+        // deben pertenecer a usuarios ya registrados: no se admiten visitantes externos.
+        $data['ruts'] = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
 
         // Los alumnos solo pueden reservar para el día de hoy — a diferencia del staff
         // (SalaController::storeReserva), que sí puede reservar con anticipación.
@@ -163,6 +323,14 @@ class PortalController extends Controller
         }
 
         $usuario = $request->user();
+
+        // Quien reserva va en el grupo: si no, podría tomar salas a nombre de otros sin
+        // que le pesen la reserva pendiente única ni la cuota diaria, y dejarlos sin
+        // poder reservar. Queda primero, como la persona a cargo.
+        if (! in_array($usuario->rut, $data['ruts'], true)) {
+            return response()->json(['message' => 'Debes incluir tu propio RUT entre los integrantes de la reserva.'], 422);
+        }
+        $data['ruts'] = [$usuario->rut, ...array_values(array_diff($data['ruts'], [$usuario->rut]))];
 
         $inmediata = $data['inmediata'] ?? false;
         $error = $this->reservaSalaService->validarTramo($data, $inmediata);
@@ -179,6 +347,10 @@ class PortalController extends Controller
 
         if ($existe) {
             return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
+        }
+
+        if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
+            return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente, $usuario->rut, detalleAjeno: false)], 409);
         }
 
         $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada(
@@ -220,17 +392,33 @@ class PortalController extends Controller
 
         $reserva->participantes()->attach(Usuario::whereIn('rut', $data['ruts'])->pluck('id'));
 
+        Bitacora::registrar(
+            'salas.reservar',
+            "Reservó desde el portal {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
+            entidad: $reserva,
+            datos: ['integrantes' => $data['ruts']],
+            afectado: $usuario,
+        );
+
         return response()->json($reserva, 201);
     }
 
-    /** Soft delete vía estado — ver SalaController::destroyReserva() para el detalle. */
+    /**
+     * Soft delete vía estado — ver SalaController::destroyReserva() para el detalle.
+     * La cancela quien la hizo o cualquiera de sus integrantes: a quien incluyeron en
+     * una reserva tiene que poder deshacerla para reservar otra sala.
+     */
     public function cancelarReservaSala(Request $request, Reserva $reserva)
     {
-        if ($reserva->usuario_id !== $request->user()->id) {
-            return response()->json(['message' => 'Solo puedes cancelar tus propias reservas'], 403);
+        $usuario = $request->user();
+
+        if ($reserva->usuario_id !== $usuario->id && ! $reserva->participantes()->whereKey($usuario->id)->exists()) {
+            return response()->json(['message' => 'Solo puedes cancelar reservas en las que participas'], 403);
         }
 
         $reserva->update(['estado' => 'cancelada']);
+
+        Bitacora::registrar('salas.cancelar', "Canceló desde el portal su reserva de {$reserva->descripcion()}", entidad: $reserva, afectado: $request->user());
 
         return response()->json(null, 204);
     }

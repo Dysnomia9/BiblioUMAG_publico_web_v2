@@ -56,12 +56,12 @@ class Reserva extends Model
 
     public function prestadoPorStaff()
     {
-        return $this->belongsTo(Staff::class, 'prestado_por_staff_id');
+        return $this->belongsTo(Staff::class, 'prestado_por_staff_id')->withTrashed();
     }
 
     public function devueltoPorStaff()
     {
-        return $this->belongsTo(Staff::class, 'devuelto_por_staff_id');
+        return $this->belongsTo(Staff::class, 'devuelto_por_staff_id')->withTrashed();
     }
 
     /**
@@ -91,5 +91,14 @@ class Reserva extends Model
     public function duracionMinutos(): int
     {
         return Carbon::parse($this->hora_inicio)->diffInMinutes(Carbon::parse($this->hora_fin));
+    }
+
+    /** «Logia 3, 02/10/2026 de 10:00 a 12:00» — así aparece la reserva en la bitácora. */
+    public function descripcion(): string
+    {
+        $this->loadMissing('sala:id,nombre');
+
+        return ($this->sala?->nombre ?? 'Sala').', '.$this->fecha->format('d/m/Y')
+            .' de '.substr($this->hora_inicio, 0, 5).' a '.substr($this->hora_fin, 0, 5);
     }
 }

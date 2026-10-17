@@ -12,6 +12,7 @@ use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -32,7 +33,7 @@ class StaffAtribucionTest extends TestCase
             'tipo_item' => 'libro',
             'codigo_barras' => $ejemplar->codigo_barras,
             'fecha_prestamo' => now()->toDateString(),
-            'fecha_devolucion' => now()->addDays(7)->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
             // Un intento de suplantar a otro staff vía el body no debe tener efecto.
             'prestado_por' => 'Alguien Más',
         ]);
@@ -61,8 +62,17 @@ class StaffAtribucionTest extends TestCase
             ->assertJsonPath('devuelto_por_staff_id', $staffB->id);
     }
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
     public function test_escanear_logia_estampa_el_staff_autenticado_sin_pedirlo_en_el_body(): void
     {
+        // Hora fija dentro del horario: con el reloj real, entre las 23:00 y la
+        // medianoche la reserva de "esta hora" terminaría al día siguiente.
+        Carbon::setTestNow(Carbon::today()->setTime(10, 30));
         $staff = Staff::factory()->create(['nombre' => 'Carla Soto']);
         Sanctum::actingAs($staff);
 

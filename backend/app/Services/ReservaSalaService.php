@@ -6,8 +6,10 @@ use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\Usuario;
+use App\Support\HorarioBiblioteca;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class ReservaSalaService
 {
@@ -106,6 +108,12 @@ class ReservaSalaService
             throw new \RuntimeException('El plazo de 15 minutos para confirmar esta reserva ya venció — la sala quedó liberada');
         }
 
+        // Como en escanearLogia(), que solo encuentra la reserva vigente de hoy: desde el
+        // detalle de otro día no se puede dar por llegado a un grupo que viene mañana.
+        if (! $reserva->fecha->isToday()) {
+            throw new \RuntimeException('Esta reserva es para el '.$reserva->fecha->format('d/m/Y').': su llegada se confirma ese día');
+        }
+
         $reserva->update([
             'prestado_por' => $staff->nombre,
             'prestado_por_staff_id' => $staff->id,
@@ -145,16 +153,44 @@ class ReservaSalaService
     }
 
     /**
+     * Libera de una vez todas las reservas vencidas sin confirmar. La liberación es
+     * perezosa (ocurre cuando alguien mira ese día), y el Listado de reservas abarca
+     * todos los días: sin esto, una reserva de la semana pasada a la que nadie llegó
+     * seguiría figurando como pendiente de llegada.
+     */
+    public function liberarVencidas(): int
+    {
+        return Reserva::where('estado', 'activa')
+            ->whereNull('hora_prestamo_real')
+            ->where('fecha', '<=', now()->toDateString())
+            ->get()
+            ->filter(fn (Reserva $r) => $this->liberarSiVencida($r))
+            ->count();
+    }
+
+    /**
      * Valida el tramo horario (ventana de atención, duración, granularidad) y, si
      * $inmediata es true, sobrescribe `hora_inicio` en $data con la hora real del
      * servidor — para que la hora de "Reservar ahora" la fije el backend, no el
      * navegador del usuario. Normaliza hora_inicio/hora_fin a H:i:s al terminar.
      * Devuelve el mensaje de error si algo no cumple, o null si el tramo es válido.
-     * Compartido entre SalaController::storeReserva() y PortalController::
-     * reservarSala() (ver convención 4 de CLAUDE.md).
+     * Compartido entre SalaController::storeReserva(), SalaController::editarReserva()
+     * y PortalController::reservarSala().
+     *
+     * Al editar ($editando), la hora de inicio o de término que la reserva ya tenía
+     * (mismo día, misma hora) se acepta tal cual: pudo quedar en el pasado o fuera de la
+     * grilla de 30 minutos ("Reservar ahora"), y eso no impide cambiarle la sala o el
+     * otro extremo del horario.
      */
-    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false): ?string
+    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false, ?Reserva $editando = null): ?string
     {
+        // Las salas están dentro de la biblioteca: solo se usan mientras atiende (config/biblioteca.php).
+        $dia = Carbon::parse($data['fecha']);
+        $ventana = $this->ventanaDelDia($dia);
+        if (! $ventana) {
+            return 'La biblioteca no atiende los '.HorarioBiblioteca::diaEnPlural($dia).': elige otro día.';
+        }
+
         if ($inmediata) {
             $data['hora_inicio'] = now()->format('H:i');
         }
@@ -166,20 +202,22 @@ class ReservaSalaService
             return 'La hora de término debe ser posterior a la hora de inicio.';
         }
 
+        $mismoDia = $editando && $editando->fecha->toDateString() === $data['fecha'];
+        $inicioSinCambios = $mismoDia && substr($editando->hora_inicio, 0, 5) === $horaInicio->format('H:i');
+        $finSinCambios = $mismoDia && substr($editando->hora_fin, 0, 5) === $horaFin->format('H:i');
+
         // Fuera de 'inmediata' (que siempre usa la hora real del servidor, nunca
         // queda en el pasado), por defecto no se puede agendar una hora que ya pasó
         // hoy — salvo que el caller pase $permitirHoraPasada=true (solo el staff con
         // rol admin, ver SalaController::storeReserva()). El portal nunca pasa esto
         // en true: un usuario del portal jamás puede agendar en el pasado.
-        if (! $inmediata && ! $permitirHoraPasada && $data['fecha'] === now()->toDateString() && $horaInicio->format('H:i') < now()->format('H:i')) {
+        if (! $inmediata && ! $permitirHoraPasada && ! $inicioSinCambios && $data['fecha'] === now()->toDateString() && $horaInicio->format('H:i') < now()->format('H:i')) {
             return 'Esa hora ya pasó — elige un horario desde ahora en adelante.';
         }
 
-        $apertura = Carbon::parse(config('salas.apertura'));
-        $cierre = Carbon::parse(config('salas.cierre'));
-
-        if ($horaInicio->lessThan($apertura) || $horaFin->greaterThan($cierre)) {
-            return 'La reserva debe estar dentro del horario de atención ('.config('salas.apertura').' – '.config('salas.cierre').').';
+        [$apertura, $cierre] = $ventana;
+        if ($horaInicio->format('H:i') < $apertura || $horaFin->format('H:i') > $cierre) {
+            return 'Los '.HorarioBiblioteca::diaEnPlural($dia)." la biblioteca atiende de {$apertura} a {$cierre}: elige un horario dentro de ese rango.";
         }
 
         $duracion = $horaInicio->diffInMinutes($horaFin);
@@ -191,7 +229,9 @@ class ReservaSalaService
         }
 
         $granularidad = config('salas.granularidad');
-        if (! $inmediata && ($horaInicio->minute % $granularidad !== 0 || $horaFin->minute % $granularidad !== 0)) {
+        $inicioFueraDeGrilla = $horaInicio->minute % $granularidad !== 0 && ! $inicioSinCambios;
+        $finFueraDeGrilla = $horaFin->minute % $granularidad !== 0 && ! $finSinCambios;
+        if (! $inmediata && ($inicioFueraDeGrilla || $finFueraDeGrilla)) {
             return 'El inicio y el término deben caer en una hora en punto o media.';
         }
 
@@ -294,6 +334,45 @@ class ReservaSalaService
         return "El RUT {$rut} ya tiene {$usados} reservados hoy; el máximo diario es de {$maximo}.";
     }
 
+    /**
+     * Ventana en que se reservan salas ese día: la de config/salas.php recortada al
+     * horario de atención de la biblioteca. Null si ese día no atiende.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public function ventanaDelDia(Carbon $fecha): ?array
+    {
+        $horario = HorarioBiblioteca::delDia($fecha);
+        if (! $horario) {
+            return null;
+        }
+
+        $apertura = max($horario[0], config('salas.apertura'));
+        $cierre = min($horario[1], config('salas.cierre'));
+
+        return $apertura < $cierre ? [$apertura, $cierre] : null;
+    }
+
+    /**
+     * Lo que abarca la línea de tiempo de salas: desde la apertura más temprana hasta el
+     * cierre más tardío de la semana. Lo que queda fuera del horario de cada día se
+     * muestra rayado.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function rangoDeLaSemana(): array
+    {
+        $abiertos = array_filter(HorarioBiblioteca::semana());
+        if (! $abiertos) {
+            return [config('salas.apertura'), config('salas.cierre')];
+        }
+
+        return [
+            max(min(array_column($abiertos, 0)), config('salas.apertura')),
+            min(max(array_column($abiertos, 1)), config('salas.cierre')),
+        ];
+    }
+
     private function formatearMinutos(int $minutos): string
     {
         $horas = intdiv($minutos, 60);
@@ -308,19 +387,21 @@ class ReservaSalaService
 
     /**
      * Minutos libres en la sala desde $desde (formato H:i o H:i:s) ese día, acotados
-     * por el cierre y por duracion_maxima — usado para "Reservar ahora" y para avisar
-     * en el frontend cuánto tiempo real queda disponible antes de que choque con la
-     * siguiente reserva. Devuelve 0 si la sala está ocupada justo en ese instante.
+     * por el cierre de ese día y por duracion_maxima — usado para "Reservar ahora" y para
+     * avisar en el frontend cuánto tiempo real queda disponible antes de que choque con
+     * la siguiente reserva. Devuelve 0 si la sala está ocupada justo en ese instante o si
+     * a esa hora la biblioteca no atiende.
      */
     public function duracionMaximaDisponible(int $salaId, string $fecha, string $desde): int
     {
+        $ventana = $this->ventanaDelDia(Carbon::parse($fecha));
         $desde = Carbon::parse($desde);
-        $cierre = Carbon::parse(config('salas.cierre', '21:00'));
         $maxima = config('salas.duracion_maxima', 120);
 
-        if ($desde->greaterThanOrEqualTo($cierre)) {
+        if (! $ventana || $desde->format('H:i') < $ventana[0] || $desde->format('H:i') >= $ventana[1]) {
             return 0;
         }
+        $cierre = Carbon::parse($ventana[1]);
 
         $ocupadaAhora = Reserva::where('sala_id', $salaId)
             ->where('fecha', $fecha)
@@ -353,8 +434,7 @@ class ReservaSalaService
      * Arma la vista de un día para el módulo de salas: por cada sala, sus tramos
      * reservados (ordenados por hora) más disponibilidad "ahora mismo" si $fecha es
      * hoy. Compartido entre SalaController::index() (staff) y PortalController::
-     * salas() (portal) para no duplicar el armado del JSON en los dos lados (ver
-     * convención 4 de CLAUDE.md).
+     * salas() (portal) para no duplicar el armado del JSON en los dos lados.
      */
     public function vistaDelDia(Collection $salas, string $fecha): Collection
     {
@@ -383,7 +463,7 @@ class ReservaSalaService
                 'hora_devolucion_real' => $r->hora_devolucion_real,
                 'plazo_confirmacion' => $r->plazoConfirmacion(),
                 'vencida_sin_confirmar' => $r->estaVencidaSinConfirmar(),
-                'personas' => $r->participantes->map(fn ($u) => ['rut' => $u->rut, 'nombre' => "{$u->nombre} {$u->apellido}"])->values(),
+                'personas' => self::personas($r),
             ])->sortBy('hora_inicio')->values()
         );
 
@@ -401,6 +481,162 @@ class ReservaSalaService
                 'tramos' => $tramosPorSala->get($sala->id, collect())->values(),
             ];
         })->values();
+    }
+
+    /**
+     * Integrantes de la reserva como los muestra el panel de salas.
+     *
+     * @return list<array{rut: string, nombre: string}>
+     */
+    public static function personas(Reserva $reserva): array
+    {
+        return $reserva->participantes
+            ->map(fn (Usuario $u) => ['rut' => $u->rut, 'nombre' => "{$u->nombre} {$u->apellido}"])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Una reserva como la muestra el Listado de reservas: la sala, el horario, quién
+     * está a cargo, los integrantes, quién entregó y recibió la llave, y su situación.
+     * Espera cargadas las relaciones sala y participantes.
+     */
+    public static function paraListado(Reserva $reserva): array
+    {
+        $titular = $reserva->participantes->firstWhere('id', $reserva->usuario_id) ?? $reserva->participantes->first();
+
+        return [
+            'id' => $reserva->id,
+            'sala' => $reserva->sala?->only(['id', 'nombre', 'tipo']),
+            'fecha' => $reserva->fecha->toDateString(),
+            'hora_inicio' => substr($reserva->hora_inicio, 0, 5),
+            'hora_fin' => substr($reserva->hora_fin, 0, 5),
+            'duracion_minutos' => $reserva->duracionMinutos(),
+            'estado' => $reserva->estado,
+            'situacion' => self::situacion($reserva),
+            'cantidad_personas' => $reserva->cantidad_personas,
+            'titular' => [
+                'rut' => $titular?->rut ?? $reserva->rut_usuario,
+                'nombre' => $titular ? trim("{$titular->nombre} {$titular->apellido}") : null,
+            ],
+            'personas' => self::personas($reserva),
+            'prestado_por' => $reserva->prestado_por,
+            'devuelto_por' => $reserva->devuelto_por,
+            'hora_prestamo_real' => $reserva->hora_prestamo_real,
+            'hora_devolucion_real' => $reserva->hora_devolucion_real,
+            'via' => $reserva->via,
+            'plazo_confirmacion' => $reserva->plazoConfirmacion(),
+            'created_at' => $reserva->created_at,
+        ];
+    }
+
+    /**
+     * En qué está la reserva: 'pendiente' (activa, sin llegada), 'en_uso' (llegaron y
+     * aún no termina su horario), 'sin_devolver' (ya terminó y nadie registró la
+     * devolución de la llave), o su estado final: 'finalizada', 'no_show', 'cancelada'.
+     */
+    public static function situacion(Reserva $reserva): string
+    {
+        if ($reserva->estado !== 'activa') {
+            return $reserva->estado;
+        }
+
+        if (! $reserva->hora_prestamo_real) {
+            return 'pendiente';
+        }
+
+        $termino = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_fin);
+
+        return now()->greaterThan($termino) ? 'sin_devolver' : 'en_uso';
+    }
+
+    /**
+     * Convierte lo escrito en cada casilla de integrante (RUT, pasaporte o DNI, con o
+     * sin puntos y guion) en el identificador guardado de cada usuario. Los errores
+     * van por casilla ("ruts.2"), igual que daba antes la regla 'exists:usuarios,rut',
+     * para que el formulario marque en rojo la que corresponde. Solo se admiten
+     * usuarios registrados: los visitantes externos no reservan salas.
+     *
+     * @param  array<int|string, string>  $valores
+     * @return list<string>
+     */
+    public function identificadoresDeParticipantes(array $valores): array
+    {
+        $errores = [];
+        $identificadores = [];
+        $vistos = [];
+
+        foreach ($valores as $i => $valor) {
+            $usuario = Usuario::buscarPorIdentificador($valor);
+
+            if (! $usuario) {
+                $errores["ruts.{$i}"] = ['Uno de los RUT o documentos ingresados no corresponde a un usuario registrado en el sistema.'];
+            } elseif (isset($vistos[$usuario->id])) {
+                $errores["ruts.{$i}"] = ['No puedes ingresar el mismo RUT más de una vez en la misma reserva.'];
+            } else {
+                $vistos[$usuario->id] = true;
+                $identificadores[] = $usuario->rut;
+            }
+        }
+
+        if ($errores) {
+            throw ValidationException::withMessages($errores);
+        }
+
+        return $identificadores;
+    }
+
+    /**
+     * Cada persona tiene a lo más una reserva pendiente (activa, sin llegada confirmada
+     * y dentro de su plazo), de cualquier día y en cualquier sala: para tomar otra, usa
+     * o cancela la que tiene. La que ya está en uso o terminó no cuenta. Devuelve
+     * `[rut, reserva]` del primero que ya tiene una, o null si nadie.
+     *
+     * @return array{0: string, 1: Reserva}|null
+     */
+    public function participanteConReservaPendiente(array $ruts, ?int $ignorarReservaId = null): ?array
+    {
+        $idPorRut = Usuario::whereIn('rut', $ruts)->pluck('id', 'rut');
+
+        $pendientes = Reserva::where('estado', 'activa')
+            ->whereNull('hora_prestamo_real')
+            ->when($ignorarReservaId, fn ($query) => $query->where('id', '!=', $ignorarReservaId))
+            ->whereHas('participantes', fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values()))
+            ->with(['sala:id,nombre', 'participantes' => fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values())])
+            ->get()
+            ->reject(fn (Reserva $r) => $this->liberarSiVencida($r));
+
+        foreach ($ruts as $rut) {
+            $reserva = $pendientes->first(fn (Reserva $r) => $r->participantes->contains('id', $idPorRut->get($rut)));
+            if ($reserva) {
+                return [$rut, $reserva];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Mensaje 409 de participanteConReservaPendiente(): en 2ª persona si es el propio
+     * usuario del portal, en 3ª en cualquier otro caso (como mensajeCuotaExcedida()).
+     * Con $detalleAjeno en false (el portal) no dice la sala ni el horario de la reserva
+     * de otra persona: un estudiante no tiene por qué saber dónde estará otro.
+     *
+     * @param  array{0: string, 1: Reserva}  $pendiente
+     */
+    public function mensajeReservaPendiente(array $pendiente, ?string $rutPropio = null, bool $detalleAjeno = true): string
+    {
+        [$rut, $reserva] = $pendiente;
+
+        if ($rut === $rutPropio) {
+            return "Ya tienes una reserva pendiente ({$reserva->descripcion()}): úsala o cancélala antes de reservar otra sala.";
+        }
+
+        if (! $detalleAjeno) {
+            return "El RUT {$rut} ya tiene una reserva pendiente: debe usarla o cancelarla antes de reservar otra sala.";
+        }
+
+        return "El RUT {$rut} ya tiene una reserva pendiente ({$reserva->descripcion()}): debe usarla o cancelarla antes de reservar otra sala.";
     }
 
     /**

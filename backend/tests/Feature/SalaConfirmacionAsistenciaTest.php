@@ -23,26 +23,26 @@ class SalaConfirmacionAsistenciaTest extends TestCase
 
     public function test_plazo_de_confirmacion_corre_desde_el_inicio_del_bloque_si_se_reservo_con_anticipacion(): void
     {
-        Carbon::setTestNow('2026-08-15 09:00:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 09:00:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        $this->assertSame('2026-08-15 14:15:00', $reserva->plazoConfirmacion()->toDateTimeString());
+        $this->assertSame('2026-08-14 14:15:00', $reserva->plazoConfirmacion()->toDateTimeString());
     }
 
     public function test_plazo_de_confirmacion_corre_desde_la_reserva_si_se_reservo_ahora_dentro_de_un_bloque_ya_iniciado(): void
     {
-        Carbon::setTestNow('2026-08-15 15:00:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 15:00:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        $this->assertSame('2026-08-15 15:15:00', $reserva->plazoConfirmacion()->toDateTimeString());
+        $this->assertSame('2026-08-14 15:15:00', $reserva->plazoConfirmacion()->toDateTimeString());
     }
 
     public function test_confirmar_llegada_dentro_del_plazo_marca_prestado_por_y_hora(): void
     {
         $staff = Staff::factory()->create(['nombre' => 'Ana Pérez']);
         Sanctum::actingAs($staff);
-        Carbon::setTestNow('2026-08-15 14:05:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 14:05:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
         $response = $this->patchJson("/api/reservas/{$reserva->id}/llegada");
 
@@ -51,11 +51,24 @@ class SalaConfirmacionAsistenciaTest extends TestCase
         $this->assertDatabaseHas('reservas', ['id' => $reserva->id, 'prestado_por_staff_id' => $staff->id]);
     }
 
+    public function test_no_se_puede_confirmar_la_llegada_de_una_reserva_de_otro_dia(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-08-14 14:05:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-17', 'hora_inicio' => '11:00', 'hora_fin' => '13:00']);
+
+        $response = $this->patchJson("/api/reservas/{$reserva->id}/llegada");
+
+        $response->assertStatus(409)->assertJsonPath('message', 'Esta reserva es para el 17/08/2026: su llegada se confirma ese día');
+        $this->assertNull($reserva->fresh()->hora_prestamo_real);
+        $this->assertSame('activa', $reserva->fresh()->estado);
+    }
+
     public function test_confirmar_llegada_dos_veces_devuelve_409(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-08-15 14:05:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 14:05:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
         $this->patchJson("/api/reservas/{$reserva->id}/llegada")->assertStatus(200);
         $response = $this->patchJson("/api/reservas/{$reserva->id}/llegada");
@@ -66,10 +79,10 @@ class SalaConfirmacionAsistenciaTest extends TestCase
     public function test_confirmar_llegada_pasado_el_plazo_devuelve_409_y_libera_la_reserva(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-08-15 09:00:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 09:00:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        Carbon::setTestNow('2026-08-15 14:16:00');
+        Carbon::setTestNow('2026-08-14 14:16:00');
         $response = $this->patchJson("/api/reservas/{$reserva->id}/llegada");
 
         $response->assertStatus(409);
@@ -79,10 +92,10 @@ class SalaConfirmacionAsistenciaTest extends TestCase
     public function test_liberar_reserva_vencida_la_marca_no_show(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-08-15 09:00:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 09:00:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        Carbon::setTestNow('2026-08-15 14:20:00');
+        Carbon::setTestNow('2026-08-14 14:20:00');
         $response = $this->patchJson("/api/reservas/{$reserva->id}/liberar");
 
         $response->assertStatus(200)->assertJsonPath('estado', 'no_show');
@@ -91,8 +104,8 @@ class SalaConfirmacionAsistenciaTest extends TestCase
     public function test_liberar_reserva_todavia_dentro_del_plazo_devuelve_409(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-08-15 14:05:00');
-        $reserva = Reserva::factory()->create(['fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 14:05:00');
+        $reserva = Reserva::factory()->create(['fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
         $response = $this->patchJson("/api/reservas/{$reserva->id}/liberar");
 
@@ -104,16 +117,16 @@ class SalaConfirmacionAsistenciaTest extends TestCase
         Sanctum::actingAs(Staff::factory()->create());
         $sala = Sala::factory()->create();
 
-        Carbon::setTestNow('2026-08-15 09:00:00');
+        Carbon::setTestNow('2026-08-14 09:00:00');
         Reserva::factory()->conParticipantes(Usuario::factory()->count(2)->create())->create([
             'sala_id' => $sala->id,
-            'fecha' => '2026-08-15',
+            'fecha' => '2026-08-14',
             'hora_inicio' => '14:00',
             'hora_fin' => '16:00',
             'cantidad_personas' => 2,
         ]);
 
-        Carbon::setTestNow('2026-08-15 14:16:00');
+        Carbon::setTestNow('2026-08-14 14:16:00');
         $nuevos = Usuario::factory()->count(2)->create();
 
         // El nuevo intento arranca en 14:30 (el próximo tramo alineado a la
@@ -124,7 +137,7 @@ class SalaConfirmacionAsistenciaTest extends TestCase
         // horario exacto de la reserva original.
         $response = $this->postJson('/api/reservas', [
             'sala_id' => $sala->id,
-            'fecha' => '2026-08-15',
+            'fecha' => '2026-08-14',
             'hora_inicio' => '14:30',
             'hora_fin' => '16:00',
             'cantidad_personas' => 2,
@@ -139,11 +152,11 @@ class SalaConfirmacionAsistenciaTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        Carbon::setTestNow('2026-08-15 09:00:00');
-        $reserva = Reserva::factory()->create(['sala_id' => Sala::factory()->create()->id, 'fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 09:00:00');
+        $reserva = Reserva::factory()->create(['sala_id' => Sala::factory()->create()->id, 'fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        Carbon::setTestNow('2026-08-15 14:20:00');
-        $response = $this->getJson('/api/salas?fecha=2026-08-15');
+        Carbon::setTestNow('2026-08-14 14:20:00');
+        $response = $this->getJson('/api/salas?fecha=2026-08-14');
 
         $response->assertStatus(200);
         $sala = collect($response->json('salas'))->firstWhere('id', $reserva->sala_id);
@@ -154,10 +167,10 @@ class SalaConfirmacionAsistenciaTest extends TestCase
     public function test_index_expone_plazo_confirmacion_y_vencida_sin_confirmar(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-08-15 09:00:00');
-        $reserva = Reserva::factory()->create(['sala_id' => Sala::factory()->create()->id, 'fecha' => '2026-08-15', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
+        Carbon::setTestNow('2026-08-14 09:00:00');
+        $reserva = Reserva::factory()->create(['sala_id' => Sala::factory()->create()->id, 'fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00']);
 
-        $response = $this->getJson('/api/salas?fecha=2026-08-15');
+        $response = $this->getJson('/api/salas?fecha=2026-08-14');
 
         $response->assertStatus(200);
         $sala = collect($response->json('salas'))->firstWhere('id', $reserva->sala_id);

@@ -42,6 +42,12 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        // Dominios de Google Workspace aceptados (ej. «umag.cl,alumnos.umag.cl»).
+        // Vacío: cualquier cuenta de Google con el correo verificado.
+        'dominios' => array_values(array_filter(array_map(
+            fn ($dominio) => mb_strtolower(trim($dominio)),
+            explode(',', (string) env('GOOGLE_DOMINIOS', '')),
+        ))),
     ],
 
     // URL del frontend para redirects que cruzan de backend a SPA (ej. al volver

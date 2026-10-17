@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Entrada;
-use App\Models\Prestamo;
-use App\Models\Reserva;
+use App\Models\CategoriaRecurso;
 use App\Models\Usuario;
+use App\Support\HorarioBiblioteca;
 use App\Support\Reportes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ReporteController extends Controller
 {
@@ -20,189 +21,165 @@ class ReporteController extends Controller
             'aniosIngreso' => Usuario::whereNotNull('anio_ingreso')->distinct()->orderBy('anio_ingreso')->pluck('anio_ingreso'),
             'sexos' => Usuario::whereNotNull('sexo')->distinct()->orderBy('sexo')->pluck('sexo'),
             'tiposUsuario' => ['estudiante', 'docente', 'funcionario'],
+            // Nombre de cada recurso que se presta, para el gráfico «Recurso»: los libros y
+            // las categorías de recursos de apoyo (también las desactivadas, que tienen historia).
+            'recursos' => ['libro' => 'Libros', ...CategoriaRecurso::orderBy('nombre')->pluck('nombre_plural', 'clave')->all()],
         ]);
     }
 
+    /**
+     * Reporte de un período concreto (el día, semana, mes, semestre o año que contiene
+     * `fecha`, hoy por defecto), con la comparación contra el período anterior.
+     *
+     * Todo se cuenta en la base con GROUP BY: un año de préstamos o de ingresos son
+     * decenas de miles de filas, y traerlas a memoria una por una dejaba al servidor
+     * sin memoria. Lo que llega a PHP son solo los totales por grupo.
+     */
     public function resumen(Request $request)
     {
         $tab = $request->query('tab', 'prestamos');
-        $periodo = $request->query('periodo', 'mes');
-
-        $aplicarFiltros = function ($query) use ($request) {
-            if ($carrera = $request->query('carrera')) {
-                $query->whereHas('usuario', fn ($u) => $u->where('carrera', $carrera));
-            }
-            if ($anio = $request->query('anio_ingreso')) {
-                $query->whereHas('usuario', fn ($u) => $u->where('anio_ingreso', $anio));
-            }
-            if ($sexo = $request->query('sexo')) {
-                $query->whereHas('usuario', fn ($u) => $u->where('sexo', $sexo));
-            }
-            if ($tipo = $request->query('tipo_usuario')) {
-                $query->whereHas('usuario', fn ($u) => $u->where('tipo', $tipo));
-            }
-        };
-
-        $registros = match ($tab) {
-            'ingresos' => (function () use ($aplicarFiltros) {
-                $query = Entrada::with('usuario');
-                $aplicarFiltros($query);
-
-                return $query->get()->map(fn ($e) => [
-                    'fecha' => Carbon::parse($e->fecha_hora_entrada),
-                    'hora' => Carbon::parse($e->fecha_hora_entrada)->hour,
-                    'carrera' => $e->usuario->carrera ?? 'Sin dato',
-                    'anioIngreso' => $e->usuario->anio_ingreso ?? 'Sin dato',
-                    'sexo' => $e->usuario->sexo ?? 'Sin dato',
-                    'tipoUsuario' => $e->usuario->tipo ?? 'Sin dato',
-                ]);
-            })(),
-            'logias' => (function () use ($aplicarFiltros) {
-                // 'cancelada' se excluye a propósito: antes de que cancelar pasara a ser
-                // soft delete (ver SalaController::destroyReserva()), una reserva
-                // cancelada se borraba de la tabla y nunca aparecía acá — este filtro
-                // preserva ese mismo comportamiento ahora que la fila persiste.
-                $query = Reserva::with(['usuario', 'sala'])->where('estado', '!=', 'cancelada');
-                $aplicarFiltros($query);
-
-                return $query->get()->map(fn ($r) => [
-                    'fecha' => Carbon::parse($r->fecha),
-                    'hora' => (int) $r->hora_inicio,
-                    'carrera' => $r->usuario->carrera ?? 'Sin dato',
-                    'anioIngreso' => $r->usuario->anio_ingreso ?? 'Sin dato',
-                    'sexo' => $r->usuario->sexo ?? 'Sin dato',
-                    'tipoUsuario' => $r->usuario->tipo ?? 'Sin dato',
-                    'sala' => $r->sala->nombre ?? 'Sin dato',
-                ]);
-            })(),
-            'libros' => (function () use ($aplicarFiltros) {
-                $query = Prestamo::with(['usuario', 'ejemplar.libro'])->where('tipo_item', 'libro');
-                $aplicarFiltros($query);
-
-                return $query->get()->map(fn ($p) => [
-                    'fecha' => Carbon::parse($p->fecha_prestamo),
-                    'hora' => Carbon::parse($p->fecha_prestamo)->hour,
-                    'carrera' => $p->usuario->carrera ?? 'Sin dato',
-                    'anioIngreso' => $p->usuario->anio_ingreso ?? 'Sin dato',
-                    'sexo' => $p->usuario->sexo ?? 'Sin dato',
-                    'tipoUsuario' => $p->usuario->tipo ?? 'Sin dato',
-                    // Snapshot de texto (libro_titulo), no la relación viva — así el
-                    // ranking sigue siendo correcto aunque el préstamo sea de una copia
-                    // cuyo ejemplar ya no exista o cuyo libro haya cambiado de título.
-                    'tituloLibro' => $p->libro_titulo,
-                ]);
-            })(),
-            default => (function () use ($aplicarFiltros) {
-                $query = Prestamo::with('usuario');
-                $aplicarFiltros($query);
-
-                return $query->get()->map(fn ($p) => [
-                    'fecha' => Carbon::parse($p->fecha_prestamo),
-                    'hora' => Carbon::parse($p->fecha_prestamo)->hour,
-                    'carrera' => $p->usuario->carrera ?? 'Sin dato',
-                    'anioIngreso' => $p->usuario->anio_ingreso ?? 'Sin dato',
-                    'sexo' => $p->usuario->sexo ?? 'Sin dato',
-                    'tipoUsuario' => $p->usuario->tipo ?? 'Sin dato',
-                ]);
-            })(),
-        };
-
-        $serieMap = [];
-        foreach ($registros as $r) {
-            $key = Reportes::bucketKey($r['fecha'], $periodo);
-            $serieMap[$key] = ($serieMap[$key] ?? 0) + 1;
+        $periodo = in_array($request->query('periodo'), Reportes::PERIODOS, true) ? $request->query('periodo') : 'mes';
+        try {
+            $referencia = Carbon::parse($request->query('fecha', now()->toDateString()));
+        } catch (\Throwable) {
+            $referencia = now();
         }
-        ksort($serieMap);
-        $serie = collect($serieMap)
-            ->slice(-18)
-            ->map(fn ($value, $key) => ['label' => Reportes::bucketLabel($key, $periodo), 'value' => $value])
-            ->values();
 
-        $groupBy = function ($campo) use ($registros) {
-            return $registros
-                ->groupBy($campo)
-                ->map(fn ($grupo, $label) => ['label' => (string) $label, 'value' => $grupo->count()])
-                ->values()
-                ->sortByDesc('value')
-                ->values();
+        [$inicio, $fin] = Reportes::rango($referencia, $periodo);
+        [$inicioAnterior, $finAnterior] = Reportes::rango(Reportes::anterior($referencia, $periodo), $periodo);
+
+        // Momento de cada registro: la entrada, el inicio de la reserva o el préstamo.
+        $momento = match ($tab) {
+            'ingresos' => 'entradas.fecha_hora_entrada',
+            'logias' => '(reservas.fecha + reservas.hora_inicio)',
+            default => 'prestamos.fecha_prestamo',
         };
 
-        $porCarrera = $groupBy('carrera')->take(8);
-        $porSexo = $groupBy('sexo');
-        $porAnioIngreso = $groupBy('anioIngreso')->sortBy('label')->values();
-        $porTipoUsuario = $groupBy('tipoUsuario');
-        // Solo tienen sentido en su tab correspondiente — arrays vacíos en el resto.
-        $porSala = $tab === 'logias' ? $groupBy('sala')->take(10) : collect();
-        $porLibro = $tab === 'libros' ? $groupBy('tituloLibro')->take(10) : collect();
+        $consulta = function (Carbon $desde, Carbon $hasta) use ($tab, $request): QueryBuilder {
+            $tabla = match ($tab) {
+                'ingresos' => 'entradas',
+                'logias' => 'reservas',
+                default => 'prestamos',
+            };
+            // leftJoin: un externo (sin usuario) cuenta igual, como «Sin dato».
+            $query = DB::table($tabla)->leftJoin('usuarios', 'usuarios.id', '=', "{$tabla}.usuario_id");
 
-        // no tiene sentido mostrar horas
-        $horaApertura = 8;
-        $horaCierre = 21;
-        $horaMap = array_fill_keys(range($horaApertura, $horaCierre), 0);
-        foreach ($registros as $r) {
-            if ($r['hora'] >= $horaApertura && $r['hora'] <= $horaCierre) {
-                $horaMap[$r['hora']]++;
+            match ($tab) {
+                'ingresos' => $query->whereBetween('entradas.fecha_hora_entrada', [$desde, $hasta]),
+                // Las reservas canceladas no cuentan como uso de la sala.
+                'logias' => $query->leftJoin('salas', 'salas.id', '=', 'reservas.sala_id')
+                    ->where('reservas.estado', '!=', 'cancelada')
+                    ->whereBetween('reservas.fecha', [$desde->toDateString(), $hasta->toDateString()]),
+                'libros' => $query->where('prestamos.tipo_item', 'libro')->whereBetween('prestamos.fecha_prestamo', [$desde, $hasta]),
+                default => $query->whereBetween('prestamos.fecha_prestamo', [$desde, $hasta]),
+            };
+
+            // Préstamos de recurso bibliográfico (libros) o de recursos de apoyo (notebooks, bicicletas…).
+            if ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'bibliografico') {
+                $query->where('prestamos.tipo_item', 'libro');
+            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'recursos_apoyo') {
+                $query->where('prestamos.tipo_item', '!=', 'libro');
             }
-        }
-        $porHora = collect($horaMap)->map(fn ($value, $hora) => [
-            'label' => str_pad((string) $hora, 2, '0', STR_PAD_LEFT).'h',
-            'value' => $value,
-        ])->values();
 
-        // Igual que porHora, pero desglosado por sala — para el heatmap "qué hora es
-        // la más pedida EN CADA logia" (no solo el agregado de todas juntas).
-        $porHoraPorSala = $tab === 'logias'
-            ? $registros->groupBy('sala')->map(function ($grupo, $sala) use ($horaApertura, $horaCierre) {
-                $horaMapSala = array_fill_keys(range($horaApertura, $horaCierre), 0);
-                foreach ($grupo as $r) {
-                    if ($r['hora'] >= $horaApertura && $r['hora'] <= $horaCierre) {
-                        $horaMapSala[$r['hora']]++;
-                    }
+            foreach (['carrera' => 'carrera', 'anio_ingreso' => 'anio_ingreso', 'sexo' => 'sexo', 'tipo_usuario' => 'tipo'] as $parametro => $columna) {
+                if ($valor = $request->query($parametro)) {
+                    $query->where("usuarios.{$columna}", $valor);
                 }
+            }
 
-                return [
-                    'sala' => $sala,
-                    'horas' => collect($horaMapSala)->map(fn ($value, $hora) => [
-                        'label' => str_pad((string) $hora, 2, '0', STR_PAD_LEFT).'h',
-                        'value' => $value,
-                    ])->values(),
-                ];
-            })->sortBy('sala')->values()
-            : collect();
+            return $query;
+        };
 
-        $total = $registros->count();
-        $numBuckets = max(1, $serie->count());
+        $base = $consulta($inicio, $fin);
+        $total = (clone $base)->count();
+        $totalAnterior = $consulta($inicioAnterior, $finAnterior)->count();
 
-        return response()->json([
-            'total' => $total,
-            'promedioPorPeriodo' => (int) round($total / $numBuckets),
-            'categoriaMasFrecuente' => $porCarrera->first()['label'] ?? '—',
-            'serie' => $serie,
-            'porCarrera' => $porCarrera,
-            'porSexo' => $porSexo,
-            'porAnioIngreso' => $porAnioIngreso,
-            'porTipoUsuario' => $porTipoUsuario,
-            'porHora' => $porHora,
-            'porSala' => $porSala,
-            'porLibro' => $porLibro,
-            'porHoraPorSala' => $porHoraPorSala,
-        ]);
-    }
-
-    public function multasPendientes()
-    {
-        $filas = Prestamo::query()
-            ->join('usuarios', 'usuarios.id', '=', 'prestamos.usuario_id')
-            ->where('prestamos.multa_estado', 'pendiente')
-            ->selectRaw('usuarios.id as usuario_id, usuarios.nombre, usuarios.apellido, usuarios.rut, COUNT(*) as cantidad_prestamos, SUM(prestamos.multa_monto) as monto_total')
-            ->groupBy('usuarios.id', 'usuarios.nombre', 'usuarios.apellido', 'usuarios.rut')
-            ->orderByDesc('monto_total')
+        // Cuántos registros hubo por día y hora: con eso se arman la serie, las horas y el pico.
+        $porDiaHora = (clone $base)
+            ->selectRaw("({$momento})::date as dia, extract(hour from {$momento})::int as hora, count(*) as cantidad")
+            ->groupByRaw('1, 2')
             ->get();
 
+        $tramos = Reportes::tramos($inicio, $fin, $periodo);
+        $porTramo = [];
+        $porHoraTotal = [];
+        foreach ($porDiaHora as $fila) {
+            $clave = Reportes::claveTramo(Carbon::parse($fila->dia)->setTime($fila->hora, 0), $periodo);
+            $porTramo[$clave] = ($porTramo[$clave] ?? 0) + $fila->cantidad;
+            $porHoraTotal[$fila->hora] = ($porHoraTotal[$fila->hora] ?? 0) + $fila->cantidad;
+        }
+
+        $serie = collect($tramos)->map(fn ($t) => [
+            'label' => $t['label'],
+            'value' => $porTramo[$t['clave']] ?? 0,
+            'finDeSemana' => $t['finDeSemana'],
+            'cerrado' => $t['cerrado'],
+        ]);
+
+        /** Cuántos hay de cada valor de la expresión, de más a menos. */
+        $agrupar = fn (string $expresion) => (clone $base)
+            ->selectRaw("{$expresion} as label, count(*) as value")
+            ->groupByRaw($expresion)
+            ->orderByDesc('value')
+            ->orderBy('label')
+            ->get()
+            ->map(fn ($fila) => ['label' => (string) $fila->label, 'value' => (int) $fila->value])
+            ->values();
+
+        // Horas de atención: las de ese día si el período es un día; si no, las de toda la semana.
+        $horas = $periodo === 'dia' ? HorarioBiblioteca::horasDelDia($inicio) : HorarioBiblioteca::horasDeLaSemana();
+        $contarHoras = fn (array $porHora) => collect($horas)->map(fn ($hora) => [
+            'label' => str_pad((string) $hora, 2, '0', STR_PAD_LEFT).'h',
+            'value' => $porHora[$hora] ?? 0,
+        ])->values();
+
+        // Horario de mayor uso: el bloque de dos horas seguidas con más registros.
+        $horarioPico = null;
+        foreach (array_slice($horas, 0, -1) as $hora) {
+            $cantidad = ($porHoraTotal[$hora] ?? 0) + ($porHoraTotal[$hora + 1] ?? 0);
+            if ($cantidad > 0 && (! $horarioPico || $cantidad > $horarioPico['value'])) {
+                $horarioPico = ['desde' => sprintf('%02d:00', $hora), 'hasta' => sprintf('%02d:00', $hora + 2), 'value' => $cantidad];
+            }
+        }
+
+        $porCarrera = $agrupar("coalesce(usuarios.carrera, 'Sin dato')");
+
+        $porHoraPorSala = [];
+        if ($tab === 'logias') {
+            $porSalaYHora = (clone $base)
+                ->selectRaw("coalesce(salas.nombre, 'Sin dato') as sala, extract(hour from {$momento})::int as hora, count(*) as cantidad")
+                ->groupByRaw('1, 2')
+                ->get()
+                ->groupBy('sala');
+            $porHoraPorSala = $porSalaYHora
+                ->map(fn ($filas, $sala) => ['sala' => $sala, 'horas' => $contarHoras($filas->pluck('cantidad', 'hora')->all())])
+                ->sortBy('sala')
+                ->values();
+        }
+
         return response()->json([
-            'total_usuarios' => $filas->count(),
-            'monto_total' => (int) $filas->sum('monto_total'),
-            'usuarios' => $filas,
+            'rango' => ['desde' => $inicio->toDateString(), 'hasta' => $fin->toDateString()],
+            'total' => $total,
+            'totalAnterior' => $totalAnterior,
+            'promedioPorPeriodo' => (int) round($total / max(1, count($tramos))),
+            'categoriaMasFrecuente' => $porCarrera->first()['label'] ?? '—',
+            'horarioPico' => $horarioPico,
+            'horario' => HorarioBiblioteca::semana(),
+            'serie' => $serie,
+            'porCarrera' => $porCarrera,
+            'porSexo' => $agrupar("coalesce(usuarios.sexo, 'Sin dato')"),
+            'porAnioIngreso' => $agrupar("coalesce(usuarios.anio_ingreso::text, 'Sin dato')")->sortBy('label')->values(),
+            'porTipoUsuario' => $agrupar("coalesce(usuarios.tipo, 'Sin dato')"),
+            'porHora' => $contarHoras($porHoraTotal),
+            // Solo tienen sentido en su pestaña; en el resto van vacíos.
+            // bibliografico (libro) o recursos_apoyo (notebook, bicicleta…), y el recurso.
+            'porTipoPrestamo' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then 'bibliografico' else 'recursos_apoyo' end") : [],
+            'porRecurso' => $tab === 'prestamos' ? $agrupar('prestamos.tipo_item') : [],
+            'porSala' => $tab === 'logias' ? $agrupar("coalesce(salas.nombre, 'Sin dato')") : [],
+            // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
+            // correcto aunque la copia ya no exista o el libro haya cambiado de título.
+            'porLibro' => $tab === 'libros' ? $agrupar("coalesce(prestamos.libro_titulo, '')") : [],
+            'porHoraPorSala' => $porHoraPorSala,
         ]);
     }
 }

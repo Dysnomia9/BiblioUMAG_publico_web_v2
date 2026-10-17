@@ -5,8 +5,7 @@ use Illuminate\Support\Facades\DB;
 
 // Reemplaza los bloques fijos de 2 horas (hora_inicio/hora_fin como integer, 8..21)
 // por horario continuo: inicio libre + duración de hasta 2 horas, columnas `time`.
-// Las reservas existentes (ej. 14) quedan como 14:00:00, sin pérdida de información —
-// ver spec "reserva de salas con horario continuo".
+// Las reservas existentes (ej. 14) quedan como 14:00:00, sin pérdida de información.
 return new class extends Migration
 {
     public function up(): void

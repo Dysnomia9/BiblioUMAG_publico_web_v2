@@ -19,7 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'staff' => \App\Http\Middleware\EnsureIsStaff::class,
             'usuario' => \App\Http\Middleware\EnsureIsUsuario::class,
-            'admin' => \App\Http\Middleware\EnsureIsAdmin::class,
+            'permiso' => \App\Http\Middleware\EnsureTienePermiso::class,
         ]);
 
         // Sin esto, ApplicationBuilder::withMiddleware() deja su propio default
@@ -40,4 +40,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // que sin esto vuelve a caer en $request->expectsJson() (mismo problema
         // de origen, un nivel más abajo). Como esta app es 100% API, siempre es JSON.
         $exceptions->shouldRenderJsonWhen(fn () => true);
+
+        // Estos dos mensajes vienen fijos en inglés desde el framework (no pasan por
+        // lang/) y el frontend los muestra tal cual, por ejemplo en el login.
+        $exceptions->render(fn (\Illuminate\Http\Exceptions\ThrottleRequestsException $e) => response()->json(
+            ['message' => 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.'],
+            429,
+            $e->getHeaders(),
+        ));
+        $exceptions->render(fn (\Illuminate\Auth\AuthenticationException $e) => response()->json(
+            ['message' => 'Tu sesión expiró o no es válida. Vuelve a iniciar sesión.'],
+            401,
+        ));
     })->create();

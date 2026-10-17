@@ -79,12 +79,14 @@ class SalaReservaTest extends TestCase
         $compartido = Usuario::factory()->create();
         $otroOcupante = Usuario::factory()->create();
 
+        // El grupo ya está en la sala (una reserva pendiente chocaría antes con esa regla).
         Reserva::factory()->conParticipantes([$compartido, $otroOcupante])->create([
             'sala_id' => $salaOcupada->id,
             'fecha' => '2026-07-10',
             'hora_inicio' => '10:00',
             'hora_fin' => '12:00',
             'cantidad_personas' => 2,
+            'hora_prestamo_real' => '2026-07-10 10:01:00',
         ]);
 
         $nuevos = Usuario::factory()->count(1)->create();
@@ -107,7 +109,8 @@ class SalaReservaTest extends TestCase
      * 'activa' en salas distintas el mismo día (regla de adyacencia/misma-sala) — esa
      * regla se eliminó con el horario continuo (ver R6 en la spec): ahora lo único que
      * importa es la cuota diaria de minutos, sin importar en cuántas salas distintas
-     * se reparten, siempre que los horarios no se solapen entre sí.
+     * se reparten, siempre que los horarios no se solapen entre sí. Eso sí, la primera
+     * ya debe estar en uso: nadie tiene dos reservas pendientes a la vez.
      */
     public function test_reservas_encadenadas_del_mismo_usuario_en_distinta_sala_sin_solape_son_validas(): void
     {
@@ -124,6 +127,7 @@ class SalaReservaTest extends TestCase
             'hora_inicio' => '15:00',
             'hora_fin' => '17:00',
             'cantidad_personas' => 2,
+            'hora_prestamo_real' => '2026-07-10 15:02:00',
         ]);
 
         $response = $this->postJson('/api/reservas', [
@@ -390,7 +394,7 @@ class SalaReservaTest extends TestCase
 
     public function test_staff_no_admin_no_puede_reservar_hora_ya_pasada_hoy(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
         Carbon::setTestNow('2026-07-10 15:00:00');
 
         $sala = Sala::factory()->create();
@@ -596,5 +600,96 @@ class SalaReservaTest extends TestCase
         $response = $this->patchJson("/api/reservas/{$reserva->id}/devolver");
 
         $response->assertStatus(409);
+    }
+
+    public function test_no_se_reserva_un_dia_en_que_la_biblioteca_no_atiende(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $sala = Sala::factory()->create();
+        $ruts = Usuario::factory()->count(2)->create()->pluck('rut')->all();
+
+        $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-12',
+            'hora_inicio' => '10:00',
+            'hora_fin' => '11:00',
+            'cantidad_personas' => 2,
+            'ruts' => $ruts,
+        ])->assertStatus(422)->assertJsonPath('message', 'La biblioteca no atiende los domingos: elige otro día.');
+
+        $this->assertDatabaseCount('reservas', 0);
+        $this->getJson('/api/salas?fecha=2026-07-12')->assertOk()->assertJsonPath('cerrado', true);
+        $this->getJson('/api/salas?fecha=2026-07-10')->assertOk()->assertJsonPath('cerrado', false);
+    }
+
+    public function test_el_sabado_las_salas_se_reservan_solo_hasta_las_14(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $sala = Sala::factory()->create();
+        $reserva = fn (string $inicio, string $fin) => $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-11',
+            'hora_inicio' => $inicio,
+            'hora_fin' => $fin,
+            'cantidad_personas' => 2,
+            'ruts' => Usuario::factory()->count(2)->create()->pluck('rut')->all(),
+        ]);
+
+        $reserva('14:00', '15:00')->assertStatus(422)
+            ->assertJsonPath('message', 'Los sábados la biblioteca atiende de 09:00 a 14:00: elige un horario dentro de ese rango.');
+        $reserva('08:30', '09:30')->assertStatus(422);
+        $reserva('12:30', '14:00')->assertStatus(201);
+
+        $this->getJson('/api/salas?fecha=2026-07-11')->assertOk()
+            ->assertJsonPath('atencion', ['09:00', '14:00'])
+            ->assertJsonPath('apertura', '08:45')
+            ->assertJsonPath('cierre', '20:30');
+    }
+
+    public function test_entre_semana_las_salas_siguen_el_horario_de_la_biblioteca(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $sala = Sala::factory()->create();
+        $reserva = fn (string $inicio, string $fin) => $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => $inicio,
+            'hora_fin' => $fin,
+            'cantidad_personas' => 2,
+            'ruts' => Usuario::factory()->count(2)->create()->pluck('rut')->all(),
+        ]);
+
+        $reserva('08:30', '09:30')->assertStatus(422)
+            ->assertJsonPath('message', 'Los viernes la biblioteca atiende de 08:45 a 20:30: elige un horario dentro de ese rango.');
+        $reserva('20:00', '21:00')->assertStatus(422);
+        $reserva('09:00', '10:00')->assertStatus(201);
+        $reserva('20:00', '20:30')->assertStatus(201);
+        $this->getJson('/api/salas?fecha=2026-07-10')->assertOk()->assertJsonPath('atencion', ['08:45', '20:30']);
+    }
+
+    public function test_fuera_del_horario_ninguna_sala_queda_libre_ahora(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-11 15:00:00');
+        $sala = Sala::factory()->create();
+        $service = app(ReservaSalaService::class);
+
+        $this->assertSame(0, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '15:00'));
+        $this->assertSame(120, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '11:00'));
+        $this->assertSame(30, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '13:30'));
+        $this->assertSame(0, $service->duracionMaximaDisponible($sala->id, '2026-07-10', '08:30'));
+
+        $libre = collect($this->getJson('/api/salas')->assertOk()->json('salas'))->firstWhere('id', $sala->id);
+        $this->assertFalse($libre['libre_ahora']);
+
+        $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-11',
+            'hora_inicio' => '15:00',
+            'hora_fin' => '16:00',
+            'cantidad_personas' => 2,
+            'ruts' => Usuario::factory()->count(2)->create()->pluck('rut')->all(),
+            'inmediata' => true,
+        ])->assertStatus(422);
     }
 }

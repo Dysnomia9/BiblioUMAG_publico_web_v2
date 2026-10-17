@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReservaLibro;
+use App\Rules\DiaConAtencion;
+use App\Services\MultaService;
 use App\Services\ReservaLibroService;
+use App\Support\Bitacora;
 use Illuminate\Http\Request;
 
 class ReservaLibroController extends Controller
 {
-    public function __construct(private ReservaLibroService $reservaLibroService)
-    {
+    public function __construct(
+        private ReservaLibroService $reservaLibroService,
+        private MultaService $multaService,
+    ) {
     }
 
     public function index(Request $request)
@@ -36,8 +41,12 @@ class ReservaLibroController extends Controller
             // espera en vez de fallar, y fecha_retiro no aplica todavía (ver
             // ReservaLibroService::reservarOEncolar()).
             'fecha_reserva' => ['nullable', 'date'],
-            'fecha_retiro' => ['nullable', 'date', 'after_or_equal:fecha_reserva'],
+            'fecha_retiro' => ['nullable', 'date', 'after_or_equal:fecha_reserva', new DiaConAtencion('para el retiro')],
         ]);
+
+        if ($bloqueo = $this->multaService->mensajeBloqueo($data['usuario_id'])) {
+            return response()->json(['message' => $bloqueo], 409);
+        }
 
         [$reserva, $error, $status] = $this->reservaLibroService->reservarOEncolar(
             $data['codigo_barras'],
@@ -51,12 +60,30 @@ class ReservaLibroController extends Controller
             return response()->json(['message' => $error], $status);
         }
 
+        $reserva->loadMissing(['libro:id,titulo', 'usuario']);
+        Bitacora::registrar(
+            'reservas_libro.reservar',
+            ($reserva->estado === 'en_cola' ? 'Agregó a la lista de espera de «' : 'Reservó «').$reserva->libro?->titulo.'»',
+            entidad: $reserva,
+            datos: ['codigo_barras' => $data['codigo_barras']],
+            afectado: $reserva->usuario,
+        );
+
         return response()->json($reserva, $status);
     }
 
     public function cancelar(ReservaLibro $reservaLibro)
     {
+        $estadoAnterior = $reservaLibro->estado;
         $this->reservaLibroService->cancelar($reservaLibro);
+
+        Bitacora::registrar(
+            'reservas_libro.cancelar',
+            'Canceló la reserva de «'.$reservaLibro->libro?->titulo.'»',
+            entidad: $reservaLibro,
+            datos: ['estado' => [$estadoAnterior, 'cancelado']],
+            afectado: $reservaLibro->usuario,
+        );
 
         return response()->json($reservaLibro->fresh());
     }

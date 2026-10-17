@@ -10,7 +10,10 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    // Fuera de Docker, solo este computador. El contenedor escucha en todas sus
+    // interfaces (VITE_HOST en frontend/Dockerfile) y docker-compose.yml decide
+    // hasta dónde se publica.
+    host: process.env.VITE_HOST || 'localhost',
     port: 5173,
     watch: {
       usePolling: true,

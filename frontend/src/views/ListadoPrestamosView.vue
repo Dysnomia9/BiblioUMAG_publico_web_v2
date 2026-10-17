@@ -1,46 +1,42 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
+import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
+import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
-import { useToast } from '@/composables/useToast'
-import type { Prestamo } from '@/types'
+import { devolucionDe, estaVencido, estadoDe, fechaCorta } from '@/utils/prestamos'
+import { itemPrestamo, useCategoriasRecurso } from '@/utils/recursos'
+import type { ListadoPrestamos, Prestamo, VistaPrestamos } from '@/types'
 
-const toast = useToast()
-
+// Pestaña, tipo y búsqueda se resuelven en el servidor y la lista llega de a 50: son
+// todos los préstamos de la historia de la biblioteca.
 const prestamos = ref<Prestamo[]>([])
+const conteos = ref<Record<VistaPrestamos, number>>({ activos: 0, vencidos: 0, devueltos: 0, todos: 0 })
+const meta = ref({ current_page: 1, last_page: 1, total: 0, from: null as number | null, to: null as number | null })
 const cargando = ref(true)
 const apiError = ref(false)
 
-const filtros = reactive({
-  tipo_item: '',
-  estado: '',
-})
-
-const TIPO_LABELS: Record<string, string> = {
-  libro: 'Libro',
-  audifonos: 'Audífonos',
-  notebook: 'Notebook',
-  cargador: 'Cargador',
-}
-
-const TIPO_BADGES: Record<string, string> = {
-  libro: 'bg-purple-100 text-purple-700',
-  audifonos: 'bg-indigo-100 text-indigo-700',
-  notebook: 'bg-sky-100 text-sky-700',
-  cargador: 'bg-teal-100 text-teal-700',
-}
+const busqueda = ref('')
+const tipo = ref<'todos' | 'libros' | 'recursos'>('todos')
+const vista = ref<VistaPrestamos>('activos')
+const pagina = ref(1)
 
 async function cargar() {
   cargando.value = true
   try {
-    const { data } = await api.get<Prestamo[]>('/prestamos', {
+    const { data } = await api.get<ListadoPrestamos>('/prestamos', {
       params: {
-        tipo_item: filtros.tipo_item || undefined,
-        estado: filtros.estado || undefined,
+        vista: vista.value,
+        tipo: tipo.value === 'todos' ? undefined : tipo.value,
+        q: busqueda.value.trim() || undefined,
+        page: pagina.value,
+        por_pagina: 50,
       },
     })
-    prestamos.value = data
+    prestamos.value = data.data
+    conteos.value = data.conteos
+    meta.value = { current_page: data.current_page, last_page: data.last_page, total: data.total, from: data.from, to: data.to }
     apiError.value = false
   } catch {
     apiError.value = true
@@ -50,257 +46,177 @@ async function cargar() {
   }
 }
 
-onMounted(cargar)
+const { cargar: cargarCategorias } = useCategoriasRecurso()
+onMounted(() => {
+  cargar()
+  cargarCategorias()
+})
 
-const devolucionPendiente = ref<Prestamo | null>(null)
-const devolviendo = ref(false)
+// Un filtro nuevo vuelve a la primera página; la búsqueda espera a que se deje de escribir.
+let busquedaTimer: ReturnType<typeof setTimeout> | undefined
+watch(busqueda, () => {
+  clearTimeout(busquedaTimer)
+  busquedaTimer = setTimeout(() => {
+    pagina.value = 1
+    cargar()
+  }, 300)
+})
+watch([tipo, vista], () => {
+  pagina.value = 1
+  cargar()
+})
 
-function pedirConfirmacionDevolucion(prestamo: Prestamo) {
-  devolucionPendiente.value = prestamo
+function irAPagina(nueva: number) {
+  pagina.value = nueva
+  cargar()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-async function confirmarDevolucion() {
-  if (!devolucionPendiente.value) return
-  devolviendo.value = true
-  try {
-    const { data } = await api.patch<Prestamo>(`/prestamos/${devolucionPendiente.value.id}/devolver`)
-    toast.success(
-      data.multa_monto
-        ? `Devolución registrada con multa de ${formatMonto(data.multa_monto)} por atraso`
-        : 'Devolución registrada',
-    )
-    devolucionPendiente.value = null
-    await cargar()
-  } catch {
-    toast.error('No se pudo registrar la devolución')
-  } finally {
-    devolviendo.value = false
-  }
+const VISTAS = [
+  { id: 'activos' as const, texto: 'Activos' },
+  { id: 'vencidos' as const, texto: 'Vencidos' },
+  { id: 'devueltos' as const, texto: 'Devueltos' },
+  { id: 'todos' as const, texto: 'Todos' },
+]
+
+function iniciales(p: Prestamo) {
+  return `${p.usuario?.nombre?.charAt(0) ?? ''}${p.usuario?.apellido?.charAt(0) ?? ''}`.toUpperCase() || '—'
 }
 
-function formatMonto(monto: number) {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(monto)
+function multa(p: Prestamo) {
+  const pendiente = p.multas?.find((m) => m.estado === 'pendiente')
+  if (pendiente) return { texto: `Multa ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(pendiente.monto)}`, clase: 'text-red-700' }
+  if (p.multas?.some((m) => m.estado === 'pagada')) return { texto: 'Multa pagada', clase: 'text-gray-500' }
+  return null
 }
-
-const pagoMultaPendiente = ref<Prestamo | null>(null)
-const pagandoMulta = ref(false)
-
-function pedirConfirmacionPagoMulta(prestamo: Prestamo) {
-  pagoMultaPendiente.value = prestamo
-}
-
-async function confirmarPagoMulta() {
-  if (!pagoMultaPendiente.value) return
-  pagandoMulta.value = true
-  try {
-    await api.patch(`/prestamos/${pagoMultaPendiente.value.id}/multa/pagar`)
-    toast.success('Multa marcada como pagada')
-    pagoMultaPendiente.value = null
-    await cargar()
-  } catch {
-    toast.error('No se pudo registrar el pago de la multa')
-  } finally {
-    pagandoMulta.value = false
-  }
-}
-
-function getBadge(p: Prestamo) {
-  if (p.estado === 'devuelto') return { label: 'Devuelto', cls: 'bg-gray-100 text-gray-700' }
-  if (!p.fecha_devolucion) return { label: 'En uso', cls: 'bg-indigo-100 text-indigo-700' }
-  const fechaDevolucion = new Date(p.fecha_devolucion)
-  if (p.estado === 'atrasado' || fechaDevolucion < new Date()) return { label: 'Atrasado', cls: 'bg-red-100 text-red-700' }
-  return { label: 'Vigente', cls: 'bg-emerald-100 text-emerald-700' }
-}
-
-function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-const filtrados = computed(() => prestamos.value)
 </script>
 
 <template>
   <StaffLayout>
-    <div class="max-w-6xl mx-auto">
-      <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
-        style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
-      >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Listado de Préstamos</h1>
-          <p class="text-sm text-white/60 mt-1">Libros y equipos tecnológicos prestados, de todos los usuarios</p>
-        </div>
-      </div>
+    <div class="mx-auto max-w-[88rem]">
+      <EncabezadoGestion seccion="Préstamos" titulo="Listado de préstamos" descripcion="Historial de todos los préstamos de libros y recursos de apoyo" />
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="bg-white rounded-xl shadow-md p-4 mb-6 flex flex-wrap gap-3">
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1">Tipo</label>
-          <select
-            v-model="filtros.tipo_item"
-            @change="cargar"
-            class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+      <div class="mb-4 flex flex-wrap gap-2">
+        <button
+          v-for="v in VISTAS"
+          :key="v.id"
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
+          :class="vista === v.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
+          @click="vista = v.id"
+        >
+          {{ v.texto }}
+          <span
+            class="rounded-full px-2 py-0.5 text-xs font-bold"
+            :class="vista === v.id ? 'bg-white/20 text-white' : v.id === 'vencidos' && conteos.vencidos ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'"
           >
-            <option value="">Todos</option>
-            <option value="libro">Libro</option>
-            <option value="audifonos">Audífonos</option>
-            <option value="notebook">Notebook</option>
-            <option value="cargador">Cargador</option>
-          </select>
+            {{ conteos[v.id] }}
+          </span>
+        </button>
+      </div>
+
+      <div class="mb-5 flex flex-col gap-2 sm:flex-row">
+        <div class="relative flex-1">
+          <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            v-model="busqueda"
+            type="text"
+            placeholder="Buscar por RUT, nombre, título o código del ítem"
+            aria-label="Buscar préstamos"
+            class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 sm:pr-40"
+          />
+          <span class="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 text-xs text-gray-400 sm:block">RUT con o sin puntos</span>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
-          <select
-            v-model="filtros.estado"
-            @change="cargar"
-            class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+        <div class="flex shrink-0 rounded-xl bg-gray-200/60 p-1" role="group" aria-label="Tipo de ítem">
+          <button
+            v-for="t in [{ id: 'todos', texto: 'Todos' }, { id: 'libros', texto: 'Libros' }, { id: 'recursos', texto: 'Recursos de apoyo' }] as const"
+            :key="t.id"
+            type="button"
+            class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            :class="tipo === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+            @click="tipo = t.id"
           >
-            <option value="">Todos</option>
-            <option value="activo">Activo</option>
-            <option value="atrasado">Atrasado</option>
-            <option value="devuelto">Devuelto</option>
-          </select>
+            {{ t.texto }}
+          </button>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead>
-              <tr class="bg-gray-100 border-b-2 border-gray-200">
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Usuario</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Ítem / Código</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Tipo</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Prestado por</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Préstamo</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Devolución</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Estado</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Multa</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Acción</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-              <tr
-                v-for="(p, idx) in filtrados"
-                :key="p.id"
-                class="hover:bg-indigo-50/40 transition-colors"
-                :class="idx % 2 === 0 ? 'bg-white' : 'bg-biblioteca-50'"
-              >
-                <td class="px-6 py-3 text-sm text-gray-900">
-                  <div class="font-medium">{{ p.usuario?.nombre }} {{ p.usuario?.apellido }}</div>
-                  <div class="text-xs font-mono text-gray-500">{{ p.usuario?.rut }}</div>
-                </td>
-                <td class="px-6 py-3 text-sm font-mono text-gray-900">{{ p.libro_titulo }}</td>
-                <td class="px-6 py-3">
-                  <span class="text-xs px-2.5 py-1 rounded-full font-medium" :class="TIPO_BADGES[p.tipo_item] ?? TIPO_BADGES.libro">
-                    {{ TIPO_LABELS[p.tipo_item] ?? 'Libro' }}
-                  </span>
-                </td>
-                <td class="px-6 py-3 text-sm text-gray-600">{{ p.prestado_por ?? '—' }}</td>
-                <td class="px-6 py-3 text-sm font-mono text-gray-600">{{ formatFecha(p.fecha_prestamo) }}</td>
-                <td class="px-6 py-3 text-sm font-mono text-gray-600">
-                  {{ p.fecha_devolucion ? formatFecha(p.fecha_devolucion) : 'Estadía en biblioteca' }}
-                </td>
-                <td class="px-6 py-3">
-                  <span class="text-xs px-2.5 py-1 rounded-full font-medium" :class="getBadge(p).cls">
-                    {{ getBadge(p).label }}
-                  </span>
-                </td>
-                <td class="px-6 py-3">
-                  <div v-if="p.multa_monto" class="flex items-center gap-2">
-                    <span
-                      class="text-xs px-2.5 py-1 rounded-full font-medium"
-                      :class="p.multa_estado === 'pagada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'"
-                    >
-                      {{ formatMonto(p.multa_monto) }}
-                    </span>
-                    <button
-                      v-if="p.multa_estado === 'pendiente'"
-                      @click="pedirConfirmacionPagoMulta(p)"
-                      class="text-xs text-indigo-700 hover:text-indigo-800 font-medium"
-                    >
-                      Marcar pagada
-                    </button>
-                  </div>
-                  <span v-else class="text-xs text-gray-400">—</span>
-                </td>
-                <td class="px-6 py-3">
-                  <button
-                    v-if="p.estado !== 'devuelto'"
-                    @click="pedirConfirmacionDevolucion(p)"
-                    class="text-sm text-indigo-700 hover:text-indigo-800 font-medium"
-                  >
-                    Devolver
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="!cargando && !filtrados.length">
-                <td colspan="9" class="px-6 py-8 text-center text-sm text-gray-400">Sin préstamos que coincidan con los filtros.</td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- Arriba y abajo de la lista, para cambiar de página sin bajar hasta el final. -->
+      <Paginador
+        class="mb-3"
+        :pagina="meta.current_page"
+        :paginas="meta.last_page"
+        :total="meta.total"
+        :desde="meta.from"
+        :hasta="meta.to"
+        unidad="préstamos"
+        :cargando="cargando"
+        @update:pagina="irAPagina"
+      />
+
+      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div
+          class="hidden border-b border-gray-200 bg-gray-50/80 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-500 lg:grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_7rem_minmax(0,1fr)_7rem] lg:gap-4"
+        >
+          <span>Usuario</span><span>Ítem</span><span>Prestado</span><span>Devolución</span><span>Estado</span>
         </div>
+        <ul class="divide-y divide-gray-100">
+          <li
+            v-for="p in prestamos"
+            :key="p.id"
+            class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_7rem_minmax(0,1fr)_7rem] lg:items-center lg:gap-4 lg:px-5"
+            :class="estaVencido(p) ? 'bg-red-50/40' : ''"
+          >
+            <div class="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{{ iniciales(p) }}</span>
+              <span class="min-w-0">
+                <span class="block truncate font-semibold text-gray-900">{{ p.usuario?.nombre }} {{ p.usuario?.apellido }}</span>
+                <span class="block text-xs text-gray-500">{{ p.usuario?.rut ?? '—' }}</span>
+              </span>
+            </div>
+            <div class="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo(p.tipo_item).icono" />
+                </svg>
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate font-semibold text-gray-900">{{ p.libro_titulo }}</span>
+                <span class="block truncate text-xs text-gray-500">{{ itemPrestamo(p.tipo_item).nombre }} · <span class="font-mono">{{ p.codigo_barras ?? '—' }}</span></span>
+              </span>
+            </div>
+            <div class="text-sm text-gray-700">
+              <span class="text-xs text-gray-400 lg:hidden">Prestado </span>{{ fechaCorta(p.fecha_prestamo) }}
+              <span v-if="p.prestado_por" class="block truncate text-xs text-gray-400">por {{ p.prestado_por }}</span>
+            </div>
+            <div class="text-sm">
+              <span class="text-gray-700"><span class="text-xs text-gray-400 lg:hidden">Devolución </span>{{ devolucionDe(p).linea1 }}</span>
+              <span class="block text-xs font-semibold" :class="devolucionDe(p).clase">{{ devolucionDe(p).linea2 }}</span>
+            </div>
+            <div class="col-span-2 lg:col-span-1">
+              <span class="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="estadoDe(p).clase">{{ estadoDe(p).texto }}</span>
+              <span v-if="multa(p)" class="mt-1 block text-xs font-semibold" :class="multa(p)!.clase">{{ multa(p)!.texto }}</span>
+            </div>
+          </li>
+          <li v-if="!cargando && !prestamos.length" class="px-6 py-10 text-center text-sm text-gray-400">Sin préstamos que coincidan con los filtros.</li>
+        </ul>
       </div>
 
-      <div
-        v-if="devolucionPendiente"
-        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        @click.self="devolucionPendiente = null"
-      >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">¿Confirmar devolución?</h3>
-          <p class="text-sm text-gray-500 mb-6">
-            Se registrará la devolución de <strong class="font-mono">{{ devolucionPendiente.libro_titulo }}</strong>
-            ({{ TIPO_LABELS[devolucionPendiente.tipo_item] ?? 'Libro' }}) a nombre de
-            <strong>{{ devolucionPendiente.usuario?.nombre }} {{ devolucionPendiente.usuario?.apellido }}</strong>.
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="devolucionPendiente = null"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmarDevolucion"
-              :disabled="devolviendo"
-              class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
-              {{ devolviendo ? 'Confirmando…' : 'Sí, devolver' }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="pagoMultaPendiente"
-        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        @click.self="pagoMultaPendiente = null"
-      >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">¿Confirmar pago de multa?</h3>
-          <p class="text-sm text-gray-500 mb-6">
-            Se registrará el pago de <strong>{{ formatMonto(pagoMultaPendiente.multa_monto ?? 0) }}</strong> a nombre de
-            <strong>{{ pagoMultaPendiente.usuario?.nombre }} {{ pagoMultaPendiente.usuario?.apellido }}</strong>.
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="pagoMultaPendiente = null"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmarPagoMulta"
-              :disabled="pagandoMulta"
-              class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
-              {{ pagandoMulta ? 'Confirmando…' : 'Sí, pagada' }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Paginador
+        class="mt-4"
+        :pagina="meta.current_page"
+        :paginas="meta.last_page"
+        :total="meta.total"
+        :desde="meta.from"
+        :hasta="meta.to"
+        unidad="préstamos"
+        :cargando="cargando"
+        @update:pagina="irAPagina"
+      />
     </div>
   </StaffLayout>
 </template>

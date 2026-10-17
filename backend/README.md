@@ -1,4 +1,4 @@
-# Backend — pruebas y benchmark de rendimiento
+# Backend: pruebas y benchmark de rendimiento
 
 Esta guía documenta cómo reproducir, durante la defensa de la tesis, los resultados
 de las pruebas funcionales (Cuadro 9.1) y de latencia de la API (Cuadro 10.2).
@@ -27,7 +27,7 @@ usa** para estos tests (ver `phpunit.xml`).
 
 `docker-entrypoint.sh` crea `biblioteca_test` automáticamente (de forma
 idempotente) cada vez que el contenedor `backend` arranca, así que no hace falta
-ningún paso manual — basta con `docker compose up`.
+ningún paso manual: basta con `docker compose up`.
 
 Los tests usan una conexión de Eloquent dedicada, `pgsql_testing`
 (`config/database.php`), en vez de reutilizar la conexión `pgsql` de siempre con
@@ -36,7 +36,7 @@ intencional y **no debe "simplificarse"**: `docker-compose.yml` ya define
 `DB_HOST`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD` como variables de entorno
 reales del contenedor `backend` (apuntando a `biblioteca`), y Laravel/Dotenv no
 permite que un `<env>` de `phpunit.xml` sobreescriba una variable de entorno que
-el proceso ya tiene seteada — ni con `force="true"` (eso solo fuerza `getenv()`,
+el proceso ya tiene seteada, ni siquiera con `force="true"` (eso solo fuerza `getenv()`,
 pero Laravel lee la config vía `$_ENV`/`$_SERVER`). Intentarlo así hace que los
 tests terminen corriendo `migrate:fresh` contra `biblioteca` (la base real de
 desarrollo) sin ningún aviso. `pgsql_testing` evita el problema de raíz usando
@@ -55,7 +55,7 @@ docker compose exec backend vendor/bin/phpunit --testdox
 ```
 
 `RefreshDatabase` migra `biblioteca_test` antes de cada clase de test y la limpia
-después — no afecta los datos de `biblioteca` (la base de desarrollo/demo).
+después, así que no afecta los datos de `biblioteca` (la base de desarrollo/demo).
 
 ## Benchmark de latencia de la API (Cuadro 10.2)
 
@@ -69,7 +69,7 @@ HTTP real, no en proceso) y mide la latencia de:
 - `GET /api/reportes/resumen`
 
 Crea un usuario temporal ("Benchmark API") para el endpoint de entradas y lo
-elimina al finalizar (elimina en cascada sus entradas de prueba) — no deja datos
+elimina al finalizar (elimina en cascada sus entradas de prueba), así que no deja datos
 residuales en `biblioteca`.
 
 ### Ejecutar el benchmark

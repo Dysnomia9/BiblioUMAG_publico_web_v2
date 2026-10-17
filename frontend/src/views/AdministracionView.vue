@@ -1,15 +1,37 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import JsBarcode from 'jsbarcode'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
+import GestionEstudiantes from '@/components/administracion/GestionEstudiantes.vue'
+import CategoriasRecurso from '@/components/administracion/CategoriasRecurso.vue'
 import api from '@/services/api'
-import { useToast } from '@/composables/useToast'
-import type { ConfiguracionInstitucional, EstadoLibroPersonalizado, TipoMaterial, Ubicacion } from '@/types'
+import { mensajeDeError, useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import type { ConfiguracionInstitucional, EstadoLibroPersonalizado, PlantillaFichaClave, TipoMaterial, Ubicacion } from '@/types'
 
 const toast = useToast()
+const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const apiError = ref(false)
 const cargando = ref(true)
+
+// Cada sección exige su propio permiso: alguien puede administrar los catálogos
+// (ubicaciones, tipos de material…) sin poder cambiar quién firma la constancia.
+type Seccion = 'institucion' | 'catalogos' | 'estudiantes'
+const SECCIONES: { clave: Seccion; label: string; permiso: string }[] = [
+  { clave: 'institucion', label: 'Configuración institucional', permiso: 'configuracion.editar' },
+  { clave: 'catalogos', label: 'Catálogos (estados, ubicaciones, tipos y recursos)', permiso: 'catalogos.gestionar' },
+  { clave: 'estudiantes', label: 'Estudiantes', permiso: 'usuarios.gestionar' },
+]
+const secciones = computed(() => SECCIONES.filter((s) => auth.puede(s.permiso)))
+const seccion = ref<Seccion>('institucion')
+
+function elegirSeccion(clave: Seccion) {
+  seccion.value = clave
+  router.replace({ query: { ...route.query, seccion: clave } })
+}
 
 const configuracion = reactive({ jefe_unidad_nombre: '', jefe_unidad_cargo: '' })
 const configuracionOriginal = reactive({ jefe_unidad_nombre: '', jefe_unidad_cargo: '' })
@@ -29,15 +51,17 @@ const creandoUbicacion = ref(false)
 const confirmandoCrearUbicacion = ref(false)
 
 const tiposMaterial = ref<TipoMaterial[]>([])
-const nuevoTipoMaterial = reactive({ nombre: '' })
+const nuevoTipoMaterial = reactive({ nombre: '', plantilla: 'libro' as PlantillaFichaClave })
+
+// Qué ficha bibliográfica usa cada tipo: qué etiquetas MARC lleva y cuáles ve el usuario.
+const PLANTILLAS: Record<PlantillaFichaClave, string> = {
+  libro: 'Libro',
+  trabajo_titulacion: 'Trabajo de titulación',
+  juego_educativo: 'Juego educativo',
+  publicacion_seriada: 'Publicación seriada (revista)',
+}
 const creandoTipoMaterial = ref(false)
 const confirmandoCrearTipoMaterial = ref(false)
-
-const codigosTexto = ref('')
-// Los códigos reales de la biblioteca son numéricos de 14 dígitos (ej. 30000003227565,
-// formato heredado de Horizon) — sin prefijo de letras.
-const rango = reactive({ prefijo: '', desde: 1, cantidad: 10, digitos: 14 })
-const sugiriendoRango = ref(false)
 
 async function cargar() {
   cargando.value = true
@@ -61,7 +85,11 @@ async function cargar() {
   }
 }
 
-onMounted(cargar)
+onMounted(() => {
+  const pedida = route.query.seccion as Seccion | undefined
+  seccion.value = secciones.value.find((s) => s.clave === pedida)?.clave ?? secciones.value[0]?.clave ?? 'institucion'
+  cargar()
+})
 
 function pedirConfirmacionConfig() {
   if (!configuracion.jefe_unidad_nombre.trim() || !configuracion.jefe_unidad_cargo.trim()) {
@@ -78,8 +106,8 @@ async function guardarConfiguracion() {
     Object.assign(configuracionOriginal, configuracion)
     toast.success('Configuración institucional actualizada')
     confirmandoConfig.value = false
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo guardar')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo guardar'))
   } finally {
     guardandoConfig.value = false
   }
@@ -105,8 +133,8 @@ async function crearEstado() {
     nuevoEstado.descripcion = ''
     confirmandoCrearEstado.value = false
     toast.success('Estado personalizado creado')
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo crear el estado')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo crear el estado'))
   } finally {
     creandoEstado.value = false
   }
@@ -129,8 +157,8 @@ async function crearUbicacion() {
     nuevaUbicacion.nombre = ''
     confirmandoCrearUbicacion.value = false
     toast.success('Ubicación creada')
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo crear la ubicación')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo crear la ubicación'))
   } finally {
     creandoUbicacion.value = false
   }
@@ -147,138 +175,55 @@ function pedirConfirmacionCrearTipoMaterial() {
 async function crearTipoMaterial() {
   creandoTipoMaterial.value = true
   try {
-    const { data } = await api.post<TipoMaterial>('/tipos-material', { nombre: nuevoTipoMaterial.nombre.trim() })
+    const { data } = await api.post<TipoMaterial>('/tipos-material', {
+      nombre: nuevoTipoMaterial.nombre.trim(),
+      plantilla: nuevoTipoMaterial.plantilla,
+    })
     tiposMaterial.value.push(data)
     tiposMaterial.value.sort((a, b) => a.nombre.localeCompare(b.nombre))
-    nuevoTipoMaterial.nombre = ''
+    Object.assign(nuevoTipoMaterial, { nombre: '', plantilla: 'libro' })
     confirmandoCrearTipoMaterial.value = false
     toast.success('Tipo de material creado')
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo crear el tipo de material')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo crear el tipo de material'))
   } finally {
     creandoTipoMaterial.value = false
   }
 }
 
-async function sugerirSiguienteCodigo() {
-  sugiriendoRango.value = true
+// El select vuelve a la ficha actual hasta que se confirme el cambio.
+const plantillaPendiente = ref<{ tipo: TipoMaterial; plantilla: PlantillaFichaClave } | null>(null)
+const cambiandoPlantilla = ref(false)
+
+function pedirCambioPlantilla(tipo: TipoMaterial, evento: Event) {
+  const select = evento.target as HTMLSelectElement
+  const plantilla = select.value as PlantillaFichaClave
+  select.value = tipo.plantilla
+  plantillaPendiente.value = { tipo, plantilla }
+}
+
+async function confirmarCambioPlantilla() {
+  const pendiente = plantillaPendiente.value
+  if (!pendiente) return
+  cambiandoPlantilla.value = true
   try {
-    const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras')
-    const match = data.codigo_barras.match(/^([A-Za-z]*)(\d+)$/)
-    if (match) {
-      rango.prefijo = match[1]
-      rango.desde = parseInt(match[2], 10)
-      rango.digitos = match[2].length
-    }
-    toast.success(`Sugerido: ${data.codigo_barras}`)
-  } catch {
-    toast.error('No se pudo obtener el siguiente código sugerido')
+    await cambiarPlantilla(pendiente.tipo, pendiente.plantilla)
   } finally {
-    sugiriendoRango.value = false
+    cambiandoPlantilla.value = false
+    plantillaPendiente.value = null
   }
 }
 
-function generarRango() {
-  if (!rango.cantidad || rango.cantidad < 1 || rango.cantidad > 500) {
-    toast.error('La cantidad debe ser entre 1 y 500')
-    return
+async function cambiarPlantilla(tipo: TipoMaterial, plantilla: PlantillaFichaClave) {
+  const anterior = tipo.plantilla
+  tipo.plantilla = plantilla
+  try {
+    await api.patch(`/tipos-material/${tipo.id}`, { plantilla })
+    toast.success(`«${tipo.nombre}» usa ahora la ficha de ${PLANTILLAS[plantilla]}`)
+  } catch (e) {
+    tipo.plantilla = anterior
+    toast.error(mensajeDeError(e, 'No se pudo cambiar la ficha del tipo de material'))
   }
-  const codigos: string[] = []
-  for (let i = 0; i < rango.cantidad; i++) {
-    const numero = (rango.desde + i).toString().padStart(rango.digitos, '0')
-    codigos.push(`${rango.prefijo}${numero}`)
-  }
-  codigosTexto.value = codigos.join('\n')
-}
-
-function escapeHtml(texto: string): string {
-  return texto
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function generarBarcodeDataUrl(codigo: string): string {
-  const canvas = document.createElement('canvas')
-  JsBarcode(canvas, codigo, {
-    format: 'CODE128',
-    width: 2,
-    height: 60,
-    displayValue: true,
-    fontSize: 14,
-    margin: 8,
-  })
-  return canvas.toDataURL('image/png')
-}
-
-// Abre una pestaña nueva con las etiquetas ya listas para Ctrl+P — no depende del
-// backend ni escribe nada, es puramente un utilitario de impresión sobre códigos
-// que el staff ya tiene (recién catalogados o para reimprimir una etiqueta perdida).
-function abrirImpresion() {
-  const codigos = codigosTexto.value
-    .split('\n')
-    .map((c) => c.trim())
-    .filter((c) => c.length > 0)
-
-  if (!codigos.length) {
-    toast.error('Ingresa al menos un código para generar')
-    return
-  }
-
-  const etiquetas = codigos
-    .map((codigo) => {
-      try {
-        const img = generarBarcodeDataUrl(codigo)
-        return `<div class="etiqueta"><img src="${img}" alt="${escapeHtml(codigo)}" /></div>`
-      } catch {
-        return `<div class="etiqueta etiqueta-error">Código inválido:<br>${escapeHtml(codigo)}</div>`
-      }
-    })
-    .join('')
-
-  const ventana = window.open('', '_blank')
-  if (!ventana) {
-    toast.error('El navegador bloqueó la ventana nueva — habilita las ventanas emergentes para este sitio')
-    return
-  }
-
-  ventana.document.write(`<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<title>Códigos de barra — Biblioteca UMAG</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background: #f4f6f4; }
-  .toolbar { margin-bottom: 20px; }
-  .toolbar button {
-    padding: 10px 20px; border-radius: 8px; border: none;
-    background: #3c5a3b; color: white; font-weight: 600; cursor: pointer; font-size: 14px;
-  }
-  .toolbar button:hover { background: #31482f; }
-  .hoja { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .etiqueta {
-    background: white; border: 1px solid #c9d4c8; border-radius: 8px;
-    padding: 10px; display: flex; align-items: center; justify-content: center; min-height: 90px;
-  }
-  .etiqueta img { max-width: 100%; }
-  .etiqueta-error { color: #b91c1c; font-size: 12px; text-align: center; }
-  @media print {
-    .toolbar { display: none; }
-    body { background: white; padding: 0; }
-    .hoja { gap: 6px; }
-    .etiqueta { border: 1px dashed #999; break-inside: avoid; }
-  }
-</style>
-</head>
-<body>
-  <div class="toolbar"><button onclick="window.print()">Imprimir</button></div>
-  <div class="hoja">${etiquetas}</div>
-</body>
-</html>`)
-  ventana.document.close()
 }
 
 async function aplicarCambioActivo(estado: EstadoLibroPersonalizado, activo: boolean) {
@@ -322,17 +267,31 @@ async function confirmarDesactivar() {
       >
         <div class="px-6 py-5">
           <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Administración</h1>
-          <p class="text-sm text-white/60 mt-1">Configuración institucional y catálogos administrables</p>
+          <p class="text-sm text-white/60 mt-1">Configuración institucional, catálogos administrables y estudiantes</p>
         </div>
       </div>
 
       <ApiErrorBanner v-if="apiError" />
 
+      <div v-if="secciones.length > 1" class="flex flex-col sm:flex-row gap-1 mb-6 bg-white rounded-xl shadow-sm p-1">
+        <button
+          v-for="s in secciones"
+          :key="s.clave"
+          @click="elegirSeccion(s.clave)"
+          class="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors"
+          :class="seccion === s.clave ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+        >
+          {{ s.label }}
+        </button>
+      </div>
+
       <div v-if="!cargando" class="space-y-6">
-        <div class="bg-white rounded-xl shadow-md p-6">
+        <GestionEstudiantes v-if="seccion === 'estudiantes'" />
+
+        <div v-if="seccion === 'institucion'" class="bg-white rounded-xl shadow-md p-6">
           <h3 class="font-semibold text-gray-900 mb-1">Configuración institucional</h3>
           <p class="text-xs text-gray-500 mb-4">
-            Nombre y cargo de quien firma la Constancia de No Multa (Usuarios → Constancia).
+            Nombre y cargo de quien firma la Constancia de No Multa (Usuarios → Constancia y portal de autoservicio).
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
@@ -353,153 +312,109 @@ async function confirmarDesactivar() {
           </button>
         </div>
 
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-semibold text-gray-900 mb-1">Estados personalizados de libro</h3>
-          <p class="text-xs text-gray-500 mb-4">
-            Aparecen como opción "Personalizado" en Estado de Libro y Cambio Masivo. Un estado ya usado no se puede
-            borrar, solo desactivar (deja de ofrecerse en el selector).
-          </p>
+        <template v-if="seccion === 'catalogos'">
+          <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="font-semibold text-gray-900 mb-1">Estados personalizados de libro</h3>
+            <p class="text-xs text-gray-500 mb-4">
+              Aparecen como opción "Personalizado" en Estado de ejemplares y Cambio Masivo. Un estado ya usado no se puede
+              borrar, solo desactivar (deja de ofrecerse en el selector).
+            </p>
 
-          <div class="flex flex-col sm:flex-row gap-2 mb-5">
-            <input v-model="nuevoEstado.nombre" placeholder="Nombre (ej: Restauración)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            <input v-model="nuevoEstado.descripcion" placeholder="Descripción (opcional)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            <button
-              @click="pedirConfirmacionCrearEstado"
-              :disabled="creandoEstado"
-              class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
-            >
-              + Crear
-            </button>
-          </div>
-
-          <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-            <div v-for="e in estados" :key="e.id" class="flex items-center justify-between px-4 py-3">
-              <div>
-                <p class="text-sm font-medium text-gray-900">{{ e.nombre }}</p>
-                <p v-if="e.descripcion" class="text-xs text-gray-500">{{ e.descripcion }}</p>
-              </div>
+            <div class="flex flex-col sm:flex-row gap-2 mb-5">
+              <input v-model="nuevoEstado.nombre" placeholder="Nombre (ej: Restauración)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <input v-model="nuevoEstado.descripcion" placeholder="Descripción (opcional)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
               <button
-                @click="toggleActivo(e)"
-                class="text-xs px-3 py-1 rounded-full font-medium transition-colors"
-                :class="e.activo ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+                @click="pedirConfirmacionCrearEstado"
+                :disabled="creandoEstado"
+                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
               >
-                {{ e.activo ? 'Activo' : 'Inactivo' }}
+                + Crear
               </button>
             </div>
-            <p v-if="!estados.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin estados personalizados todavía.</p>
-          </div>
-        </div>
 
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-semibold text-gray-900 mb-1">Ubicaciones</h3>
-          <p class="text-xs text-gray-500 mb-4">
-            Sedes y otras ubicaciones físicas donde puede estar un ejemplar — se elige al catalogar un libro
-            y sirve para filtrar en Cambio Masivo de Estado. Agrega acá cualquier sede nueva, no hay límite.
-          </p>
-
-          <div class="flex flex-col sm:flex-row gap-2 mb-5">
-            <input v-model="nuevaUbicacion.nombre" placeholder="Nombre (ej: Biblioteca Central, Sede Puerto Natales)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" @keydown.enter="pedirConfirmacionCrearUbicacion" />
-            <button
-              @click="pedirConfirmacionCrearUbicacion"
-              :disabled="creandoUbicacion"
-              class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
-            >
-              + Crear
-            </button>
-          </div>
-
-          <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-            <div v-for="u in ubicaciones" :key="u.id" class="px-4 py-3">
-              <p class="text-sm font-medium text-gray-900">{{ u.nombre }}</p>
-            </div>
-            <p v-if="!ubicaciones.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin ubicaciones todavía.</p>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-semibold text-gray-900 mb-1">Tipos de material</h3>
-          <p class="text-xs text-gray-500 mb-4">
-            Se eligen al catalogar un libro y sirven para filtrar en Listado de Libros y Cambio Masivo de Estado.
-            Agrega acá cualquier tipo nuevo (ej: Mapa, Partitura), no hay límite.
-          </p>
-
-          <div class="flex flex-col sm:flex-row gap-2 mb-5">
-            <input v-model="nuevoTipoMaterial.nombre" placeholder="Nombre (ej: Mapa)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" @keydown.enter="pedirConfirmacionCrearTipoMaterial" />
-            <button
-              @click="pedirConfirmacionCrearTipoMaterial"
-              :disabled="creandoTipoMaterial"
-              class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
-            >
-              + Crear
-            </button>
-          </div>
-
-          <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-            <div v-for="t in tiposMaterial" :key="t.id" class="px-4 py-3">
-              <p class="text-sm font-medium text-gray-900">{{ t.nombre }}</p>
-            </div>
-            <p v-if="!tiposMaterial.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin tipos de material todavía.</p>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-semibold text-gray-900 mb-1">Códigos de barra para imprimir</h3>
-          <p class="text-xs text-gray-500 mb-4">
-            Genera etiquetas con código de barra real (Code128) a partir de una lista de códigos — sirve para
-            libros, equipos o cualquier código ya asignado en el sistema. Se abren en una pestaña nueva lista
-            para imprimir.
-          </p>
-
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Prefijo</label>
-              <input v-model="rango.prefijo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Desde</label>
-              <input v-model.number="rango.desde" type="number" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Cantidad</label>
-              <input v-model.number="rango.cantidad" type="number" min="1" max="500" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Dígitos</label>
-              <input v-model.number="rango.digitos" type="number" min="1" max="12" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
+              <div v-for="e in estados" :key="e.id" class="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p class="text-sm font-medium text-gray-900">{{ e.nombre }}</p>
+                  <p v-if="e.descripcion" class="text-xs text-gray-500">{{ e.descripcion }}</p>
+                </div>
+                <button
+                  @click="toggleActivo(e)"
+                  class="text-xs px-3 py-1 rounded-full font-medium transition-colors"
+                  :class="e.activo ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+                >
+                  {{ e.activo ? 'Activo' : 'Inactivo' }}
+                </button>
+              </div>
+              <p v-if="!estados.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin estados personalizados todavía.</p>
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-2 mb-4">
-            <button
-              @click="sugerirSiguienteCodigo"
-              :disabled="sugiriendoRango"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-xs disabled:opacity-60"
-            >
-              {{ sugiriendoRango ? 'Consultando…' : 'Sugerir siguiente (libros)' }}
-            </button>
-            <button
-              @click="generarRango"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-xs"
-            >
-              Generar lista con este rango
-            </button>
+          <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="font-semibold text-gray-900 mb-1">Ubicaciones</h3>
+            <p class="text-xs text-gray-500 mb-4">
+              Sedes y otras ubicaciones físicas donde puede estar un ejemplar — se elige al catalogar un libro
+              y sirve para filtrar en Cambio Masivo de Estado. Agrega acá cualquier sede nueva, no hay límite.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-2 mb-5">
+              <input v-model="nuevaUbicacion.nombre" placeholder="Nombre (ej: Biblioteca Central, Sede Puerto Natales)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" @keydown.enter="pedirConfirmacionCrearUbicacion" />
+              <button
+                @click="pedirConfirmacionCrearUbicacion"
+                :disabled="creandoUbicacion"
+                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
+              >
+                + Crear
+              </button>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
+              <div v-for="u in ubicaciones" :key="u.id" class="px-4 py-3">
+                <p class="text-sm font-medium text-gray-900">{{ u.nombre }}</p>
+              </div>
+              <p v-if="!ubicaciones.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin ubicaciones todavía.</p>
+            </div>
           </div>
 
-          <label class="block text-xs font-medium text-gray-600 mb-1">Códigos a imprimir (uno por línea)</label>
-          <textarea
-            v-model="codigosTexto"
-            rows="6"
-            placeholder="30000003227565&#10;30000003227566&#10;30000003227567"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono mb-4"
-          />
+          <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="font-semibold text-gray-900 mb-1">Tipos de material</h3>
+            <p class="text-xs text-gray-500 mb-4">
+              Se eligen al catalogar un libro y sirven para filtrar en Listado de Libros y Cambio Masivo de Estado.
+              Cada tipo usa una <strong>ficha</strong>: qué etiquetas MARC se catalogan y cuáles ve el usuario en el portal.
+            </p>
 
-          <button
-            @click="abrirImpresion"
-            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm"
-          >
-            Generar e imprimir
-          </button>
-        </div>
+            <div class="flex flex-col sm:flex-row gap-2 mb-5">
+              <input v-model="nuevoTipoMaterial.nombre" placeholder="Nombre (ej: Mapa)" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" @keydown.enter="pedirConfirmacionCrearTipoMaterial" />
+              <select v-model="nuevoTipoMaterial.plantilla" aria-label="Ficha del tipo nuevo" class="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option v-for="(nombre, clave) in PLANTILLAS" :key="clave" :value="clave">Ficha de {{ nombre }}</option>
+              </select>
+              <button
+                @click="pedirConfirmacionCrearTipoMaterial"
+                :disabled="creandoTipoMaterial"
+                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60 shrink-0"
+              >
+                + Crear
+              </button>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
+              <div v-for="t in tiposMaterial" :key="t.id" class="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p class="text-sm font-medium text-gray-900">{{ t.nombre }}</p>
+                <select
+                  :value="t.plantilla"
+                  :aria-label="`Ficha de ${t.nombre}`"
+                  class="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
+                  @change="pedirCambioPlantilla(t, $event)"
+                >
+                  <option v-for="(nombre, clave) in PLANTILLAS" :key="clave" :value="clave">Ficha de {{ nombre }}</option>
+                </select>
+              </div>
+              <p v-if="!tiposMaterial.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin tipos de material todavía.</p>
+            </div>
+          </div>
+
+          <CategoriasRecurso />
+        </template>
       </div>
 
       <div
@@ -551,7 +466,7 @@ async function confirmarDesactivar() {
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
           <h3 class="text-lg font-bold text-gray-900 mb-1">¿Crear este estado personalizado?</h3>
           <p class="text-sm text-gray-500 mb-3">
-            Quedará disponible como opción "Personalizado" en Estado de Libro y Cambio Masivo para todo el staff.
+            Quedará disponible como opción "Personalizado" en Estado de ejemplares y Cambio Masivo para todo el staff.
           </p>
           <div class="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-6 space-y-1">
             <p><strong>{{ nuevoEstado.nombre }}</strong></p>
@@ -618,6 +533,7 @@ async function confirmarDesactivar() {
           </p>
           <div class="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-6">
             <p><strong>{{ nuevoTipoMaterial.nombre }}</strong></p>
+            <p class="text-gray-500 mt-0.5">Ficha de {{ PLANTILLAS[nuevoTipoMaterial.plantilla] }}</p>
           </div>
           <div class="flex gap-3">
             <button
@@ -638,6 +554,40 @@ async function confirmarDesactivar() {
       </div>
 
       <div
+        v-if="plantillaPendiente"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        @click.self="!cambiandoPlantilla && (plantillaPendiente = null)"
+      >
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+          <h3 class="text-lg font-bold text-gray-900 mb-1">¿Cambiar la ficha de este tipo?</h3>
+          <p class="text-sm text-gray-500 mb-3">
+            Al catalogar <strong>{{ plantillaPendiente.tipo.nombre }}</strong>, el formulario mostrará los campos de la ficha nueva.
+            Lo que ya está catalogado conserva sus datos.
+          </p>
+          <div class="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-6">
+            <p class="text-gray-500"><span class="line-through">Ficha de {{ PLANTILLAS[plantillaPendiente.tipo.plantilla] }}</span></p>
+            <p class="mt-0.5"><strong>Ficha de {{ PLANTILLAS[plantillaPendiente.plantilla] }}</strong></p>
+          </div>
+          <div class="flex gap-3">
+            <button
+              @click="plantillaPendiente = null"
+              :disabled="cambiandoPlantilla"
+              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              @click="confirmarCambioPlantilla"
+              :disabled="cambiandoPlantilla"
+              class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+            >
+              {{ cambiandoPlantilla ? 'Guardando…' : 'Sí, cambiar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
         v-if="estadoADesactivar"
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="estadoADesactivar = null"
@@ -645,7 +595,7 @@ async function confirmarDesactivar() {
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
           <h3 class="text-lg font-bold text-gray-900 mb-1">¿Desactivar este estado?</h3>
           <p class="text-sm text-gray-500 mb-6">
-            <strong>{{ estadoADesactivar.nombre }}</strong> dejará de aparecer como opción en Estado de Libro y Cambio
+            <strong>{{ estadoADesactivar.nombre }}</strong> dejará de aparecer como opción en Estado de ejemplares y Cambio
             Masivo. Los ejemplares que ya lo tienen asignado no se ven afectados, y se puede reactivar cuando quieras.
           </p>
           <div class="flex gap-3">

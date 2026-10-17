@@ -38,20 +38,25 @@ class BenchmarkApi extends Command
         $token = $login->json('token');
         $client = Http::withToken($token)->baseUrl($host);
 
-        $benchmarkUsuario = $this->crearUsuarioDeBenchmark();
+        // Una persona queda presente una sola vez por día: cada entrada medida es de un
+        // usuario distinto, para medir el registro real y no la respuesta «ya presente».
+        $usuarios = collect(range(1, $n))->map(fn () => $this->crearUsuarioDeBenchmark());
 
         $this->info("Ejecutando {$n} requests por endpoint...");
 
         $resultados = [
             'GET /api/usuarios' => $this->medir($n, fn () => $client->get('/api/usuarios')),
-            'POST /api/entrada' => $this->medirEntrada($n, $client, $benchmarkUsuario),
+            'POST /api/entrada' => $this->medirEntrada($client, $usuarios->all()),
             'GET /api/reportes/resumen' => $this->medir($n, fn () => $client->get('/api/reportes/resumen')),
         ];
 
-        // entradas.usuario_id es RESTRICT (ver CLAUDE.md) — hay que borrar las
-        // entradas de prueba generadas por medirEntrada() antes que el usuario.
-        $benchmarkUsuario->entradas()->delete();
-        $benchmarkUsuario->delete();
+        // entradas.usuario_id es RESTRICT — hay que borrar las entradas de prueba antes
+        // que los usuarios. (Las filas de la bitácora quedan: son lo que hizo la cuenta
+        // con la que se midió, y la bitácora no se borra.)
+        foreach ($usuarios as $usuario) {
+            $usuario->entradas()->delete();
+            $usuario->delete();
+        }
 
         $this->newLine();
         $this->imprimirTablaMarkdown($resultados);
@@ -61,7 +66,9 @@ class BenchmarkApi extends Command
 
     private function crearUsuarioDeBenchmark(): Usuario
     {
-        $rut = Rut::formatear(random_int(1000000, 24999999));
+        do {
+            $rut = Rut::formatear(random_int(1000000, 24999999));
+        } while (Usuario::porIdentificador($rut)->exists());
 
         return Usuario::create([
             'rut' => $rut,
@@ -89,23 +96,26 @@ class BenchmarkApi extends Command
     }
 
     /**
-     * POST /api/entrada exige que el usuario no tenga una entrada activa (409 si ya la
-     * tiene), así que cada request se cierra inmediatamente con PATCH .../salida antes de
-     * medir la siguiente iteración. Esa llamada de limpieza no se incluye en la medición.
+     * POST /api/entrada responde 409 si la persona ya marcó su entrada hoy, así que cada
+     * request es de un usuario de prueba distinto. Si alguna no responde 201, se avisa:
+     * la medición no sería la del registro real.
+     *
+     * @param  list<Usuario>  $usuarios
      */
-    private function medirEntrada(int $n, $client, Usuario $usuario): array
+    private function medirEntrada($client, array $usuarios): array
     {
         $tiempos = [];
+        $fallidas = 0;
 
-        for ($i = 0; $i < $n; $i++) {
+        foreach ($usuarios as $usuario) {
             $inicio = hrtime(true);
             $response = $client->post('/api/entrada', ['rut' => $usuario->rut]);
             $tiempos[] = (hrtime(true) - $inicio) / 1_000_000;
+            $fallidas += $response->status() === 201 ? 0 : 1;
+        }
 
-            $entradaId = $response->json('id');
-            if ($entradaId) {
-                $client->patch("/api/entrada/{$entradaId}/salida");
-            }
+        if ($fallidas) {
+            $this->warn("POST /api/entrada: {$fallidas} de ".count($usuarios).' requests no respondieron 201.');
         }
 
         return $this->estadisticas($tiempos);

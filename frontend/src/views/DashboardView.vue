@@ -5,6 +5,8 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import api from '@/services/api'
 import { STAFF_SHORTCUTS, type StaffShortcutColor } from '@/composables/useStaffShortcuts'
+import { useAuthStore } from '@/stores/auth'
+import { itemPorRuta } from '@/navegacion'
 import type { ResumenDashboard } from '@/types'
 
 const router = useRouter()
@@ -12,6 +14,7 @@ const resumenVacio: ResumenDashboard = {
   usuariosActivos: 0,
   entradasHoy: 0,
   personasEnSala: 0,
+  aforo: 0,
   prestamosActivos: 0,
   prestamosAtrasados: 0,
   ultimasEntradas: [],
@@ -19,9 +22,10 @@ const resumenVacio: ResumenDashboard = {
 }
 const resumen = ref<ResumenDashboard>({ ...resumenVacio })
 const apiError = ref(false)
-const aforo = 220
 
-const shortcuts = STAFF_SHORTCUTS
+const auth = useAuthStore()
+// Solo los accesos a módulos que el rol de esta cuenta puede abrir.
+const shortcuts = computed(() => STAFF_SHORTCUTS.filter((s) => auth.puedeAlguno(itemPorRuta(s.name)?.permiso)))
 
 const SHORTCUT_COLORS: Record<StaffShortcutColor, { icon: string; iconHover: string; border: string; topBorder: string }> = {
   emerald: { icon: 'bg-emerald-50 text-emerald-600', iconHover: 'group-hover:bg-emerald-600', border: 'hover:border-emerald-300', topBorder: 'border-t-emerald-400' },
@@ -64,6 +68,9 @@ onMounted(async () => {
               </svg>
               {{ fechaHoy }}
             </div>
+            <p v-if="auth.staff?.rol_nombre" class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
+              Tu rol: {{ auth.staff.rol_nombre }}
+            </p>
           </div>
 
           <div class="flex flex-wrap gap-4">
@@ -79,7 +86,7 @@ onMounted(async () => {
                   Personas en Biblioteca
                 </p>
                 <p class="text-2xl font-bold text-gray-900 tabular-nums">
-                  {{ resumen.personasEnSala }} <span class="text-sm font-normal text-gray-400">/ {{ aforo }}</span>
+                  {{ resumen.personasEnSala }} <span v-if="resumen.aforo" class="text-sm font-normal text-gray-400">/ {{ resumen.aforo }}</span>
                 </p>
               </div>
             </div>

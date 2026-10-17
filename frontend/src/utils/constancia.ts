@@ -71,12 +71,9 @@ function cargarImagenComoBase64(url: string): Promise<string> {
 }
 
 /**
- * Constancia de No Multa — mismo patrón que el QR (librería de terceros dibujando
- * sobre un canvas/documento) y el Excel (descarga directa), pero para PDF. El
- * encabezado sigue siendo de texto (no hay una imagen del logo UMAG completo en el
- * repo), pero el sello de la Biblioteca Central sí es una imagen real
- * (`assets/sello-biblioteca.png`, recortada al círculo visible) — no es una réplica
- * pixel-perfect del documento con firma manuscrita, pero ya lleva el sello real.
+ * Constancia de No Multa en PDF (jsPDF), descargada directo en el navegador. El
+ * encabezado es texto; el sello de la Biblioteca Central es una imagen
+ * (`assets/sello-biblioteca.png`, recortada al círculo visible).
  */
 export async function generarConstanciaNoMulta(usuario: Usuario, configuracion: ConfiguracionInstitucional): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'letter' })

@@ -20,7 +20,7 @@ class RegistroAbsolutoTest extends TestCase
 
     public function test_staff_no_admin_no_puede_ver_el_registro_absoluto(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->getJson('/api/registro-absoluto');
 

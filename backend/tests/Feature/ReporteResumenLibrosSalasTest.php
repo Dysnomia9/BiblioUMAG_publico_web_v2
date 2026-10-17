@@ -53,6 +53,42 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $response->assertStatus(200)->assertJsonPath('porLibro', []);
     }
 
+    public function test_tab_prestamos_separa_recurso_bibliografico_y_recursos_de_apoyo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Prestamo::factory()->count(4)->create(['tipo_item' => 'libro']);
+        Prestamo::factory()->count(2)->create(['tipo_item' => 'notebook']);
+        Prestamo::factory()->create(['tipo_item' => 'audifonos']);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos')
+            ->assertOk()
+            ->assertJsonPath('total', 7)
+            ->assertJsonPath('porTipoPrestamo', [
+                ['label' => 'bibliografico', 'value' => 4],
+                ['label' => 'recursos_apoyo', 'value' => 3],
+            ])
+            ->assertJsonPath('porRecurso', [
+                ['label' => 'libro', 'value' => 4],
+                ['label' => 'notebook', 'value' => 2],
+                ['label' => 'audifonos', 'value' => 1],
+            ]);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos&tipo_prestamo=recursos_apoyo')
+            ->assertOk()
+            ->assertJsonPath('total', 3)
+            ->assertJsonPath('porTipoPrestamo', [['label' => 'recursos_apoyo', 'value' => 3]]);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos&tipo_prestamo=bibliografico')
+            ->assertOk()
+            ->assertJsonPath('total', 4);
+
+        // En las otras pestañas el desglose va vacío.
+        $this->getJson('/api/reportes/resumen?tab=libros')
+            ->assertOk()
+            ->assertJsonPath('porTipoPrestamo', [])
+            ->assertJsonPath('porRecurso', []);
+    }
+
     public function test_tab_logias_rankea_por_sala(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

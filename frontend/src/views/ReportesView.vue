@@ -2,15 +2,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import BarChart from '@/components/reportes/BarChart.vue'
-import BreakdownList from '@/components/reportes/BreakdownList.vue'
-import ReporteTabla from '@/components/reportes/ReporteTabla.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import GraficoColumnas from '@/components/reportes/GraficoColumnas.vue'
+import BarrasRanking from '@/components/reportes/BarrasRanking.vue'
+import BarraApilada from '@/components/reportes/BarraApilada.vue'
+import TablaReporte from '@/components/reportes/TablaReporte.vue'
 import Heatmap from '@/components/reportes/Heatmap.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import { descargarExcel } from '@/utils/excel'
 import { construirCsv, descargarCsv } from '@/utils/csv'
-import type { Periodo, ReporteOpciones, ReporteResumen, ReporteTab } from '@/types'
+import { diaIso, textoHorarioSemana } from '@/utils/horario'
+import type { Periodo, ReporteOpciones, ReporteResumen, ReporteTab, SerieItem } from '@/types'
 
 const toast = useToast()
 const apiError = ref(false)
@@ -18,26 +21,37 @@ const apiError = ref(false)
 const tab = ref<ReporteTab>('prestamos')
 const periodo = ref<Periodo>('mes')
 const vista = ref<'grafico' | 'tabla'>('grafico')
+const hoy = new Date().toLocaleDateString('sv-SE')
+// Fecha de referencia: el reporte muestra el día, semana, mes, semestre o año que la contiene.
+const fecha = ref(hoy)
 
 const filtros = reactive({
   carrera: '',
   anio_ingreso: '',
   sexo: '',
   tipo_usuario: '',
+  // Solo en la pestaña Préstamos: bibliografico | recursos_apoyo.
+  tipo_prestamo: '',
 })
 
-const opciones = ref<ReporteOpciones>({ carreras: [], aniosIngreso: [], sexos: [], tiposUsuario: ['estudiante', 'docente', 'funcionario'] })
+const opciones = ref<ReporteOpciones>({ carreras: [], aniosIngreso: [], sexos: [], tiposUsuario: ['estudiante', 'docente', 'funcionario'], recursos: { libro: 'Libros' } })
 
 const resumenVacio: ReporteResumen = {
+  rango: { desde: hoy, hasta: hoy },
   total: 0,
+  totalAnterior: 0,
   promedioPorPeriodo: 0,
   categoriaMasFrecuente: '—',
+  horarioPico: null,
+  horario: {},
   serie: [],
   porCarrera: [],
   porSexo: [],
   porAnioIngreso: [],
   porTipoUsuario: [],
   porHora: [],
+  porTipoPrestamo: [],
+  porRecurso: [],
   porSala: [],
   porLibro: [],
   porHoraPorSala: [],
@@ -46,11 +60,11 @@ const resumenVacio: ReporteResumen = {
 const resumen = ref<ReporteResumen>({ ...resumenVacio })
 const cargando = ref(true)
 
-const TABS: { id: ReporteTab; label: string; color: string }[] = [
-  { id: 'prestamos', label: 'Número de Préstamos', color: 'emerald' },
-  { id: 'ingresos', label: 'Ingresos a Biblioteca', color: 'emerald' },
-  { id: 'logias', label: 'Uso de Logias', color: 'amber' },
-  { id: 'libros', label: 'Libros Más Prestados', color: 'indigo' },
+const TABS: { id: ReporteTab; label: string }[] = [
+  { id: 'prestamos', label: 'Préstamos' },
+  { id: 'ingresos', label: 'Ingresos' },
+  { id: 'logias', label: 'Uso de salas' },
+  { id: 'libros', label: 'Libros más prestados' },
 ]
 
 const PERIODOS: { id: Periodo; label: string }[] = [
@@ -61,39 +75,97 @@ const PERIODOS: { id: Periodo; label: string }[] = [
   { id: 'anio', label: 'Año' },
 ]
 
-const colorBar: Record<ReporteTab, string> = { prestamos: '#065F46', ingresos: '#059669', logias: '#D97706', libros: '#4338CA' }
-const tabTitulo: Record<ReporteTab, string> = { prestamos: 'Total préstamos', ingresos: 'Total ingresos', logias: 'Total usos de logias', libros: 'Total préstamos de libros' }
+const INDIGO = '#4F46E5'
+const INDIGO_OSCURO = '#3730A3'
+const INDIGO_SUAVE = '#C7D2FE'
+const DORADO = '#B08D57'
+const DORADO_SUAVE = '#EADFC9'
+const VERDE_AZULADO = '#0D9488'
+const PIZARRA = '#3F5F8A'
 
-const PERIODO_ADJETIVO: Record<Periodo, string> = {
-  dia: 'diaria',
-  semana: 'semanal',
-  mes: 'mensual',
-  semestre: 'semestral',
-  anio: 'anual',
+const UNIDAD: Record<ReporteTab, { plural: string; titulo: string; quien: string }> = {
+  prestamos: { plural: 'préstamos', titulo: 'Préstamos', quien: 'pidió el préstamo' },
+  ingresos: { plural: 'ingresos', titulo: 'Ingresos', quien: 'ingresó' },
+  logias: { plural: 'reservas', titulo: 'Reservas', quien: 'reservó la sala' },
+  libros: { plural: 'préstamos', titulo: 'Préstamos de libros', quien: 'pidió el libro' },
 }
+const unidad = computed(() => UNIDAD[tab.value])
 
-// Paleta categórica fija (orden estable) — cada carrera queda ligada a un color
-// según su posición en el listado de opciones, no según su valor en el reporte
-// actual, para que el color de una carrera no cambie al cambiar filtros.
-const PALETA_CATEGORICA = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834']
-const COLOR_NEUTRO = '#898781'
-const COLORES_SEXO: Record<string, string> = { Femenino: '#e87ba4', Masculino: '#2a78d6' }
+const DEL_PERIODO: Record<Periodo, string> = { dia: 'del día', semana: 'de la semana', mes: 'del mes', semestre: 'del semestre', anio: 'del año' }
+const SUBUNIDAD: Record<Periodo, string> = { dia: 'hora', semana: 'día', mes: 'semana', semestre: 'mes', anio: 'mes' }
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios' }
+const COLORES_TIPO: Record<string, string> = { estudiante: INDIGO, funcionario: DORADO, docente: VERDE_AZULADO }
+const COLORES_SEXO: Record<string, string> = { Femenino: INDIGO, Masculino: DORADO }
+const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Bibliográfico', recursos_apoyo: 'Recursos de apoyo' }
+const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, recursos_apoyo: DORADO }
+// Libros y cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo.
+const NOMBRES_RECURSO = computed(() => opciones.value.recursos)
+const conNombres = (datos: SerieItem[], nombres: Record<string, string>) => datos.map((d) => ({ ...d, label: nombres[d.label] ?? d.label }))
 
-const carreraColorMap = computed(() => {
-  const map: Record<string, string> = {}
-  opciones.value.carreras.forEach((c, i) => {
-    map[c] = PALETA_CATEGORICA[i % PALETA_CATEGORICA.length]
-  })
-  return map
+const capital = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1)
+const fechaLocal = (iso: string) => new Date(`${iso}T12:00:00`)
+const porcentaje = (valor: number, total: number) => (total ? Math.round((valor / total) * 100) : 0)
+
+const VISTAS = [
+  { id: 'grafico' as const, label: 'Gráfico', d: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z' },
+  { id: 'tabla' as const, label: 'Tabla', d: 'M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5' },
+]
+
+const filtrosPildora = computed(() => [
+  ...(tab.value === 'prestamos'
+    ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(NOMBRES_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
+    : []),
+  { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
+  { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
+  { campo: 'sexo' as const, nombre: 'Sexo', todos: 'Todos', valores: opciones.value.sexos.map((x) => ({ valor: x, texto: x })) },
+  { campo: 'tipo_usuario' as const, nombre: 'Usuario', todos: 'Todos', valores: opciones.value.tiposUsuario.map((t) => ({ valor: t, texto: capital(t) })) },
+])
+
+const etiquetaPeriodo = computed(() => {
+  const desde = fechaLocal(resumen.value.rango.desde)
+  const hasta = fechaLocal(resumen.value.rango.hasta)
+  switch (periodo.value) {
+    case 'dia':
+      return capital(desde.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+    case 'semana':
+      return `Semana del ${desde.getDate()} ${MESES[desde.getMonth()].slice(0, 3)} al ${hasta.getDate()} ${MESES[hasta.getMonth()].slice(0, 3)} ${hasta.getFullYear()}`
+    case 'semestre':
+      return `${desde.getMonth() < 6 ? '1er' : '2º'} semestre ${desde.getFullYear()}`
+    case 'anio':
+      return String(desde.getFullYear())
+    default:
+      return `${capital(MESES[desde.getMonth()])} ${desde.getFullYear()}`
+  }
 })
 
-function colorCarrera(label: string) {
-  return carreraColorMap.value[label] ?? COLOR_NEUTRO
-}
+const etiquetaAnterior = computed(() => {
+  const desde = fechaLocal(resumen.value.rango.desde)
+  switch (periodo.value) {
+    case 'dia':
+      return 'el día anterior'
+    case 'semana':
+      return 'la semana anterior'
+    case 'semestre':
+      return 'el semestre anterior'
+    case 'anio':
+      return String(desde.getFullYear() - 1)
+    default:
+      return MESES[(desde.getMonth() + 11) % 12]
+  }
+})
 
-function colorSexo(label: string) {
-  return COLORES_SEXO[label] ?? COLOR_NEUTRO
+function moverPeriodo(paso: -1 | 1) {
+  const f = fechaLocal(fecha.value)
+  if (periodo.value === 'dia') f.setDate(f.getDate() + paso)
+  else if (periodo.value === 'semana') f.setDate(f.getDate() + 7 * paso)
+  else {
+    f.setDate(1)
+    f.setMonth(f.getMonth() + paso * (periodo.value === 'semestre' ? 6 : periodo.value === 'anio' ? 12 : 1))
+  }
+  fecha.value = f.toLocaleDateString('sv-SE')
 }
+const hayPeriodoSiguiente = computed(() => resumen.value.rango.hasta < hoy)
 
 async function cargarOpciones() {
   try {
@@ -111,10 +183,12 @@ async function cargarResumen() {
       params: {
         tab: tab.value,
         periodo: periodo.value,
+        fecha: fecha.value,
         carrera: filtros.carrera || undefined,
         anio_ingreso: filtros.anio_ingreso || undefined,
         sexo: filtros.sexo || undefined,
         tipo_usuario: filtros.tipo_usuario || undefined,
+        tipo_prestamo: (tab.value === 'prestamos' && filtros.tipo_prestamo) || undefined,
       },
     })
     resumen.value = data
@@ -132,50 +206,153 @@ onMounted(async () => {
   await cargarResumen()
 })
 
-watch([tab, periodo, filtros], cargarResumen, { deep: true })
+watch([tab, periodo, fecha, filtros], cargarResumen, { deep: true })
 
-const exportModalOpen = ref(false)
-const exportando = ref(false)
-const formatoExportar = ref<'excel' | 'csv'>('excel')
+// --- Indicadores ---
+const diferencia = computed(() => resumen.value.total - resumen.value.totalAnterior)
 
-function abrirModalExportar(formato: 'excel' | 'csv') {
-  formatoExportar.value = formato
-  exportModalOpen.value = true
+const destacado = computed(() => {
+  const r = resumen.value
+  if (tab.value === 'logias') return { titulo: 'Sala más usada', item: r.porSala[0] ?? null }
+  if (tab.value === 'libros') return { titulo: 'Libro más prestado', item: r.porLibro[0] ?? null }
+  return { titulo: `Carrera con más ${unidad.value.plural}`, item: r.porCarrera[0] ?? null }
+})
+
+/** Acorta nombres largos de carrera para la tarjeta (el nombre completo queda en el título). */
+function abreviar(texto: string) {
+  if (texto.length <= 18) return texto
+  return texto
+    .replace(/^Medicina /, 'Med. ')
+    .replace(/^Ingeniería /, 'Ing. ')
+    .replace(/^Pedagogía /, 'Ped. ')
+    .replace(/ en Educación /, ' en Ed. ')
 }
+
+// --- Gráficos ---
+const etiquetaHora = (label: string) => label.replace('h', '')
+const horasPico = computed(() => {
+  const pico = resumen.value.horarioPico
+  if (!pico) return []
+  const hora = parseInt(pico.desde)
+  return [hora, hora + 1].map((h) => `${String(h).padStart(2, '0')}h`)
+})
+// En el reporte de un día, el horario de ese día; en los demás, el de la semana.
+const horarioDelDia = computed(() => resumen.value.horario[diaIso(fechaLocal(resumen.value.rango.desde))] ?? null)
+const diaSinAtencion = computed(() => periodo.value === 'dia' && Object.keys(resumen.value.horario).length > 0 && !horarioDelDia.value)
+const textoHorario = computed(() => {
+  if (!Object.keys(resumen.value.horario).length) return ''
+  if (periodo.value !== 'dia') return textoHorarioSemana(resumen.value.horario)
+  return horarioDelDia.value ? `Atención de ${horarioDelDia.value[0]} a ${horarioDelDia.value[1]}` : 'Sin atención este día'
+})
+const serieTieneFinesDeSemana = computed(() => resumen.value.serie.some((d) => d.finDeSemana))
+const serieTieneDiasCerrados = computed(() => resumen.value.serie.some((d) => d.cerrado))
+
+// --- Vista tabla ---
+type Agrupacion = { id: string; label: string; color: string; datos: SerieItem[]; columna: string; ordenPropio?: boolean }
+
+function etiquetaTramo(label: string) {
+  if (periodo.value === 'mes') return `${label} ${MESES[fechaLocal(resumen.value.rango.desde).getMonth()].slice(0, 3)}`
+  return capital(label)
+}
+
+const agrupaciones = computed<Agrupacion[]>(() => {
+  const r = resumen.value
+  const lista: Agrupacion[] = [
+    { id: 'carrera', label: 'Carrera', color: INDIGO, datos: r.porCarrera, columna: 'Carrera' },
+    {
+      id: 'tipo',
+      label: 'Tipo de usuario',
+      color: PIZARRA,
+      datos: r.porTipoUsuario.map((d) => ({ ...d, label: NOMBRES_TIPO[d.label] ?? d.label })),
+      columna: 'Tipo de usuario',
+    },
+    { id: 'sexo', label: 'Sexo', color: DORADO, datos: r.porSexo, columna: 'Sexo' },
+    { id: 'anio', label: 'Año de ingreso', color: VERDE_AZULADO, datos: r.porAnioIngreso, columna: 'Año de ingreso', ordenPropio: true },
+    {
+      id: 'hora',
+      label: 'Hora del día',
+      color: DORADO,
+      datos: r.porHora.map((d) => ({ ...d, label: `${etiquetaHora(d.label)}:00` })),
+      columna: 'Hora',
+      ordenPropio: true,
+    },
+  ]
+  if (periodo.value !== 'dia') {
+    const nombre = capital(SUBUNIDAD[periodo.value])
+    lista.push({ id: 'serie', label: nombre, color: INDIGO, datos: r.serie.map((d) => ({ label: etiquetaTramo(d.label), value: d.value })), columna: nombre, ordenPropio: true })
+  }
+  if (tab.value === 'prestamos') {
+    lista.unshift(
+      { id: 'tipoPrestamo', label: 'Tipo de préstamo', color: PIZARRA, datos: conNombres(r.porTipoPrestamo, NOMBRES_TIPO_PRESTAMO), columna: 'Tipo de préstamo' },
+      { id: 'recurso', label: 'Recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Recurso' },
+    )
+  }
+  if (tab.value === 'logias') lista.push({ id: 'sala', label: 'Sala', color: DORADO, datos: r.porSala, columna: 'Sala' })
+  if (tab.value === 'libros') lista.push({ id: 'libro', label: 'Libro', color: INDIGO, datos: r.porLibro, columna: 'Libro' })
+  return lista
+})
+
+const agrupacionId = ref('carrera')
+const agrupacion = computed(() => agrupaciones.value.find((a) => a.id === agrupacionId.value) ?? agrupaciones.value[0])
+const tituloTabla = computed(() => `${unidad.value.titulo} por ${agrupacion.value.label.toLowerCase()}`)
+const subtituloTabla = computed(() => {
+  const filas = agrupacion.value.datos.length
+  return `${etiquetaPeriodo.value} · ${filas} ${filas === 1 ? 'fila' : 'filas'} · haz clic en un encabezado para ordenar`
+})
+
+const confirmandoTabla = ref(false)
+const exportandoTabla = ref(false)
+
+async function exportarTabla() {
+  const a = agrupacion.value
+  exportandoTabla.value = true
+  try {
+    await descargarExcel(`reporte-${tab.value}-${a.id}-${resumen.value.rango.desde}.xlsx`, [
+      {
+        titulo: tituloTabla.value,
+        columnas: [a.columna, capital(unidad.value.plural), '% del total'],
+        filas: a.datos.map((d) => [d.label, d.value, porcentaje(d.value, resumen.value.total)]),
+      },
+    ])
+    toast.success('Tabla exportada')
+  } catch {
+    toast.error('No se pudo generar el archivo Excel')
+  } finally {
+    exportandoTabla.value = false
+    confirmandoTabla.value = false
+  }
+}
+
+// --- Exportar el reporte completo ---
+const menuExportar = ref(false)
+const formatoExportar = ref<'excel' | 'csv' | null>(null)
+const exportando = ref(false)
 
 const descripcionFiltros = computed(() => {
   const partes: string[] = []
+  if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${NOMBRES_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
   if (filtros.carrera) partes.push(`carrera "${filtros.carrera}"`)
   if (filtros.anio_ingreso) partes.push(`año de ingreso ${filtros.anio_ingreso}`)
   if (filtros.sexo) partes.push(`sexo ${filtros.sexo}`)
   if (filtros.tipo_usuario) partes.push(`tipo de usuario "${filtros.tipo_usuario}"`)
-  return partes.length ? partes.join(', ') : 'del total (sin filtros de carrera, sexo, año o tipo de usuario)'
+  return partes.length ? partes.join(', ') : 'sin filtros'
 })
 
-const descripcionExportacion = computed(() => {
-  const tabLabel = TABS.find((t) => t.id === tab.value)?.label ?? ''
-  const adjetivo = PERIODO_ADJETIVO[periodo.value]
-  const formatoLabel = formatoExportar.value === 'excel' ? 'Excel (.xlsx)' : 'CSV'
-  return `Se va a exportar en formato ${formatoLabel} la tabla de "${tabLabel}" con vista ${adjetivo}, ${descripcionFiltros.value}.`
-})
-
-function porcentaje(valor: number, total: number) {
-  return total ? Math.round((valor / total) * 100) : 0
+function pedirExportar(formato: 'excel' | 'csv') {
+  menuExportar.value = false
+  formatoExportar.value = formato
 }
 
-// Vista tabular alternativa al heatmap (respeta el toggle Gráfico/Tabla de la página):
-// aplana sala x hora a filas ordenadas por cantidad, reutilizando ReporteTabla.
-const porHoraPorSalaFlat = computed(() => {
-  return resumen.value.porHoraPorSala
-    .flatMap((fila) => fila.horas.map((h) => ({ label: `${fila.sala} · ${h.label}`, value: h.value })))
-    .filter((item) => item.value > 0)
-    .sort((a, b) => b.value - a.value)
-})
-
 async function confirmarExportar() {
+  const formato = formatoExportar.value
+  if (!formato) return
+  const r = resumen.value
   const tabLabel = TABS.find((t) => t.id === tab.value)?.label ?? tab.value
-  const periodoLabel = PERIODOS.find((p) => p.id === periodo.value)?.label ?? periodo.value
-  const total = resumen.value.total
+  const tabla = (titulo: string, columna: string, datos: SerieItem[]) => ({
+    titulo,
+    columnas: [columna, 'Cantidad', '%'],
+    filas: datos.map((d) => [d.label, d.value, porcentaje(d.value, r.total)]),
+  })
 
   const secciones = [
     {
@@ -183,78 +360,37 @@ async function confirmarExportar() {
       columnas: ['Campo', 'Valor'],
       filas: [
         ['Reporte', tabLabel],
-        ['Periodo', periodoLabel],
+        ['Período', etiquetaPeriodo.value],
         ['Filtros aplicados', descripcionFiltros.value],
-        ['Total', total],
-        ['Promedio por periodo', resumen.value.promedioPorPeriodo],
-        ['Categoría más frecuente', resumen.value.categoriaMasFrecuente],
-      ],
+        ['Total', r.total],
+        [`Total ${etiquetaAnterior.value}`, r.totalAnterior],
+        ['Horario de mayor uso', r.horarioPico ? `${r.horarioPico.desde}–${r.horarioPico.hasta} (${r.horarioPico.value})` : '—'],
+        ['Horario de atención', textoHorario.value || '—'],
+      ] as (string | number)[][],
     },
-    {
-      titulo: `Serie temporal (${periodoLabel.toLowerCase()})`,
-      columnas: ['Periodo', 'Cantidad'],
-      filas: resumen.value.serie.map((d) => [d.label, d.value]),
-    },
-    {
-      titulo: 'Por carrera',
-      columnas: ['Carrera', 'Cantidad', '%'],
-      filas: resumen.value.porCarrera.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    },
-    {
-      titulo: 'Por sexo',
-      columnas: ['Sexo', 'Cantidad', '%'],
-      filas: resumen.value.porSexo.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    },
-    {
-      titulo: 'Por año de ingreso',
-      columnas: ['Año de ingreso', 'Cantidad', '%'],
-      filas: resumen.value.porAnioIngreso.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    },
-    {
-      titulo: 'Por tipo de usuario',
-      columnas: ['Tipo de usuario', 'Cantidad', '%'],
-      filas: resumen.value.porTipoUsuario.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    },
-    {
-      titulo: 'Por hora del día',
-      columnas: ['Hora', 'Cantidad', '%'],
-      filas: resumen.value.porHora.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    },
+    ...agrupaciones.value.map((a) => tabla(`Por ${a.label.toLowerCase()}`, a.columna, a.datos)),
   ]
-
   if (tab.value === 'logias') {
     secciones.push({
-      titulo: 'Por sala',
-      columnas: ['Sala', 'Cantidad', '%'],
-      filas: resumen.value.porSala.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    })
-    secciones.push({
-      titulo: 'Horas más solicitadas por logia',
+      titulo: 'Horas por sala',
       columnas: ['Sala y hora', 'Cantidad', '%'],
-      filas: porHoraPorSalaFlat.value.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
+      filas: r.porHoraPorSala
+        .flatMap((fila) => fila.horas.map((h) => ({ label: `${fila.sala} · ${etiquetaHora(h.label)}:00`, value: h.value })))
+        .filter((d) => d.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((d) => [d.label, d.value, porcentaje(d.value, r.total)]),
     })
   }
 
-  if (tab.value === 'libros') {
-    secciones.push({
-      titulo: 'Libros más prestados',
-      columnas: ['Libro', 'Cantidad', '%'],
-      filas: resumen.value.porLibro.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
-    })
-  }
-
-  const fecha = new Date().toISOString().slice(0, 10)
+  const nombre = `reporte-${tab.value}-${periodo.value}-${r.rango.desde}`
   exportando.value = true
   try {
-    if (formatoExportar.value === 'excel') {
-      await descargarExcel(`reporte-${tab.value}-${periodo.value}-${fecha}.xlsx`, secciones)
-    } else {
-      descargarCsv(`reporte-${tab.value}-${periodo.value}-${fecha}.csv`, construirCsv(secciones))
-    }
-    exportModalOpen.value = false
+    if (formato === 'excel') await descargarExcel(`${nombre}.xlsx`, secciones)
+    else descargarCsv(`${nombre}.csv`, construirCsv(secciones))
     toast.success('Reporte exportado')
+    formatoExportar.value = null
   } catch {
-    toast.error(formatoExportar.value === 'excel' ? 'No se pudo generar el archivo Excel' : 'No se pudo generar el archivo CSV')
+    toast.error(formato === 'excel' ? 'No se pudo generar el archivo Excel' : 'No se pudo generar el archivo CSV')
   } finally {
     exportando.value = false
   }
@@ -264,228 +400,338 @@ async function confirmarExportar() {
 <template>
   <StaffLayout>
     <div class="max-w-6xl mx-auto">
-      <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
-        style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
-      >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Reportes</h1>
-          <p class="text-sm text-white/60 mt-1">Estadísticas y métricas de la biblioteca</p>
+      <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-serif font-bold tracking-tight text-gray-900">Reportes</h1>
+          <p class="mt-1 text-sm text-gray-500">Estadísticas de uso de la biblioteca</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+            <button
+              v-for="v in VISTAS"
+              :key="v.id"
+              type="button"
+              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+              @click="vista = v.id"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="v.d" />
+              </svg>
+              {{ v.label }}
+            </button>
+          </div>
+          <div class="relative">
+            <button
+              type="button"
+              class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+              :aria-expanded="menuExportar"
+              @click="menuExportar = !menuExportar"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Exportar
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <template v-if="menuExportar">
+              <div class="fixed inset-0 z-10" @click="menuExportar = false"></div>
+              <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('excel')">
+                  Excel (.xlsx)
+                </button>
+                <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('csv')">
+                  CSV
+                </button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="flex gap-2 mb-6 border-b border-gray-200">
+      <div class="mb-5 flex gap-6 border-b border-gray-200">
         <button
           v-for="t in TABS"
           :key="t.id"
-          @click="tab = t.id"
-          class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+          type="button"
+          class="-mb-px border-b-2 pb-2.5 text-sm font-semibold transition-colors"
           :class="tab === t.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          @click="tab = t.id"
         >
           {{ t.label }}
         </button>
       </div>
 
-      <div class="flex items-center gap-2 mb-4 flex-wrap justify-between">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-medium text-gray-500 mr-1">Periodo:</span>
-          <div class="flex gap-1 bg-gray-100 rounded-full p-1 shadow-sm">
-            <button
-              v-for="p in PERIODOS"
-              :key="p.id"
-              @click="periodo = p.id"
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              :class="periodo === p.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-            >
-              {{ p.label }}
-            </button>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 flex-wrap">
-          <div class="flex gap-1 bg-gray-100 rounded-full p-1">
-            <button
-              @click="vista = 'grafico'"
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              :class="vista === 'grafico' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-            >
-              Gráfico
-            </button>
-            <button
-              @click="vista = 'tabla'"
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              :class="vista === 'tabla' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-            >
-              Tabla
-            </button>
-          </div>
+      <div class="mb-5 flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
           <button
-            @click="abrirModalExportar('excel')"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+            v-for="p in PERIODOS"
+            :key="p.id"
+            type="button"
+            class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+            :class="periodo === p.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+            @click="periodo = p.id"
           >
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-4z" />
-            </svg>
-            Exportar a Excel
-          </button>
-          <button
-            @click="abrirModalExportar('csv')"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-4z" />
-            </svg>
-            Exportar a CSV
+            {{ p.label }}
           </button>
         </div>
+
+        <div class="flex items-center gap-1">
+          <button type="button" class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800" aria-label="Período anterior" @click="moverPeriodo(-1)">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="min-w-[9rem] text-center text-sm font-semibold text-gray-900">{{ etiquetaPeriodo }}</span>
+          <button
+            type="button"
+            class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Período siguiente"
+            :disabled="!hayPeriodoSiguiente"
+            @click="moverPeriodo(1)"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <span class="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden="true"></span>
+
+        <label
+          v-for="f in filtrosPildora"
+          :key="f.campo"
+          class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-7 text-xs text-gray-500 hover:border-gray-400 focus-within:ring-2 focus-within:ring-indigo-500"
+        >
+          {{ f.nombre }}:
+          <span class="max-w-[9rem] truncate font-semibold text-gray-900">
+            {{ f.valores.find((o) => o.valor === filtros[f.campo])?.texto ?? f.todos }}
+          </span>
+          <svg class="pointer-events-none absolute right-2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`">
+            <option value="">{{ f.todos }}</option>
+            <option v-for="o in f.valores" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
+          </select>
+        </label>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md p-4 mb-6">
-        <div class="flex items-center gap-2 mb-3 text-sm font-medium text-gray-700">
-          Filtros
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Carrera</label>
-            <select v-model="filtros.carrera" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">Todas</option>
-              <option v-for="c in opciones.carreras" :key="c" :value="c">{{ c }}</option>
-            </select>
+      <div class="transition-opacity" :class="cargando ? 'opacity-60' : ''">
+        <div class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: INDIGO }">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-xs font-medium text-gray-600">{{ unidad.titulo }} {{ DEL_PERIODO[periodo] }}</p>
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                </svg>
+              </span>
+            </div>
+            <p class="mt-1 text-3xl font-serif font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
+            <p class="mt-1 text-xs text-gray-500">
+              <span class="font-semibold" :class="diferencia > 0 ? 'text-emerald-600' : diferencia < 0 ? 'text-red-600' : 'text-gray-500'">
+                {{ diferencia > 0 ? `+${diferencia}` : diferencia < 0 ? `−${-diferencia}` : '=' }}
+              </span>
+              vs. {{ etiquetaAnterior }} ({{ resumen.totalAnterior }})
+            </p>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Año de ingreso</label>
-            <select v-model="filtros.anio_ingreso" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">Todos</option>
-              <option v-for="a in opciones.aniosIngreso" :key="a" :value="a">{{ a }}</option>
-            </select>
+
+          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: DORADO }">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-xs font-medium text-gray-600">{{ destacado.titulo }}</p>
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-[#8a6a3b]">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+                </svg>
+              </span>
+            </div>
+            <p class="mt-1 truncate text-2xl font-serif font-bold text-gray-900" :title="destacado.item?.label">
+              {{ destacado.item ? abreviar(destacado.item.label) : '—' }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500">
+              <template v-if="destacado.item">{{ destacado.item.value }} {{ unidad.plural }} · {{ porcentaje(destacado.item.value, resumen.total) }}%</template>
+              <template v-else>Sin {{ unidad.plural }} en este período</template>
+            </p>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Sexo</label>
-            <select v-model="filtros.sexo" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">Todos</option>
-              <option v-for="s in opciones.sexos" :key="s" :value="s">{{ s }}</option>
-            </select>
+
+          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: VERDE_AZULADO }">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-xs font-medium text-gray-600">Horario de mayor uso</p>
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </span>
+            </div>
+            <p class="mt-1 text-2xl font-serif font-bold tabular-nums text-gray-900">
+              {{ resumen.horarioPico ? `${resumen.horarioPico.desde}–${resumen.horarioPico.hasta}` : '—' }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500">
+              <template v-if="resumen.horarioPico">{{ resumen.horarioPico.value }} de {{ resumen.total }} {{ unidad.plural }}</template>
+              <template v-else>Sin {{ unidad.plural }} en este período</template>
+            </p>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Tipo de usuario</label>
-            <select v-model="filtros.tipo_usuario" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">Todos</option>
-              <option v-for="tu in opciones.tiposUsuario" :key="tu" :value="tu">{{ tu.charAt(0).toUpperCase() + tu.slice(1) }}</option>
-            </select>
+        </div>
+
+        <template v-if="vista === 'grafico'">
+          <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">{{ unidad.titulo }} por {{ SUBUNIDAD[periodo] }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ etiquetaPeriodo }}<template v-if="periodo === 'dia' && textoHorario"> · {{ textoHorario.toLowerCase() }}</template>
+              <template v-if="serieTieneFinesDeSemana"> · en tono claro, los fines de semana</template>
+              <template v-if="serieTieneDiasCerrados"> · rayados, los días sin atención</template>
+            </p>
+            <div class="mt-4 h-56">
+              <GraficoColumnas
+                :datos="resumen.serie"
+                :color="INDIGO"
+                :color-suave="INDIGO_SUAVE"
+                :unidad="unidad.plural"
+                :mensaje-vacio="diaSinAtencion ? 'La biblioteca no atiende este día.' : undefined"
+              />
+            </div>
+          </section>
+
+          <section v-if="tab === 'prestamos'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Por tipo de préstamo</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Recurso bibliográfico (libros) o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
+              <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="'#8A6A3B'" />
+            </div>
+          </section>
+
+          <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
+            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
+              <h3 class="font-sans text-base font-bold text-gray-900">Por carrera</h3>
+              <p class="mt-0.5 mb-4 text-xs text-gray-500">
+                Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ unidad.plural }} (todas en la vista Tabla)</template>
+              </p>
+              <BarrasRanking :datos="resumen.porCarrera" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_OSCURO" />
+            </section>
+
+            <div class="space-y-5 lg:col-span-2">
+              <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 class="mb-4 font-sans text-base font-bold text-gray-900">Por tipo de usuario</h3>
+                <BarraApilada :datos="resumen.porTipoUsuario" :colores="COLORES_TIPO" :nombres="NOMBRES_TIPO" />
+              </section>
+              <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 class="mb-4 font-sans text-base font-bold text-gray-900">Por sexo</h3>
+                <BarraApilada :datos="resumen.porSexo" :colores="COLORES_SEXO" />
+              </section>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500">{{ tabTitulo[tab] }}</p>
-          <p class="text-2xl font-mono font-bold text-gray-900">{{ resumen.total }}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500">Promedio ({{ PERIODOS.find((p) => p.id === periodo)?.label.toLowerCase() }})</p>
-          <p class="text-2xl font-mono font-bold text-gray-900">{{ resumen.promedioPorPeriodo }}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500">Categoría más frecuente</p>
-          <p class="text-sm font-mono font-bold text-gray-900 truncate">{{ resumen.categoriaMasFrecuente }}</p>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h3 class="font-medium text-gray-900 mb-1">
-          {{ TABS.find((t) => t.id === tab)?.label }} — {{ PERIODOS.find((p) => p.id === periodo)?.label }}
-        </h3>
-        <p class="text-xs text-gray-400 mb-4">Mostrando los últimos {{ resumen.serie.length }} periodos según filtros aplicados</p>
-        <div v-if="vista === 'grafico'" class="h-72">
-          <BarChart :data="resumen.serie" :color="colorBar[tab]" />
-        </div>
-        <ReporteTabla v-else :data="resumen.serie" :total="resumen.total" columna="Periodo" :item-color="() => colorBar[tab]" />
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-medium text-gray-900 mb-4">Por carrera</h3>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porCarrera" :total="resumen.total" :item-color="colorCarrera" />
-          <ReporteTabla v-else :data="resumen.porCarrera" :total="resumen.total" columna="Carrera" :item-color="colorCarrera" />
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-medium text-gray-900 mb-4">Por sexo</h3>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porSexo" :total="resumen.total" :item-color="colorSexo" />
-          <ReporteTabla v-else :data="resumen.porSexo" :total="resumen.total" columna="Sexo" :item-color="colorSexo" />
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-medium text-gray-900 mb-4">Por año de ingreso</h3>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porAnioIngreso" :total="resumen.total" color="purple" />
-          <ReporteTabla v-else :data="resumen.porAnioIngreso" :total="resumen.total" columna="Año de ingreso" :item-color="() => '#a855f7'" />
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6">
-          <h3 class="font-medium text-gray-900 mb-4">Por tipo de usuario</h3>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porTipoUsuario" :total="resumen.total" :color="tab === 'ingresos' ? 'emerald' : 'amber'" />
-          <ReporteTabla v-else :data="resumen.porTipoUsuario" :total="resumen.total" columna="Tipo de usuario" :item-color="() => (tab === 'ingresos' ? '#10b981' : '#f59e0b')" />
-        </div>
-
-        <div v-if="tab === 'logias'" class="bg-white rounded-xl shadow-md p-6 md:col-span-2">
-          <h3 class="font-medium text-gray-900 mb-4">Sala más solicitada</h3>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porSala" :total="resumen.total" color="amber" />
-          <ReporteTabla v-else :data="resumen.porSala" :total="resumen.total" columna="Sala" :item-color="() => '#D97706'" />
-        </div>
-
-        <div v-if="tab === 'logias'" class="bg-white rounded-xl shadow-md p-6 md:col-span-2">
-          <h3 class="font-medium text-gray-900 mb-1">Horas más solicitadas por logia</h3>
-          <p class="text-xs text-gray-400 mb-4">Cantidad de reservas por bloque horario, desglosado por sala (08:00 – 21:00)</p>
-          <Heatmap v-if="vista === 'grafico'" :data="resumen.porHoraPorSala" />
-          <ReporteTabla v-else :data="porHoraPorSalaFlat" :total="resumen.total" columna="Sala y hora" :item-color="() => '#3987e5'" />
-        </div>
-
-        <div v-if="tab === 'libros'" class="bg-white rounded-xl shadow-md p-6 md:col-span-2">
-          <h3 class="font-medium text-gray-900 mb-1">Libros más prestados</h3>
-          <p class="text-xs text-gray-400 mb-4">Ranking por cantidad de préstamos (incluye cada copia por separado)</p>
-          <BreakdownList v-if="vista === 'grafico'" :data="resumen.porLibro" :total="resumen.total" color="indigo" />
-          <ReporteTabla v-else :data="resumen.porLibro" :total="resumen.total" columna="Libro" :item-color="() => '#4338CA'" />
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6 md:col-span-2">
-          <h3 class="font-medium text-gray-900 mb-1">Distribución por hora del día</h3>
-          <p class="text-xs text-gray-400 mb-4">Cantidad de registros por hora (08:00 – 21:00, horario de biblioteca)</p>
-          <div v-if="vista === 'grafico'" class="h-64">
-            <BarChart :data="resumen.porHora" :color="colorBar[tab]" />
+          <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
+            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
+              <h3 class="font-sans text-base font-bold text-gray-900">Por año de ingreso</h3>
+              <p class="mt-0.5 text-xs text-gray-500">Cohorte de quien {{ unidad.quien }}</p>
+              <div class="mt-4 h-48">
+                <GraficoColumnas :datos="resumen.porAnioIngreso" :color="VERDE_AZULADO" :color-suave="VERDE_AZULADO" mostrar-valores :unidad="unidad.plural" />
+              </div>
+            </section>
+            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
+              <h3 class="font-sans text-base font-bold text-gray-900">Por hora del día</h3>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ textoHorario }}<template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
+              </p>
+              <div class="mt-4 h-48">
+                <GraficoColumnas
+                  :datos="resumen.porHora"
+                  :color="DORADO"
+                  :color-suave="DORADO_SUAVE"
+                  :destacados="horasPico"
+                  mostrar-valores
+                  :etiqueta="etiquetaHora"
+                  :unidad="unidad.plural"
+                  :mensaje-vacio="diaSinAtencion ? 'La biblioteca no atiende este día.' : undefined"
+                />
+              </div>
+            </section>
           </div>
-          <ReporteTabla v-else :data="resumen.porHora" :total="resumen.total" columna="Hora" :item-color="() => colorBar[tab]" />
-        </div>
-      </div>
 
-      <div
-        v-if="exportModalOpen"
-        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        @click.self="exportModalOpen = false"
-      >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">Confirmar exportación</h3>
-          <p class="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-5">
-            {{ descripcionExportacion }}
-          </p>
-          <div class="flex gap-3">
+          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Salas más usadas</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Ordenado de mayor a menor</p>
+            <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="'#8A6A3B'" :limite="10" />
+          </section>
+          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Horas más solicitadas por sala</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Reservas por bloque horario en cada sala</p>
+            <Heatmap :data="resumen.porHoraPorSala" />
+          </section>
+          <section v-if="tab === 'libros'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Libros más prestados</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Ranking por cantidad de préstamos (cada copia cuenta por separado)</p>
+            <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_OSCURO" :limite="10" />
+          </section>
+        </template>
+
+        <div v-else class="mb-5 grid grid-cols-1 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:grid-cols-[13rem_minmax(0,1fr)]">
+          <nav class="border-b border-gray-200 bg-gray-50/70 p-3 md:border-b-0 md:border-r" aria-label="Agrupar por">
+            <p class="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Agrupar por</p>
             <button
-              @click="exportModalOpen = false"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+              v-for="a in agrupaciones"
+              :key="a.id"
+              type="button"
+              class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors"
+              :class="agrupacion.id === a.id ? 'bg-white font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-600 hover:bg-white/70'"
+              @click="agrupacionId = a.id"
             >
-              Cancelar
+              <span class="h-2 w-2 shrink-0 rounded-full" :style="{ backgroundColor: a.color }"></span>
+              <span class="flex-1 truncate">{{ a.label }}</span>
+              <span class="text-xs tabular-nums text-gray-400">{{ a.datos.length }}</span>
             </button>
-            <button
-              @click="confirmarExportar"
-              :disabled="exportando"
-              class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
-              {{ exportando ? 'Generando…' : 'Confirmar y exportar' }}
-            </button>
-          </div>
+          </nav>
+          <TablaReporte
+            :titulo="tituloTabla"
+            :subtitulo="subtituloTabla"
+            :columna="agrupacion.columna"
+            :unidad="capital(unidad.plural)"
+            :datos="agrupacion.datos"
+            :total="resumen.total"
+            :color="agrupacion.color"
+            :orden-propio="agrupacion.ordenPropio"
+            @exportar="confirmandoTabla = true"
+          />
         </div>
       </div>
     </div>
+
+    <DialogoConfirmacion
+      :abierto="formatoExportar !== null"
+      titulo="Confirmar exportación"
+      confirmar="Confirmar y exportar"
+      tono="exito"
+      :cargando="exportando"
+      @confirmar="confirmarExportar"
+      @cancelar="formatoExportar = null"
+    >
+      <p>
+        Se va a exportar en formato {{ formatoExportar === 'excel' ? 'Excel (.xlsx)' : 'CSV' }} el reporte de
+        <strong>{{ TABS.find((t) => t.id === tab)?.label }}</strong> de <strong>{{ etiquetaPeriodo }}</strong>, {{ descripcionFiltros }}:
+        resumen, todas las agrupaciones y, en salas, las horas por sala.
+      </p>
+    </DialogoConfirmacion>
+
+    <DialogoConfirmacion
+      :abierto="confirmandoTabla"
+      titulo="¿Exportar esta tabla?"
+      confirmar="Confirmar y exportar"
+      tono="exito"
+      :cargando="exportandoTabla"
+      @confirmar="exportarTabla"
+      @cancelar="confirmandoTabla = false"
+    >
+      <p>
+        Se descargará en Excel (.xlsx) la tabla <strong>{{ tituloTabla }}</strong> de <strong>{{ etiquetaPeriodo }}</strong>
+        ({{ agrupacion.datos.length }} {{ agrupacion.datos.length === 1 ? 'fila' : 'filas' }}, {{ descripcionFiltros }}).
+      </p>
+    </DialogoConfirmacion>
   </StaffLayout>
 </template>

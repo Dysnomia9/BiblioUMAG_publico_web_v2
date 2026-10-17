@@ -46,6 +46,7 @@ class LibroEstadoProcesoTest extends TestCase
 
         $response = $this->patchJson("/api/ejemplares/{$ejemplar->id}/estado", [
             'estado_proceso' => 'de_baja',
+            'motivo' => 'Pérdida',
         ]);
 
         $response->assertStatus(409);
@@ -59,9 +60,27 @@ class LibroEstadoProcesoTest extends TestCase
 
         $response = $this->patchJson("/api/ejemplares/{$ejemplar->id}/estado", [
             'estado_proceso' => 'de_baja',
+            'motivo' => 'Hojas sueltas, no se puede reparar',
         ]);
 
         $response->assertStatus(200)->assertJsonPath('estado_proceso', 'de_baja');
+        $this->assertDatabaseHas('ejemplar_estado_historial', [
+            'ejemplar_id' => $ejemplar->id,
+            'estado_nuevo' => 'de_baja',
+            'motivo' => 'Hojas sueltas, no se puede reparar',
+        ]);
+    }
+
+    public function test_dar_de_baja_sin_motivo_devuelve_422(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => true]);
+
+        $this->patchJson("/api/ejemplares/{$ejemplar->id}/estado", ['estado_proceso' => 'de_baja'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['motivo' => 'Indica el motivo de la baja']);
+
+        $this->assertNotEquals('de_baja', $ejemplar->refresh()->estado_proceso);
     }
 
     public function test_cambiar_estado_con_valor_invalido_devuelve_422(): void
@@ -142,7 +161,7 @@ class LibroEstadoProcesoTest extends TestCase
 
         $response = $this->getJson('/api/libros?q=Soledad');
 
-        $response->assertStatus(200)->assertJsonCount(1);
+        $response->assertStatus(200)->assertJsonCount(1, 'data')->assertJsonPath('total', 1);
     }
 
     public function test_buscar_por_codigo_no_encontrado_devuelve_404(): void

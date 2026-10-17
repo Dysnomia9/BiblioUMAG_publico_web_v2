@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ubicacion;
+use App\Support\Bitacora;
 use Illuminate\Http\Request;
 
 /** Catálogo de ubicaciones físicas de los ejemplares — solo admin puede crearlas (Administración), a diferencia de autores/categorías/carreras que cualquier staff puede crear al vuelo desde catalogación. */
@@ -21,6 +22,8 @@ class UbicacionController extends Controller
         ]);
 
         $ubicacion = Ubicacion::create($data);
+
+        Bitacora::registrar('configuracion.crear_ubicacion', "Creó la ubicación «{$ubicacion->nombre}»", entidad: $ubicacion);
 
         return response()->json($ubicacion, 201);
     }

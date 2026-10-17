@@ -13,7 +13,7 @@ class ConfiguracionInstitucionalTest extends TestCase
 
     public function test_todo_staff_puede_ver_la_configuracion(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->getJson('/api/configuracion');
 
@@ -35,7 +35,7 @@ class ConfiguracionInstitucionalTest extends TestCase
 
     public function test_staff_no_admin_no_puede_actualizar_la_configuracion(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $response = $this->putJson('/api/configuracion', [
             'jefe_unidad_nombre' => 'Nueva Jefa',

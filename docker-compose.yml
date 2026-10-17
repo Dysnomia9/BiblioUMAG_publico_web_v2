@@ -8,8 +8,10 @@ services:
       POSTGRES_PASSWORD: biblioteca
     volumes:
       - db_data:/var/lib/postgresql/data
+    # Solo desde este computador: el backend usa la red interna de Docker, y la
+    # contraseña de desarrollo es conocida.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U biblioteca -d biblioteca"]
       interval: 3s
@@ -24,14 +26,25 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Desarrollo declarado: solo con APP_ENV=local el arranque carga los datos de
+      # prueba (admin@umag.cl / admin123) y crea la base de tests (docker-entrypoint.sh).
+      APP_ENV: local
       DB_HOST: db
       DB_DATABASE: biblioteca
       DB_USERNAME: biblioteca
       DB_PASSWORD: biblioteca
       FRONTEND_URL: http://localhost:5173
       SANCTUM_STATEFUL_DOMAINS: localhost:5173
+    volumes:
+      # Solo el reporte de auditoría de dependencias (ver docker-entrypoint.sh)
+      # queda mapeado al host para revisarlo sin entrar al contenedor — el
+      # resto del código sigue horneado en la imagen a propósito (ver README).
+      - ./backend/storage/reports:/var/www/storage/reports
+    # Solo desde este computador, como Postgres: con las cuentas de prueba y el modo
+    # debug, publicarlo a la red dejaría entrar como administrador a cualquiera del
+    # mismo WiFi. Para probar desde el celular, ESCUCHAR_EN=0.0.0.0 (ver README).
     ports:
-      - "8000:8000"
+      - "${ESCUCHAR_EN:-127.0.0.1}:8000:8000"
 
   frontend:
     build:
@@ -43,7 +56,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - "${ESCUCHAR_EN:-127.0.0.1}:5173:5173"
 
 volumes:
   db_data:

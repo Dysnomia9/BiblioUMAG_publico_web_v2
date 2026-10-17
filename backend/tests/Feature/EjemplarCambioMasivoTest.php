@@ -102,7 +102,7 @@ class EjemplarCambioMasivoTest extends TestCase
 
     public function test_staff_no_admin_no_puede_ejecutar_cambio_masivo(): void
     {
-        Sanctum::actingAs(Staff::factory()->create(['rol' => 'staff']));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
 
         $bodega = Ubicacion::factory()->create(['nombre' => 'Bodega']);
 
@@ -126,5 +126,33 @@ class EjemplarCambioMasivoTest extends TestCase
 
         $response->assertStatus(200)->assertJsonCount(1);
         $this->assertSame('en_estante', $response->json('0.estado_nuevo'));
+    }
+
+    public function test_historial_filtra_por_estado_nuevo_y_cuenta_las_copias_de_cada_lote(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $central = Ubicacion::firstOrCreate(['nombre' => 'Biblioteca Central']);
+        $copias = Ejemplar::factory()->count(3)->sequence(fn () => ['libro_id' => Libro::factory()])->create(['ubicacion_id' => $central->id, 'estado_proceso' => 'en_estante']);
+
+        $loteId = $this->postJson('/api/ejemplares/cambio-masivo/ejecutar', [
+            'ubicacion_id' => $central->id,
+            'nuevo_estado' => 'procesos_tecnicos',
+            'motivo' => 'Reetiquetado',
+        ])->assertStatus(200)->json('lote_id');
+        $this->patchJson("/api/ejemplares/{$copias[0]->id}/estado", ['estado_proceso' => 'en_estante'])->assertStatus(200);
+
+        // Aunque la búsqueda deje ver una sola copia del lote, el total es el del lote completo.
+        $codigo = $copias[1]->codigo_barras;
+        $this->getJson("/api/ejemplares/historial-estado?estado=procesos_tecnicos&q={$codigo}")
+            ->assertStatus(200)
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.lote_id', $loteId)
+            ->assertJsonPath('0.lote_total', 3);
+
+        $this->getJson('/api/ejemplares/historial-estado?estado=procesos_tecnicos')->assertJsonCount(3);
+        $this->getJson('/api/ejemplares/historial-estado?estado=en_estante')
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.lote_id', null)
+            ->assertJsonPath('0.lote_total', 0);
     }
 }
