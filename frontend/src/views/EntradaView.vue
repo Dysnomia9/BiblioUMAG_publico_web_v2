@@ -6,10 +6,12 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import PildoraHorario from '@/components/portal/PildoraHorario.vue'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { formatRut, validarRut } from '@/composables/useRut'
-import { describirDocumento, errorDocumento, formatearInputIdentificador, identificadorValido, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
+import { describirDocumento, errorDocumento, formatearInputIdentificador, largoSegunModo, placeholderSegunModo, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
+import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useAuthStore } from '@/stores/auth'
 import { sinTildes } from '@/utils/texto'
@@ -25,6 +27,8 @@ const MOSTRAR_CONVENIO = false
 const hoy = new Date().toLocaleDateString('sv-SE')
 
 const rut = ref('')
+// RUT, o pasaporte/DNI de un estudiante extranjero: lo marca quien atiende.
+const { modo: modoRut, escribir: escribirRut, error: errorDelRut } = useModoDocumento(rut)
 const rutInput = ref<HTMLInputElement | null>(null)
 const errorRut = ref('')
 const registrando = ref(false)
@@ -125,20 +129,16 @@ function volverAlDia() {
 }
 
 // ---------- Registrar ----------
-// RUT, o pasaporte/DNI de un estudiante extranjero: el servidor lo reconoce escrito como sea.
 function onRutInput(event: Event) {
-  rut.value = formatearInputIdentificador(event)
+  escribirRut(event)
   errorRut.value = ''
   yaPresente.value = ''
 }
 
 async function registrarEntrada() {
-  if (!rut.value.trim()) {
-    errorRut.value = 'Ingrese el RUT (o pasaporte/DNI si es extranjero) de la persona que entra.'
-    return
-  }
-  if (!identificadorValido(rut.value)) {
-    errorRut.value = 'Ese RUT o documento no es válido: revise los números y el dígito verificador.'
+  const error = errorDelRut()
+  if (error) {
+    errorRut.value = error
     return
   }
 
@@ -149,6 +149,7 @@ async function registrarEntrada() {
     const { data } = await api.post('/entrada', { rut: rut.value, via: 'manual' })
     toast.success(`Entrada registrada: ${data.usuario.nombre} ${data.usuario.apellido}`)
     rut.value = ''
+    modoRut.value = 'rut'
     rutInput.value?.focus()
     await cargar()
   } catch (e: any) {
@@ -156,12 +157,13 @@ async function registrarEntrada() {
       // Ya estaba presente hoy: no es un error de quien atiende, solo se avisa.
       yaPresente.value = e.response.data.message
       rut.value = ''
+      modoRut.value = 'rut'
       rutInput.value?.focus()
       return
     }
     errorRut.value =
       e?.response?.status === 404
-        ? 'No hay ningún usuario registrado con ese RUT o documento (si es RUT, revise el dígito verificador). Si no es de la universidad, regístrelo con «Registrar visitante externo».'
+        ? `No hay ningún usuario registrado con ese ${modoRut.value === 'rut' ? 'RUT' : 'pasaporte o DNI'}. Si no es de la universidad, regístrelo con «Registrar visitante externo».`
         : mensajeDeError(e, 'No se pudo registrar la entrada')
   } finally {
     registrando.value = false
@@ -425,7 +427,12 @@ function verSusPrestamos(e: Entrada) {
               ¿Cómo se usa?
             </button>
           </div>
-          <label for="rut-entrada" class="mt-3 block text-sm text-gray-500">Ingresa el RUT para registrar el acceso. Estudiantes extranjeros: su pasaporte o DNI.</label>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <label for="rut-entrada" class="block text-sm text-gray-500">
+              {{ modoRut === 'rut' ? 'Ingresa el RUT para registrar el acceso.' : 'Ingresa el pasaporte o DNI del estudiante extranjero.' }}
+            </label>
+            <SelectorDocumento v-model="modoRut" />
+          </div>
           <div class="mt-3 flex flex-col gap-3 sm:flex-row">
             <div class="relative flex-1">
               <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -437,8 +444,8 @@ function verSusPrestamos(e: Entrada) {
                 :value="rut"
                 type="text"
                 autocomplete="off"
-                placeholder="12.345.678-5 o pasaporte"
-                maxlength="20"
+                :placeholder="placeholderSegunModo(modoRut)"
+                :maxlength="largoSegunModo(modoRut)"
                 class="h-14 w-full rounded-xl border-2 bg-white pl-12 pr-4 text-lg font-medium tracking-wide text-gray-900 outline-none transition placeholder:font-normal placeholder:text-gray-400 focus:ring-4"
                 :class="errorRut ? 'border-red-400 focus:ring-red-100' : 'border-indigo-200 focus:border-indigo-500 focus:ring-indigo-100'"
                 @input="onRutInput"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, toRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
@@ -7,10 +7,12 @@ import EncabezadoPagina from '@/components/ui/EncabezadoPagina.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { formatearInputIdentificador, identificadorValido } from '@/utils/documento'
+import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
+import { useModoDocumento } from '@/composables/useModoDocumento'
 import { sinTildes } from '@/utils/texto'
 import type { EstadoMulta, Multa, MultasResumen, TipoMulta, Usuario } from '@/types'
 
@@ -172,13 +174,18 @@ const nueva = reactive({
   detalle: '',
 })
 
+// RUT, o pasaporte/DNI de un estudiante extranjero.
+const { modo: modoRutMulta, escribir: escribirRutMulta, error: errorRutMulta } = useModoDocumento(toRef(nueva, 'rut'))
+
 function abrirNueva() {
   Object.assign(nueva, { abierto: true, confirmando: false, rut: '', usuario: null, errorRut: '', tipo: 'deterioro', monto: null, detalle: '' })
+  modoRutMulta.value = 'rut'
 }
 
 async function buscarUsuarioMulta() {
-  if (!identificadorValido(nueva.rut)) {
-    nueva.errorRut = 'RUT no válido: revise el dígito verificador.'
+  const error = errorRutMulta()
+  if (error) {
+    nueva.errorRut = error
     return
   }
   nueva.buscando = true
@@ -188,7 +195,7 @@ async function buscarUsuarioMulta() {
     nueva.usuario = data
   } catch (e: any) {
     nueva.usuario = null
-    nueva.errorRut = e?.response?.status === 404 ? 'No hay ningún usuario con ese RUT o documento.' : mensajeDeError(e, 'No se pudo buscar el usuario')
+    nueva.errorRut = e?.response?.status === 404 ? `No hay ningún usuario con ese ${modoRutMulta.value === 'rut' ? 'RUT' : 'pasaporte o DNI'}.` : mensajeDeError(e, 'No se pudo buscar el usuario')
   } finally {
     nueva.buscando = false
   }
@@ -468,15 +475,18 @@ async function guardarNueva() {
     >
       <div class="space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="multa-rut">RUT del usuario</label>
+          <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <label class="block text-sm font-medium text-gray-700" for="multa-rut">{{ modoRutMulta === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}</label>
+            <SelectorDocumento v-model="modoRutMulta" compacto />
+          </div>
           <div class="flex gap-2">
             <input
               id="multa-rut"
               :value="nueva.rut"
-              placeholder="12.345.678-5 o pasaporte"
-              maxlength="20"
+              :placeholder="placeholderSegunModo(modoRutMulta)"
+              :maxlength="largoSegunModo(modoRutMulta)"
               class="flex-1 min-w-0 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              @input="nueva.rut = formatearInputIdentificador($event); nueva.usuario = null; nueva.errorRut = ''"
+              @input="escribirRutMulta($event); nueva.usuario = null; nueva.errorRut = ''"
               @keydown.enter.prevent="buscarUsuarioMulta"
             />
             <button @click="buscarUsuarioMulta" :disabled="nueva.buscando" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm">

@@ -388,6 +388,16 @@ para el personal nuevo.
 Se escribe el RUT en la casilla de \textbf{Registro de entrada}. Los puntos y el guion se agregan solos mientras se
 escribe (por ejemplo \texttt{15.003.151-6}).
 
+\begin{nota}
+Junto a la casilla hay un selector \textbf{RUT | Pasaporte / DNI}. Con
+\textbf{RUT} (lo normal), el sistema revisa el dígito verificador antes de
+buscar. Para un estudiante extranjero se marca \textbf{Pasaporte / DNI} y
+se escribe el número tal como aparece en su documento, sin formato de RUT.
+Si con RUT marcado se escribe una letra (que no sea la K final), el
+selector pasa solo a Pasaporte / DNI. El mismo selector está en Préstamos,
+Multas, las salas (uno por integrante) y en el portal.
+\end{nota}
+
 \captura{03-entradas-rut-lleno.png}{RUT escrito en el recuadro, listo para registrar.}
 
 Al presionar \texttt{Enter} (o el botón \textbf{Registrar}), el
@@ -493,7 +503,9 @@ devoluciones y reservar libros para retiro.
 
 Todo comienza en el recuadro \textbf{RUT del usuario}. El RUT se puede
 escribir con o sin puntos y guion (se ordena solo) o escanear desde el
-carnet; luego se presiona \texttt{Enter} o \textbf{Buscar usuario}. Antes
+carnet; luego se presiona \texttt{Enter} o \textbf{Buscar usuario}. Para un
+estudiante extranjero se marca \textbf{Pasaporte / DNI} en el selector de
+al lado. Antes
 de buscar, la pantalla ya muestra lo que vendrá ---la ficha vacía, la tabla
 de préstamos y los recuadros de equipos con cuántos hay disponibles---, todo
 deshabilitado hasta elegir a alguien. El botón \textbf{¿Cómo se usa?} del
@@ -1363,7 +1375,9 @@ teléfono se ve así:
 \section{Inicio de sesión}
 
 Se accede con el RUT y la contraseña personal del usuario (distinta de
-las credenciales de personal).
+las credenciales de personal). Los estudiantes extranjeros marcan
+\textbf{Pasaporte / DNI} en el selector sobre la casilla y escriben su
+número; el navegador recuerda esa elección para la próxima vez.
 
 \captura{26-portal-login.png}{Inicio de sesión del Portal del Usuario.}
 

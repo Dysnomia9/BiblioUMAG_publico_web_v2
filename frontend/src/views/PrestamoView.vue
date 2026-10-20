@@ -4,9 +4,11 @@ import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { formatearIdentificador, formatearInputIdentificador, identificadorValido } from '@/utils/documento'
+import { formatearSegunModo, largoSegunModo, modoSegunValor, placeholderSegunModo } from '@/utils/documento'
+import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
@@ -18,6 +20,8 @@ const auth = useAuthStore()
 const route = useRoute()
 
 const rut = ref('')
+// RUT, o pasaporte/DNI de un estudiante extranjero: lo marca quien atiende.
+const { modo: modoRut, escribir: escribirRut, error: errorDelRut } = useModoDocumento(rut)
 const rutInput = ref<HTMLInputElement | null>(null)
 const errorRut = ref('')
 const usuario = ref<Usuario | null>(null)
@@ -121,7 +125,8 @@ onMounted(() => {
   cargarHorario()
   // Se puede llegar con ?rut=… (ej. desde Multas o Entradas) para abrir directo los préstamos de esa persona.
   if (typeof route.query.rut === 'string' && route.query.rut) {
-    rut.value = formatearIdentificador(route.query.rut)
+    modoRut.value = modoSegunValor(route.query.rut)
+    rut.value = formatearSegunModo(route.query.rut, modoRut.value)
     buscarUsuario()
   } else {
     rutInput.value?.focus()
@@ -129,7 +134,7 @@ onMounted(() => {
 })
 
 function onRutInput(event: Event) {
-  rut.value = formatearInputIdentificador(event)
+  escribirRut(event)
   errorRut.value = ''
 }
 
@@ -154,6 +159,7 @@ function buscarOtroUsuario() {
   mostrarTerminadas.value = false
   activeTab.value = 'prestamos'
   rut.value = ''
+  modoRut.value = 'rut'
   errorRut.value = ''
   nextTick(() => rutInput.value?.focus())
 }
@@ -176,12 +182,9 @@ async function cargarPrestamosYReservas() {
 }
 
 async function buscarUsuario() {
-  if (!rut.value.trim()) {
-    errorRut.value = 'Ingrese el RUT (o pasaporte/DNI si es extranjero) del usuario para ver su ficha.'
-    return
-  }
-  if (!identificadorValido(rut.value)) {
-    errorRut.value = 'Ese RUT no es válido: revise los números y el dígito verificador (el que va después del guion).'
+  const error = errorDelRut()
+  if (error) {
+    errorRut.value = error
     return
   }
   buscando.value = true
@@ -199,7 +202,7 @@ async function buscarUsuario() {
     usuario.value = null
     errorRut.value =
       e?.response?.status === 404
-        ? 'No hay ningún usuario registrado con ese RUT o documento. Revise que esté bien escrito (si es RUT, el dígito verificador).'
+        ? `No hay ningún usuario registrado con ese ${modoRut.value === 'rut' ? 'RUT' : 'pasaporte o DNI'}. Revise que esté bien escrito.`
         : mensajeDeError(e, 'No se pudo buscar el usuario')
   } finally {
     buscando.value = false
@@ -605,10 +608,16 @@ function formatHora(iso: string | null) {
       />
 
       <div class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <label for="rut-prestamos" class="block text-sm font-semibold text-gray-900">RUT del usuario</label>
-        <p class="mb-3 mt-0.5 text-xs text-gray-500">
-          Con o sin puntos y guion. Presiona <kbd class="rounded border border-gray-300 bg-gray-50 px-1 font-mono text-[10px]">Enter</kbd> para buscar.
-        </p>
+        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <label for="rut-prestamos" class="block text-sm font-semibold text-gray-900">{{ modoRut === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}</label>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ modoRut === 'rut' ? 'Con o sin puntos y guion.' : 'Tal como aparece en su documento.' }}
+              Presiona <kbd class="rounded border border-gray-300 bg-gray-50 px-1 font-mono text-[10px]">Enter</kbd> para buscar.
+            </p>
+          </div>
+          <SelectorDocumento v-model="modoRut" />
+        </div>
         <div class="flex flex-col gap-3 sm:flex-row">
           <div class="relative flex-1">
             <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -620,8 +629,8 @@ function formatHora(iso: string | null) {
               :value="rut"
               type="text"
               autocomplete="off"
-              placeholder="12.345.678-5 o pasaporte"
-              maxlength="20"
+              :placeholder="placeholderSegunModo(modoRut)"
+              :maxlength="largoSegunModo(modoRut)"
               class="h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-base text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4"
               :class="errorRut ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-100'"
               @input="onRutInput"
