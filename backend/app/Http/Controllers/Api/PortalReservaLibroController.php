@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReservaLibro;
+use App\Models\Usuario;
 use App\Services\MultaService;
 use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Autoservicio de reservas de libro desde el portal virtual (/mi/*): el usuario
@@ -48,6 +51,9 @@ class PortalReservaLibroController extends Controller
             'dias_para_retirar' => config('reservas_libro.dias_para_retirar'),
             'maximo_por_persona' => config('reservas_libro.maximo_por_persona'),
             'bloqueo' => $this->multaService->mensajeBloqueo($request->user(), paraElUsuario: true),
+            // Tras cancelar hace poco: el aviso y hasta cuándo dura, para apagar el botón.
+            'espera' => ($hasta = $this->esperaHasta($request->user())) ? $this->mensajeEspera($hasta) : null,
+            'espera_hasta' => $hasta?->toIso8601String(),
         ]);
     }
 
@@ -59,6 +65,10 @@ class PortalReservaLibroController extends Controller
 
         if ($bloqueo = $this->multaService->mensajeBloqueo($request->user(), paraElUsuario: true)) {
             return response()->json(['message' => $bloqueo], 409);
+        }
+
+        if ($hasta = $this->esperaHasta($request->user())) {
+            return response()->json(['message' => $this->mensajeEspera($hasta)], 429);
         }
 
         // A diferencia del staff (que escanea el código de barras de una copia
@@ -92,10 +102,44 @@ class PortalReservaLibroController extends Controller
             return response()->json(['message' => 'Solo puedes cancelar tus propias reservas'], 403);
         }
 
+        // Solo lo que sigue activo: una reserva retirada o cancelada queda en el historial.
+        if (! in_array($reservaLibro->estado, ['pendiente', 'en_cola'], true)) {
+            return response()->json(['message' => $reservaLibro->estado === 'retirado'
+                ? 'Este libro ya se retiró: la reserva queda en tu historial y no se puede cancelar.'
+                : 'Esta reserva ya estaba cancelada.'], 409);
+        }
+
         $this->reservaLibroService->cancelar($reservaLibro);
+
+        // Desde ahora espera unos minutos antes de pedir otro libro (config/reservas_libro.php).
+        $minutos = (int) config('reservas_libro.espera_tras_cancelar');
+        if ($minutos > 0) {
+            $hasta = now()->addMinutes($minutos);
+            Cache::put($this->claveEspera($request->user()), $hasta->getTimestamp(), $hasta);
+        }
 
         Bitacora::registrar('reservas_libro.cancelar', 'Canceló desde el portal su reserva de «'.$reservaLibro->libro?->titulo.'»', entidad: $reservaLibro, afectado: $request->user());
 
         return response()->json($reservaLibro->fresh());
+    }
+
+    /** Hasta cuándo debe esperar para pedir otro libro quien canceló hace poco, o null. */
+    private function esperaHasta(Usuario $usuario): ?Carbon
+    {
+        $hasta = Cache::get($this->claveEspera($usuario));
+
+        return is_int($hasta) && $hasta > now()->getTimestamp() ? now()->setTimestamp($hasta) : null;
+    }
+
+    private function mensajeEspera(Carbon $hasta): string
+    {
+        $minutos = (int) config('reservas_libro.espera_tras_cancelar');
+
+        return "Cancelaste una reserva hace poco. Para evitar reservas y cancelaciones seguidas, hay que esperar {$minutos} minutos: podrás pedir un libro de nuevo a las {$hasta->format('H:i')}.";
+    }
+
+    private function claveEspera(Usuario $usuario): string
+    {
+        return "reservas_libro.espera:{$usuario->id}";
     }
 }

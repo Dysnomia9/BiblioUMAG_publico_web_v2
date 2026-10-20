@@ -403,6 +403,9 @@ export type CondicionesReservaLibro = {
   maximo_por_persona: number
   /** Motivo por el que no puede reservar (multas pendientes), o null. */
   bloqueo: string | null
+  /** Canceló hace poco desde el portal: el aviso y hasta cuándo espera (ISO), o null. */
+  espera: string | null
+  espera_hasta: string | null
 }
 
 // Tramo reservado dentro de una sala, en horario continuo (hora_inicio/hora_fin en
