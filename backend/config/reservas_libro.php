@@ -13,4 +13,10 @@ return [
     // 'pendiente', para no saltarse a nadie en la fila — y como la cola cuenta,
     // con 1 nadie termina con dos libros apartados por esa vía.
     'maximo_por_persona' => 1,
+
+    // Minutos que espera quien cancela una reserva (o sale de una lista de espera)
+    // desde el portal antes de poder pedir otro libro: así nadie pide, cancela y vuelve
+    // a pedir en seguidilla. Solo cuenta lo que cancela la propia persona, no el mesón.
+    // 0 lo desactiva.
+    'espera_tras_cancelar' => 5,
 ];

@@ -91,6 +91,19 @@ function reservaDe(libro: LibroCatalogo) {
 const condiciones = ref<CondicionesReservaLibro | null>(null)
 // Con multas pendientes no se reserva nada: se apagan los botones (el backend lo rechaza igual).
 const bloqueo = computed(() => condiciones.value?.bloqueo ?? null)
+// Tras cancelar, unos minutos sin poder pedir otro libro (config/reservas_libro.php).
+const espera = computed(() => condiciones.value?.espera ?? null)
+/** Por qué no se puede reservar ahora (multas o la espera tras cancelar), o null. */
+const motivoSinReservar = computed(() => bloqueo.value ?? espera.value)
+
+// Cumplida la espera, se vuelven a pedir las condiciones y los botones se reactivan solos.
+let finEspera: ReturnType<typeof setTimeout> | undefined
+watch(condiciones, (c) => {
+  clearTimeout(finEspera)
+  if (!c?.espera_hasta) return
+  finEspera = setTimeout(cargarCondiciones, Math.max(0, new Date(c.espera_hasta).getTime() - Date.now()) + 1000)
+})
+onUnmounted(() => clearTimeout(finEspera))
 
 async function cargarCondiciones() {
   try {
@@ -222,7 +235,7 @@ watch(libroPorConfirmar, (libro) => {
 const limiteAlcanzado = computed(() => {
   const libro = libroPorConfirmar.value
   if (!libro || !condiciones.value) return null
-  if (bloqueo.value) return bloqueo.value
+  if (motivoSinReservar.value) return motivoSinReservar.value
   const maximo = condiciones.value.maximo_por_persona
   if (misReservas.value.filter((r) => r.estado === 'pendiente' || r.estado === 'en_cola').length < maximo) return null
   return maximo === 1
@@ -248,6 +261,8 @@ async function reservar(libro: LibroCatalogo) {
     await Promise.all([refrescar(), cargarMisReservas()])
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'No se pudo registrar la reserva')
+    // Canceló hace poco (quizás en otra pestaña): se trae la hora desde la que puede pedir.
+    if (e?.response?.status === 429) cargarCondiciones()
   } finally {
     reservandoId.value = null
   }
@@ -267,7 +282,7 @@ async function cancelar(reserva: ReservaLibro) {
   try {
     await apiUsuario.patch(`/mi/reservas-libro/${reserva.id}/cancelar`)
     toast.success(reserva.estado === 'en_cola' ? 'Saliste de la lista de espera' : 'Reserva cancelada')
-    await Promise.all([refrescar(), cargarMisReservas()])
+    await Promise.all([refrescar(), cargarMisReservas(), cargarCondiciones()])
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'No se pudo cancelar la reserva')
   } finally {
@@ -351,6 +366,12 @@ async function cancelar(reserva: ReservaLibro) {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
         <p>{{ bloqueo }}</p>
+      </div>
+      <div v-else-if="espera" class="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <svg class="mt-0.5 w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p>{{ espera }}</p>
       </div>
 
       <!-- En celular, "Mis reservas" va sobre la lista; en pantallas grandes, a la derecha. -->
@@ -453,8 +474,8 @@ async function cancelar(reserva: ReservaLibro) {
                     <button
                       v-else
                       @click="libroPorConfirmar = fila.libro"
-                      :disabled="reservandoId === fila.libro.id || !!bloqueo"
-                      :title="bloqueo ?? undefined"
+                      :disabled="reservandoId === fila.libro.id || !!motivoSinReservar"
+                      :title="motivoSinReservar ?? undefined"
                       class="rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap sm:w-full"
                       :class="hayDisponible(fila.libro)
                         ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
@@ -529,8 +550,8 @@ async function cancelar(reserva: ReservaLibro) {
         <p v-if="filaFicha?.reserva" class="flex-1 self-center text-center text-sm font-semibold text-indigo-700">En tus reservas</p>
         <button
           v-else-if="filaFicha"
-          :disabled="!!bloqueo"
-          :title="bloqueo ?? undefined"
+          :disabled="!!motivoSinReservar"
+          :title="motivoSinReservar ?? undefined"
           class="flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           :class="hayDisponible(filaFicha.libro) ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50'"
           @click="reservarDesdeFicha"

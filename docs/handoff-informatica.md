@@ -17,7 +17,7 @@ dashboard, código QR de acceso, portal de autoservicio para
 estudiantes/docentes/funcionarios, y panel de administración. El personal
 entra con cuentas individuales y roles con permisos granulares
 (Administrador/a, Bibliotecario/a y Atención de público, ajustables desde la
-propia aplicación). Corre 100% en Docker. Tiene 443 tests automatizados que
+propia aplicación). Corre 100% en Docker. Tiene 446 tests automatizados que
 verifican el comportamiento real contra una base de datos MySQL (no
 simulada), así que no es una demo, es una implementación completa.
 
@@ -192,7 +192,7 @@ Para que no se lean como carencias en la revisión:
 2. En ese mismo servidor, corra la suite de tests con el compose de
    desarrollo (`docker compose up -d --build` y luego
    `docker compose exec backend php artisan test`), que crea sola la base de
-   pruebas; el de producción no la crea a propósito. Si los 443 tests pasan
+   pruebas; el de producción no la crea a propósito. Si los 446 tests pasan
    en su infraestructura, es una buena señal de que el entorno está bien
    armado.
 3. Revise que `APP_DEBUG=false` haya quedado activo (ya viene forzado por

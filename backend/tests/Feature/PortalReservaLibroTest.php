@@ -7,6 +7,7 @@ use App\Models\Libro;
 use App\Models\Multa;
 use App\Models\Prestamo;
 use App\Models\ReservaLibro;
+use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -165,6 +166,8 @@ class PortalReservaLibroTest extends TestCase
         $reserva = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(201)->json();
         $this->patchJson("/api/mi/reservas-libro/{$reserva['id']}/cancelar")->assertStatus(200);
 
+        // Pasada la espera que sigue a cancelar (ver test_quien_cancela_espera_...).
+        $this->travel(5)->minutes();
         $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(201)->assertJsonPath('estado', 'pendiente');
     }
 
@@ -220,5 +223,65 @@ class PortalReservaLibroTest extends TestCase
         $response = $this->getJson('/api/mi/reservas-libro');
 
         $response->assertStatus(403);
+    }
+
+    public function test_quien_cancela_espera_unos_minutos_antes_de_pedir_otro_libro(): void
+    {
+        $this->travelTo(now()->setTime(10, 0));
+        $usuario = Usuario::factory()->create();
+        Sanctum::actingAs($usuario);
+        [$primero, $segundo] = Ejemplar::factory()->count(2)->sequence(fn () => ['libro_id' => Libro::factory()])->create();
+
+        $reserva = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(201)->json();
+        $this->travel(1)->minutes();
+        $this->patchJson("/api/mi/reservas-libro/{$reserva['id']}/cancelar")->assertStatus(200);
+
+        $aviso = 'Cancelaste una reserva hace poco. Para evitar reservas y cancelaciones seguidas, hay que esperar 5 minutos: podrás pedir un libro de nuevo a las 10:06.';
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(429)->assertJsonPath('message', $aviso);
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(429);
+        $this->getJson('/api/mi/reservas-libro/condiciones')->assertJsonPath('espera', $aviso)->assertJsonPath('bloqueo', null);
+        $this->assertSame(1, ReservaLibro::where('usuario_id', $usuario->id)->count());
+
+        $this->travel(4)->minutes();
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(429);
+
+        $this->travel(1)->minutes();
+        $this->getJson('/api/mi/reservas-libro/condiciones')->assertJsonPath('espera', null)->assertJsonPath('espera_hasta', null);
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(201);
+    }
+
+    public function test_si_cancela_el_meson_la_persona_no_queda_esperando(): void
+    {
+        $usuario = Usuario::factory()->create();
+        [$primero, $segundo] = Ejemplar::factory()->count(2)->sequence(fn () => ['libro_id' => Libro::factory()])->create();
+        Sanctum::actingAs($usuario);
+        $reserva = $this->postJson('/api/mi/reservas-libro', ['libro_id' => $primero->libro_id])->assertStatus(201)->json();
+
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $this->patchJson("/api/reservas-libro/{$reserva['id']}/cancelar")->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($usuario);
+        $this->postJson('/api/mi/reservas-libro', ['libro_id' => $segundo->libro_id])->assertStatus(201);
+    }
+
+    public function test_desde_el_portal_no_se_cancela_una_reserva_ya_retirada(): void
+    {
+        $usuario = Usuario::factory()->create();
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $retirada = ReservaLibro::factory()->create([
+            'usuario_id' => $usuario->id,
+            'libro_id' => $ejemplar->libro_id,
+            'ejemplar_id' => $ejemplar->id,
+            'estado' => 'retirado',
+        ]);
+
+        Sanctum::actingAs($usuario);
+        $this->patchJson("/api/mi/reservas-libro/{$retirada->id}/cancelar")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Este libro ya se retiró: la reserva queda en tu historial y no se puede cancelar.');
+
+        $this->assertSame('retirado', $retirada->fresh()->estado);
+        $this->assertFalse($ejemplar->fresh()->disponible);
     }
 }
