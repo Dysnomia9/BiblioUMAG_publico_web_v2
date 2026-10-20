@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\EstadoLibroPersonalizadoController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\LdapAuthController;
+use App\Http\Controllers\Api\LoginV2Controller;
 use App\Http\Controllers\Api\LibroController;
 use App\Http\Controllers\Api\MultaController;
 use App\Http\Controllers\Api\PersonalController;
@@ -41,6 +42,8 @@ Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 Route::post('/auth/google/canjear', [GoogleAuthController::class, 'canjear'])->middleware('throttle:login');
 Route::post('/auth/ldap/login', [LdapAuthController::class, 'login'])->middleware('throttle:login');
+// Correo y clave simulados del login v2 (config/login_v2.php): solo en desarrollo.
+Route::post('/auth/v2/login', [LoginV2Controller::class, 'login'])->middleware('throttle:login');
 
 // Panel del personal. Cada grupo exige un permiso del catálogo App\Support\Permisos;
 // qué permisos tiene cada rol se administra en la pantalla "Personal y roles".

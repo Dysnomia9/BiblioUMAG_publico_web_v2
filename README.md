@@ -227,8 +227,14 @@ PostgreSQL** (backend API), 100% dockerizada.
   por correo real. Activarlas es solo configurar `MAIL_MAILER`/`MAIL_HOST`
   en `.env`, sin tocar código.
 - Login unificado (`/login/v2`) con Google y LDAP institucional además del
-  login local: un solo email/RUT ya autentica indistintamente contra
-  `staff` o `usuario` según a quién pertenezca. El bind LDAP (patrón
+  login local, con el mismo diseño del login del portal. Entra **solo con
+  correo**, para el personal y los usuarios por igual: por ahora con correos
+  **simulados** de iniciales (Ignacio Contreras → `igcontre@umag.cl`) y la
+  clave de prueba `demo1234`, guardados aparte en `credenciales_simuladas`
+  (`php artisan login-v2:correos`; `mockup:datos` ya los crea). No cambian el
+  correo, el RUT ni la clave reales de nadie: `/login` y el portal siguen
+  igual, y en producción este ingreso está apagado
+  (`LOGIN_V2_CORREOS_SIMULADOS`, ver `config/login_v2.php`). El bind LDAP (patrón
   "search + bind", sin asumir un formato de DN fijo) se probó de punta a
   punta contra un servidor OpenLDAP real; Google usa Socialite y quedó
   verificado hasta donde se puede sin una cuenta de Google Cloud real. Al
@@ -444,8 +450,8 @@ npm run dev
 
 ## Tests y benchmark de rendimiento
 
-Hay una suite de Feature tests (`backend/tests/Feature/`, 386 tests al
-2026-10-03) que cubre login de staff/usuario, fichas bibliográficas (qué ve
+Hay una suite de Feature tests (`backend/tests/Feature/`, 434 tests al
+2026-10-20) que cubre login de staff/usuario, fichas bibliográficas (qué ve
 el usuario según el tipo de material), el escenario de demostración, roles y
 permisos (qué puede y no puede hacer cada rol, incluida la protección contra darse más permisos a
 uno mismo), cuentas del personal, multas (generación por atraso, manuales,
