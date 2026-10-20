@@ -149,6 +149,7 @@ class SeedMockupData extends Command
             // catálogos que se reutilizan entre corridas (firstOrCreate por nombre), no
             // datos de prueba transaccionales — carreras además solo se siembra una vez
             // desde su migración, borrarla aquí la dejaría vacía para siempre.
+            DB::table('credenciales_simuladas')->delete();
             DB::table('multas')->delete();
             DB::table('ejemplar_estado_historial')->delete();
             DB::table('reservas_libro')->delete();
@@ -185,6 +186,8 @@ class SeedMockupData extends Command
         $this->seedReservasLibro($ejemplares, $usuarios);
         $this->seedEscenarioDemostracion();
         $this->seedHistorialEstado();
+        // Correos simulados del login v2 (igcontre@umag.cl…), aparte de las credenciales reales.
+        $this->call('login-v2:correos');
 
         $this->info('Datos de prueba cargados correctamente.');
 

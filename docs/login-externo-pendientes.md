@@ -100,6 +100,23 @@ pero no hay garantía absoluta sin probarlo contra el servidor real de la
 UMAG, que puede tener particularidades (ACLs, atributos custom, etc.) no
 anticipables sin acceso a él.
 
+## Correos simulados (solo para probar el login v2)
+
+Mientras no haya Google ni LDAP reales, `/login/v2` entra con **correo y clave
+simulados**: cada cuenta del personal y cada usuario tiene uno con sus iniciales
+(dos letras del nombre y seis del primer apellido: Ignacio Contreras →
+`igcontre@umag.cl`; si se repite, `camunoz2@umag.cl`) y la clave de prueba
+`demo1234`. Se guardan aparte, en la tabla `credenciales_simuladas`: no cambian el
+correo, el RUT ni la clave reales, así que `/login` y el portal funcionan igual.
+
+- Crearlos o completar a quienes falten: `php artisan login-v2:correos`
+  (`mockup:datos` lo corre al final).
+- Encendido con `APP_ENV=local`; en producción está apagado
+  (`LOGIN_V2_CORREOS_SIMULADOS=false`) y el servidor lo rechaza igual con
+  `APP_ENV=production`, porque una clave común sería una puerta trasera.
+- Cuando el login v2 pase a usar correos reales, se borra la tabla y la ruta
+  `POST /api/auth/v2/login` pasa a comparar contra el correo real de cada cuenta.
+
 ## Ambos: cuentas que no auto-provisionan
 
 Ni Google ni LDAP crean cuentas nuevas: solo autentican identidades que

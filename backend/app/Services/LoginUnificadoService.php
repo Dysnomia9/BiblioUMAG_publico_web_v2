@@ -79,8 +79,13 @@ class LoginUnificadoService
         return $cuenta?->activo ? $this->emitir($cuenta) : null;
     }
 
-    /** @return array{tipo: string, token: string, entidad: Model} */
-    private function emitir(Staff|Usuario $entidad): array
+    /**
+     * La sesión de esa cuenta, ya autenticada por quien llama (Google, LDAP o los correos
+     * simulados del login v2).
+     *
+     * @return array{tipo: string, token: string, entidad: Model}
+     */
+    public function emitir(Staff|Usuario $entidad): array
     {
         $tipo = $entidad instanceof Staff ? 'staff' : 'usuario';
 
