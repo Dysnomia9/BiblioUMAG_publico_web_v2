@@ -276,7 +276,9 @@ async function guardarClave() {
         class="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-3 sm:p-8"
         @click.self="cerrarMenuGestion"
       >
-        <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 rounded-2xl bg-white shadow-2xl">
+        <!-- Marco con bisel: más claro arriba y más oscuro abajo, para que el panel no sea un cuadrado plano -->
+        <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 rounded-[22px] p-[5px] bg-gradient-to-b from-white/85 via-indigo-200/70 to-indigo-400/70 shadow-2xl ring-1 ring-white/30">
+        <div class="rounded-2xl border border-indigo-200/80 bg-white shadow-[inset_0_2px_0_rgba(255,255,255,1),inset_0_-2px_0_rgba(79,70,229,0.08)]">
           <div class="px-5 py-5 sm:px-7 sm:py-6">
             <div class="flex items-start justify-between gap-4 mb-5">
               <div class="flex items-center gap-2.5">
@@ -351,6 +353,7 @@ async function guardarClave() {
               </section>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </Teleport>
