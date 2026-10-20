@@ -261,12 +261,17 @@ class UsuarioController extends Controller
         $identificador = $texto('rut');
         // Solo la trae el reporte de matrícula: sirve para saber qué documento es.
         $nacionalidad = $texto('nacionalidad');
-        $tipoDocumento = array_key_exists($entrada['tipo_documento'] ?? null, Documento::TIPOS)
+        $tipoDeclarado = array_key_exists($entrada['tipo_documento'] ?? null, Documento::TIPOS)
             ? $entrada['tipo_documento']
-            : (Documento::tipoDesdeTexto($entrada['tipo_documento'] ?? null)
-                ?? Documento::detectarTipo($identificador, extranjero: ! Documento::esNacionalidadChilena($nacionalidad)));
+            : Documento::tipoDesdeTexto($entrada['tipo_documento'] ?? null);
+        $tipoDocumento = $tipoDeclarado ?? Documento::detectarTipo($identificador, extranjero: ! Documento::esNacionalidadChilena($nacionalidad));
 
         if ($error = Documento::validar($identificador, $tipoDocumento)) {
+            // Solo números, sin tipo ni nacionalidad que diga que es extranjero: se lee como
+            // RUT. Si no cuadra, puede ser el DNI o pasaporte de un estudiante extranjero.
+            if (! $tipoDeclarado && $tipoDocumento === 'rut' && $identificador !== null) {
+                $error = "«{$identificador}» no es un RUT válido (el dígito verificador no corresponde). Si es el DNI o pasaporte de un estudiante extranjero, indica su nacionalidad en la columna «Nacionalidad» o escribe DNI o Pasaporte en «Tipo de documento».";
+            }
             $errores['rut'] = [$error];
         }
 
@@ -446,6 +451,9 @@ class UsuarioController extends Controller
         $emailsTomados = $emails->chunk(1000)->flatMap(fn ($lote) => Usuario::whereIn(DB::raw('lower(email)'), $lote->all())
             ->get(['rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email));
 
+        $reglasFila = $this->reglas();
+        $reglasFila['email'] = ['nullable', 'email', 'max:255'];
+
         foreach ($preparadas as $i => [$fila, $datos, $errores]) {
             $numero = (int) ($fila['fila'] ?? $i + 2);
             $clave = Documento::normalizar($datos['rut']);
@@ -454,7 +462,7 @@ class UsuarioController extends Controller
 
             if (isset($errores['rut'])) {
                 $estado = 'invalido';
-                $mensajes = $errores['rut'];
+                $mensajes = array_merge($errores['rut'], Validator::make($datos, $reglasFila, $this->mensajes())->errors()->all());
             } elseif ($existente = $existentes->get($clave)) {
                 $estado = 'existe';
                 $mensajes[] = "Ya existe: {$existente->nombre} {$existente->apellido} ({$existente->rut}). No se cargará.";
@@ -462,10 +470,7 @@ class UsuarioController extends Controller
                 $estado = 'duplicado';
                 $mensajes[] = "Este {$this->nombreDocumento($datos['tipo_documento'])} ya aparece en la fila {$vistos[$clave]} del archivo. No se cargará dos veces.";
             } else {
-                $reglas = $this->reglas();
-                $reglas['email'] = ['nullable', 'email', 'max:255'];
-                $validador = Validator::make($datos, $reglas, $this->mensajes());
-                $mensajes = $validador->errors()->all();
+                $mensajes = Validator::make($datos, $reglasFila, $this->mensajes())->errors()->all();
 
                 if ($datos['email'] && $duenio = $emailsTomados->get($datos['email'])) {
                     $mensajes[] = "El correo {$datos['email']} ya lo usa {$duenio->nombre} {$duenio->apellido} ({$duenio->rut}).";
