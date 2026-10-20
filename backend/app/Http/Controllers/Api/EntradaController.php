@@ -50,12 +50,12 @@ class EntradaController extends Controller
                 $esDocumento = strlen($documento) >= 4 && preg_match('/\d/', $documento) && preg_match('/[A-JL-Z]/', $documento);
                 $query->where(function ($q) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
                     $q->where('rut_externo', 'like', "%{$busqueda}%")
-                        ->orWhereSinTildes('nombre_externo', $busqueda)
+                        ->orWhereCadaPalabra('nombre_externo', $busqueda)
                         ->when(strlen($digitos) >= 3, fn ($q) => $q->orWhereRaw(sprintf($rutSinFormato, 'rut_externo'), ["%{$digitos}%"]))
                         ->when($esDocumento, fn ($q) => $q->orWhereRaw(Documento::sql('rut_externo').' like ?', ["%{$documento}%"]))
                         ->orWhereHas('usuario', function ($u) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
                             $u->where('rut', 'like', "%{$busqueda}%")
-                                ->orWhereRaw(Busqueda::sinTildes(Busqueda::nombreCompleto()).' LIKE ?', [Busqueda::patron($busqueda)])
+                                ->orWhereCadaPalabra(Busqueda::nombreCompleto(), $busqueda)
                                 ->when(strlen($digitos) >= 3, fn ($u) => $u->orWhereRaw(sprintf($rutSinFormato, 'rut'), ["%{$digitos}%"]))
                                 ->when($esDocumento, fn ($u) => $u->orWhereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
                         });

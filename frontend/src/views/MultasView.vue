@@ -15,7 +15,7 @@ import { mensajeDeError, useToast } from '@/composables/useToast'
 import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useListadoPaginado } from '@/composables/useListadoPaginado'
-import { sinTildes } from '@/utils/texto'
+import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 import type { EstadoMulta, Multa, MultasResumen, Paginado, TipoMulta, Usuario } from '@/types'
 
 const auth = useAuthStore()
@@ -54,7 +54,7 @@ const deudasFiltradas = computed(() => {
   if (!resumen.value) return []
   const q = sinTildes(busquedaDeudas.value.trim())
   if (!q) return resumen.value.usuarios
-  return resumen.value.usuarios.filter((u) => sinTildes(`${u.nombre} ${u.apellido}`).includes(q) || u.rut.toLowerCase().includes(q))
+  return resumen.value.usuarios.filter((u) => contieneCadaPalabra(`${u.nombre} ${u.apellido}`, q) || u.rut.toLowerCase().includes(q))
 })
 
 // Las deudas llegan todas juntas (son solo quienes deben); se muestran de a 25.

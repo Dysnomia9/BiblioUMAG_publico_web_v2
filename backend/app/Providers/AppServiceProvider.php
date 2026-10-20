@@ -35,6 +35,22 @@ class AppServiceProvider extends ServiceProvider
             return $this->whereSinTildes($columna, $texto, 'or');
         });
 
+        // Cada palabra buscada en cualquier parte del texto y en cualquier orden, sin tildes:
+        // «ignacio contreras norambuena» encuentra a «Ignacio Alexis Andrés Contreras
+        // Norambuena», aunque se salten los segundos nombres. Recibe una expresión SQL.
+        Builder::macro('whereCadaPalabra', function (string $expresionSql, string $texto, string $boolean = 'and') {
+            /** @var Builder $this */
+            return $this->where(function (Builder $q) use ($expresionSql, $texto) {
+                foreach (Busqueda::palabras($texto) as $palabra) {
+                    $q->whereRaw(Busqueda::sinTildes($expresionSql).' LIKE ?', [Busqueda::patron($palabra)]);
+                }
+            }, boolean: $boolean);
+        });
+        Builder::macro('orWhereCadaPalabra', function (string $expresionSql, string $texto) {
+            /** @var Builder $this */
+            return $this->whereCadaPalabra($expresionSql, $texto, 'or');
+        });
+
         // Límite general de la API. Con sesión iniciada se cuenta por cuenta, y el
         // personal y los usuarios por separado (el staff #3 y el usuario #3 son
         // personas distintas). El margen es para el mesón en hora punta: cada

@@ -9,7 +9,7 @@ import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { sinTildes } from '@/utils/texto'
+import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 import type { CuentaPersonal, GrupoPermisos, Rol } from '@/types'
 
 const auth = useAuthStore()
@@ -27,7 +27,7 @@ const busqueda = ref('')
 const cuentasFiltradas = computed(() => {
   const q = sinTildes(busqueda.value.trim())
   if (!q) return cuentas.value
-  return cuentas.value.filter((c) => sinTildes(`${c.nombre} ${c.email} ${c.rol_nombre ?? ''}`).includes(q))
+  return cuentas.value.filter((c) => contieneCadaPalabra(`${c.nombre} ${c.email} ${c.rol_nombre ?? ''}`, q))
 })
 
 const totalPermisos = computed(() => catalogo.value.reduce((s, g) => s + g.permisos.length, 0))

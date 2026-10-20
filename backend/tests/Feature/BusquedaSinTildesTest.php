@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Autor;
 use App\Models\Libro;
+use App\Models\Multa;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,5 +66,20 @@ class BusquedaSinTildesTest extends TestCase
 
         $ids = collect($this->getJson('/api/usuarios?q=sebastian')->assertOk()->json('data'))->pluck('id')->all();
         $this->assertSame([$usuario->id], $ids);
+
+        // Nombre y apellidos salteando los segundos nombres, en cualquier orden.
+        $ignacio = Usuario::factory()->create(['nombre' => 'Ignacio Alexis Andrés', 'apellido' => 'Contreras Norambuena']);
+        Usuario::factory()->create(['nombre' => 'Ignacio', 'apellido' => 'Contreras Soto']);
+        Multa::factory()->create(['usuario_id' => $ignacio->id]);
+
+        foreach (['ignacio contreras norambuena', 'Ignacio Norambuena', 'contreras andres', 'IGNACIO   alexis'] as $busqueda) {
+            $ids = collect($this->getJson('/api/usuarios?q='.urlencode($busqueda))->assertOk()->json('data'))->pluck('id')->all();
+            $this->assertSame([$ignacio->id], $ids, "buscando «{$busqueda}»");
+        }
+        $this->assertCount(2, $this->getJson('/api/usuarios?q='.urlencode('ignacio contreras'))->json('data'));
+        $this->assertSame([], $this->getJson('/api/usuarios?q='.urlencode('ignacio perez'))->json('data'));
+
+        $multas = $this->getJson('/api/multas?q='.urlencode('ignacio norambuena'))->assertOk()->json('data');
+        $this->assertSame([$ignacio->id], array_column($multas, 'usuario_id'));
     }
 }

@@ -55,7 +55,7 @@ class SalaController extends Controller
                 $q->where(fn ($w) => $w
                     ->whereHas('sala', fn ($s) => $s->whereSinTildes('nombre', $busqueda))
                     ->orWhereHas('participantes', fn ($u) => $u->where(fn ($p) => $p
-                        ->whereRaw(Busqueda::sinTildes(Busqueda::nombreCompleto('usuarios')).' LIKE ?', [Busqueda::patron($busqueda)])
+                        ->whereCadaPalabra(Busqueda::nombreCompleto('usuarios'), $busqueda)
                         ->orWhere('usuarios.rut', 'like', "%{$busqueda}%")
                         // RUT sin puntos ni guion, pasaporte o DNI (columna generada rut_normalizado).
                         ->when(strlen($documento) >= 3, fn ($r) => $r->orWhere('usuarios.rut_normalizado', 'like', "%{$documento}%")))));

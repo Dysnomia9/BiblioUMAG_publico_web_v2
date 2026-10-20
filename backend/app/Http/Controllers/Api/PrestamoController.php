@@ -71,7 +71,7 @@ class PrestamoController extends Controller
                 // en una sola unión: un OR entre dos subconsultas hacía que MySQL revisara la
                 // de usuarios por cada préstamo.
                 $usuarios = DB::table('usuarios')->select('id')->where(fn ($u) => $u
-                    ->whereRaw(Busqueda::sinTildes(Busqueda::nombreCompleto()).' LIKE ?', [Busqueda::patron($busqueda)])
+                    ->whereCadaPalabra(Busqueda::nombreCompleto(), $busqueda)
                     ->orWhere('rut', 'like', "%{$busqueda}%")
                     ->when(strlen($digitos) >= 3, fn ($r) => $r->orWhereRaw("REGEXP_REPLACE(rut, '[^0-9kK]', '') LIKE ?", ["%{$digitos}%"])));
 

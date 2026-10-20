@@ -57,7 +57,7 @@ class MultaController extends Controller
         if ($busqueda = trim((string) $request->query('q'))) {
             $query->whereHas('usuario', fn ($u) => $u->where(function ($w) use ($busqueda) {
                 $w->where('rut', 'like', "%{$busqueda}%")
-                    ->orWhereRaw(Busqueda::sinTildes(Busqueda::nombreCompleto()).' LIKE ?', [Busqueda::patron($busqueda)]);
+                    ->orWhereCadaPalabra(Busqueda::nombreCompleto(), $busqueda);
             }));
         }
 

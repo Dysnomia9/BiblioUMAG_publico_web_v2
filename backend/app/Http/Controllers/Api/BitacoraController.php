@@ -42,13 +42,10 @@ class BitacoraController extends Controller
             $query->where('staff_id', $staffId);
         }
 
-        // Busca en lo que se hizo, a quién afectó y quién lo hizo, sin importar tildes.
+        // Busca en lo que se hizo, a quién afectó y quién lo hizo, sin importar tildes; cada
+        // palabra en cualquiera de los tres y en cualquier orden.
         if ($busqueda = trim((string) $request->query('q'))) {
-            $query->where(function ($q) use ($busqueda) {
-                $q->whereSinTildes('descripcion', $busqueda)
-                    ->orWhereSinTildes('afectado', $busqueda)
-                    ->orWhereSinTildes('actor_nombre', $busqueda);
-            });
+            $query->whereCadaPalabra("concat_ws(' ', descripcion, afectado, actor_nombre)", $busqueda);
         }
 
         // Por páginas: la bitácora crece con cada acción del personal, todos los días.
