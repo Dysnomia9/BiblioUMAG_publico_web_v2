@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Documento;
+use App\Support\Rut;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -51,8 +52,13 @@ class Usuario extends Authenticatable
      */
     public function scopePorIdentificador(Builder $query, ?string $identificador): Builder
     {
-        // rut_normalizado: columna generada por MySQL, con índice único.
-        return $query->where('rut_normalizado', Documento::normalizar($identificador));
+        // rut_normalizado: columna generada por MySQL, con índice único. «08733712-K» es el
+        // mismo RUT que «8.733.712-K», que se guarda sin el cero.
+        $normalizado = Documento::normalizar($identificador);
+        $sinCeros = ltrim($normalizado, '0');
+        $valores = $sinCeros !== '' && $sinCeros !== $normalizado && Rut::validar($sinCeros) ? [$normalizado, $sinCeros] : [$normalizado];
+
+        return $query->whereIn('rut_normalizado', $valores);
     }
 
     public static function buscarPorIdentificador(?string $identificador): ?self
