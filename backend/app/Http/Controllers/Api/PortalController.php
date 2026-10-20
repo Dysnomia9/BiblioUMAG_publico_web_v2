@@ -305,6 +305,14 @@ class PortalController extends Controller
             'cuota_diaria' => config('salas.cuota_diaria'),
             'cerrado' => $atencion === null,
             'salas' => $vista,
+            // Sus cancelaciones de hoy: cuántas le quedan sin espera y, si está esperando,
+            // el aviso y hasta cuándo (para avisarle antes de cancelar y apagar la reserva).
+            'cancelaciones' => [
+                'sin_espera_restantes' => $this->reservaSalaService->cancelacionesSinEsperaRestantes($request->user()),
+                'minutos_espera' => (int) config('salas.espera_tras_cancelar'),
+                'espera' => ($hasta = $this->reservaSalaService->esperaParaReservar($request->user())) ? $this->reservaSalaService->mensajeEspera($hasta) : null,
+                'espera_hasta' => $hasta?->toIso8601String(),
+            ],
         ]);
     }
 
@@ -320,6 +328,12 @@ class PortalController extends Controller
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
         ]);
+
+        // Canceló varias reservas suyas hoy: unos minutos sin lanzar otra (config/salas.php).
+        // Que otros lo incluyan como integrante en sus reservas sigue permitido.
+        if ($hasta = $this->reservaSalaService->esperaParaReservar($request->user())) {
+            return response()->json(['message' => $this->reservaSalaService->mensajeEspera($hasta)], 429);
+        }
 
         // A diferencia del registro de entrada externo, aquí los RUT (o pasaportes/DNI)
         // deben pertenecer a usuarios ya registrados: no se admiten visitantes externos.
@@ -449,6 +463,12 @@ class PortalController extends Controller
         }
 
         $reserva->update(['estado' => 'cancelada']);
+
+        // Solo pesa en quien la hizo: un integrante (quizás lo pusieron sin preguntarle)
+        // puede salirse sin consecuencias.
+        if ($reserva->usuario_id === $usuario->id) {
+            $this->reservaSalaService->registrarCancelacionDelPortal($usuario);
+        }
 
         Bitacora::registrar('salas.cancelar', "Canceló desde el portal su reserva de {$reserva->descripcion()}", entidad: $reserva, afectado: $request->user());
 

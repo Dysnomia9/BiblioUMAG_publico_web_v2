@@ -9,6 +9,7 @@ use App\Models\Usuario;
 use App\Support\HorarioBiblioteca;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
 class ReservaSalaService
@@ -668,5 +669,56 @@ class ReservaSalaService
         }
 
         return null;
+    }
+
+    /**
+     * Cancelación desde el portal de quien hizo la reserva (config/salas.php): las primeras
+     * del día no tienen consecuencias, para corregir un error; desde ahí, cada una lo deja
+     * unos minutos sin poder reservar otra sala. Solo se le cuenta a quien la hizo: si
+     * cancela un integrante (quizás lo pusieron sin preguntarle), no le pesa a nadie.
+     */
+    public function registrarCancelacionDelPortal(Usuario $usuario): void
+    {
+        $clave = $this->claveCancelaciones($usuario);
+        $cancelaciones = (int) Cache::get($clave, 0) + 1;
+        Cache::put($clave, $cancelaciones, now()->endOfDay());
+
+        $minutos = (int) config('salas.espera_tras_cancelar');
+        if ($minutos > 0 && $cancelaciones > (int) config('salas.cancelaciones_sin_espera')) {
+            $hasta = now()->addMinutes($minutos);
+            Cache::put("salas.espera:{$usuario->id}", $hasta->getTimestamp(), $hasta);
+        }
+    }
+
+    /** Hasta cuándo no puede reservar otra sala por haber cancelado, o null. */
+    public function esperaParaReservar(Usuario $usuario): ?Carbon
+    {
+        $hasta = Cache::get("salas.espera:{$usuario->id}");
+
+        return is_int($hasta) && $hasta > now()->getTimestamp() ? now()->setTimestamp($hasta) : null;
+    }
+
+    /** Cuántas reservas propias puede cancelar todavía hoy sin quedar esperando. */
+    public function cancelacionesSinEsperaRestantes(Usuario $usuario): int
+    {
+        return max(0, (int) config('salas.cancelaciones_sin_espera') - (int) Cache::get($this->claveCancelaciones($usuario), 0));
+    }
+
+    public function mensajeEspera(Carbon $hasta): string
+    {
+        $minutos = (int) config('salas.espera_tras_cancelar');
+        $libres = (int) config('salas.cancelaciones_sin_espera');
+        $motivo = match (true) {
+            $libres === 0 => 'Cancelaste una reserva hace poco.',
+            $libres === 1 => 'Ya cancelaste más de una reserva hoy.',
+            default => "Ya cancelaste más de {$libres} reservas hoy.",
+        };
+
+        return "{$motivo} Para evitar reservas y cancelaciones seguidas, hay que esperar {$minutos} minutos: podrás reservar una sala de nuevo a las {$hasta->format('H:i')}.";
+    }
+
+    private function claveCancelaciones(Usuario $usuario): string
+    {
+        return "salas.cancelaciones:{$usuario->id}:".now()->toDateString();
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Usuario;
+use App\Services\ReservaSalaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -357,5 +358,82 @@ class PortalReservaTest extends TestCase
         $this->assertSame('finalizada', $finalizada->fresh()->estado);
         $this->assertSame('activa', $enUso->fresh()->estado);
         $this->assertSame('no_show', $porVencer->fresh()->estado);
+    }
+
+    public function test_quien_hizo_la_reserva_cancela_una_al_dia_sin_espera_y_desde_la_segunda_espera(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00'); // viernes
+        $usuario = Usuario::factory()->create();
+        $otro = Usuario::factory()->create();
+        $sala = Sala::factory()->create();
+        Sanctum::actingAs($usuario);
+        $reservar = fn (string $inicio, string $fin) => $this->postJson('/api/mi/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => now()->toDateString(),
+            'hora_inicio' => $inicio,
+            'hora_fin' => $fin,
+            'cantidad_personas' => 2,
+            'ruts' => [$usuario->rut, $otro->rut],
+        ]);
+        $cancelaciones = fn () => $this->getJson('/api/mi/salas')->json('cancelaciones');
+
+        $this->assertSame(1, $cancelaciones()['sin_espera_restantes']);
+        $primera = $reservar('10:00', '11:00')->assertStatus(201)->json('id');
+        $this->deleteJson("/api/mi/reservas/{$primera}")->assertStatus(204);
+
+        // La primera cancelación del día no tiene consecuencias.
+        $this->assertSame(0, $cancelaciones()['sin_espera_restantes']);
+        $this->assertNull($cancelaciones()['espera']);
+        $segunda = $reservar('11:00', '12:00')->assertStatus(201)->json('id');
+        $this->deleteJson("/api/mi/reservas/{$segunda}")->assertStatus(204);
+
+        // Desde la segunda, cinco minutos sin lanzar otra.
+        $aviso = 'Ya cancelaste más de una reserva hoy. Para evitar reservas y cancelaciones seguidas, hay que esperar 5 minutos: podrás reservar una sala de nuevo a las 09:05.';
+        $reservar('12:00', '13:00')->assertStatus(429)->assertJsonPath('message', $aviso);
+        $this->assertSame($aviso, $cancelaciones()['espera']);
+        $this->assertSame(2, Reserva::where('usuario_id', $usuario->id)->count());
+
+        Carbon::setTestNow('2026-07-10 09:05:00');
+        $this->assertNull($cancelaciones()['espera']);
+        $reservar('12:00', '13:00')->assertStatus(201);
+    }
+
+    public function test_si_cancela_un_integrante_no_le_pesa_a_nadie_y_quien_espera_puede_ir_en_reservas_ajenas(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00'); // viernes
+        $dueno = Usuario::factory()->create();
+        $yo = Usuario::factory()->create();
+        $sala = Sala::factory()->create();
+
+        // Me ponen en dos reservas sin preguntarme y las cancelo: no quedo esperando, ni quien las hizo.
+        foreach ([['10:00:00', '11:00:00'], ['11:00:00', '12:00:00']] as [$inicio, $fin]) {
+            $reserva = Reserva::factory()->conParticipantes([$dueno, $yo])->create([
+                'sala_id' => $sala->id,
+                'usuario_id' => $dueno->id,
+                'rut_usuario' => $dueno->rut,
+                'cantidad_personas' => 2,
+                'hora_inicio' => $inicio,
+                'hora_fin' => $fin,
+            ]);
+            Sanctum::actingAs($yo);
+            $this->deleteJson("/api/mi/reservas/{$reserva->id}")->assertStatus(204);
+        }
+        $this->getJson('/api/mi/salas')->assertJsonPath('cancelaciones.espera', null)->assertJsonPath('cancelaciones.sin_espera_restantes', 1);
+        Sanctum::actingAs($dueno);
+        $this->getJson('/api/mi/salas')->assertJsonPath('cancelaciones.espera', null)->assertJsonPath('cancelaciones.sin_espera_restantes', 1);
+
+        // Aunque yo esté esperando, otros pueden incluirme en sus reservas.
+        $servicio = app(ReservaSalaService::class);
+        $servicio->registrarCancelacionDelPortal($yo);
+        $servicio->registrarCancelacionDelPortal($yo);
+        $this->assertNotNull($servicio->esperaParaReservar($yo));
+        $this->postJson('/api/mi/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => now()->toDateString(),
+            'hora_inicio' => '14:00',
+            'hora_fin' => '15:00',
+            'cantidad_personas' => 2,
+            'ruts' => [$dueno->rut, $yo->rut],
+        ])->assertStatus(201);
     }
 }
