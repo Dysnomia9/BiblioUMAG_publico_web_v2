@@ -72,7 +72,7 @@ class PrestamoController extends Controller
                         ->whereRaw(Busqueda::sinTildes('libro_titulo').' ilike ?', [Busqueda::patron($busqueda)])
                         ->unionAll(DB::table('prestamos')->select('id')->where('codigo_barras', 'ilike', "%{$busqueda}%")))
                         ->orWhereIn('prestamos.usuario_id', DB::table('usuarios')->select('id')->where(fn ($u) => $u
-                            ->whereRaw(Busqueda::sinTildes("(nombre || ' ' || apellido)").' ilike ?', [Busqueda::patron($busqueda)])
+                            ->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
                             ->orWhere('rut', 'ilike', "%{$busqueda}%")
                             ->when(strlen($digitos) >= 3, fn ($r) => $r->orWhereRaw("regexp_replace(rut, '[^0-9kK]', '', 'g') ilike ?", ["%{$digitos}%"]))));
                 });

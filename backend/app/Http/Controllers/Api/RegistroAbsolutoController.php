@@ -89,8 +89,7 @@ class RegistroAbsolutoController extends Controller
     /** Persona por nombre (sin tildes) o RUT: el filtro de búsqueda de cada parte. */
     private function buscarUsuario(Builder $query, string $busqueda, string $columnaRut = 'u.rut'): void
     {
-        $query->where(fn ($q) => $q->whereSinTildes('u.nombre', $busqueda)
-            ->orWhereSinTildes('u.apellido', $busqueda)
+        $query->where(fn ($q) => $q->whereCadaPalabra("(u.nombre || ' ' || u.apellido)", $busqueda)
             ->orWhereLike($columnaRut, "%{$busqueda}%"));
     }
 
@@ -184,7 +183,7 @@ class RegistroAbsolutoController extends Controller
 
         if ($busqueda !== '') {
             $query->where(fn ($q) => $q->whereLike('e.rut_externo', "%{$busqueda}%")
-                ->orWhereSinTildes('e.nombre_externo', $busqueda)
+                ->orWhereCadaPalabra('e.nombre_externo', $busqueda)
                 ->orWhere(fn ($u) => $this->buscarUsuario($u, $busqueda)));
         }
 

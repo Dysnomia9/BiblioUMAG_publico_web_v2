@@ -14,7 +14,7 @@ import { describirDocumento, errorDocumento, formatearInputIdentificador, largoS
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useAuthStore } from '@/stores/auth'
-import { sinTildes } from '@/utils/texto'
+import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 import type { Entrada, HorarioBiblioteca, RespuestaEntradas } from '@/types'
 
 const toast = useToast()
@@ -324,7 +324,7 @@ function coincide(e: Entrada) {
   const q = sinTildes(busqueda.value.trim())
   if (!q || modo.value === 'busqueda') return true
   const digitos = soloDigitos(busqueda.value)
-  return sinTildes(nombre(e)).includes(q) || (digitos.length >= 3 && soloDigitos(rutDe(e)).includes(digitos))
+  return contieneCadaPalabra(nombre(e), q) || (digitos.length >= 3 && soloDigitos(rutDe(e)).includes(digitos))
 }
 
 const filtradas = computed(() => entradas.value.filter(coincide))

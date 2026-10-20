@@ -7,7 +7,6 @@ use App\Models\Entrada;
 use App\Models\Usuario;
 use App\Services\EntradaService;
 use App\Support\Bitacora;
-use App\Support\Busqueda;
 use App\Support\Documento;
 use App\Support\HorarioBiblioteca;
 use Illuminate\Http\Request;
@@ -50,12 +49,12 @@ class EntradaController extends Controller
                 $esDocumento = strlen($documento) >= 4 && preg_match('/\d/', $documento) && preg_match('/[A-JL-Z]/', $documento);
                 $query->where(function ($q) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
                     $q->where('rut_externo', 'ilike', "%{$busqueda}%")
-                        ->orWhereSinTildes('nombre_externo', $busqueda)
+                        ->orWhereCadaPalabra('nombre_externo', $busqueda)
                         ->when(strlen($digitos) >= 3, fn ($q) => $q->orWhereRaw(sprintf($rutSinFormato, 'rut_externo'), ["%{$digitos}%"]))
                         ->when($esDocumento, fn ($q) => $q->orWhereRaw(Documento::sql('rut_externo').' like ?', ["%{$documento}%"]))
                         ->orWhereHas('usuario', function ($u) use ($busqueda, $digitos, $rutSinFormato, $documento, $esDocumento) {
                             $u->where('rut', 'ilike', "%{$busqueda}%")
-                                ->orWhereRaw(Busqueda::sinTildes("(nombre || ' ' || apellido)").' ilike ?', [Busqueda::patron($busqueda)])
+                                ->orWhereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
                                 ->when(strlen($digitos) >= 3, fn ($u) => $u->orWhereRaw(sprintf($rutSinFormato, 'rut'), ["%{$digitos}%"]))
                                 ->when($esDocumento, fn ($u) => $u->orWhereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
                         });

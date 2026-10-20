@@ -9,7 +9,6 @@ use App\Models\Usuario;
 use App\Services\EntradaService;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
-use App\Support\Busqueda;
 use App\Support\Documento;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
@@ -55,7 +54,7 @@ class SalaController extends Controller
                 $q->where(fn ($w) => $w
                     ->whereHas('sala', fn ($s) => $s->whereSinTildes('nombre', $busqueda))
                     ->orWhereHas('participantes', fn ($u) => $u->where(fn ($p) => $p
-                        ->whereRaw(Busqueda::sinTildes("(usuarios.nombre || ' ' || usuarios.apellido)").' ilike ?', [Busqueda::patron($busqueda)])
+                        ->whereCadaPalabra("(usuarios.nombre || ' ' || usuarios.apellido)", $busqueda)
                         ->orWhere('usuarios.rut', 'ilike', "%{$busqueda}%")
                         // RUT sin puntos ni guion, pasaporte o DNI.
                         ->when(strlen($documento) >= 3, fn ($r) => $r->orWhereRaw(Documento::sql('usuarios.rut').' like ?', ["%{$documento}%"])))));

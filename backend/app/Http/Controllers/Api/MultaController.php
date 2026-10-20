@@ -8,7 +8,6 @@ use App\Models\Prestamo;
 use App\Models\Usuario;
 use App\Services\MultaService;
 use App\Support\Bitacora;
-use App\Support\Busqueda;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -57,7 +56,7 @@ class MultaController extends Controller
         if ($busqueda = trim((string) $request->query('q'))) {
             $query->whereHas('usuario', fn ($u) => $u->where(function ($w) use ($busqueda) {
                 $w->where('rut', 'ilike', "%{$busqueda}%")
-                    ->orWhereRaw(Busqueda::sinTildes("(nombre || ' ' || apellido)").' ilike ?', [Busqueda::patron($busqueda)]);
+                    ->orWhereCadaPalabra("(nombre || ' ' || apellido)", $busqueda);
             }));
         }
 

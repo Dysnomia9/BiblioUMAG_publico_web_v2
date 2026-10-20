@@ -29,8 +29,8 @@ class UsuarioController extends Controller
         if ($busqueda = $request->query('q')) {
             $documento = Documento::normalizar($busqueda);
             $query->where(function ($q) use ($busqueda, $documento) {
-                $q->whereSinTildes('nombre', $busqueda)
-                    ->orWhereSinTildes('apellido', $busqueda)
+                // Las palabras del nombre en cualquier orden, aunque se salten segundos nombres.
+                $q->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
                     ->orWhere('rut', 'ilike', "%{$busqueda}%")
                     ->orWhereSinTildes('carrera', $busqueda)
                     // RUT sin puntos ni guion, pasaporte o DNI.
