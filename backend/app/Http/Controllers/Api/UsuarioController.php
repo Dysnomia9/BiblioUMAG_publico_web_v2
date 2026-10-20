@@ -411,8 +411,22 @@ class UsuarioController extends Controller
         $vistos = [];
         $emailsVistos = [];
 
-        // Una sola consulta para saber quiénes ya existen, en vez de una por fila.
-        $normalizados = collect($filas)->map(fn ($f) => Documento::normalizar($f['rut'] ?? ''))->filter()->unique()->values();
+        $carreras = $this->carrerasConocidas();
+
+        // Cada fila como quedaría en el sistema. Contraseñas no viajan en planillas: quien se
+        // carga así entra al portal con el login institucional o con la contraseña que se le
+        // asigne después al editarlo.
+        $preparadas = array_map(function (array $fila) use ($carreras) {
+            $errores = [];
+            $datos = $this->comoEnElSistema($this->normalizar(array_diff_key($fila, ['password' => 0]), $errores), $carreras);
+
+            return [$fila, $datos, $errores];
+        }, $filas);
+
+        // Una sola consulta para saber quiénes ya existen, en vez de una por fila. Se busca con
+        // el documento ya formateado, el mismo que se guardaría: el reporte de matrícula trae
+        // los RUT de 7 dígitos con un cero adelante («08733712-K») y se guardan sin él.
+        $normalizados = collect($preparadas)->map(fn ($p) => Documento::normalizar($p[1]['rut'] ?? ''))->filter()->unique()->values();
         $existentes = $normalizados->chunk(1000)->flatMap(fn ($lote) => Usuario::whereRaw(
             Documento::sql('rut').' in ('.implode(',', array_fill(0, $lote->count(), '?')).')',
             $lote->values()->all(),
@@ -421,14 +435,9 @@ class UsuarioController extends Controller
         $emails = collect($filas)->map(fn ($f) => mb_strtolower(trim((string) ($f['email'] ?? ''))))->filter()->unique()->values();
         $emailsTomados = $emails->chunk(1000)->flatMap(fn ($lote) => Usuario::whereIn(DB::raw('lower(email)'), $lote->all())
             ->get(['rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email));
-        $carreras = $this->carrerasConocidas();
 
-        foreach ($filas as $i => $fila) {
+        foreach ($preparadas as $i => [$fila, $datos, $errores]) {
             $numero = (int) ($fila['fila'] ?? $i + 2);
-            $errores = [];
-            // Contraseñas no viajan en planillas: quien se carga así entra al portal con el
-            // login institucional o con la contraseña que se le asigne después al editarlo.
-            $datos = $this->comoEnElSistema($this->normalizar(array_diff_key($fila, ['password' => 0]), $errores), $carreras);
             $clave = Documento::normalizar($datos['rut']);
             $mensajes = [];
             $existente = null;

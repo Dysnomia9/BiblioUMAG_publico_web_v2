@@ -217,4 +217,29 @@ class GestionUsuariosTest extends TestCase
         $this->assertSame('McArthur', Texto::nombrePropio('McArthur'));
         $this->assertSame('de la Fuente', Texto::nombrePropio('de la Fuente'));
     }
+
+    public function test_un_rut_con_cero_adelante_se_reconoce_como_el_mismo_ya_cargado(): void
+    {
+        $this->comoAdmin();
+        Usuario::factory()->create(['rut' => '8.733.712-K', 'nombre' => 'Soledad Ximena', 'apellido' => 'Curiñán Guerrero']);
+        $filas = [
+            // El reporte de matrícula trae los RUT de 7 dígitos con un cero adelante.
+            ['fila' => 2, 'rut' => '08733712-K', 'nombre' => 'SOLEDAD XIMENA', 'apellido_paterno' => 'CURIÑÁN', 'apellido_materno' => 'GUERRERO', 'nacionalidad' => 'CHILENA'],
+            ['fila' => 3, 'rut' => '07654321-6', 'nombre' => 'ANA', 'apellido_paterno' => 'ROJAS', 'nacionalidad' => 'CHILENA'],
+            ['fila' => 4, 'rut' => '7.654.321-6', 'nombre' => 'ANA', 'apellido_paterno' => 'ROJAS', 'nacionalidad' => 'CHILENA'],
+        ];
+
+        $this->postJson('/api/usuarios/importar/revisar', ['filas' => $filas])->assertOk()
+            ->assertJsonPath('filas.0.estado', 'existe')
+            ->assertJsonPath('filas.1.estado', 'nuevo')
+            ->assertJsonPath('filas.1.datos.rut', '7.654.321-6')
+            ->assertJsonPath('filas.2.estado', 'duplicado');
+
+        $this->postJson('/api/usuarios/importar', ['filas' => $filas, 'confirmado' => true])
+            ->assertCreated()->assertJsonPath('creados', 1);
+        $this->assertDatabaseCount('usuarios', 2);
+
+        // Buscarla escribiendo el RUT con el cero también la encuentra.
+        $this->getJson('/api/usuarios/rut/08733712-K')->assertOk()->assertJsonPath('nombre', 'Soledad Ximena');
+    }
 }
