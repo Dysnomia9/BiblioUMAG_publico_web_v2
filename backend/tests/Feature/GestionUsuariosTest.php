@@ -279,4 +279,37 @@ class GestionUsuariosTest extends TestCase
         $this->getJson('/api/usuarios?tipo=docente')->assertOk()->assertJsonPath('total', 3);
         $this->getJson('/api/usuarios?por_pagina=500')->assertOk()->assertJsonPath('per_page', 100);
     }
+
+    public function test_desactivar_a_un_usuario_cierra_sus_sesiones_del_portal(): void
+    {
+        $usuario = Usuario::factory()->create(['tipo_documento' => 'rut']);
+        $token = $usuario->createToken('usuario-token')->plainTextToken;
+        $ficha = $usuario->only(['rut', 'tipo_documento', 'nombre', 'apellido', 'email', 'tipo', 'carrera', 'anio_ingreso', 'sexo']);
+
+        // Con la contraseña nueva se cierran las sesiones abiertas con la anterior.
+        $this->comoAdmin();
+        $this->putJson("/api/usuarios/{$usuario->id}", $ficha + ['activo' => true, 'password' => 'nueva-clave'])->assertOk();
+        $this->assertSame(0, $usuario->tokens()->count());
+
+        $token = $usuario->createToken('usuario-token')->plainTextToken;
+        $this->putJson("/api/usuarios/{$usuario->id}", $ficha + ['activo' => false])->assertOk();
+        $this->assertSame(0, $usuario->tokens()->count());
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/mi/estado')->assertUnauthorized();
+    }
+
+    public function test_un_usuario_inactivo_no_usa_el_portal_aunque_tenga_un_token(): void
+    {
+        // Desactivado por otro lado (sin pasar por Administración): igual queda fuera.
+        $usuario = Usuario::factory()->create();
+        $token = $usuario->createToken('usuario-token')->plainTextToken;
+        $usuario->update(['activo' => false]);
+
+        $this->withToken($token)->getJson('/api/mi/estado')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Tu cuenta se encuentra inactiva. Contacta a biblioteca.');
+        $this->withToken($token)->postJson('/api/mi/entrada', ['via' => 'manual', 'rut' => $usuario->rut])->assertUnauthorized();
+        $this->assertSame(0, $usuario->entradas()->count());
+    }
 }

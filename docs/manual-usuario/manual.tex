@@ -1571,7 +1571,12 @@ personal.
 \captura{30b-portal-salas-modal-reserva.png}{Formulario de reserva desde el portal --- el primer RUT ya viene precargado con la cuenta propia.}
 
 Las reservas propias aparecen en otro color. Al pulsar una, el portal
-pregunta \textbf{¿Cancelar tu reserva?} antes de liberarla.
+pregunta \textbf{¿Cancelar tu reserva?} antes de liberarla. Solo se
+cancela una reserva que todavía no se usa: si el grupo ya está en la sala,
+se cierra en el mesón al devolver la llave, y si pasaron los 15 minutos
+sin que llegaran, queda registrada como inasistencia. Las reservas
+terminadas o con inasistencia quedan en el historial y no se pueden
+cancelar.
 
 \begin{importante}
 Desde el portal, los usuarios \textbf{solo pueden reservar salas para el

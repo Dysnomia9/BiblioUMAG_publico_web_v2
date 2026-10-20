@@ -115,6 +115,12 @@ class UsuarioController extends Controller
         $antes = $usuario->only(self::CAMPOS);
         $usuario->update($datos);
 
+        // Desactivado o con contraseña nueva (por ejemplo, por sospecha de uso indebido):
+        // las sesiones que tenía abiertas en el portal se cierran.
+        if (! $usuario->activo || isset($datos['password'])) {
+            $usuario->tokens()->delete();
+        }
+
         $cambios = Bitacora::cambios($antes, $usuario->only(self::CAMPOS));
         if (isset($datos['password'])) {
             $cambios['password'] = '(cambiada)';
