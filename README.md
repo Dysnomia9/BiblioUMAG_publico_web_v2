@@ -478,7 +478,7 @@ npm run dev
 
 ## Tests y benchmark de rendimiento
 
-Hay una suite de Feature tests (`backend/tests/Feature/`, 434 tests al
+Hay una suite de Feature tests (`backend/tests/Feature/`, 438 tests al
 2026-10-20) que cubre login de staff/usuario, fichas bibliográficas (qué ve
 el usuario según el tipo de material), el escenario de demostración, roles y
 permisos (qué puede y no puede hacer cada rol, incluida la protección contra darse más permisos a

@@ -52,8 +52,11 @@ class UsuarioController extends Controller
             $query->where('activo', filter_var($request->query('activo'), FILTER_VALIDATE_BOOLEAN));
         }
 
+        // De a una página (25 por defecto): con el reporte de matrícula son miles de personas.
+        $porPagina = min(max((int) $request->query('por_pagina', 25), 1), 100);
+
         return response()->json(
-            $query->orderBy('nombre')->orderBy('apellido')->get()
+            $query->orderBy('nombre')->orderBy('apellido')->orderBy('id')->paginate($porPagina)->withQueryString()
         );
     }
 

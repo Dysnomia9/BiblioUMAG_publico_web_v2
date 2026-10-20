@@ -60,10 +60,10 @@ class BusquedaSinTildesTest extends TestCase
         $usuario = Usuario::factory()->create(['nombre' => 'Sebastián', 'apellido' => 'Núñez']);
         Usuario::factory()->create(['nombre' => 'Pedro', 'apellido' => 'Soto']);
 
-        $ids = collect($this->getJson('/api/usuarios?q=nunez')->assertOk()->json())->pluck('id')->all();
+        $ids = collect($this->getJson('/api/usuarios?q=nunez')->assertOk()->json('data'))->pluck('id')->all();
         $this->assertSame([$usuario->id], $ids);
 
-        $ids = collect($this->getJson('/api/usuarios?q=sebastian')->assertOk()->json())->pluck('id')->all();
+        $ids = collect($this->getJson('/api/usuarios?q=sebastian')->assertOk()->json('data'))->pluck('id')->all();
         $this->assertSame([$usuario->id], $ids);
     }
 }

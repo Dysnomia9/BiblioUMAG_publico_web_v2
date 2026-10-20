@@ -63,7 +63,8 @@ después, así que no afecta los datos de `biblioteca` (la base de desarrollo/de
 El comando `benchmark:api` autentica como staff contra el backend ya levantado (vía
 HTTP real, no en proceso) y mide la latencia de:
 
-- `GET /api/usuarios`
+- `GET /api/usuarios` (la primera página del listado, 25 usuarios: el
+  endpoint entrega de a una página desde que se cargó el reporte de matrícula)
 - `POST /api/entrada` (cada request se cierra de inmediato con
   `PATCH /entrada/{id}/salida` para no dejar la entrada activa antes de la
   siguiente iteración; esa llamada de cierre no se incluye en la medición)
