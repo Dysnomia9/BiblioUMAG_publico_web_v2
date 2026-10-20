@@ -5,6 +5,7 @@ import PortalLayout from '@/components/layout/PortalLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import apiUsuario from '@/services/apiUsuario'
 import { DIAS_SEMANA, diaIso } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
@@ -12,7 +13,8 @@ import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
-import { formatearInputIdentificador } from '@/utils/documento'
+import { largoSegunModo, modoDe } from '@/utils/documento'
+import { useModosPorFila } from '@/composables/useModoDocumento'
 import type { Sala, TramoReserva } from '@/types'
 
 const toast = useToast()
@@ -108,6 +110,8 @@ const modalDuracion = ref(60)
 const enviando = ref(false)
 const cantidadPersonas = ref(CANTIDAD_MIN)
 const rutsReserva = ref<string[]>(Array.from({ length: CANTIDAD_MIN }, () => ''))
+// Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
+const { modos: modosReserva, escribir: escribirFila, cambiar: cambiarModoFila, reiniciar: reiniciarModos, errores: erroresFilas } = useModosPorFila(rutsReserva, { tuteo: true })
 const rutErrores = ref<Record<number, string>>({})
 
 watch(cantidadPersonas, (nueva) => {
@@ -207,6 +211,7 @@ function abrirModal(sala: Sala, inicioSugeridoMin: number) {
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = CANTIDAD_MIN
   rutsReserva.value = Array.from({ length: CANTIDAD_MIN }, (_, idx) => (idx === 0 ? (auth.usuario?.rut ?? '') : ''))
+  reiniciarModos([modoDe(auth.usuario?.tipo_documento)])
   rutErrores.value = {}
   modalOpen.value = true
 }
@@ -243,7 +248,7 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
 }
 
 function onRutInput(index: number, event: Event) {
-  rutsReserva.value[index] = formatearInputIdentificador(event)
+  escribirFila(index, event)
   if (rutErrores.value[index]) {
     const restantes = { ...rutErrores.value }
     delete restantes[index]
@@ -264,6 +269,12 @@ async function confirmarReserva() {
   if (!selectedSala.value) return
   if (rutsReserva.value.some((r) => !r.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
+    return
+  }
+  const malas = erroresFilas()
+  if (Object.keys(malas).length) {
+    rutErrores.value = malas
+    toast.error(Object.keys(malas).length === 1 ? 'Revisa el RUT o documento marcado en rojo' : 'Revisa los RUT o documentos marcados en rojo')
     return
   }
   enviando.value = true
@@ -534,19 +545,28 @@ async function confirmarCancelacion() {
             </div>
             <div class="space-y-2">
               <label class="block text-sm font-medium text-gray-700">RUT de cada persona <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span></label>
-              <p class="text-xs text-gray-400 -mt-1 mb-1">Deben ser RUT de usuarios registrados en el sistema</p>
+              <p class="text-xs text-gray-400 -mt-1 mb-1">Deben ser personas registradas en la biblioteca</p>
               <div v-for="(_, idx) in rutsReserva" :key="idx">
-                <input
-                  :value="rutsReserva[idx]"
-                  @input="onRutInput(idx, $event)"
-                  type="text"
-                  :placeholder="`RUT persona ${idx + 1}`"
-                  :readonly="idx === 0 && !!auth.usuario?.rut"
-                  :title="idx === 0 && auth.usuario?.rut ? 'Tu RUT: quien reserva siempre va en el grupo' : undefined"
-                  maxlength="20"
-                  class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none read-only:bg-gray-50 read-only:text-gray-600"
-                  :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
-                />
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    :value="rutsReserva[idx]"
+                    @input="onRutInput(idx, $event)"
+                    type="text"
+                    :placeholder="`${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                    :readonly="idx === 0 && !!auth.usuario?.rut"
+                    :title="idx === 0 && auth.usuario?.rut ? 'Tu documento: quien reserva siempre va en el grupo' : undefined"
+                    :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
+                    class="min-w-0 flex-1 px-4 py-2.5 border rounded-lg focus:ring-2 outline-none read-only:bg-gray-50 read-only:text-gray-600"
+                    :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
+                  />
+                  <SelectorDocumento
+                    v-if="!(idx === 0 && auth.usuario?.rut)"
+                    :model-value="modosReserva[idx] ?? 'rut'"
+                    compacto
+                    :etiqueta="`Documento de la persona ${idx + 1}`"
+                    @update:model-value="cambiarModoFila(idx, $event)"
+                  />
+                </div>
                 <p v-if="rutErrores[idx]" class="text-xs text-red-600 mt-1">{{ rutErrores[idx] }}</p>
               </div>
             </div>

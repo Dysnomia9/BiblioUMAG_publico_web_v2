@@ -191,10 +191,7 @@ onMounted(async () => {
           ¿Olvidaste tu contraseña?
         </button>
 
-        <p class="mt-3 text-center text-xs text-gray-400">
-          Un solo acceso para personal de biblioteca y usuarios institucionales — se detecta
-          automáticamente según lo que ingreses.
-        </p>
+
 
         <div class="my-5 flex items-center gap-3">
           <div class="flex-1 h-px bg-gray-200" />

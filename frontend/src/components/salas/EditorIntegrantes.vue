@@ -2,7 +2,8 @@
 import { nextTick, ref } from 'vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
-import { formatearInputIdentificador } from '@/utils/documento'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import { convertirAlModo, errorSegunModo, escribirIdentificador, largoSegunModo, modoSegunValor, type ModoDocumento } from '@/utils/documento'
 import type { IntegrantesReserva, TramoReserva } from '@/types'
 
 /**
@@ -23,20 +24,34 @@ const emit = defineEmits<{
 const MINIMO = 2
 const MAXIMO = 5
 
-type Fila = { clave: number; rut: string; nombre: string | null }
+// Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
+type Fila = { clave: number; rut: string; nombre: string | null; modo: ModoDocumento }
 
 const toast = useToast()
 let siguienteClave = 0
-const filas = ref<Fila[]>(props.personas.map((p) => ({ clave: siguienteClave++, rut: p.rut, nombre: p.nombre })))
-while (filas.value.length < MINIMO) filas.value.push({ clave: siguienteClave++, rut: '', nombre: null })
+const filas = ref<Fila[]>(props.personas.map((p) => ({ clave: siguienteClave++, rut: p.rut, nombre: p.nombre, modo: modoSegunValor(p.rut) })))
+while (filas.value.length < MINIMO) filas.value.push({ clave: siguienteClave++, rut: '', nombre: null, modo: 'rut' })
 const errores = ref<Record<number, string>>({})
 const guardando = ref(false)
 const lista = ref<HTMLElement | null>(null)
 
 function escribir(fila: Fila, idx: number, event: Event) {
-  fila.rut = formatearInputIdentificador(event)
+  const resultado = escribirIdentificador(event, fila.modo)
+  fila.rut = resultado.valor
+  fila.modo = resultado.modo
   // Lo escrito ya no es necesariamente la persona que estaba: su nombre sale al guardar.
   fila.nombre = null
+  limpiarError(idx)
+}
+
+function cambiarModo(fila: Fila, idx: number, modo: ModoDocumento) {
+  fila.modo = modo
+  fila.rut = convertirAlModo(fila.rut, modo)
+  fila.nombre = null
+  limpiarError(idx)
+}
+
+function limpiarError(idx: number) {
   if (errores.value[idx]) {
     const restantes = { ...errores.value }
     delete restantes[idx]
@@ -50,7 +65,7 @@ function quitar(idx: number) {
 }
 
 async function agregar() {
-  filas.value.push({ clave: siguienteClave++, rut: '', nombre: null })
+  filas.value.push({ clave: siguienteClave++, rut: '', nombre: null, modo: 'rut' })
   await nextTick()
   lista.value?.querySelectorAll('input')[filas.value.length - 1]?.focus()
 }
@@ -58,6 +73,12 @@ async function agregar() {
 async function guardar() {
   if (filas.value.some((f) => !f.rut.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona, o quite la fila vacía')
+    return
+  }
+  const malas = Object.fromEntries(filas.value.map((f, i) => [i, errorSegunModo(f.rut, f.modo)] as const).filter(([, error]) => error))
+  if (Object.keys(malas).length) {
+    errores.value = malas
+    toast.error(Object.keys(malas).length === 1 ? 'Revisa el RUT o documento marcado en rojo' : 'Revisa los RUT o documentos marcados en rojo')
     return
   }
   guardando.value = true
@@ -95,12 +116,18 @@ async function guardar() {
             @input="escribir(fila, idx, $event)"
             @keydown.enter="guardar"
             type="text"
-            maxlength="20"
-            :placeholder="`RUT persona ${idx + 1}`"
-            :aria-label="`RUT de la persona ${idx + 1}`"
+            :maxlength="largoSegunModo(fila.modo)"
+            :placeholder="`${fila.modo === 'rut' ? 'RUT' : 'Pasaporte o DNI'} persona ${idx + 1}`"
+            :aria-label="`${fila.modo === 'rut' ? 'RUT' : 'Pasaporte o DNI'} de la persona ${idx + 1}`"
             :disabled="guardando"
             class="min-w-0 flex-1 px-3 py-2 border rounded-lg font-mono text-sm focus:ring-2 outline-none"
             :class="errores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
+          />
+          <SelectorDocumento
+            :model-value="fila.modo"
+            compacto
+            :etiqueta="`Documento de la persona ${idx + 1}`"
+            @update:model-value="cambiarModo(fila, idx, $event)"
           />
           <button
             type="button"

@@ -4,10 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import jsQR from 'jsqr'
 import PortalLayout from '@/components/layout/PortalLayout.vue'
 import PildoraHorario from '@/components/portal/PildoraHorario.vue'
+import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import apiUsuario from '@/services/apiUsuario'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useToast } from '@/composables/useToast'
-import { formatearInputIdentificador, identificadorValido, mismoDocumento } from '@/utils/documento'
+import { largoSegunModo, mismoDocumento, modoDe, placeholderSegunModo } from '@/utils/documento'
+import { useModoDocumento } from '@/composables/useModoDocumento'
 import type { EstadoPortal, HorarioBiblioteca } from '@/types'
 
 const auth = useUsuarioAuthStore()
@@ -17,6 +19,8 @@ const route = useRoute()
 
 const modo = ref<'menu' | 'scan' | 'success'>('menu')
 const rut = ref('')
+// Parte con el documento de la propia cuenta: RUT, o pasaporte/DNI si es extranjero.
+const { modo: modoRut, escribir: escribirRut, error: errorDelRut } = useModoDocumento(rut, { inicial: modoDe(auth.usuario?.tipo_documento), tuteo: true })
 const errorRut = ref('')
 const errorQr = ref('')
 const scanError = ref('')
@@ -48,7 +52,7 @@ onMounted(async () => {
 })
 
 function onRutInput(event: Event) {
-  rut.value = formatearInputIdentificador(event)
+  escribirRut(event)
   errorRut.value = ''
 }
 
@@ -90,16 +94,13 @@ async function registrar(via: 'manual' | 'qr', codigoQr?: string) {
 
 function confirmarRut() {
   if (enviando.value) return
-  if (!rut.value) {
-    errorRut.value = 'Escribe tu RUT (o pasaporte/DNI) para registrar tu ingreso.'
-    return
-  }
-  if (!identificadorValido(rut.value)) {
-    errorRut.value = 'RUT inválido. Revisa el número y el dígito verificador.'
+  const error = errorDelRut()
+  if (error) {
+    errorRut.value = error
     return
   }
   if (!mismoDocumento(rut.value, auth.usuario?.rut)) {
-    errorRut.value = 'El RUT o documento ingresado no coincide con tu cuenta.'
+    errorRut.value = `El ${modoRut.value === 'rut' ? 'RUT' : 'pasaporte o DNI'} ingresado no coincide con tu cuenta.`
     return
   }
   registrar('manual')
@@ -316,7 +317,10 @@ onUnmounted(detenerCamara)
             <p class="mt-1.5 text-sm text-gray-600">Escribe tu RUT sin puntos ni guion; lo formateamos por ti. Si eres extranjero/a, tu pasaporte o DNI.</p>
 
             <form class="mt-auto pt-5" novalidate @submit.prevent="confirmarRut">
-              <label for="rut-entrada" class="block text-xs font-semibold text-gray-700 mb-1.5">RUT</label>
+              <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <label for="rut-entrada" class="block text-xs font-semibold text-gray-700">{{ modoRut === 'rut' ? 'RUT' : 'Pasaporte o DNI' }}</label>
+                <SelectorDocumento v-model="modoRut" compacto etiqueta="¿Con qué documento ingresas?" />
+              </div>
               <input
                 id="rut-entrada"
                 ref="rutInput"
@@ -324,15 +328,15 @@ onUnmounted(detenerCamara)
                 @input="onRutInput"
                 type="text"
                 autocomplete="off"
-                maxlength="20"
-                placeholder="12.345.678-9"
+                :maxlength="largoSegunModo(modoRut)"
+                :placeholder="placeholderSegunModo(modoRut)"
                 :aria-invalid="errorRut ? 'true' : 'false'"
                 aria-describedby="rut-entrada-ayuda"
                 class="w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
                 :class="errorRut ? 'border-red-300 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
               />
               <p id="rut-entrada-ayuda" class="mt-1.5 text-xs" :class="errorRut ? 'text-red-600' : 'text-gray-500'">
-                {{ errorRut || 'Ejemplo: 12345678k' }}
+                {{ errorRut || (modoRut === 'rut' ? 'Ejemplo: 12345678k' : 'Tal como aparece en tu pasaporte o DNI') }}
               </p>
               <button
                 type="submit"

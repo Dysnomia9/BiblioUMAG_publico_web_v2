@@ -27,7 +27,11 @@ MySQL 8** (backend API), 100% dockerizada.
 - **Estudiantes y visitantes extranjeros** se identifican con pasaporte o
   DNI/cédula de su país en vez de RUT (`usuarios.tipo_documento` y `pais`).
   En el mesón, el préstamo, las salas, las multas y el login y la entrada del
-  portal basta con escribir el número: el sistema compara sin puntos,
+  portal, un selector «RUT | Pasaporte / DNI» junto al campo dice qué se está
+  escribiendo: con RUT se exige el dígito verificador y se formatea; con
+  pasaporte o DNI se aceptan letras y números sin formato
+  (`components/ui/SelectorDocumento.vue`, `composables/useModoDocumento.ts`).
+  El servidor compara igual sin puntos,
   guiones ni espacios (`App\Support\Documento`), así que «12.345.678-5» y
   «123456785» son la misma persona, y nadie puede quedar registrado dos veces
   escrito de distinta forma (índice único sobre el identificador normalizado).
