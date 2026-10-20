@@ -22,6 +22,7 @@ class PortalReservaTest extends TestCase
 
     public function test_usuario_puede_cancelar_su_propia_reserva_y_no_se_borra_la_fila(): void
     {
+        Carbon::setTestNow(Carbon::today()->setTime(9, 0));
         $usuario = Usuario::factory()->create();
         $sala = Sala::factory()->create();
         $reserva = Reserva::factory()->conParticipantes([$usuario])->create([
@@ -64,6 +65,7 @@ class PortalReservaTest extends TestCase
 
     public function test_un_integrante_puede_cancelar_la_reserva_aunque_la_haya_hecho_otro(): void
     {
+        Carbon::setTestNow(Carbon::today()->setTime(9, 0));
         $dueno = Usuario::factory()->create();
         $companero = Usuario::factory()->create();
         $reserva = Reserva::factory()->conParticipantes([$dueno, $companero])->create([
@@ -321,5 +323,39 @@ class PortalReservaTest extends TestCase
         $this->getJson('/api/mi/salas')->assertOk()
             ->assertJsonPath('atencion', ['09:00', '14:00'])
             ->assertJsonPath('cerrado', false);
+    }
+
+    public function test_desde_el_portal_no_se_cancela_lo_que_ya_ocurrio(): void
+    {
+        $usuario = Usuario::factory()->create();
+        $reserva = fn (array $datos) => Reserva::factory()->conParticipantes([$usuario])->create([
+            'sala_id' => Sala::factory()->create()->id,
+            'usuario_id' => $usuario->id,
+            'rut_usuario' => $usuario->rut,
+            'cantidad_personas' => 1,
+            ...$datos,
+        ]);
+
+        Carbon::setTestNow(Carbon::today()->setTime(9, 0));
+        $inasistencia = $reserva(['fecha' => Carbon::yesterday()->toDateString(), 'estado' => 'no_show']);
+        $finalizada = $reserva(['fecha' => Carbon::yesterday()->toDateString(), 'estado' => 'finalizada']);
+        $enUso = $reserva(['hora_inicio' => '09:00:00', 'hora_fin' => '10:00:00', 'hora_prestamo_real' => now()]);
+        $porVencer = $reserva(['hora_inicio' => '10:00:00', 'hora_fin' => '11:00:00']);
+
+        Sanctum::actingAs($usuario);
+
+        $this->deleteJson("/api/mi/reservas/{$inasistencia->id}")->assertStatus(409)
+            ->assertJsonPath('message', 'El grupo no llegó a tiempo a esta reserva: quedó registrada como inasistencia y ya no se puede cancelar.');
+        $this->deleteJson("/api/mi/reservas/{$finalizada->id}")->assertStatus(409);
+        $this->deleteJson("/api/mi/reservas/{$enUso->id}")->assertStatus(409);
+
+        // Pasados los 15 minutos sin llegar, ya no se cancela: queda como inasistencia.
+        Carbon::setTestNow(Carbon::today()->setTime(10, 20));
+        $this->deleteJson("/api/mi/reservas/{$porVencer->id}")->assertStatus(409);
+
+        $this->assertSame('no_show', $inasistencia->fresh()->estado);
+        $this->assertSame('finalizada', $finalizada->fresh()->estado);
+        $this->assertSame('activa', $enUso->fresh()->estado);
+        $this->assertSame('no_show', $porVencer->fresh()->estado);
     }
 }

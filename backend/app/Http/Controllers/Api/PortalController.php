@@ -429,6 +429,25 @@ class PortalController extends Controller
             return response()->json(['message' => 'Solo puedes cancelar reservas en las que participas'], 403);
         }
 
+        // Solo lo que todavía no ocurre: una reserva finalizada, cancelada o en que no se
+        // presentaron queda como registro (igual que en el panel, que solo edita las
+        // activas). Una vencida sin confirmar pasa aquí mismo a inasistencia, para que no
+        // se pueda cancelar justo antes de que se marque como tal.
+        $this->reservaSalaService->liberarSiVencida($reserva);
+
+        if ($reserva->estado !== 'activa') {
+            return response()->json(['message' => match ($reserva->estado) {
+                'no_show' => 'El grupo no llegó a tiempo a esta reserva: quedó registrada como inasistencia y ya no se puede cancelar.',
+                'finalizada' => 'Esta reserva ya terminó: queda en tu historial y no se puede cancelar.',
+                'cancelada' => 'Esta reserva ya estaba cancelada.',
+                default => 'Esta reserva ya no está activa: no se puede cancelar.',
+            }], 409);
+        }
+
+        if ($reserva->hora_prestamo_real) {
+            return response()->json(['message' => 'El grupo ya está usando la sala: la reserva se cierra en el mesón al devolver la llave.'], 409);
+        }
+
         $reserva->update(['estado' => 'cancelada']);
 
         Bitacora::registrar('salas.cancelar', "Canceló desde el portal su reserva de {$reserva->descripcion()}", entidad: $reserva, afectado: $request->user());
