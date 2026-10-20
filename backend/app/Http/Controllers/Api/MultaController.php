@@ -34,6 +34,7 @@ class MultaController extends Controller
             'usuario_id' => ['nullable', 'integer'],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date'],
+            'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = Multa::with(self::RELACIONES);
@@ -60,7 +61,7 @@ class MultaController extends Controller
             }));
         }
 
-        return response()->json($query->latest()->latest('id')->limit(1000)->get());
+        return response()->json($query->latest()->latest('id')->paginate((int) $request->query('por_pagina', 25))->withQueryString());
     }
 
     public function resumen()

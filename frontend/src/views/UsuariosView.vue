@@ -2,19 +2,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
+import Paginacion from '@/components/ui/Paginacion.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
+import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { useAuthStore } from '@/stores/auth'
 import { generarConstanciaNoMulta } from '@/utils/constancia'
 import { describirDocumento } from '@/utils/documento'
-import type { ConfiguracionInstitucional, Usuario } from '@/types'
+import type { ConfiguracionInstitucional, Paginado, Usuario } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
 
-const usuarios = ref<Usuario[]>([])
-const loading = ref(true)
-const apiError = ref(false)
 const generandoConstanciaRut = ref<string | null>(null)
 const usuarioParaConstancia = ref<Usuario | null>(null)
 
@@ -55,32 +54,36 @@ const filtros = reactive({
   activo: '',
 })
 
+// De a 25: con el reporte de matrícula son miles de personas.
+const {
+  filas: usuarios,
+  total,
+  porPagina,
+  pagina,
+  cargando: loading,
+  error: apiError,
+  cargar: cargarUsuarios,
+  reiniciar,
+} = useListadoPaginado<Usuario>(async (p) => {
+  const { data } = await api.get<Paginado<Usuario>>('/usuarios', {
+    params: {
+      q: filtros.q || undefined,
+      tipo: filtros.tipo || undefined,
+      activo: filtros.activo === '' ? undefined : filtros.activo,
+      page: p,
+    },
+  })
+  return data
+})
+
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
-
-async function cargarUsuarios() {
-  loading.value = true
-  try {
-    const { data } = await api.get<Usuario[]>('/usuarios', {
-      params: {
-        q: filtros.q || undefined,
-        tipo: filtros.tipo || undefined,
-        activo: filtros.activo === '' ? undefined : filtros.activo,
-      },
-    })
-    usuarios.value = data
-    apiError.value = false
-  } catch {
-    apiError.value = true
-    usuarios.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
 watch(filtros, () => {
   clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(cargarUsuarios, 300)
+  debounceTimer = setTimeout(reiniciar, 300)
 }, { deep: true })
+// Al cambiar de página se vuelve al comienzo del listado.
+const listado = ref<HTMLElement | null>(null)
+watch(pagina, () => listado.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 
 onMounted(cargarUsuarios)
 
@@ -149,6 +152,8 @@ const hayResultados = computed(() => usuarios.value.length > 0)
           <option value="false">Inactivos</option>
         </select>
       </div>
+
+      <div ref="listado" class="scroll-mt-4"></div>
 
       <!-- Tabla desktop -->
       <div class="hidden lg:block bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
@@ -244,6 +249,8 @@ const hayResultados = computed(() => usuarios.value.length > 0)
           Sin usuarios que coincidan con la búsqueda.
         </p>
       </div>
+
+      <Paginacion v-model="pagina" class="mt-4" :total="total" :por-pagina="porPagina" singular="usuario" plural="usuarios" />
     </div>
 
     <div

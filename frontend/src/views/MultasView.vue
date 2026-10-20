@@ -8,25 +8,25 @@ import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import Paginacion from '@/components/ui/Paginacion.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
+import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { sinTildes } from '@/utils/texto'
-import type { EstadoMulta, Multa, MultasResumen, TipoMulta, Usuario } from '@/types'
+import type { EstadoMulta, Multa, MultasResumen, Paginado, TipoMulta, Usuario } from '@/types'
 
 const auth = useAuthStore()
 const toast = useToast()
 const route = useRoute()
 
 const pestana = ref<'deudas' | 'listado'>('deudas')
-const apiError = ref(false)
+const errorResumen = ref(false)
 
 const resumen = ref<MultasResumen | null>(null)
 const busquedaDeudas = ref('')
-const multas = ref<Multa[]>([])
-const cargandoListado = ref(false)
 const filtros = reactive({ q: '', estado: 'pendiente' as EstadoMulta | '', tipo: '' as TipoMulta | '' })
 
 const TIPOS: Record<TipoMulta, string> = {
@@ -57,38 +57,52 @@ const deudasFiltradas = computed(() => {
   return resumen.value.usuarios.filter((u) => sinTildes(`${u.nombre} ${u.apellido}`).includes(q) || u.rut.toLowerCase().includes(q))
 })
 
+// Las deudas llegan todas juntas (son solo quienes deben); se muestran de a 25.
+const DEUDAS_POR_PAGINA = 25
+const paginaDeudas = ref(1)
+const deudasVisibles = computed(() => deudasFiltradas.value.slice((paginaDeudas.value - 1) * DEUDAS_POR_PAGINA, paginaDeudas.value * DEUDAS_POR_PAGINA))
+watch(busquedaDeudas, () => (paginaDeudas.value = 1))
+watch(deudasFiltradas, (lista) => {
+  // Tras pagar la última deuda de la última página, se vuelve a la anterior.
+  const ultima = Math.max(1, Math.ceil(lista.length / DEUDAS_POR_PAGINA))
+  if (paginaDeudas.value > ultima) paginaDeudas.value = ultima
+})
+
 async function cargarResumen() {
   try {
     const { data } = await api.get<MultasResumen>('/multas/resumen')
     resumen.value = data
-    apiError.value = false
+    errorResumen.value = false
   } catch {
-    apiError.value = true
+    errorResumen.value = true
   }
 }
+
+// «Todas las multas» crece con los años: el servidor la entrega de a 25, las más nuevas primero.
+const {
+  filas: multas,
+  total: totalMultas,
+  porPagina: multasPorPagina,
+  pagina: paginaMultas,
+  cargando: cargandoListado,
+  error: errorListado,
+  cargar: cargarListado,
+  reiniciar: reiniciarListado,
+} = useListadoPaginado<Multa>(async (p) => {
+  const { data } = await api.get<Paginado<Multa>>('/multas', {
+    params: { q: filtros.q.trim() || undefined, estado: filtros.estado || undefined, tipo: filtros.tipo || undefined, page: p },
+  })
+  return data
+})
+const apiError = computed(() => errorResumen.value || errorListado.value)
 
 let temporizador: ReturnType<typeof setTimeout> | undefined
-async function cargarListado() {
-  cargandoListado.value = true
-  try {
-    const { data } = await api.get<Multa[]>('/multas', {
-      params: { q: filtros.q.trim() || undefined, estado: filtros.estado || undefined, tipo: filtros.tipo || undefined },
-    })
-    multas.value = data
-    apiError.value = false
-  } catch {
-    apiError.value = true
-  } finally {
-    cargandoListado.value = false
-  }
-}
-
-watch(() => [filtros.estado, filtros.tipo], cargarListado)
+watch(() => [filtros.estado, filtros.tipo], reiniciarListado)
 watch(
   () => filtros.q,
   () => {
     clearTimeout(temporizador)
-    temporizador = setTimeout(cargarListado, 300)
+    temporizador = setTimeout(reiniciarListado, 300)
   },
 )
 
@@ -318,7 +332,7 @@ async function guardarNueva() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200">
-                <tr v-for="(u, idx) in deudasFiltradas" :key="u.usuario_id" :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
+                <tr v-for="(u, idx) in deudasVisibles" :key="u.usuario_id" :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
                   <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ u.nombre }} {{ u.apellido }}</td>
                   <td class="px-6 py-3 text-sm font-mono text-gray-600 whitespace-nowrap">{{ u.rut }}</td>
                   <td class="px-6 py-3 text-sm">
@@ -338,6 +352,14 @@ async function guardarNueva() {
             </table>
           </div>
         </div>
+        <Paginacion
+          v-model="paginaDeudas"
+          class="mt-4"
+          :total="deudasFiltradas.length"
+          :por-pagina="DEUDAS_POR_PAGINA"
+          singular="persona con deuda"
+          plural="personas con deuda"
+        />
       </template>
 
       <!-- Todas las multas -->
@@ -413,6 +435,7 @@ async function guardarNueva() {
             </table>
           </div>
         </div>
+        <Paginacion v-model="paginaMultas" class="mt-4" :total="totalMultas" :por-pagina="multasPorPagina" singular="multa" plural="multas" />
       </template>
     </div>
 

@@ -33,29 +33,29 @@
 \contentsline {section}{\numberline {7.4}Vista Tabla}{26}{section.7.4}%
 \contentsline {section}{\numberline {7.5}Exportar datos}{27}{section.7.5}%
 \contentsline {chapter}{\numberline {8}Módulos de Gestión}{28}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Usuarios}{29}{section.8.1}%
+\contentsline {section}{\numberline {8.1}Usuarios}{30}{section.8.1}%
 \contentsline {section}{\numberline {8.2}Multas}{30}{section.8.2}%
 \contentsline {section}{\numberline {8.3}Listado de Libros}{31}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Catalogación de Libros}{32}{section.8.4}%
-\contentsline {section}{\numberline {8.5}Estado de ejemplares}{36}{section.8.5}%
-\contentsline {section}{\numberline {8.6}Cambio Masivo de Estado}{37}{section.8.6}%
-\contentsline {section}{\numberline {8.7}Etiquetas de Código}{38}{section.8.7}%
-\contentsline {section}{\numberline {8.8}Equipos}{39}{section.8.8}%
-\contentsline {section}{\numberline {8.9}Listado de Préstamos}{40}{section.8.9}%
-\contentsline {section}{\numberline {8.10}Historial de Estado}{41}{section.8.10}%
-\contentsline {section}{\numberline {8.11}Historial de Libros}{42}{section.8.11}%
-\contentsline {section}{\numberline {8.12}Registro Absoluto}{43}{section.8.12}%
-\contentsline {section}{\numberline {8.13}Código QR de Acceso}{44}{section.8.13}%
-\contentsline {section}{\numberline {8.14}Administración}{45}{section.8.14}%
-\contentsline {section}{\numberline {8.15}Personal y Roles}{47}{section.8.15}%
-\contentsline {subsection}{\numberline {8.15.1}Cuentas del personal}{47}{subsection.8.15.1}%
-\contentsline {subsection}{\numberline {8.15.2}Roles y permisos}{48}{subsection.8.15.2}%
-\contentsline {chapter}{\numberline {9}Portal del Usuario}{49}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Inicio de sesión}{50}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Página de Inicio}{51}{section.9.2}%
-\contentsline {section}{\numberline {9.3}Marcar Entrada}{52}{section.9.3}%
-\contentsline {section}{\numberline {9.4}Catálogo}{53}{section.9.4}%
-\contentsline {section}{\numberline {9.5}Mi perfil y Mis ingresos}{56}{section.9.5}%
-\contentsline {section}{\numberline {9.6}Salas de Estudio}{57}{section.9.6}%
-\contentsline {chapter}{\numberline {10}Preguntas Frecuentes}{59}{chapter.10}%
-\contentsline {chapter}{Glosario}{60}{chapter*.2}%
+\contentsline {section}{\numberline {8.4}Catalogación de Libros}{33}{section.8.4}%
+\contentsline {section}{\numberline {8.5}Estado de ejemplares}{37}{section.8.5}%
+\contentsline {section}{\numberline {8.6}Cambio Masivo de Estado}{38}{section.8.6}%
+\contentsline {section}{\numberline {8.7}Etiquetas de Código}{39}{section.8.7}%
+\contentsline {section}{\numberline {8.8}Equipos}{40}{section.8.8}%
+\contentsline {section}{\numberline {8.9}Listado de Préstamos}{41}{section.8.9}%
+\contentsline {section}{\numberline {8.10}Historial de Estado}{42}{section.8.10}%
+\contentsline {section}{\numberline {8.11}Historial de Libros}{43}{section.8.11}%
+\contentsline {section}{\numberline {8.12}Registro Absoluto}{44}{section.8.12}%
+\contentsline {section}{\numberline {8.13}Código QR de Acceso}{45}{section.8.13}%
+\contentsline {section}{\numberline {8.14}Administración}{46}{section.8.14}%
+\contentsline {section}{\numberline {8.15}Personal y Roles}{48}{section.8.15}%
+\contentsline {subsection}{\numberline {8.15.1}Cuentas del personal}{48}{subsection.8.15.1}%
+\contentsline {subsection}{\numberline {8.15.2}Roles y permisos}{49}{subsection.8.15.2}%
+\contentsline {chapter}{\numberline {9}Portal del Usuario}{50}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Inicio de sesión}{51}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Página de Inicio}{52}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Marcar Entrada}{53}{section.9.3}%
+\contentsline {section}{\numberline {9.4}Catálogo}{54}{section.9.4}%
+\contentsline {section}{\numberline {9.5}Mi perfil y Mis ingresos}{57}{section.9.5}%
+\contentsline {section}{\numberline {9.6}Salas de Estudio}{58}{section.9.6}%
+\contentsline {chapter}{\numberline {10}Preguntas Frecuentes}{60}{chapter.10}%
+\contentsline {chapter}{Glosario}{61}{chapter*.2}%

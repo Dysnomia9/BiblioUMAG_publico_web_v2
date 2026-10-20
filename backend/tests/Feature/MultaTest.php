@@ -73,9 +73,22 @@ class MultaTest extends TestCase
 
         $this->getJson("/api/multas?usuario_id={$usuario->id}&estado=pendiente")
             ->assertStatus(200)
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.usuario.id', $usuario->id)
-            ->assertJsonPath('0.usuario.email', $usuario->email);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.usuario.id', $usuario->id)
+            ->assertJsonPath('data.0.usuario.email', $usuario->email);
+    }
+
+    public function test_el_listado_de_multas_viene_por_paginas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Multa::factory()->count(30)->create();
+
+        $this->getJson('/api/multas')->assertOk()
+            ->assertJsonCount(25, 'data')
+            ->assertJsonPath('total', 30)
+            ->assertJsonPath('last_page', 2);
+        $this->getJson('/api/multas?page=2')->assertOk()->assertJsonCount(5, 'data')->assertJsonPath('from', 26);
+        $this->getJson('/api/multas?por_pagina=101')->assertStatus(422);
     }
 
     public function test_registrar_pago_deja_quien_y_cuando(): void

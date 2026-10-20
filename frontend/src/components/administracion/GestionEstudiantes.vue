@@ -3,39 +3,39 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import CargaMasivaEstudiantes from '@/components/administracion/CargaMasivaEstudiantes.vue'
+import Paginacion from '@/components/ui/Paginacion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
+import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { describirDocumento, errorDocumento, formatearInputIdentificador, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
-import type { OpcionesUsuarios, Usuario } from '@/types'
+import type { OpcionesUsuarios, Paginado, Usuario } from '@/types'
 
 const toast = useToast()
 
-const usuarios = ref<Usuario[]>([])
-const cargando = ref(true)
 const opciones = ref<OpcionesUsuarios>({ carreras: [], tipos_documento: [], tipos: ['estudiante', 'docente', 'funcionario'], sexos: ['Femenino', 'Masculino', 'Otro'] })
 
 const filtros = reactive({ q: '', tipo: 'estudiante', carrera: '' })
 
 const TIPO_LABEL: Record<Usuario['tipo'], string> = { estudiante: 'Estudiante', docente: 'Docente', funcionario: 'Funcionario' }
 
-async function cargar() {
-  cargando.value = true
+// El servidor entrega de a 25: con el reporte de matrícula son miles de estudiantes.
+// Tras guardar o tras una carga masiva se recarga la misma página.
+const { filas: usuarios, total, porPagina, pagina, cargando, cargar, reiniciar } = useListadoPaginado<Usuario>(async (p) => {
   try {
-    const { data } = await api.get<Usuario[]>('/usuarios', {
+    const { data } = await api.get<Paginado<Usuario>>('/usuarios', {
       params: {
         q: filtros.q.trim() || undefined,
         tipo: filtros.tipo || undefined,
         carrera: filtros.carrera || undefined,
+        page: p,
       },
     })
-    usuarios.value = data
+    return data
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo cargar el listado de estudiantes'))
-    usuarios.value = []
-  } finally {
-    cargando.value = false
+    throw e
   }
-}
+})
 
 async function cargarOpciones() {
   try {
@@ -49,19 +49,13 @@ async function cargarOpciones() {
 let busquedaTimer: ReturnType<typeof setTimeout> | undefined
 watch(filtros, () => {
   clearTimeout(busquedaTimer)
-  busquedaTimer = setTimeout(cargar, 300)
-  pagina.value = 1
+  busquedaTimer = setTimeout(reiniciar, 300)
 }, { deep: true })
 
 onMounted(() => {
   cargar()
   cargarOpciones()
 })
-
-const POR_PAGINA = 25
-const pagina = ref(1)
-const totalPaginas = computed(() => Math.max(1, Math.ceil(usuarios.value.length / POR_PAGINA)))
-const visibles = computed(() => usuarios.value.slice((pagina.value - 1) * POR_PAGINA, pagina.value * POR_PAGINA))
 
 // ---------- Crear / editar ----------
 type Ficha = {
@@ -267,7 +261,7 @@ const clasesInput = (campo: string) =>
       </select>
     </div>
 
-    <p class="text-xs text-gray-500 mb-2">{{ cargando ? 'Cargando…' : `${usuarios.length} ${usuarios.length === 1 ? 'persona' : 'personas'}` }}</p>
+    <p class="text-xs text-gray-500 mb-2">{{ cargando ? 'Cargando…' : `${total.toLocaleString('es-CL')} ${total === 1 ? 'persona' : 'personas'}` }}</p>
 
     <div class="rounded-lg border border-gray-200 overflow-x-auto">
       <table class="w-full text-sm">
@@ -281,7 +275,7 @@ const clasesInput = (campo: string) =>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="u in visibles" :key="u.id" class="hover:bg-indigo-50/40">
+          <tr v-for="u in usuarios" :key="u.id" class="hover:bg-indigo-50/40">
             <td class="px-4 py-2.5 font-mono text-xs text-gray-700 whitespace-nowrap">
               {{ describirDocumento(u.rut, u.tipo_documento, u.pais) }}
             </td>
@@ -308,11 +302,7 @@ const clasesInput = (campo: string) =>
       </table>
     </div>
 
-    <div v-if="totalPaginas > 1" class="mt-3 flex items-center justify-end gap-2 text-sm">
-      <button type="button" class="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40" :disabled="pagina === 1" @click="pagina--">Anterior</button>
-      <span class="text-gray-500">Página {{ pagina }} de {{ totalPaginas }}</span>
-      <button type="button" class="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40" :disabled="pagina === totalPaginas" @click="pagina++">Siguiente</button>
-    </div>
+    <Paginacion v-model="pagina" class="mt-3" :total="total" :por-pagina="porPagina" singular="persona" plural="personas" />
 
     <Modal
       :abierto="form.abierto"

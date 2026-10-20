@@ -263,4 +263,20 @@ class GestionUsuariosTest extends TestCase
         $this->assertSame('dni', $respuesta->json('filas.1.datos.tipo_documento'));
         $this->assertSame(['Falta el nombre.'], $respuesta->json('filas.1.mensajes'));
     }
+
+    public function test_el_listado_de_usuarios_viene_por_paginas(): void
+    {
+        $this->comoAdmin();
+        Usuario::factory()->count(30)->create(['tipo' => 'estudiante']);
+        Usuario::factory()->count(3)->create(['tipo' => 'docente']);
+
+        $this->getJson('/api/usuarios')->assertOk()
+            ->assertJsonCount(25, 'data')
+            ->assertJsonPath('total', 33)
+            ->assertJsonPath('last_page', 2);
+        $this->getJson('/api/usuarios?page=2')->assertOk()->assertJsonCount(8, 'data')->assertJsonPath('from', 26);
+        // Los filtros cuentan sobre todo el listado, no solo sobre la página.
+        $this->getJson('/api/usuarios?tipo=docente')->assertOk()->assertJsonPath('total', 3);
+        $this->getJson('/api/usuarios?por_pagina=500')->assertOk()->assertJsonPath('per_page', 100);
+    }
 }
