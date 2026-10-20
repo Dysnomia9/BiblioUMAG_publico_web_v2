@@ -123,9 +123,23 @@ watch(cantidadPersonas, (nueva) => {
   }
 })
 
+// Sus cancelaciones de hoy (config/salas.php): la primera no tiene espera; desde la
+// segunda, unos minutos sin poder reservar otra sala. Solo cuentan las que hizo él.
+type Cancelaciones = { sin_espera_restantes: number; minutos_espera: number; espera: string | null; espera_hasta: string | null }
+const cancelaciones = ref<Cancelaciones>({ sin_espera_restantes: 1, minutos_espera: 5, espera: null, espera_hasta: null })
+
+// Cumplida la espera, se vuelve a cargar y se puede reservar de nuevo (sin esperar al refresco de 30 s).
+let finEspera: ReturnType<typeof setTimeout> | undefined
+watch(cancelaciones, (c) => {
+  clearTimeout(finEspera)
+  if (c.espera_hasta) finEspera = setTimeout(cargar, Math.max(0, new Date(c.espera_hasta).getTime() - Date.now()) + 1000)
+})
+onUnmounted(() => clearTimeout(finEspera))
+
 async function cargar() {
   try {
     const { data } = await apiUsuario.get('/mi/salas', { params: { fecha: hoy } })
+    if (data.cancelaciones) cancelaciones.value = data.cancelaciones
     salas.value = data.salas
     apertura.value = data.apertura
     cierre.value = data.cierre
@@ -173,7 +187,7 @@ const pasosAyuda = computed(() => [
   'Preséntate con tu grupo en el mesón dentro de los <strong>15 minutos</strong> desde la hora de inicio; si no, la sala se libera sola.',
 ])
 const consejoAyuda = computed(
-  () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul.`,
+  () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul. Puedes cancelar una reserva hecha por ti al día sin consecuencias; desde la segunda, tendrás que esperar ${cancelaciones.value.minutos_espera} minutos para reservar otra sala.`,
 )
 
 // La hizo la persona o la incluyeron como integrante (el servidor lo indica en es_mia).
@@ -219,6 +233,10 @@ function abrirModal(sala: Sala, inicioSugeridoMin: number) {
 function onTimelineClick(sala: Sala, event: MouseEvent) {
   if (diaCerrado.value) {
     toast.error(textoDiaCerrado)
+    return
+  }
+  if (cancelaciones.value.espera) {
+    toast.error(cancelaciones.value.espera)
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
@@ -305,6 +323,11 @@ async function confirmarReserva() {
       toast.error(erroresRuts.length === 1 ? 'Revisa el RUT marcado en rojo' : 'Revisa los RUT marcados en rojo')
     } else {
       toast.error(primerMensajeError(e) ?? 'No se pudo crear la reserva')
+      // Canceló hace poco (quizás en otra pestaña): se trae la hora desde la que puede reservar.
+      if (e?.response?.status === 429) {
+        modalOpen.value = false
+        await cargar()
+      }
     }
   } finally {
     enviando.value = false
@@ -313,6 +336,17 @@ async function confirmarReserva() {
 
 const reservaPorCancelar = ref<{ sala: Sala; tramo: TramoReserva } | null>(null)
 const cancelando = ref(false)
+
+/** Qué significa cancelar esta reserva para la espera: solo pesa en quien la hizo. */
+const avisoCancelacion = computed(() => {
+  const r = reservaPorCancelar.value
+  const { sin_espera_restantes: libres, minutos_espera: minutos } = cancelaciones.value
+  if (!r || !minutos) return null
+  if (r.tramo.usuario_id !== auth.usuario?.id) return 'No hiciste tú esta reserva: cancelarla no tiene consecuencias para ti.'
+  if (libres === 1) return `Esta cancelación no tiene consecuencias, pero es la única del día: si vuelves a cancelar otra reserva hoy, tendrás que esperar ${minutos} minutos para reservar una sala.`
+  if (libres > 1) return `Esta cancelación no tiene consecuencias (hoy te quedan ${libres} sin espera). Después, cada vez que canceles tendrás que esperar ${minutos} minutos para reservar una sala.`
+  return `Ya cancelaste una reserva hoy: si cancelas esta, tendrás que esperar ${minutos} minutos para reservar otra sala.`
+})
 
 async function confirmarCancelacion() {
   if (!reservaPorCancelar.value) return
@@ -394,6 +428,12 @@ async function confirmarCancelacion() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p>{{ textoFueraDeHorario }}</p>
+        </div>
+        <div v-if="cancelaciones.espera && !diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p>{{ cancelaciones.espera }}</p>
         </div>
         <p v-if="!diaCerrado" class="text-xs text-gray-400">
           Toca o haz clic en un espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.
@@ -605,6 +645,9 @@ async function confirmarCancelacion() {
         Se liberará <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
         <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>
         y quedará disponible para otras personas.
+      </p>
+      <p v-if="avisoCancelacion" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        {{ avisoCancelacion }}
       </p>
     </DialogoConfirmacion>
   </PortalLayout>
