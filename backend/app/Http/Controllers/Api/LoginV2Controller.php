@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CredencialSimulada;
 use App\Services\LoginUnificadoService;
+use App\Support\Credenciales;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -33,7 +33,9 @@ class LoginV2Controller extends Controller
 
         $credencial = CredencialSimulada::with('cuenta')->where('correo', mb_strtolower(trim($data['correo'])))->first();
 
-        if (! $credencial?->cuenta || ! Hash::check($data['password'], $credencial->clave)) {
+        $claveCorrecta = Credenciales::coinciden($data['password'], $credencial?->clave);
+
+        if (! $credencial?->cuenta || ! $claveCorrecta) {
             throw ValidationException::withMessages(['correo' => ['El correo o la contraseña no coinciden.']]);
         }
 

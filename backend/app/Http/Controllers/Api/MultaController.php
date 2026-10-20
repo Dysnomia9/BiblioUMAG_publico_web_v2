@@ -10,6 +10,7 @@ use App\Services\MultaService;
 use App\Support\Bitacora;
 use App\Support\Busqueda;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class MultaController extends Controller
@@ -110,11 +111,11 @@ class MultaController extends Controller
 
     public function pagar(Request $request, Multa $multa)
     {
-        if ($multa->estado !== 'pendiente') {
-            return response()->json(['message' => "Esta multa no está pendiente (estado: {$multa->estado})"], 409);
-        }
+        $estado = $this->siSiguePendiente($multa, fn () => $this->multaService->registrarPago($multa, $request->user()));
 
-        $this->multaService->registrarPago($multa, $request->user());
+        if ($estado !== 'pendiente') {
+            return response()->json(['message' => "Esta multa no está pendiente (estado: {$estado})"], 409);
+        }
 
         Bitacora::registrar(
             'multas.pagar',
@@ -136,11 +137,11 @@ class MultaController extends Controller
             'motivo.min' => 'Indica por qué se anula la multa (al menos 5 caracteres).',
         ]);
 
-        if ($multa->estado !== 'pendiente') {
-            return response()->json(['message' => "Solo se puede anular una multa pendiente (estado actual: {$multa->estado})"], 409);
-        }
+        $estado = $this->siSiguePendiente($multa, fn () => $this->multaService->anular($multa, $data['motivo'], $request->user()));
 
-        $this->multaService->anular($multa, $data['motivo'], $request->user());
+        if ($estado !== 'pendiente') {
+            return response()->json(['message' => "Solo se puede anular una multa pendiente (estado actual: {$estado})"], 409);
+        }
 
         Bitacora::registrar(
             'multas.anular',
@@ -151,5 +152,23 @@ class MultaController extends Controller
         );
 
         return response()->json($multa->load(self::RELACIONES));
+    }
+
+    /**
+     * Hace el cambio solo si la multa sigue pendiente, con la fila bloqueada: si dos
+     * personas del mesón la cobran o la anulan a la vez, la segunda espera a la primera y
+     * ve el estado que esta dejó (como al devolver un préstamo). Devuelve el estado que
+     * tenía la multa al momento de bloquearla.
+     */
+    private function siSiguePendiente(Multa $multa, callable $cambio): string
+    {
+        return DB::transaction(function () use ($multa, $cambio) {
+            $estado = Multa::whereKey($multa->id)->lockForUpdate()->value('estado');
+            if ($estado === 'pendiente') {
+                $cambio();
+            }
+
+            return $estado;
+        });
     }
 }

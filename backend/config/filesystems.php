@@ -33,7 +33,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Sin la ruta storage/{path} (enlaces temporales para leer o subir archivos):
+            // la aplicación no la usa, y apagada no queda nada que firmar si se filtrara
+            // la APP_KEY.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

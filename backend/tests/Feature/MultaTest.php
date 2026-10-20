@@ -7,6 +7,7 @@ use App\Models\Prestamo;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -203,5 +204,26 @@ class MultaTest extends TestCase
         ])->assertStatus(403);
 
         $this->assertSame('pendiente', $multa->fresh()->estado);
+    }
+
+    public function test_pagar_y_anular_bloquean_la_multa_mientras_la_cambian(): void
+    {
+        // Si dos personas del mesón la cobran o anulan a la vez, la segunda espera a la
+        // primera (SELECT ... FOR UPDATE) y ve que ya no está pendiente.
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $multa = Multa::factory()->create();
+        $consultas = [];
+        DB::listen(function ($consulta) use (&$consultas) {
+            $consultas[] = mb_strtolower($consulta->sql);
+        });
+
+        $this->patchJson("/api/multas/{$multa->id}/pagar")->assertOk()->assertJsonPath('estado', 'pagada');
+        $this->assertTrue(collect($consultas)->contains(fn ($sql) => str_contains($sql, 'for update')));
+
+        $this->patchJson("/api/multas/{$multa->id}/anular", ['motivo' => 'Se cobró por error'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Solo se puede anular una multa pendiente (estado actual: pagada)');
+        $this->patchJson("/api/multas/{$multa->id}/pagar")->assertStatus(409);
+        $this->assertSame('pagada', $multa->fresh()->estado);
     }
 }
