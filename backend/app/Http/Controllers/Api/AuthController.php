@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Staff;
 use App\Support\Bitacora;
+use App\Support\Credenciales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -21,7 +22,10 @@ class AuthController extends Controller
 
         $staff = Staff::where('email', $data['email'])->first();
 
-        if (! $staff || ! Hash::check($data['password'], $staff->password)) {
+        // La clave se compara aunque la cuenta no exista: que no se note por el tiempo.
+        $claveCorrecta = Credenciales::coinciden($data['password'], $staff?->password);
+
+        if (! $staff || ! $claveCorrecta) {
             throw ValidationException::withMessages([
                 'email' => ['Las credenciales no coinciden con ningún registro.'],
             ]);

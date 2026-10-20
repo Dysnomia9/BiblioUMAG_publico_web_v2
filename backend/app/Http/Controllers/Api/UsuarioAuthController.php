@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Usuario;
+use App\Support\Credenciales;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class UsuarioAuthController extends Controller
@@ -20,7 +20,11 @@ class UsuarioAuthController extends Controller
         // RUT, pasaporte o DNI (estudiantes extranjeros), con o sin puntos y guion.
         $usuario = Usuario::buscarPorIdentificador($data['rut']);
 
-        if (! $usuario || ! $usuario->password || ! Hash::check($data['password'], $usuario->password)) {
+        // La clave se compara aunque la cuenta no exista o no tenga contraseña (cargada por
+        // planilla): que no se note por el tiempo qué RUT están registrados.
+        $claveCorrecta = Credenciales::coinciden($data['password'], $usuario?->password);
+
+        if (! $usuario || ! $claveCorrecta) {
             throw ValidationException::withMessages([
                 'rut' => ['Las credenciales no coinciden con ningún registro.'],
             ]);
