@@ -242,4 +242,25 @@ class GestionUsuariosTest extends TestCase
         // Buscarla escribiendo el RUT con el cero también la encuentra.
         $this->getJson('/api/usuarios/rut/08733712-K')->assertOk()->assertJsonPath('nombre', 'Soledad Ximena');
     }
+
+    public function test_una_fila_con_documento_dudoso_avisa_todo_lo_que_le_falta(): void
+    {
+        $this->comoAdmin();
+        $filas = [
+            // Solo números, no cuadra como RUT y la fila no dice que sea extranjero.
+            ['fila' => 893, 'rut' => '473609075', 'nombre' => '', 'apellido_paterno' => '', 'carrera' => 'Kinesiología'],
+            // Con la nacionalidad, un número así se reconoce como DNI: falta solo el nombre.
+            ['fila' => 894, 'rut' => '473609076', 'nombre' => '', 'apellido_paterno' => 'PÉREZ', 'nacionalidad' => 'ARGENTINA'],
+        ];
+
+        $respuesta = $this->postJson('/api/usuarios/importar/revisar', ['filas' => $filas])->assertOk();
+
+        $this->assertSame('invalido', $respuesta->json('filas.0.estado'));
+        $this->assertStringStartsWith('«473609075» no es un RUT válido', $respuesta->json('filas.0.mensajes.0'));
+        $this->assertStringContainsString('«Nacionalidad»', $respuesta->json('filas.0.mensajes.0'));
+        $this->assertSame(['Falta el nombre.', 'Falta el apellido.'], array_slice($respuesta->json('filas.0.mensajes'), 1));
+
+        $this->assertSame('dni', $respuesta->json('filas.1.datos.tipo_documento'));
+        $this->assertSame(['Falta el nombre.'], $respuesta->json('filas.1.mensajes'));
+    }
 }
