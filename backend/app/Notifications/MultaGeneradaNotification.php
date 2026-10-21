@@ -8,7 +8,8 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Se envía cuando PrestamoController::devolver() genera una multa por atraso.
+ * Se envía cuando PrestamoController::devolver() genera una multa por atraso, o cuando
+ * el mesón cursa la de devolver tarde la llave de una sala (SalaController::multarAtraso()).
  * No es queued (ver nota en ReservaListaParaRetirarNotification — no hay
  * queue:work en este proyecto, se manda en línea).
  */
@@ -29,13 +30,16 @@ class MultaGeneradaNotification extends Notification
     {
         $monto = number_format((float) $this->multa->monto, 0, ',', '.');
         $titulo = $this->multa->prestamo?->libro_titulo;
+        $sala = $this->multa->reserva?->sala?->nombre;
 
         return (new MailMessage)
             ->subject('Multa generada por atraso — Biblioteca UMAG')
             ->greeting("Hola {$notifiable->nombre},")
-            ->line($titulo
-                ? "Se generó una multa de \${$monto} por la devolución atrasada de \"{$titulo}\"."
-                : "Se generó una multa de \${$monto} a tu nombre.")
+            ->line(match (true) {
+                $titulo !== null => "Se generó una multa de \${$monto} por la devolución atrasada de \"{$titulo}\".",
+                $sala !== null => "Se generó una multa de \${$monto} por devolver con atraso la llave de {$sala}.",
+                default => "Se generó una multa de \${$monto} a tu nombre.",
+            })
             ->line('Puedes pagarla y consultar tu estado de deudas en el mesón de la biblioteca.')
             ->salutation('Saludos,<br>Biblioteca UMAG');
     }

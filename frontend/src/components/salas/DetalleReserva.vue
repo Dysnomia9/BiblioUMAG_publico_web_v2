@@ -6,7 +6,7 @@ import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { SITUACIONES, duracion, fechaLargaReserva, horaDe, reservaEditable } from '@/utils/reservas'
-import type { IntegrantesReserva, ListadoReservas, ReservaListado } from '@/types'
+import type { AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado } from '@/types'
 
 /**
  * Detalle de una reserva del Listado de reservas. Con el permiso de editar reservas,
@@ -20,7 +20,9 @@ const props = defineProps<{
   puedeEditar: boolean
 }>()
 
-const emit = defineEmits<{ cerrar: []; actualizada: [] }>()
+// atraso: la llave volvió fuera de hora; la pantalla muestra el aviso para decidir la multa
+// (este detalle se cierra al registrar la devolución).
+const emit = defineEmits<{ cerrar: []; actualizada: []; atraso: [aviso: AtrasoDevolucion] }>()
 
 const toast = useToast()
 
@@ -90,8 +92,9 @@ async function ejecutar() {
       await api.delete(`/reservas/${actual.value.id}`)
       toast.success('Reserva cancelada: el horario quedó libre')
     } else {
-      await api.patch(`/reservas/${actual.value.id}/devolver`)
+      const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null }>(`/reservas/${actual.value.id}/devolver`)
       toast.success('Devolución de la llave registrada')
+      if (data.atraso_devolucion) emit('atraso', data.atraso_devolucion)
     }
     confirmando.value = null
     emit('actualizada')

@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Usuario;
+use App\Notifications\MultaGeneradaNotification;
 use App\Services\EntradaService;
+use App\Services\MultaService;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
 use App\Support\Documento;
@@ -400,7 +402,7 @@ class SalaController extends Controller
      * a diferencia de destroyReserva(), no borra la reserva: deja registrado quién y
      * cuándo se devolvió, igual que hace escanearLogia() por la vía del código de barras.
      */
-    public function devolverReserva(Request $request, Reserva $reserva)
+    public function devolverReserva(Request $request, Reserva $reserva, MultaService $multas)
     {
         try {
             $reserva = $this->reservaSalaService->registrarDevolucion($reserva, $request->user());
@@ -410,7 +412,35 @@ class SalaController extends Controller
 
         Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()}", entidad: $reserva, afectado: $reserva->usuario);
 
-        return response()->json($reserva);
+        // Si llegó tarde, el mesón ve el aviso y decide si cursa la multa (multarAtraso()).
+        return response()->json($reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva)));
+    }
+
+    /**
+     * El mesón decidió cursar la multa por devolver tarde la llave, desde el aviso que
+     * aparece al registrar la devolución. La multa es de quien está a cargo de la reserva.
+     */
+    public function multarAtraso(Request $request, Reserva $reserva, MultaService $multas)
+    {
+        $multa = $multas->generarPorAtrasoDeSala($reserva, $request->user());
+
+        if (! $multa) {
+            return response()->json(['message' => 'Esta reserva no tiene un atraso que multar: se devolvió a tiempo, todavía no se devuelve o ya tiene su multa.'], 409);
+        }
+
+        Bitacora::registrar(
+            'multas.generar',
+            'Se generó una multa de '.Bitacora::pesos($multa->monto)." por devolver tarde la llave de {$reserva->descripcion()}",
+            entidad: $multa,
+            datos: ['reserva_id' => $reserva->id, 'monto' => $multa->monto],
+            afectado: $multa->usuario,
+        );
+
+        if ($multa->usuario?->email) {
+            $multa->usuario->notify(new MultaGeneradaNotification($multa));
+        }
+
+        return response()->json($multa, 201);
     }
 
     /**
@@ -464,7 +494,7 @@ class SalaController extends Controller
     }
 
     /** El primer escaneo es la entrega (la llegada del grupo, con su asistencia); el segundo, la devolución. */
-    public function scanLogia(Request $request, EntradaService $entradas)
+    public function scanLogia(Request $request, EntradaService $entradas, MultaService $multas)
     {
         $data = $request->validate([
             'codigo_barras' => ['required', 'string'],
@@ -478,6 +508,7 @@ class SalaController extends Controller
 
         if ($reserva->hora_devolucion_real) {
             Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()} (código de barras)", entidad: $reserva, afectado: $reserva->usuario);
+            $reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva));
         } else {
             $reserva = $this->conAsistencia($reserva, $request, $entradas, 'Entregó con código de barras');
         }

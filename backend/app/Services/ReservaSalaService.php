@@ -19,6 +19,10 @@ class ReservaSalaService
      * Registra el escaneo de un código de barras de logia (Horizon): la primera vez marca
      * la entrega de la reserva vigente para ese bloque horario, la segunda marca la
      * devolución. No crea reservas  solo cierra el ciclo de una reserva ya existente.
+     *
+     * Si la llave de un grupo de hoy sigue afuera, el escaneo es su devolución aunque su
+     * horario ya haya terminado: es el grupo que vuelve tarde (y el mesón ve el aviso de
+     * atraso), y la llave tiene que volver antes de entregársela al grupo siguiente.
      */
     public function escanearLogia(string $codigoBarras, Staff $staff): Reserva
     {
@@ -29,34 +33,41 @@ class ReservaSalaService
         }
 
         $ahora = now();
-        $reserva = Reserva::where('sala_id', $sala->id)
+        $deHoy = fn () => Reserva::where('sala_id', $sala->id)
             ->where('fecha', $ahora->toDateString())
+            ->where('estado', 'activa');
+
+        $llaveAfuera = $deHoy()->whereNotNull('hora_prestamo_real')->whereNull('hora_devolucion_real')->orderBy('hora_inicio')->first();
+        if ($llaveAfuera) {
+            $llaveAfuera->update([
+                'devuelto_por' => $staff->nombre,
+                'devuelto_por_staff_id' => $staff->id,
+                'hora_devolucion_real' => $ahora,
+                'estado' => 'finalizada',
+            ]);
+
+            return $llaveAfuera->fresh();
+        }
+
+        $reserva = $deHoy()
             ->where('hora_inicio', '<=', $ahora->format('H:i:s'))
             ->where('hora_fin', '>', $ahora->format('H:i:s'))
-            ->where('estado', 'activa')
             ->first();
 
         if (! $reserva) {
             throw new \RuntimeException('Esta logia no tiene una reserva vigente en este momento');
         }
 
-        if (! $reserva->hora_prestamo_real) {
-            $reserva->update([
-                'prestado_por' => $staff->nombre,
-                'prestado_por_staff_id' => $staff->id,
-                'hora_prestamo_real' => $ahora,
-                'via' => 'BC',
-            ]);
-        } elseif (! $reserva->hora_devolucion_real) {
-            $reserva->update([
-                'devuelto_por' => $staff->nombre,
-                'devuelto_por_staff_id' => $staff->id,
-                'hora_devolucion_real' => $ahora,
-                'estado' => 'finalizada',
-            ]);
-        } else {
+        if ($reserva->hora_prestamo_real) {
             throw new \RuntimeException('Esta reserva ya fue entregada y devuelta');
         }
+
+        $reserva->update([
+            'prestado_por' => $staff->nombre,
+            'prestado_por_staff_id' => $staff->id,
+            'hora_prestamo_real' => $ahora,
+            'via' => 'BC',
+        ]);
 
         return $reserva->fresh();
     }

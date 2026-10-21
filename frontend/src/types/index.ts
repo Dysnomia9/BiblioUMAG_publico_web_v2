@@ -412,6 +412,17 @@ export type CondicionesReservaLibro = {
 // Tramo reservado dentro de una sala, en horario continuo (hora_inicio/hora_fin en
 // formato "H:i"). Forma parte de Sala.tramos, la respuesta de
 // SalaController::index()/PortalController::salas() (ver ReservaSalaService::vistaDelDia()).
+/** Aviso al devolver tarde la llave de una sala (MultaService::atrasoDeSala()): el mesón decide si cursa la multa. */
+export type AtrasoDevolucion = {
+  reserva_id: number
+  persona: string
+  sala: string
+  hora_fin: string
+  minutos: number
+  monto: number
+  monto_provisional: boolean
+}
+
 export type TramoReserva = {
   reserva_id: number
   hora_inicio: string

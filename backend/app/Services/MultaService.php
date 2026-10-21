@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Multa;
 use App\Models\Prestamo;
+use App\Models\Reserva;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Carbon\Carbon;
@@ -69,6 +70,73 @@ class MultaService
             'origen' => 'sistema',
             'registrada_por_staff_id' => $staff->id,
         ]);
+    }
+
+    /**
+     * Atraso al devolver la llave de una sala: minutos pasados de la hora de término y
+     * monto que tendría la multa (config/multas.php, «sala»). Null si se devolvió dentro
+     * de la tolerancia, si estas multas están apagadas, si la reserva no tiene a nadie a
+     * cargo o si ya tiene su multa. No multa a nadie: el mesón decide en cada caso con
+     * generarPorAtrasoDeSala(), porque los atrasos chicos a veces se dejan pasar.
+     *
+     * @return array{reserva_id: int, persona: string, sala: string, hora_fin: string, minutos: int, monto: int, monto_provisional: bool}|null
+     */
+    public function atrasoDeSala(Reserva $reserva): ?array
+    {
+        if (! config('multas.sala.activa') || ! $reserva->hora_devolucion_real || ! $reserva->usuario_id) {
+            return null;
+        }
+
+        $termino = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_fin);
+        $minutos = (int) floor($termino->diffInMinutes($reserva->hora_devolucion_real));
+        $monto = $minutos * (int) config('multas.sala.monto_por_minuto');
+        $tope = config('multas.sala.tope_maximo');
+        $monto = $tope ? min($monto, (int) $tope) : $monto;
+
+        $yaMultada = Multa::where('reserva_id', $reserva->id)->where('tipo', 'atraso')->where('estado', '!=', 'anulada')->exists();
+        if ($minutos <= (int) config('multas.sala.minutos_tolerancia') || $monto < 1 || $yaMultada) {
+            return null;
+        }
+
+        $reserva->loadMissing(['sala:id,nombre', 'usuario:id,nombre,apellido']);
+
+        return [
+            'reserva_id' => $reserva->id,
+            'persona' => trim("{$reserva->usuario->nombre} {$reserva->usuario->apellido}"),
+            'sala' => $reserva->sala?->nombre ?? 'Sala',
+            'hora_fin' => substr($reserva->hora_fin, 0, 5),
+            'minutos' => $minutos,
+            'monto' => $monto,
+            'monto_provisional' => (bool) config('multas.sala.monto_provisional'),
+        ];
+    }
+
+    /**
+     * La multa por devolver tarde la llave, cuando el mesón decide cursarla. Es de quien
+     * está a cargo de la reserva. Null si no corresponde (ver atrasoDeSala()). La reserva
+     * queda bloqueada mientras tanto: dos clics seguidos no generan dos multas.
+     */
+    public function generarPorAtrasoDeSala(Reserva $reserva, Staff $staff): ?Multa
+    {
+        return DB::transaction(function () use ($reserva, $staff) {
+            $reserva = Reserva::whereKey($reserva->id)->lockForUpdate()->firstOrFail();
+            $atraso = $this->atrasoDeSala($reserva);
+
+            if (! $atraso) {
+                return null;
+            }
+
+            return Multa::create([
+                'usuario_id' => $reserva->usuario_id,
+                'reserva_id' => $reserva->id,
+                'tipo' => 'atraso',
+                'monto' => $atraso['monto'],
+                'estado' => 'pendiente',
+                'detalle' => "Devolución de la llave de {$atraso['sala']} con {$atraso['minutos']} minutos de atraso (reserva hasta las {$atraso['hora_fin']})",
+                'origen' => 'sistema',
+                'registrada_por_staff_id' => $staff->id,
+            ]);
+        });
     }
 
     /** @param  array{tipo: string, monto: int, detalle: string, prestamo_id?: int|null}  $datos */
