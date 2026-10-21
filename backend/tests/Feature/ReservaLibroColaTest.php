@@ -8,6 +8,8 @@ use App\Models\Prestamo;
 use App\Models\ReservaLibro;
 use App\Models\Staff;
 use App\Models\Usuario;
+use App\Services\ReservaLibroService;
+use App\Support\HorarioBiblioteca;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -160,6 +162,77 @@ class ReservaLibroColaTest extends TestCase
 
         $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => false]);
         $this->assertDatabaseHas('reservas_libro', ['id' => ReservaLibro::where('usuario_id', $enCola->id)->first()->id, 'estado' => 'pendiente']);
+    }
+
+    public function test_doble_clic_en_cancelar_le_pasa_la_copia_a_una_sola_persona_de_la_fila(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $reserva = ReservaLibro::factory()->create([
+            'libro_id' => $ejemplar->libro_id,
+            'ejemplar_id' => $ejemplar->id,
+            'usuario_id' => Usuario::factory()->create()->id,
+            'estado' => 'pendiente',
+        ]);
+        [$primero, $segundo] = Usuario::factory()->count(2)->create();
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $primero->id, 'codigo_barras' => $ejemplar->codigo_barras])->assertStatus(201);
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $segundo->id, 'codigo_barras' => $ejemplar->codigo_barras])->assertStatus(201);
+
+        // El segundo clic llega con la reserva leída antes de que el primero terminara.
+        $leidaAntes = $reserva->fresh();
+        $this->patchJson("/api/reservas-libro/{$reserva->id}/cancelar")->assertStatus(200);
+        $this->assertFalse(app(ReservaLibroService::class)->cancelar($leidaAntes));
+
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $primero->id, 'estado' => 'pendiente', 'ejemplar_id' => $ejemplar->id]);
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $segundo->id, 'estado' => 'en_cola', 'ejemplar_id' => null]);
+        $this->patchJson("/api/reservas-libro/{$reserva->id}/cancelar")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Esta reserva ya estaba cancelada.');
+    }
+
+    public function test_cancelar_justo_cuando_el_meson_la_entrega_no_deja_disponible_la_copia_prestada(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $usuario = Usuario::factory()->create();
+        $reserva = ReservaLibro::factory()->create([
+            'libro_id' => $ejemplar->libro_id,
+            'ejemplar_id' => $ejemplar->id,
+            'usuario_id' => $usuario->id,
+            'estado' => 'pendiente',
+        ]);
+
+        // El portal leyó la reserva "por retirar" justo antes de que el mesón la entregara.
+        $leidaAntes = $reserva->fresh();
+        $this->postJson('/api/prestamos', [
+            'usuario_id' => $usuario->id,
+            'codigo_barras' => $ejemplar->codigo_barras,
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => HorarioBiblioteca::proximoDiaConAtencion(now()->addDays(7))->toDateString(),
+        ])->assertStatus(201);
+
+        $this->assertFalse(app(ReservaLibroService::class)->cancelar($leidaAntes));
+        $this->assertSame('retirado', $leidaAntes->estado);
+        $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => false]);
+    }
+
+    public function test_el_meson_no_cancela_una_reserva_ya_retirada(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $reserva = ReservaLibro::factory()->create([
+            'libro_id' => $ejemplar->libro_id,
+            'ejemplar_id' => $ejemplar->id,
+            'usuario_id' => Usuario::factory()->create()->id,
+            'estado' => 'retirado',
+        ]);
+
+        $this->patchJson("/api/reservas-libro/{$reserva->id}/cancelar")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Este libro ya se retiró: la reserva queda en el historial y no se puede cancelar.');
+
+        $this->assertDatabaseHas('reservas_libro', ['id' => $reserva->id, 'estado' => 'retirado']);
+        $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => false]);
     }
 
     public function test_cancelar_reserva_en_cola_no_afecta_disponibilidad_ni_promueve_a_nadie(): void

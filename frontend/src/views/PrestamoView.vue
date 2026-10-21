@@ -552,8 +552,10 @@ async function cancelarReserva() {
     await api.patch(`/reservas-libro/${reserva.id}/cancelar`)
     toast.success(reserva.estado === 'en_cola' ? 'Salió de la lista de espera' : 'Reserva cancelada')
     await cargarPrestamosYReservas()
-  } catch {
-    toast.error('No se pudo cancelar la reserva')
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? 'No se pudo cancelar la reserva')
+    // Ya no estaba activa (la retiraron o la cancelaron en otra parte): se muestra como quedó.
+    if (e?.response?.status === 409) await cargarPrestamosYReservas()
   } finally {
     cancelandoReserva.value = false
     reservaACancelar.value = null

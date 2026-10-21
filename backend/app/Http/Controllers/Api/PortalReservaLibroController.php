@@ -103,13 +103,11 @@ class PortalReservaLibroController extends Controller
         }
 
         // Solo lo que sigue activo: una reserva retirada o cancelada queda en el historial.
-        if (! in_array($reservaLibro->estado, ['pendiente', 'en_cola'], true)) {
+        if (! $this->reservaLibroService->cancelar($reservaLibro)) {
             return response()->json(['message' => $reservaLibro->estado === 'retirado'
                 ? 'Este libro ya se retiró: la reserva queda en tu historial y no se puede cancelar.'
                 : 'Esta reserva ya estaba cancelada.'], 409);
         }
-
-        $this->reservaLibroService->cancelar($reservaLibro);
 
         // Desde ahora espera unos minutos antes de pedir otro libro (config/reservas_libro.php).
         $minutos = (int) config('reservas_libro.espera_tras_cancelar');
