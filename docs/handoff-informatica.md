@@ -38,7 +38,10 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
 2. **Credenciales de Postgres de producción**: host, usuario, contraseña,
    nombre de base de datos. Puede ser el `db` que trae el propio compose
    (con volumen persistente) o un Postgres gestionado por Informática; el
-   backend se conecta a cualquiera de los dos, solo cambia `DB_HOST`.
+   backend se conecta a cualquiera de los dos, solo cambia `DB_HOST`. Si el
+   Postgres de Informática exige conexiones cifradas, `DB_SSLMODE=require`; con
+   el `db` del compose se deja el valor de fábrica (`prefer`), porque ese no
+   tiene SSL y con `require` el backend no se conectaría.
 3. **Dominio/URL reales**: `APP_URL` (backend), `FRONTEND_URL`,
    `SANCTUM_STATEFUL_DOMAINS` (dominio del frontend, sin protocolo).
 4. **Códigos de barra reales de Horizon**: hoy el sistema convive

@@ -56,7 +56,10 @@ services:
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_SSLMODE: require
+      # El "db" de este compose no tiene SSL: con 'require', el backend no se conecta
+      # nunca. Con 'prefer' usa SSL si la base lo ofrece. Si Informática entrega un
+      # Postgres externo que lo exige, DB_SSLMODE=require en el entorno.
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
       FRONTEND_URL: ${FRONTEND_URL}
       SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS}
       # Notificaciones, Google y LDAP (ver backend/.env.production.example y
