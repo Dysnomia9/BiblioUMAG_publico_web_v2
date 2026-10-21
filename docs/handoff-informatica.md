@@ -120,8 +120,10 @@ Para que no se lean como carencias en la revisión:
   mientras tenga uno sin devolver. Aplica solo a libros, no a equipos
   (audífonos/notebooks/cargadores).
 - **Sin renovación de préstamos** ni **aviso automático de "tu préstamo
-  vence mañana"** (el segundo necesitaría un proceso de cron corriendo
-  aparte, que hoy no está montado en el `docker-compose.prod.yml`).
+  vence mañana"** (el segundo sería una tarea programada más: el servicio
+  `scheduler` de `docker-compose.prod.yml` ya ejecuta las de
+  `backend/routes/console.php`, hoy solo la limpieza diaria de sesiones
+  vencidas).
 - **Sin backups automatizados**: la integridad de datos (transacciones,
   bloqueos, restricciones a nivel de base de datos) ya está resuelta; los
   backups periódicos son responsabilidad operativa de quien administre el
@@ -155,6 +157,12 @@ Para que no se lean como carencias en la revisión:
   `SCRIPT_FILENAME /var/www/public/index.php` (como en la plantilla) y no
   levantar el servicio `api`. En desarrollo (`docker-compose.yml`) se sigue
   usando `php artisan serve`, que es más cómodo para trabajar.
+- **Tareas programadas:** el servicio `scheduler` (la misma imagen y el mismo
+  entorno que `backend`, con `php artisan schedule:work`) ejecuta las tareas de
+  `backend/routes/console.php`; hoy, la limpieza diaria de las sesiones
+  vencidas. Si Informática prefiere su propio cron, basta con
+  `* * * * * php artisan schedule:run` en el contenedor `backend` y no levantar
+  el servicio `scheduler`.
 - **Listados grandes:** el catálogo real son decenas de miles de títulos. Los
   listados que crecen sin límite (libros, historial de libros, préstamos,
   catálogo del portal) van por páginas, y los reportes se calculan en la base

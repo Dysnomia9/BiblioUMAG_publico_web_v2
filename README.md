@@ -206,6 +206,11 @@ PostgreSQL** (backend API), 100% dockerizada.
   `roles`, y cada grupo de rutas lo exige con el middleware
   `permiso:<clave>`. "Cuentas y roles del personal" queda reservado al rol
   con acceso total, para que nadie pueda darse más permisos a sí mismo.
+  Cada sesión vence a las 8 horas, y las vencidas se borran solas una vez al
+  día (`sanctum:prune-expired` en `routes/console.php`).
+- **Tareas programadas**: el servicio `scheduler` de los dos docker-compose
+  corre `php artisan schedule:work` con la misma imagen y el mismo entorno
+  del backend, y ejecuta las tareas de `routes/console.php`.
 - **Pensado para un catálogo grande**: los listados que crecen sin límite
   (listado de libros, historial de libros, listado de préstamos, catálogo del
   portal, estado de ejemplares) van **por páginas**, con búsqueda y filtros en
@@ -522,10 +527,10 @@ tests.
 - **Sin aviso de préstamo por vencer**: ya existen notificaciones por
   correo para "reserva lista para retirar" y "multa generada" (ver
   Backend/integraciones), disparadas por eventos que ya ocurren en el
-  código. Falta el aviso "tu préstamo vence mañana", que necesitaría un
-  job programado (`Schedule::` diario), y no hay ningún proceso de cron
-  corriendo en `docker-compose.yml` hoy, así que quedó fuera de alcance
-  por ahora, no es un olvido.
+  código. Falta el aviso "tu préstamo vence mañana": sería una tarea
+  programada más en `routes/console.php`, que el servicio `scheduler` ya
+  ejecuta (hoy solo corre la limpieza diaria de sesiones vencidas). Quedó
+  fuera de alcance por ahora, no es un olvido.
 - **Notificaciones sin servidor SMTP real**: funcionan y están probadas,
   pero sin credenciales de un servidor de correo configuradas quedan
   escritas en el log del backend en vez de enviarse de verdad (ver
