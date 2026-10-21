@@ -75,7 +75,12 @@ class ReservaLibroController extends Controller
     public function cancelar(ReservaLibro $reservaLibro)
     {
         $estadoAnterior = $reservaLibro->estado;
-        $this->reservaLibroService->cancelar($reservaLibro);
+
+        if (! $this->reservaLibroService->cancelar($reservaLibro)) {
+            return response()->json(['message' => $reservaLibro->estado === 'retirado'
+                ? 'Este libro ya se retiró: la reserva queda en el historial y no se puede cancelar.'
+                : 'Esta reserva ya estaba cancelada.'], 409);
+        }
 
         Bitacora::registrar(
             'reservas_libro.cancelar',

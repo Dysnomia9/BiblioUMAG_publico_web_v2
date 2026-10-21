@@ -149,23 +149,44 @@ class ReservaLibroService
         }
     }
 
-    public function cancelar(ReservaLibro $reserva): void
+    /**
+     * Cancela la reserva si sigue activa (por retirar o en la lista de espera) y devuelve
+     * true; si mientras tanto la retiraron o ya estaba cancelada, no la toca y devuelve
+     * false. Como al prestar, se bloquea primero la copia y después la reserva, y el
+     * estado se vuelve a leer ya bloqueado: un doble clic, o el portal y el mesón a la
+     * vez, no liberan dos veces la misma copia ni dejan disponible una ya prestada.
+     * $reserva queda con su estado actual.
+     */
+    public function cancelar(ReservaLibro $reserva): bool
     {
-        DB::transaction(function () use ($reserva) {
-            $liberaEjemplar = $reserva->estado === 'pendiente';
-            $ejemplarId = $reserva->ejemplar_id;
+        $cancelada = DB::transaction(function () use ($reserva) {
+            $ejemplar = $reserva->ejemplar_id ? Ejemplar::whereKey($reserva->ejemplar_id)->lockForUpdate()->first() : null;
+            $actual = ReservaLibro::whereKey($reserva->id)->lockForUpdate()->first();
 
-            $reserva->update(['estado' => 'cancelado']);
+            if (! in_array($actual?->estado, ['pendiente', 'en_cola'], true)) {
+                return false;
+            }
+
+            // Estaba en la fila y justo le tocó una copia: esa es la que se libera.
+            if ($actual->ejemplar_id && $actual->ejemplar_id !== $ejemplar?->id) {
+                $ejemplar = Ejemplar::whereKey($actual->ejemplar_id)->lockForUpdate()->first();
+            }
+
+            $liberaEjemplar = $actual->estado === 'pendiente';
+            $actual->update(['estado' => 'cancelado']);
 
             // Si estaba 'en_cola' (nunca llegó a tener copia asignada), cancelar no
             // afecta la disponibilidad de nadie más — simplemente sale de la fila.
-            if ($liberaEjemplar && $ejemplarId) {
-                $ejemplar = Ejemplar::whereKey($ejemplarId)->lockForUpdate()->first();
-                if ($ejemplar) {
-                    $this->liberarLibro($ejemplar);
-                }
+            if ($liberaEjemplar && $ejemplar) {
+                $this->liberarLibro($ejemplar);
             }
+
+            return true;
         });
+
+        $reserva->refresh();
+
+        return $cancelada;
     }
 
     /**
