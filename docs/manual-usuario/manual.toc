@@ -19,7 +19,7 @@
 \contentsline {section}{\numberline {5.1}Buscar al usuario}{15}{section.5.1}%
 \contentsline {section}{\numberline {5.2}Prestar un libro}{17}{section.5.2}%
 \contentsline {section}{\numberline {5.3}Reservar un libro}{18}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Préstamo de equipos}{19}{section.5.4}%
+\contentsline {section}{\numberline {5.4}Préstamo de equipos}{18}{section.5.4}%
 \contentsline {section}{\numberline {5.5}Devoluciones y multas por atraso}{19}{section.5.5}%
 \contentsline {chapter}{\numberline {6}Salas de Estudio (Logias)}{20}{chapter.6}%
 \contentsline {section}{\numberline {6.1}Reservar una sala}{21}{section.6.1}%

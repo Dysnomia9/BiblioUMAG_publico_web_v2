@@ -70,7 +70,8 @@ MySQL 8** (backend API), 100% dockerizada.
   tiene, en el mesón, en el portal y al sumar integrantes; con bloqueo de la
   sala y de los integrantes para que dos reservas simultáneas no tomen el
   mismo tramo ni pongan a alguien en dos salas a la vez) y de libros del catálogo
-  para retiro. Ambas comparten la disponibilidad del ejemplar como fuente
+  para retiro (la que no se retira hasta su fecha límite se cancela sola esa
+  noche y la copia pasa al siguiente de la fila). Ambas comparten la disponibilidad del ejemplar como fuente
   de verdad: no se puede reservar ni prestar algo ya ocupado.
 - Catalogación de libros con soporte real para **múltiples copias del
   mismo título** (registro bibliográfico separado de cada copia física,
@@ -211,7 +212,9 @@ MySQL 8** (backend API), 100% dockerizada.
   día (`sanctum:prune-expired` en `routes/console.php`).
 - **Tareas programadas**: el servicio `scheduler` de los dos docker-compose
   corre `php artisan schedule:work` con la misma imagen y el mismo entorno
-  del backend, y ejecuta las tareas de `routes/console.php`.
+  del backend, y ejecuta las tareas de `routes/console.php`: la limpieza diaria
+  de sesiones vencidas y el vencimiento de las reservas de libros no retiradas
+  (`reservas-libro:vencer`, cada noche a las 00:05).
 - **Pensado para un catálogo grande**: los listados que crecen sin límite
   (listado de libros, historial de libros, listado de préstamos, catálogo del
   portal, estado de ejemplares) van **por páginas**, con búsqueda y filtros en
@@ -558,7 +561,8 @@ tests.
   Backend/integraciones), disparadas por eventos que ya ocurren en el
   código. Falta el aviso "tu préstamo vence mañana": sería una tarea
   programada más en `routes/console.php`, que el servicio `scheduler` ya
-  ejecuta (hoy solo corre la limpieza diaria de sesiones vencidas). Quedó
+  ejecuta (hoy limpia las sesiones vencidas y vence las reservas de libros no
+  retiradas). Quedó
   fuera de alcance por ahora, no es un olvido.
 - **Notificaciones sin servidor SMTP real**: funcionan y están probadas,
   pero sin credenciales de un servidor de correo configuradas quedan

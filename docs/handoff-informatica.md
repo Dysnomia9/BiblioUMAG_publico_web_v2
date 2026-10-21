@@ -128,8 +128,8 @@ Para que no se lean como carencias en la revisión:
 - **Sin renovación de préstamos** ni **aviso automático de "tu préstamo
   vence mañana"** (el segundo sería una tarea programada más: el servicio
   `scheduler` de `docker-compose.prod.yml` ya ejecuta las de
-  `backend/routes/console.php`, hoy solo la limpieza diaria de sesiones
-  vencidas).
+  `backend/routes/console.php`: hoy, la limpieza de sesiones vencidas y el
+  vencimiento de las reservas de libros no retiradas).
 - **Sin backups automatizados**: la integridad de datos (transacciones,
   bloqueos, restricciones a nivel de base de datos) ya está resuelta; los
   backups periódicos son responsabilidad operativa de quien administre el
@@ -166,7 +166,9 @@ Para que no se lean como carencias en la revisión:
 - **Tareas programadas:** el servicio `scheduler` (la misma imagen y el mismo
   entorno que `backend`, con `php artisan schedule:work`) ejecuta las tareas de
   `backend/routes/console.php`; hoy, la limpieza diaria de las sesiones
-  vencidas. Si Informática prefiere su propio cron, basta con
+  vencidas y, cada noche, el vencimiento de las reservas de libros que no se
+  retiraron a tiempo (si no corre, esas copias quedan apartadas). Si
+  Informática prefiere su propio cron, basta con
   `* * * * * php artisan schedule:run` en el contenedor `backend` y no levantar
   el servicio `scheduler`.
 - **Listados grandes:** el catálogo real son decenas de miles de títulos. Los

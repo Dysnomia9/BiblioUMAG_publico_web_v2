@@ -169,6 +169,51 @@ class ReservaLibroService
     }
 
     /**
+     * Las reservas listas para retirar cuyo plazo ya pasó (la fecha límite es el último
+     * día para retirarla): se cancelan y su copia pasa al siguiente de la lista de
+     * espera, o vuelve a quedar disponible. Sin esto, la copia quedaba apartada para
+     * siempre y la fila no avanzaba. Lo corre cada noche reservas-libro:vencer.
+     *
+     * @return Collection<int, ReservaLibro> las que vencieron
+     */
+    public function vencerSinRetirar(): Collection
+    {
+        $vencidas = collect();
+
+        $candidatas = ReservaLibro::where('estado', 'pendiente')
+            ->whereDate('fecha_retiro', '<', now()->toDateString())
+            ->orderBy('id')
+            ->get(['id', 'ejemplar_id']);
+
+        foreach ($candidatas as $candidata) {
+            $vencida = DB::transaction(function () use ($candidata) {
+                // Como al prestar: primero la copia y después la reserva, así no se
+                // traba con un retiro que llega justo en ese momento.
+                $ejemplar = $candidata->ejemplar_id ? Ejemplar::whereKey($candidata->ejemplar_id)->lockForUpdate()->first() : null;
+                $reserva = ReservaLibro::whereKey($candidata->id)->lockForUpdate()->first();
+
+                // La retiraron o la cancelaron mientras tanto.
+                if ($reserva?->estado !== 'pendiente') {
+                    return null;
+                }
+
+                $reserva->update(['estado' => 'cancelado']);
+                if ($ejemplar) {
+                    $this->liberarLibro($ejemplar);
+                }
+
+                return $reserva;
+            });
+
+            if ($vencida) {
+                $vencidas->push($vencida);
+            }
+        }
+
+        return $vencidas;
+    }
+
+    /**
      * Se llama siempre que una copia pasa a estar disponible: al devolver un
      * préstamo (PrestamoController::devolver()) o al cancelar una reserva
      * 'pendiente'. En vez de dejarla simplemente disponible, promueve a la
