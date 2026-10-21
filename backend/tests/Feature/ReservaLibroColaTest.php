@@ -252,6 +252,55 @@ class ReservaLibroColaTest extends TestCase
         $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $primero->id, 'estado' => 'en_cola']);
     }
 
+    public function test_una_copia_que_vuelve_al_estante_queda_apartada_para_el_primero_de_la_fila(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create();
+        $prestada = Ejemplar::factory()->for($libro)->create(['disponible' => false]);
+        $nueva = Ejemplar::factory()->for($libro)->create(['estado_proceso' => 'inventario']);
+        [$primero, $segundo] = Usuario::factory()->count(2)->create();
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $primero->id, 'codigo_barras' => $prestada->codigo_barras])->assertStatus(201);
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $segundo->id, 'codigo_barras' => $prestada->codigo_barras])->assertStatus(201);
+
+        $this->patchJson("/api/ejemplares/{$nueva->id}/estado", ['estado_proceso' => 'en_estante'])
+            ->assertStatus(200)
+            ->assertJsonPath('disponible', false)
+            ->assertJsonPath('apartada_para', trim("{$primero->nombre} {$primero->apellido}"));
+
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $primero->id, 'estado' => 'pendiente', 'ejemplar_id' => $nueva->id]);
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $segundo->id, 'estado' => 'en_cola']);
+        $this->assertNotNull(ReservaLibro::where('usuario_id', $primero->id)->first()->fecha_retiro);
+    }
+
+    public function test_sin_lista_de_espera_la_copia_que_vuelve_al_estante_queda_disponible(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $copia = Ejemplar::factory()->for(Libro::factory())->create(['estado_proceso' => 'procesos_tecnicos']);
+
+        $this->patchJson("/api/ejemplares/{$copia->id}/estado", ['estado_proceso' => 'en_estante'])
+            ->assertStatus(200)
+            ->assertJsonPath('disponible', true)
+            ->assertJsonPath('apartada_para', null);
+    }
+
+    public function test_el_cambio_masivo_al_estante_tambien_atiende_la_lista_de_espera(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create();
+        $prestada = Ejemplar::factory()->for($libro)->create(['disponible' => false]);
+        $copias = Ejemplar::factory()->for($libro)->count(2)->create(['estado_proceso' => 'procesos_tecnicos']);
+        $enEspera = Usuario::factory()->create();
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $enEspera->id, 'codigo_barras' => $prestada->codigo_barras])->assertStatus(201);
+
+        $this->postJson('/api/ejemplares/cambio-masivo/ejecutar', [
+            'estado_proceso_actual' => 'procesos_tecnicos',
+            'nuevo_estado' => 'en_estante',
+        ])->assertStatus(200)->assertJsonPath('total_actualizados', 2)->assertJsonPath('apartadas', 1);
+
+        $this->assertSame(1, Ejemplar::whereIn('id', $copias->pluck('id'))->where('disponible', false)->count());
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $enEspera->id, 'estado' => 'pendiente']);
+    }
+
     public function test_orden_fifo_de_la_cola_se_respeta_con_tres_personas(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
