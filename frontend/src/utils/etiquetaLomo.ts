@@ -84,6 +84,9 @@ export function abrirImpresionLomo(etiquetas: EtiquetaLomo[], opciones: Opciones
   if (!ventana) return false
   ventana.document.write(paginaEtiquetasLomo(etiquetas, opciones))
   ventana.document.close()
+  // El botón se conecta desde acá: la política de seguridad del sitio no deja correr
+  // código escrito dentro de la página (un onclick="...").
+  ventana.document.querySelector('.toolbar button')?.addEventListener('click', () => ventana.print())
   return true
 }
 
@@ -142,7 +145,7 @@ export function paginaEtiquetasLomo(etiquetas: EtiquetaLomo[], opciones: Opcione
 </style>
 </head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">Imprimir</button><span>${etiquetas.length} ${etiquetas.length === 1 ? 'etiqueta' : 'etiquetas'} de ${anchoMm} × ${altoMm} mm. Imprime al 100 % (sin «ajustar a la página»).</span></div>
+  <div class="toolbar"><button type="button">Imprimir</button><span>${etiquetas.length} ${etiquetas.length === 1 ? 'etiqueta' : 'etiquetas'} de ${anchoMm} × ${altoMm} mm. Imprime al 100 % (sin «ajustar a la página»).</span></div>
   <div class="hoja">${html}</div>
 </body>
 </html>`

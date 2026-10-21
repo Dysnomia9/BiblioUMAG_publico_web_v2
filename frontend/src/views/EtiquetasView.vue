@@ -153,11 +153,14 @@ function abrirImpresion() {
 </style>
 </head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">Imprimir</button></div>
+  <div class="toolbar"><button type="button">Imprimir</button></div>
   <div class="hoja">${etiquetas}</div>
 </body>
 </html>`)
   ventana.document.close()
+  // El botón se conecta desde acá: la política de seguridad del sitio no deja correr
+  // código escrito dentro de la página (un onclick="...").
+  ventana.document.querySelector('.toolbar button')?.addEventListener('click', () => ventana.print())
 }
 </script>
 

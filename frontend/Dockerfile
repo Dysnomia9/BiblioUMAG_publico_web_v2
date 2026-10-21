@@ -17,6 +17,7 @@ FROM nginx:1.30-alpine AS produccion
 # Los arreglos de seguridad de Alpine que la imagen oficial todavía no trae.
 RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx-cabeceras.conf /etc/nginx/snippets/cabeceras.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 
