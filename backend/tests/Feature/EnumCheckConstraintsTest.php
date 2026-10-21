@@ -36,6 +36,39 @@ class EnumCheckConstraintsTest extends TestCase
         Prestamo::factory()->create(['tipo_item' => 'invalido']);
     }
 
+    public function test_prestamo_de_libro_con_un_recurso_falla_a_nivel_de_base_de_datos(): void
+    {
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
+        $equipo = Equipo::factory()->create(['tipo' => 'audifonos']);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('chk_prestamos_libro_o_recurso');
+        Prestamo::factory()->create(['tipo_item' => 'libro', 'ejemplar_id' => $ejemplar->id, 'equipo_id' => $equipo->id]);
+    }
+
+    public function test_prestamo_de_recurso_con_una_copia_falla_a_nivel_de_base_de_datos(): void
+    {
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('chk_prestamos_libro_o_recurso');
+        Prestamo::factory()->create(['tipo_item' => 'audifonos', 'ejemplar_id' => $ejemplar->id]);
+    }
+
+    public function test_prestamos_que_apuntan_a_lo_de_su_tipo_o_a_nada_son_validos(): void
+    {
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
+        $equipo = Equipo::factory()->create(['tipo' => 'audifonos']);
+
+        Prestamo::factory()->create(['tipo_item' => 'libro', 'ejemplar_id' => $ejemplar->id]);
+        Prestamo::factory()->create(['tipo_item' => 'audifonos', 'equipo_id' => $equipo->id]);
+        // Historial de antes de los ejemplares y los equipos: sin copia ni recurso.
+        Prestamo::factory()->create(['tipo_item' => 'libro']);
+        Prestamo::factory()->create(['tipo_item' => 'audifonos']);
+
+        $this->assertSame(4, Prestamo::count());
+    }
+
     public function test_multas_estado_invalido_falla_a_nivel_de_base_de_datos(): void
     {
         $this->expectException(QueryException::class);
