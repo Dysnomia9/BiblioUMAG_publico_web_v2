@@ -15,3 +15,7 @@ Artisan::command('inspire', function () {
 // (config/sanctum.php) y la fila se queda para siempre: una vez al día se borran los
 // que vencieron hace más de un día.
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
+// La reserva de libro que no se retiró hasta su fecha límite se cancela apenas empieza
+// el día siguiente, y la copia pasa al siguiente de la lista de espera.
+Schedule::command('reservas-libro:vencer')->dailyAt('00:05');
