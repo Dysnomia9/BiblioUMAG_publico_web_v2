@@ -159,7 +159,14 @@ Para que no se lean como carencias en la revisión:
 - **Frontend:** `docker-compose.prod.yml` ya compila la aplicación y la sirve
   con nginx (etapa `produccion` de `frontend/Dockerfile`, configuración en
   `frontend/nginx.conf`). Al navegador solo llegan los archivos compilados y
-  minificados: ni el código fuente ni sus comentarios se publican.
+  minificados: ni el código fuente ni sus comentarios se publican. Cada respuesta
+  lleva cabeceras de protección (`frontend/nginx-cabeceras.conf`): ninguna otra
+  página puede mostrar el sistema dentro de la suya, y la política de contenido
+  (`Content-Security-Policy`) solo deja correr el código del propio sitio y
+  conectarse a la API en el mismo servidor, puerto 8000 (o en el mismo origen, si
+  la publican como `/api` detrás del nginx del frontend). **Si la API queda en otro
+  dominio u otro puerto**, hay que agregarla en `connect-src` de ese archivo; si no,
+  el navegador no la deja usar.
 - **Backend:** en `docker-compose.prod.yml` la API corre con **PHP-FPM detrás
   de nginx**: el servicio `backend` (etapa `app` de `backend/Dockerfile`,
   `SERVIDOR=fpm`) atiende con varios procesos en paralelo, y el servicio `api`

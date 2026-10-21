@@ -391,7 +391,9 @@ horneado en la imagen, no se reinstala nada al levantar.
 Para producción está `docker-compose.prod.yml`: el frontend se compila
 (`npm run build`) y lo sirve nginx (`frontend/nginx.conf`), así que al navegador
 solo llegan los archivos compilados y minificados, sin el código fuente ni sus
-comentarios. Lo que falta para publicarlo está en
+comentarios, con cabeceras de protección (`frontend/nginx-cabeceras.conf`: no se
+deja mostrar dentro de otra página y solo corre el código del propio sitio). Lo
+que falta para publicarlo está en
 [`docs/handoff-informatica.md`](docs/handoff-informatica.md).
 
 ### Credenciales de prueba
