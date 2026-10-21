@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Bitacora;
 use App\Models\Ejemplar;
 use App\Models\Libro;
+use App\Models\ReservaLibro;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -198,5 +200,65 @@ class PrestamoLibroTest extends TestCase
         ]);
 
         $response->assertStatus(201);
+    }
+
+    public function test_llevarse_otra_copia_cierra_la_reserva_y_la_copia_apartada_pasa_al_siguiente(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create();
+        $apartada = Ejemplar::factory()->for($libro)->create(['disponible' => false]);
+        $otraCopia = Ejemplar::factory()->for($libro)->create();
+        [$usuario, $siguiente] = Usuario::factory()->count(2)->create();
+        $reserva = ReservaLibro::factory()->create([
+            'libro_id' => $libro->id,
+            'ejemplar_id' => $apartada->id,
+            'usuario_id' => $usuario->id,
+            'estado' => 'pendiente',
+        ]);
+        $enCola = ReservaLibro::factory()->create([
+            'libro_id' => $libro->id,
+            'ejemplar_id' => null,
+            'usuario_id' => $siguiente->id,
+            'estado' => 'en_cola',
+            'fecha_retiro' => null,
+        ]);
+
+        $this->postJson('/api/prestamos', [
+            'usuario_id' => $usuario->id,
+            'tipo_item' => 'libro',
+            'codigo_barras' => $otraCopia->codigo_barras,
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('reservas_libro', ['id' => $reserva->id, 'estado' => 'retirado', 'ejemplar_id' => $otraCopia->id]);
+        $this->assertDatabaseHas('reservas_libro', ['id' => $enCola->id, 'estado' => 'pendiente', 'ejemplar_id' => $apartada->id]);
+        $this->assertDatabaseHas('ejemplares', ['id' => $apartada->id, 'disponible' => false]);
+    }
+
+    public function test_llevarse_una_copia_del_titulo_que_esperaba_la_saca_de_la_lista_de_espera(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create();
+        $libre = Ejemplar::factory()->for($libro)->create();
+        $usuario = Usuario::factory()->create();
+        $enCola = ReservaLibro::factory()->create([
+            'libro_id' => $libro->id,
+            'ejemplar_id' => null,
+            'usuario_id' => $usuario->id,
+            'estado' => 'en_cola',
+            'fecha_retiro' => null,
+        ]);
+
+        $this->postJson('/api/prestamos', [
+            'usuario_id' => $usuario->id,
+            'tipo_item' => 'libro',
+            'codigo_barras' => $libre->codigo_barras,
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('reservas_libro', ['id' => $enCola->id, 'estado' => 'retirado', 'ejemplar_id' => $libre->id]);
+        $this->assertStringContainsString('cierra la reserva que tenía de este título', Bitacora::where('accion', 'prestamos.prestar')->latest('id')->value('descripcion'));
     }
 }
