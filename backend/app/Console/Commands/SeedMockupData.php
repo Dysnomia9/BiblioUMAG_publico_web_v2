@@ -422,7 +422,6 @@ class SeedMockupData extends Command
                 $fechaDevolucion = $fechaPrestamo->copy()->addDays(7);
 
                 $devuelto = random_int(0, 100) < 40;
-                $atrasado = ! $devuelto && $fechaDevolucion->isPast();
 
                 Prestamo::create([
                     'usuario_id' => $usuario->id,
@@ -432,7 +431,7 @@ class SeedMockupData extends Command
                     'fecha_prestamo' => $fechaPrestamo,
                     'fecha_devolucion' => $fechaDevolucion,
                     'fecha_devolucion_real' => $devuelto ? $this->dentroDelHorario($fechaDevolucion->copy()->subDays(random_int(0, 3))) : null,
-                    'estado' => $devuelto ? 'devuelto' : ($atrasado ? 'atrasado' : 'activo'),
+                    'estado' => $devuelto ? 'devuelto' : 'activo',
                 ]);
 
                 if (! $devuelto) {
@@ -1192,7 +1191,7 @@ class SeedMockupData extends Command
             'codigo_barras' => $copiaAtrasada->codigo_barras,
             'fecha_prestamo' => $this->momentoEnHorario(17),
             'fecha_devolucion' => $this->dentroDelHorario(now()->subDays(10), haciaAtras: false),
-            'estado' => 'atrasado',
+            'estado' => 'activo',
             'prestado_por' => $meson->nombre,
             'prestado_por_staff_id' => $meson->id,
         ]);

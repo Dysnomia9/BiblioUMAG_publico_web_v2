@@ -10,9 +10,9 @@ function diasParaDevolver(fechaDevolucion: string) {
   return Math.round((new Date(new Date(fechaDevolucion).toDateString()).getTime() - inicioDeHoy().getTime()) / DIA)
 }
 
-/** Sin devolver y con la fecha ya pasada (o marcado atrasado por el sistema). */
+/** Sin devolver y con la fecha ya pasada; el que vence hoy todavía no (igual que Prestamo::scopeVencidos()). */
 export const estaVencido = (p: Prestamo) =>
-  p.estado !== 'devuelto' && (p.estado === 'atrasado' || (!!p.fecha_devolucion && diasParaDevolver(p.fecha_devolucion) < 0))
+  p.estado !== 'devuelto' && !!p.fecha_devolucion && diasParaDevolver(p.fecha_devolucion) < 0
 
 /** Columna «Devolución»: la fecha y cuánto falta, cuándo se devolvió o, en los recursos de apoyo (sin fecha fija), si sigue pendiente. */
 export function devolucionDe(p: Prestamo) {

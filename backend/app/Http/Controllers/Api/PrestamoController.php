@@ -80,9 +80,7 @@ class PrestamoController extends Controller
 
         $vistas = [
             'activos' => fn ($q) => $q->where('estado', '!=', 'devuelto'),
-            // Igual que estaVencido() del frontend: marcado atrasado, o con la fecha de devolución ya pasada.
-            'vencidos' => fn ($q) => $q->where('estado', '!=', 'devuelto')->where(fn ($w) => $w->where('estado', 'atrasado')
-                ->orWhereDate('fecha_devolucion', '<', now()->toDateString())),
+            'vencidos' => fn ($q) => $q->vencidos(),
             'devueltos' => fn ($q) => $q->where('estado', 'devuelto'),
             'todos' => fn ($q) => $q,
         ];

@@ -27,7 +27,7 @@ class LibroController extends Controller
             ...self::RELACIONES,
             // Cada copia dice si está prestada o reservada (listado de libros y estado de ejemplares).
             'ejemplares' => fn ($q) => $q->orderBy('numero_copia')->withExists([
-                'prestamos as prestado' => fn ($p) => $p->whereIn('estado', ['activo', 'atrasado']),
+                'prestamos as prestado' => fn ($p) => $p->where('estado', '!=', 'devuelto'),
                 'reservasLibro as reservado' => fn ($r) => $r->where('estado', 'pendiente'),
             ]),
             'ejemplares.ubicacion',
