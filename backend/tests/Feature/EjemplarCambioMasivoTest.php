@@ -93,11 +93,26 @@ class EjemplarCambioMasivoTest extends TestCase
         $response = $this->postJson('/api/ejemplares/cambio-masivo/ejecutar', [
             'ubicacion_id' => $bodega->id,
             'nuevo_estado' => 'de_baja',
+            'motivo' => 'Deterioro por humedad',
         ]);
 
         $response->assertStatus(200)->assertJsonPath('total_actualizados', 1);
         $this->assertDatabaseHas('ejemplares', ['id' => $disponible->id, 'estado_proceso' => 'de_baja']);
         $this->assertDatabaseMissing('ejemplares', ['id' => $prestado->id, 'estado_proceso' => 'de_baja']);
+        $this->assertDatabaseHas('ejemplar_estado_historial', ['ejemplar_id' => $disponible->id, 'motivo' => 'Deterioro por humedad']);
+    }
+
+    public function test_la_baja_masiva_sin_motivo_no_se_hace(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $bodega = Ubicacion::factory()->create(['nombre' => 'Bodega']);
+        $copia = Ejemplar::factory()->for(Libro::factory())->create(['ubicacion_id' => $bodega->id]);
+
+        $this->postJson('/api/ejemplares/cambio-masivo/ejecutar', ['ubicacion_id' => $bodega->id, 'nuevo_estado' => 'de_baja', 'motivo' => '  '])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['motivo' => 'Indica el motivo de la baja: queda registrado en el historial de cada copia.']);
+
+        $this->assertDatabaseHas('ejemplares', ['id' => $copia->id, 'estado_proceso' => 'en_estante']);
     }
 
     public function test_staff_no_admin_no_puede_ejecutar_cambio_masivo(): void
