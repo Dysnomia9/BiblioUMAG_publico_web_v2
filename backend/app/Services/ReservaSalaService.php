@@ -10,6 +10,7 @@ use App\Support\HorarioBiblioteca;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReservaSalaService
@@ -272,6 +273,37 @@ class ReservaSalaService
         }
 
         return false;
+    }
+
+    /**
+     * Revisa y guarda una reserva nueva o cambiada con la sala y los integrantes
+     * bloqueados (SELECT ... FOR UPDATE), en una sola transacción. Sin esto, dos
+     * reservas que llegaban al mismo tiempo para la misma sala, o con una misma persona,
+     * pasaban las dos las revisiones (choque de horario, reserva pendiente única, cuota
+     * diaria) antes de que la otra se guardara. Una restricción de exclusión de
+     * PostgreSQL cubriría solo el choque en la sala, no las reglas por persona. Ahora la
+     * segunda espera a que termine la primera y, como en PostgreSQL cada consulta ve lo
+     * último confirmado, sus revisiones ya incluyen la reserva de la otra.
+     *
+     * Los bloqueos van antes que las revisiones, y siempre la sala primero y los
+     * usuarios por id, para que dos reservas no queden esperándose entre sí.
+     *
+     * @template T
+     *
+     * @param  iterable<int>  $usuarioIds
+     * @param  \Closure(): T  $accion
+     * @return T
+     */
+    public function conSalaEIntegrantesBloqueados(?int $salaId, iterable $usuarioIds, \Closure $accion): mixed
+    {
+        return DB::transaction(function () use ($salaId, $usuarioIds, $accion) {
+            if ($salaId) {
+                Sala::whereKey($salaId)->lockForUpdate()->first();
+            }
+            Usuario::whereKey(collect($usuarioIds)->sort()->values())->orderBy('id')->lockForUpdate()->get();
+
+            return $accion();
+        });
     }
 
     /**

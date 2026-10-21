@@ -352,69 +352,73 @@ class PortalController extends Controller
             return response()->json(['message' => $error], 422);
         }
 
-        $existe = $this->reservaSalaService->existeSolapamiento(
-            $data['sala_id'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
+        $integrantes = Usuario::whereIn('rut', $data['ruts'])->pluck('id');
 
-        if ($existe) {
-            return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
-        }
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $integrantes, function () use ($data, $usuario, $integrantes) {
+            $existe = $this->reservaSalaService->existeSolapamiento(
+                $data['sala_id'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
 
-        if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente, $usuario->rut, detalleAjeno: false)], 409);
-        }
+            if ($existe) {
+                return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
+            }
 
-        $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada(
-            $data['ruts'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
+            if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente, $usuario->rut, detalleAjeno: false)], 409);
+            }
 
-        if ($rutConflicto) {
-            $mensaje = $rutConflicto === $usuario->rut
-                ? 'Ya tienes otra sala reservada en ese horario'
-                : "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario";
+            $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada(
+                $data['ruts'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
 
-            return response()->json(['message' => $mensaje], 409);
-        }
+            if ($rutConflicto) {
+                $mensaje = $rutConflicto === $usuario->rut
+                    ? 'Ya tienes otra sala reservada en ese horario'
+                    : "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario";
 
-        $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria(
-            $data['ruts'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
+                return response()->json(['message' => $mensaje], 409);
+            }
 
-        if ($excedeCuota) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota, $usuario->rut)], 409);
-        }
+            $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria(
+                $data['ruts'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
 
-        $reserva = Reserva::create([
-            'sala_id' => $data['sala_id'],
-            'usuario_id' => $usuario->id,
-            'rut_usuario' => $data['ruts'][0],
-            'cantidad_personas' => $data['cantidad_personas'],
-            'fecha' => $data['fecha'],
-            'hora_inicio' => $data['hora_inicio'],
-            'hora_fin' => $data['hora_fin'],
-            'estado' => 'activa',
-        ]);
+            if ($excedeCuota) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota, $usuario->rut)], 409);
+            }
 
-        $reserva->participantes()->attach(Usuario::whereIn('rut', $data['ruts'])->pluck('id'));
+            $reserva = Reserva::create([
+                'sala_id' => $data['sala_id'],
+                'usuario_id' => $usuario->id,
+                'rut_usuario' => $data['ruts'][0],
+                'cantidad_personas' => $data['cantidad_personas'],
+                'fecha' => $data['fecha'],
+                'hora_inicio' => $data['hora_inicio'],
+                'hora_fin' => $data['hora_fin'],
+                'estado' => 'activa',
+            ]);
 
-        Bitacora::registrar(
-            'salas.reservar',
-            "Reservó desde el portal {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
-            entidad: $reserva,
-            datos: ['integrantes' => $data['ruts']],
-            afectado: $usuario,
-        );
+            $reserva->participantes()->attach($integrantes);
 
-        return response()->json($reserva, 201);
+            Bitacora::registrar(
+                'salas.reservar',
+                "Reservó desde el portal {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
+                entidad: $reserva,
+                datos: ['integrantes' => $data['ruts']],
+                afectado: $usuario,
+            );
+
+            return response()->json($reserva, 201);
+        });
     }
 
     /**
