@@ -149,6 +149,9 @@ class SeedMockupData extends Command
             // catálogos que se reutilizan entre corridas (firstOrCreate por nombre), no
             // datos de prueba transaccionales — carreras además solo se siembra una vez
             // desde su migración, borrarla aquí la dejaría vacía para siempre.
+            // La bitácora va primero: apunta (RESTRICT) a las cuentas del personal y a los
+            // usuarios, y en cuanto alguien usó el sistema ya tiene filas.
+            DB::table('bitacora')->delete();
             DB::table('credenciales_simuladas')->delete();
             DB::table('multas')->delete();
             DB::table('ejemplar_estado_historial')->delete();

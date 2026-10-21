@@ -91,6 +91,8 @@ services:
   # `schedule:work` en vez de PHP-FPM. No publica puertos.
   scheduler:
     image: bibliomag-backend
+    # La imagen la construye "backend": no hay nada que descargar de Docker Hub.
+    pull_policy: never
     restart: unless-stopped
     depends_on:
       - backend

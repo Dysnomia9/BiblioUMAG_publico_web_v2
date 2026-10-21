@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Bitacora as Registro;
 use App\Models\Equipo;
 use App\Models\Libro;
 use App\Models\Multa;
 use App\Models\Prestamo;
 use App\Models\ReservaLibro;
+use App\Models\Staff;
 use App\Models\Usuario;
+use App\Support\Bitacora;
 use App\Support\FichaBibliografica;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -16,6 +19,20 @@ use Tests\TestCase;
 class EscenarioDemostracionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_los_datos_de_prueba_se_regeneran_aunque_ya_se_haya_usado_el_sistema(): void
+    {
+        $this->artisan('mockup:datos')->assertSuccessful();
+
+        // Lo que hacen el personal y los usuarios queda en la bitácora, que apunta a sus cuentas.
+        Bitacora::registrar('personal.editar', 'Editó una cuenta', actor: Staff::firstOrFail());
+        Bitacora::registrar('salas.reservar', 'Reservó desde el portal', actor: Usuario::firstOrFail());
+
+        $this->artisan('mockup:datos', ['--fresh' => true])->assertSuccessful();
+
+        $this->assertSame(0, Registro::count());
+        $this->assertGreaterThan(0, Staff::count());
+    }
 
     public function test_los_datos_de_prueba_traen_el_escenario_de_la_presentacion(): void
     {

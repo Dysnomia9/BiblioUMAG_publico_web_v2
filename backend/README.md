@@ -43,6 +43,12 @@ tests terminen corriendo `migrate:fresh` contra `biblioteca` (la base real de
 desarrollo) sin ningún aviso. `mysql_testing` evita el problema de raíz usando
 nombres de variable propios (`DB_TEST_*`) que Docker nunca define.
 
+Por lo mismo, `docker-compose.yml` **no define `DB_CONNECTION`** (la toma del `.env`
+de la imagen, que dice `mysql`): si la definiera, el `<env name="DB_CONNECTION">` de
+`phpunit.xml` dejaría de valer y los tests volverían a vaciar `biblioteca`. Como red
+de seguridad, `tests/TestCase.php` detiene los tests antes de tocar la base si la
+conexión no es `mysql_testing`.
+
 ### Ejecutar la suite
 
 ```bash

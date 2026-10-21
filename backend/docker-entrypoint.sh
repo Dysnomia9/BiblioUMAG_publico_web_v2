@@ -105,7 +105,7 @@ fi
 
 # Desarrollo: el servidor de Laravel, un proceso, cómodo para trabajar.
 # --no-reload: sin él, `artisan serve` le quita al proceso que atiende las variables
-# del contenedor (DB_CONNECTION, DB_HOST… de docker-compose.yml) y ese proceso lee
+# del contenedor (DB_HOST, DB_DATABASE… de docker-compose.yml) y ese proceso lee
 # solo el .env horneado en la imagen.
 echo ">> Levantando servidor Laravel en 0.0.0.0:8000"
 exec php artisan serve --host=0.0.0.0 --port=8000 --no-reload

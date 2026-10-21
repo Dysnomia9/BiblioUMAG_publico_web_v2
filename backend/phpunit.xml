@@ -27,7 +27,9 @@
              tests tienen que reflejar el comportamiento real.
 
              IMPORTANTE: NO reutilizar los nombres DB_HOST/DB_DATABASE/
-             DB_USERNAME/DB_PASSWORD acá. docker-compose.yml ya los define
+             DB_USERNAME/DB_PASSWORD acá, y NO definir DB_CONNECTION en
+             docker-compose.yml (este <env> dejaría de valer, igual que
+             esos). docker-compose.yml ya los define
              como variables de entorno reales del contenedor "backend"
              (apuntando a 'biblioteca', la base de desarrollo), y Laravel/
              Dotenv no permite que un <env> de phpunit.xml sobreescriba una
