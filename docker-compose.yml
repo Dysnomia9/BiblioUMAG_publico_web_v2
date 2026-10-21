@@ -34,11 +34,13 @@ services:
   backend:
     build:
       context: ./backend
+    # Con nombre propio: el servicio "scheduler" usa esta misma imagen.
+    image: bibliomag-backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    environment:
+    environment: &entorno-backend
       # Desarrollo declarado: solo con APP_ENV=local el arranque carga los datos de
       # prueba (admin@umag.cl / admin123) y crea la base de tests (docker-entrypoint.sh).
       APP_ENV: local
@@ -60,6 +62,17 @@ services:
     # mismo WiFi. Para probar desde el celular, ESCUCHAR_EN=0.0.0.0 (ver README).
     ports:
       - "${ESCUCHAR_EN:-127.0.0.1}:8000:8000"
+
+  # Tareas programadas de Laravel (backend/routes/console.php), como la limpieza diaria
+  # de sesiones vencidas: la misma imagen y el mismo entorno del backend, con
+  # `schedule:work` en vez del servidor. No publica puertos.
+  scheduler:
+    image: bibliomag-backend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment: *entorno-backend
+    entrypoint: ["php", "artisan", "schedule:work"]
 
   frontend:
     build:

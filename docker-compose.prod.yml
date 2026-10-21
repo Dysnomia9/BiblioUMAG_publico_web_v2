@@ -43,11 +43,13 @@ services:
     build:
       context: ./backend
       target: app
+    # Con nombre propio: el servicio "scheduler" usa esta misma imagen.
+    image: bibliomag-backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    environment:
+    environment: &entorno-backend
       APP_ENV: production
       APP_DEBUG: "false"
       SERVIDOR: fpm
@@ -83,6 +85,17 @@ services:
       LDAP_USER_ATTRIBUTE: ${LDAP_USER_ATTRIBUTE:-}
       LDAP_EMAIL_ATTRIBUTE: ${LDAP_EMAIL_ATTRIBUTE:-}
       LDAP_TLS: ${LDAP_TLS:-false}
+
+  # Tareas programadas de Laravel (backend/routes/console.php), como la limpieza diaria
+  # de sesiones vencidas: la misma imagen y el mismo entorno del backend, con
+  # `schedule:work` en vez de PHP-FPM. No publica puertos.
+  scheduler:
+    image: bibliomag-backend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment: *entorno-backend
+    entrypoint: ["php", "artisan", "schedule:work"]
 
   # La puerta de entrada de la API (puerto 8000, el mismo de siempre): nginx recibe
   # las peticiones y se las pasa a PHP-FPM del servicio "backend".
