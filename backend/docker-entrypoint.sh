@@ -77,15 +77,23 @@ php artisan migrate --force
 echo ">> Verificando datos de prueba..."
 STAFF_COUNT=$(php artisan tinker --execute="echo \App\Models\Staff::count();" 2>/dev/null | tr -d '[:space:]')
 if [ "$STAFF_COUNT" = "0" ] || [ -z "$STAFF_COUNT" ]; then
-  if [ "$ES_DESARROLLO" = "true" ]; then
+  # En desarrollo, DATOS_DE_PRUEBA=no (docker-compose.yml) arranca la base vacía, como en
+  # producción: para ensayar la carga de los datos reales.
+  if [ "$ES_DESARROLLO" = "true" ] && [ "${DATOS_DE_PRUEBA:-si}" != "no" ]; then
     echo ">> No hay datos de prueba aún, cargando mockup inicial (staff, usuarios, salas, entradas, préstamos)..."
     php artisan mockup:datos
   else
     # Los datos de prueba traen admin@umag.cl / admin123 con acceso total: fuera de
-    # desarrollo la primera cuenta se crea a mano, con una contraseña propia.
-    echo ">> Sin cuentas del personal y APP_ENV=${APP_ENV:-(sin definir)}: NO se cargan datos de prueba (solo con APP_ENV=local)."
-    echo "   Crea la primera cuenta con acceso total con:"
-    echo "   docker compose -f docker-compose.prod.yml exec backend php artisan personal:crear-admin <correo> --nombre=\"Nombre Apellido\""
+    # desarrollo la primera cuenta se crea a mano, con una contraseña al azar.
+    if [ "$ES_DESARROLLO" = "true" ]; then
+      echo ">> Sin cuentas del personal y DATOS_DE_PRUEBA=no: la base queda vacía, sin datos de prueba."
+      echo "   Crea la cuenta de administrador general (con una contraseña al azar) con:"
+      echo "   docker compose exec backend php artisan sistema:iniciar"
+    else
+      echo ">> Sin cuentas del personal y APP_ENV=${APP_ENV:-(sin definir)}: NO se cargan datos de prueba (solo con APP_ENV=local)."
+      echo "   Crea la cuenta de administrador general (con una contraseña al azar) con:"
+      echo "   docker compose -f docker-compose.prod.yml exec backend php artisan sistema:iniciar <correo> --nombre=\"Nombre Apellido\""
+    fi
   fi
 else
   echo ">> Ya existen cuentas del personal ($STAFF_COUNT). En desarrollo, 'php artisan mockup:datos --fresh' regenera los datos de prueba."

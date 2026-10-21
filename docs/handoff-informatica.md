@@ -66,11 +66,14 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
 
    ```bash
    docker compose -f docker-compose.prod.yml exec backend \
-     php artisan personal:crear-admin jefatura@umag.cl --nombre="Nombre Apellido"
+     php artisan sistema:iniciar jefatura@umag.cl --nombre="Nombre Apellido"
    ```
 
-   (genera una contraseña al azar y la muestra una vez). Desde ahí, esa
-   persona crea las cuentas del resto del personal en "Personal y Roles".
+   (genera una contraseña al azar y la muestra una vez; solo corre en una base
+   sin datos). Desde ahí, esa persona crea las cuentas del resto del personal en
+   "Personal y Roles". Si más adelante nadie puede entrar a esa pantalla,
+   `php artisan personal:crear-admin <correo>` le devuelve el acceso total a
+   una cuenta, con una contraseña nueva al azar.
 
 ### Opcional: el sistema funciona sin esto, pero mejora con ello
 
