@@ -204,6 +204,7 @@ Route::middleware(['auth:sanctum', 'usuario'])->group(function () {
     // Con tope propio: cada intento dice si los RUT ingresados están registrados.
     Route::post('/mi/reservas', [PortalController::class, 'reservarSala'])->middleware('throttle:20,1');
     Route::delete('/mi/reservas/{reserva}', [PortalController::class, 'cancelarReservaSala']);
+    Route::patch('/mi/reservas/{reserva}/salir', [PortalController::class, 'salirDeReservaSala']);
 
     Route::get('/mi/reservas-libro', [PortalReservaLibroController::class, 'index']);
     Route::get('/mi/reservas-libro/condiciones', [PortalReservaLibroController::class, 'condiciones']);

@@ -64,11 +64,64 @@ class PortalReservaTest extends TestCase
         $this->assertDatabaseHas('reservas', ['id' => $reserva->id]);
     }
 
-    public function test_un_integrante_puede_cancelar_la_reserva_aunque_la_haya_hecho_otro(): void
+    public function test_un_integrante_no_cancela_la_reserva_de_otro_pero_puede_salirse(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00'); // viernes
+        [$dueno, $companero, $yo, $amiga] = Usuario::factory()->count(4)->create();
+        $reserva = Reserva::factory()->conParticipantes([$dueno, $companero, $yo])->create([
+            'sala_id' => Sala::factory()->create()->id,
+            'usuario_id' => $dueno->id,
+            'rut_usuario' => $dueno->rut,
+            'cantidad_personas' => 3,
+        ]);
+
+        Sanctum::actingAs($yo);
+        $this->deleteJson("/api/mi/reservas/{$reserva->id}")
+            ->assertStatus(403)
+            ->assertJsonPath('message', 'Esta reserva la hizo otra persona: puedes salirte de ella, pero solo quien la hizo la cancela.');
+
+        $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")->assertOk()->assertJsonPath('cancelada', false);
+
+        $reserva->refresh();
+        $this->assertSame('activa', $reserva->estado);
+        $this->assertSame(2, $reserva->cantidad_personas);
+        $this->assertEqualsCanonicalizing([$dueno->id, $companero->id], $reserva->participantes()->pluck('usuarios.id')->all());
+        $this->assertDatabaseHas('bitacora', ['accion' => 'salas.integrantes', 'entidad_id' => $reserva->id]);
+
+        // Ya no está en la reserva: no puede volver a salirse, y queda libre para otra sala a esa hora.
+        $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")->assertStatus(403);
+        $this->postJson('/api/mi/reservas', [
+            'sala_id' => Sala::factory()->create()->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '10:00',
+            'hora_fin' => '11:00',
+            'cantidad_personas' => 2,
+            'ruts' => [$yo->rut, $amiga->rut],
+        ])->assertStatus(201);
+    }
+
+    public function test_si_al_salirse_quedaria_una_sola_persona_la_reserva_se_cancela(): void
     {
         Carbon::setTestNow(Carbon::today()->setTime(9, 0));
-        $dueno = Usuario::factory()->create();
-        $companero = Usuario::factory()->create();
+        [$dueno, $yo] = Usuario::factory()->count(2)->create();
+        $reserva = Reserva::factory()->conParticipantes([$dueno, $yo])->create([
+            'sala_id' => Sala::factory()->create()->id,
+            'usuario_id' => $dueno->id,
+            'rut_usuario' => $dueno->rut,
+            'cantidad_personas' => 2,
+        ]);
+
+        Sanctum::actingAs($yo);
+        $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")->assertOk()->assertJsonPath('cancelada', true);
+
+        $this->assertDatabaseHas('reservas', ['id' => $reserva->id, 'estado' => 'cancelada', 'cantidad_personas' => 2]);
+        $this->assertDatabaseHas('bitacora', ['accion' => 'salas.cancelar', 'entidad_id' => $reserva->id]);
+    }
+
+    public function test_quien_hizo_la_reserva_no_se_sale_la_cancela(): void
+    {
+        Carbon::setTestNow(Carbon::today()->setTime(9, 0));
+        [$dueno, $companero] = Usuario::factory()->count(2)->create();
         $reserva = Reserva::factory()->conParticipantes([$dueno, $companero])->create([
             'sala_id' => Sala::factory()->create()->id,
             'usuario_id' => $dueno->id,
@@ -76,10 +129,33 @@ class PortalReservaTest extends TestCase
             'cantidad_personas' => 2,
         ]);
 
-        Sanctum::actingAs($companero);
+        Sanctum::actingAs($dueno);
+        $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Tú hiciste esta reserva: para dejarla, cancélala.');
+        $this->assertDatabaseHas('reservas', ['id' => $reserva->id, 'estado' => 'activa']);
+    }
 
-        $this->deleteJson("/api/mi/reservas/{$reserva->id}")->assertStatus(204);
-        $this->assertDatabaseHas('reservas', ['id' => $reserva->id, 'estado' => 'cancelada']);
+    public function test_no_se_sale_de_una_reserva_que_ya_tiene_la_llave(): void
+    {
+        Carbon::setTestNow(Carbon::today()->setTime(10, 30));
+        [$dueno, $companero, $yo] = Usuario::factory()->count(3)->create();
+        $reserva = Reserva::factory()->conParticipantes([$dueno, $companero, $yo])->create([
+            'sala_id' => Sala::factory()->create()->id,
+            'usuario_id' => $dueno->id,
+            'rut_usuario' => $dueno->rut,
+            'cantidad_personas' => 3,
+            'fecha' => today()->toDateString(),
+            'hora_inicio' => '10:00:00',
+            'hora_fin' => '12:00:00',
+            'hora_prestamo_real' => today()->setTime(10, 5),
+        ]);
+
+        Sanctum::actingAs($yo);
+        $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'El grupo ya está usando la sala: la reserva se cierra en el mesón al devolver la llave.');
+        $this->assertSame(3, $reserva->participantes()->count());
     }
 
     public function test_el_portal_muestra_como_propia_la_reserva_en_que_la_incluyeron(): void
@@ -398,14 +474,14 @@ class PortalReservaTest extends TestCase
         $reservar('12:00', '13:00')->assertStatus(201);
     }
 
-    public function test_si_cancela_un_integrante_no_le_pesa_a_nadie_y_quien_espera_puede_ir_en_reservas_ajenas(): void
+    public function test_si_un_integrante_se_sale_no_le_pesa_a_nadie_y_quien_espera_puede_ir_en_reservas_ajenas(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00'); // viernes
         $dueno = Usuario::factory()->create();
         $yo = Usuario::factory()->create();
         $sala = Sala::factory()->create();
 
-        // Me ponen en dos reservas sin preguntarme y las cancelo: no quedo esperando, ni quien las hizo.
+        // Me ponen en dos reservas sin preguntarme y me salgo (eran de 2, así que se cancelan): no quedo esperando, ni quien las hizo.
         foreach ([['10:00:00', '11:00:00'], ['11:00:00', '12:00:00']] as [$inicio, $fin]) {
             $reserva = Reserva::factory()->conParticipantes([$dueno, $yo])->create([
                 'sala_id' => $sala->id,
@@ -416,7 +492,7 @@ class PortalReservaTest extends TestCase
                 'hora_fin' => $fin,
             ]);
             Sanctum::actingAs($yo);
-            $this->deleteJson("/api/mi/reservas/{$reserva->id}")->assertStatus(204);
+            $this->patchJson("/api/mi/reservas/{$reserva->id}/salir")->assertOk()->assertJsonPath('cancelada', true);
         }
         $this->getJson('/api/mi/salas')->assertJsonPath('cancelaciones.espera', null)->assertJsonPath('cancelaciones.sin_espera_restantes', 1);
         Sanctum::actingAs($dueno);

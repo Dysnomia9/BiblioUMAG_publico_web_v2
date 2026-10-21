@@ -186,7 +186,9 @@ MySQL 8** (backend API), 100% dockerizada.
   digital externa de la universidad.
 - Reservar salas de estudio, solo para el mismo día (no se puede elegir
   fecha futura), con la misma ventana de 15 minutos para confirmar
-  asistencia que ve el staff.
+  asistencia que ve el staff. Solo quien hizo la reserva la cancela; un
+  integrante se sale de ella y el resto del grupo la mantiene (si quedaría
+  una sola persona, la reserva se cancela).
 - Reservar un libro por su cuenta, o unirse a la cola de espera si ya está
   prestado/reservado por otra persona. Cuando se libera, se promueve
   automáticamente al primero en la fila (sin tener que ir a mesón). Ambas
