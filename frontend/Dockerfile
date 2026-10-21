@@ -1,4 +1,5 @@
-FROM node:20-alpine AS base
+# Node 24 es la versión LTS activa (la 20 dejó de tener soporte en abril de 2026).
+FROM node:24-alpine AS base
 
 WORKDIR /app
 
@@ -12,7 +13,9 @@ COPY . .
 FROM base AS build
 RUN npm run build
 
-FROM nginx:1.27-alpine AS produccion
+FROM nginx:1.30-alpine AS produccion
+# Los arreglos de seguridad de Alpine que la imagen oficial todavía no trae.
+RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

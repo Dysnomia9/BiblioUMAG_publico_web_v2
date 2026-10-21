@@ -42,6 +42,9 @@ services:
     build:
       context: ./backend
       target: app
+      # Cada construcción baja las imágenes base al día (php:8.3-fpm, nginx:1.30-alpine),
+      # con sus arreglos de seguridad, en vez de reusar una copia vieja del servidor.
+      pull: true
     # Con nombre propio: el servicio "scheduler" usa esta misma imagen.
     image: bibliomag-backend
     restart: unless-stopped
@@ -104,6 +107,7 @@ services:
     build:
       context: ./backend
       target: nginx
+      pull: true
     restart: unless-stopped
     depends_on:
       - backend
@@ -116,6 +120,7 @@ services:
       # Aplicación compilada servida por nginx (ver frontend/Dockerfile), no el
       # servidor de desarrollo de Vite.
       target: produccion
+      pull: true
     restart: unless-stopped
     depends_on:
       - backend

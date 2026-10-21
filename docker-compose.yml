@@ -21,6 +21,9 @@ services:
   backend:
     build:
       context: ./backend
+      # Cada construcción baja la imagen base al día (php:8.3-fpm), con sus arreglos de
+      # seguridad, en vez de reusar una copia vieja guardada en el computador.
+      pull: true
     # Con nombre propio: el servicio "scheduler" usa esta misma imagen.
     image: bibliomag-backend
     restart: unless-stopped
@@ -71,6 +74,7 @@ services:
   frontend:
     build:
       context: ./frontend
+      pull: true
     restart: unless-stopped
     depends_on:
       - backend

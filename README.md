@@ -332,6 +332,14 @@ producción (servicio `api`, puerto 8000), que le pasa cada petición a PHP-FPM.
 Los ajustes (procesos, memoria por petición, OPcache, nginx) están en
 `backend/docker/`.
 
+Versiones: PHP 8.3 (arreglos de seguridad hasta el 31-12-2027), nginx 1.30 (rama
+estable) y Node 24 (LTS) para el frontend. Los Dockerfile usan el tag de la rama,
+sin número de parche, y los dos docker-compose construyen con `pull: true`: cada
+`docker compose up -d --build` baja las imágenes base al día, con los últimos
+arreglos de seguridad, en vez de reusar una copia vieja del computador. Así se
+aplicó, por ejemplo, PHP 8.3.36 (dos fallas críticas de ejecución remota de código,
+GHSA-w8hw-w9fx-j79w y GHSA-6wmf-4rv5-p3rp, del 2026-10-21).
+
 (Hasta el 2026-07-17 esto se resolvía distinto: un "overlay" que se
 aplicaba en el primer arranque del contenedor sobre un Laravel instalado en
 un volumen. Se simplificó a un Dockerfile normal porque no aportaba
