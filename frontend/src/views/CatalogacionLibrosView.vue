@@ -29,8 +29,16 @@ const cargando = ref(true)
 const apiError = ref(false)
 const busqueda = ref('')
 
-const autoresOpciones = ref<Autor[]>([])
-const categoriasOpciones = ref<Categoria[]>([])
+// Autores y materias son miles con el catálogo real: los combobox los buscan en el
+// servidor a medida que se escribe, en vez de traer la lista entera.
+async function buscarAutores(texto: string) {
+  const { data } = await api.get<Autor[]>('/autores', { params: { q: texto || undefined } })
+  return data
+}
+async function buscarMaterias(texto: string) {
+  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
+  return data
+}
 const carrerasOpciones = ref<Carrera[]>([])
 const ubicacionesOpciones = ref<Ubicacion[]>([])
 const tiposMaterialOpciones = ref<TipoMaterial[]>([])
@@ -348,16 +356,12 @@ async function cargar() {
 
 async function cargarCatalogos() {
   try {
-    const [autoresRes, categoriasRes, carrerasRes, ubicacionesRes, tiposMaterialRes, plantillasRes] = await Promise.all([
-      api.get<Autor[]>('/autores'),
-      api.get<Categoria[]>('/categorias'),
+    const [carrerasRes, ubicacionesRes, tiposMaterialRes, plantillasRes] = await Promise.all([
       api.get<Carrera[]>('/carreras'),
       api.get<Ubicacion[]>('/ubicaciones'),
       api.get<TipoMaterial[]>('/tipos-material'),
       api.get<PlantillaFicha[]>('/libros/plantillas'),
     ])
-    autoresOpciones.value = autoresRes.data
-    categoriasOpciones.value = categoriasRes.data
     carrerasOpciones.value = carrerasRes.data
     ubicacionesOpciones.value = ubicacionesRes.data
     tiposMaterialOpciones.value = tiposMaterialRes.data
@@ -855,7 +859,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p :class="ETIQUETA"><Marc codigo="100 / 700" tono="dorado" /> Autores <span class="text-red-600">*</span></p>
                   <MultiSelectCombobox
                     v-model="form.autores"
-                    :opciones="autoresOpciones"
+                    :buscar="buscarAutores"
                     placeholder="Apellido, Nombre: escribe para buscar o crear"
                     :clase-ficha="TONOS_FICHA.dorado.chip"
                   />
@@ -940,7 +944,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div v-if="tiene('materias')" class="sm:col-span-6">
                   <p :class="ETIQUETA"><Marc :codigo="etiqueta('materias')" tono="pizarra" /> Materias</p>
-                  <MultiSelectCombobox v-model="form.categorias" :opciones="categoriasOpciones" placeholder="Agregar materia" :clase-ficha="TONOS_FICHA.pizarra.chip" />
+                  <MultiSelectCombobox v-model="form.categorias" :buscar="buscarMaterias" placeholder="Agregar materia" :clase-ficha="TONOS_FICHA.pizarra.chip" />
                   <p class="mt-1 text-[11px] text-gray-500">Sugerencias según lo que ya existe en el catálogo.</p>
                 </div>
                 <div v-if="tiene('resumen')" class="sm:col-span-6">

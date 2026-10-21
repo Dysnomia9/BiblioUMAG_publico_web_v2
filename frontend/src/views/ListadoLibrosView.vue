@@ -9,6 +9,7 @@ import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import ExportarLibros from '@/components/libros/ExportarLibros.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
+import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
@@ -36,7 +37,8 @@ const filtros = reactive({
   orden: 'titulo' as 'titulo' | 'tipo_material',
 })
 
-const categorias = ref<Categoria[]>([])
+// La categoría se busca en el servidor (son miles con el catálogo real): acá queda la elegida.
+const categoriaElegida = ref<Categoria | null>(null)
 const carreras = ref<Carrera[]>([])
 const exportarAbierto = ref(false)
 const tiposMaterial = ref<TipoMaterial[]>([])
@@ -57,11 +59,6 @@ const filtrosPildora = computed(() => [
     campo: 'tipo_material_id' as const,
     nombre: 'Tipo',
     opciones: [{ valor: '', texto: 'Todos' }, ...tiposMaterial.value.map((t) => ({ valor: t.id, texto: t.nombre }))],
-  },
-  {
-    campo: 'categoria_id' as const,
-    nombre: 'Categoría',
-    opciones: [{ valor: '', texto: 'Todas' }, ...categorias.value.map((c) => ({ valor: c.id, texto: c.nombre }))],
   },
   {
     campo: 'carrera_id' as const,
@@ -127,17 +124,25 @@ function irAPagina(nueva: number) {
 
 async function cargarCatalogos() {
   try {
-    const [categoriasRes, tiposMaterialRes, carrerasRes] = await Promise.all([
-      api.get<Categoria[]>('/categorias'),
+    const [tiposMaterialRes, carrerasRes] = await Promise.all([
       api.get<TipoMaterial[]>('/tipos-material'),
       api.get<Carrera[]>('/carreras'),
     ])
-    categorias.value = categoriasRes.data
     tiposMaterial.value = tiposMaterialRes.data
     carreras.value = carrerasRes.data
   } catch {
     // Sin catálogos, esos filtros quedan solo con «Todos».
   }
+}
+
+async function buscarCategorias(texto: string) {
+  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
+  return data
+}
+
+function elegirCategoria(categoria: Categoria | null) {
+  categoriaElegida.value = categoria
+  filtrar()
 }
 
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
@@ -247,20 +252,31 @@ function agregarCopia(l: Libro) {
             @input="onBuscarInput"
           />
         </div>
-        <label
-          v-for="f in filtrosPildora"
-          :key="f.campo"
-          class="relative inline-flex h-11 items-center rounded-xl border bg-white pl-3.5 pr-9 text-sm shadow-sm transition-colors"
-          :class="f.campo !== 'orden' && filtros[f.campo] !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'"
-        >
-          <span class="max-w-[12rem] truncate font-medium">{{ textoFiltro(f) }}</span>
-          <svg class="pointer-events-none absolute right-3 h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-          <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`" @change="filtrar">
-            <option v-for="o in f.opciones" :key="String(o.valor)" :value="o.valor">{{ o.texto }}</option>
-          </select>
-        </label>
+        <template v-for="f in filtrosPildora" :key="f.campo">
+          <label
+            class="relative inline-flex h-11 items-center rounded-xl border bg-white pl-3.5 pr-9 text-sm shadow-sm transition-colors"
+            :class="f.campo !== 'orden' && filtros[f.campo] !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'"
+          >
+            <span class="max-w-[12rem] truncate font-medium">{{ textoFiltro(f) }}</span>
+            <svg class="pointer-events-none absolute right-3 h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+            <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`" @change="filtrar">
+              <option v-for="o in f.opciones" :key="String(o.valor)" :value="o.valor">{{ o.texto }}</option>
+            </select>
+          </label>
+          <!-- La categoría, después del tipo: se busca escribiendo, son miles. -->
+          <SelectorBuscable
+            v-if="f.campo === 'tipo_material_id'"
+            v-model="filtros.categoria_id"
+            :buscar="buscarCategorias"
+            todas="Todas las categorías"
+            placeholder="Categoría"
+            etiqueta="Filtrar por categoría"
+            :clase-campo="`h-11 w-56 rounded-xl border bg-white pl-3.5 pr-3 text-sm font-medium shadow-sm outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 ${filtros.categoria_id !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'}`"
+            @elegir="elegirCategoria"
+          />
+        </template>
       </div>
 
       <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -443,7 +459,7 @@ function agregarCopia(l: Libro) {
     <ExportarLibros
       v-model:abierto="exportarAbierto"
       :inicial="{ q: filtros.q, estado_proceso: filtros.estado_proceso, tipo_material_id: filtros.tipo_material_id, categoria_id: filtros.categoria_id, carrera_id: filtros.carrera_id }"
-      :categorias="categorias"
+      :categoria-inicial="categoriaElegida"
       :carreras="carreras"
       :tipos-material="tiposMaterial"
     />

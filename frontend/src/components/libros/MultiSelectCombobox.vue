@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { sinTildes } from '@/utils/texto'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 
 /**
- * Selector múltiple con autocompletado: escribe para filtrar el catálogo existente
- * (`opciones`), o presiona Enter con un texto que no matchea nada para agregarlo
- * como valor nuevo (el backend hace firstOrCreate por nombre — ver LibroController).
- * Lo elegido queda como fichas dentro del mismo recuadro; Retroceso con el campo
- * vacío quita la última.
+ * Selector múltiple con autocompletado: escribe para filtrar el catálogo existente,
+ * o presiona Enter con un texto que no matchea nada para agregarlo como valor nuevo
+ * (el backend hace firstOrCreate por nombre — ver LibroController). Lo elegido queda
+ * como fichas dentro del mismo recuadro; Retroceso con el campo vacío quita la última.
+ *
+ * El catálogo llega en `opciones` si es corto (carreras), o se pide al servidor con
+ * `buscar` a medida que se escribe si son miles (autores y materias del catálogo real).
  */
+type Opcion = { id: number; nombre: string }
+
 const props = withDefaults(
   defineProps<{
     modelValue: string[]
-    opciones: { id: number; nombre: string }[]
+    opciones?: Opcion[]
+    buscar?: (texto: string) => Promise<Opcion[]>
     placeholder?: string
     /** Clases de las fichas (fondo, texto y anillo), según la sección. */
     claseFicha?: string
   }>(),
-  { placeholder: '', claseFicha: 'bg-indigo-50 text-indigo-800 ring-indigo-200' },
+  { opciones: () => [], buscar: undefined, placeholder: '', claseFicha: 'bg-indigo-50 text-indigo-800 ring-indigo-200' },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [string[]] }>()
@@ -26,14 +31,42 @@ const texto = ref('')
 const abierto = ref(false)
 const campo = ref<HTMLInputElement | null>(null)
 
-const sugerencias = computed(() => {
-  const q = sinTildes(texto.value.trim())
-  return props.opciones
+const remotas = ref<Opcion[]>([])
+let temporizador: ReturnType<typeof setTimeout> | undefined
+let ultimaConsulta = 0
+
+async function cargarRemotas() {
+  if (!props.buscar) return
+  const consulta = ++ultimaConsulta
+  try {
+    const resultado = await props.buscar(texto.value.trim())
+    // Una respuesta lenta de una búsqueda anterior no pisa la de lo último que se escribió.
+    if (consulta === ultimaConsulta) remotas.value = resultado
+  } catch {
+    if (consulta === ultimaConsulta) remotas.value = []
+  }
+}
+
+watch(texto, () => {
+  if (!props.buscar) return
+  clearTimeout(temporizador)
+  temporizador = setTimeout(cargarRemotas, 250)
+})
+onUnmounted(() => clearTimeout(temporizador))
+
+// Cada palabra escrita en cualquier parte del nombre, igual que la búsqueda del servidor.
+const sugerencias = computed(() =>
+  (props.buscar ? remotas.value : props.opciones)
     .map((o) => o.nombre)
     .filter((nombre) => !props.modelValue.includes(nombre))
-    .filter((nombre) => !q || sinTildes(nombre).includes(q))
-    .slice(0, 8)
-})
+    .filter((nombre) => contieneCadaPalabra(nombre, texto.value))
+    .slice(0, 8),
+)
+
+function alEnfocar() {
+  abierto.value = true
+  if (props.buscar) cargarRemotas()
+}
 
 // «informatica» ya es «Informática»: no se ofrece crear un duplicado que solo cambia en las tildes.
 const existente = computed(() => sugerencias.value.find((s) => sinTildes(s) === sinTildes(texto.value.trim())))
@@ -90,7 +123,7 @@ function onBlur() {
         type="text"
         :placeholder="placeholder"
         class="min-w-[9rem] flex-1 border-0 bg-transparent px-1 py-1 text-sm text-gray-900 outline-none placeholder:text-gray-400"
-        @focus="abierto = true"
+        @focus="alEnfocar"
         @input="abierto = true"
         @blur="onBlur"
         @keydown.enter.prevent="onEnter"

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import LibrosModuloNav from '@/components/libros/LibrosModuloNav.vue'
+import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import type { CambioMasivoPreview, Categoria, EstadoLibroPersonalizado, EstadoProcesoEjemplar, TipoMaterial, Ubicacion } from '@/types'
@@ -22,7 +23,8 @@ const nuevoEstado = ref<EstadoProcesoEjemplar>('inventario')
 const estadoPersonalizadoId = ref<number | null>(null)
 const motivo = ref('')
 
-const categorias = ref<Categoria[]>([])
+// La categoría se busca en el servidor (son miles con el catálogo real): acá queda la elegida.
+const categoriaElegida = ref<Categoria | null>(null)
 const estadosPersonalizados = ref<EstadoLibroPersonalizado[]>([])
 const ubicaciones = ref<Ubicacion[]>([])
 const tiposMaterial = ref<TipoMaterial[]>([])
@@ -40,13 +42,11 @@ const ESTADOS: { value: EstadoProcesoEjemplar; label: string }[] = [
 
 async function cargarCatalogos() {
   try {
-    const [categoriasRes, estadosRes, ubicacionesRes, tiposMaterialRes] = await Promise.all([
-      api.get<Categoria[]>('/categorias'),
+    const [estadosRes, ubicacionesRes, tiposMaterialRes] = await Promise.all([
       api.get<EstadoLibroPersonalizado[]>('/estados-libro-personalizados', { params: { activo: 1 } }),
       api.get<Ubicacion[]>('/ubicaciones'),
       api.get<TipoMaterial[]>('/tipos-material'),
     ])
-    categorias.value = categoriasRes.data
     estadosPersonalizados.value = estadosRes.data
     ubicaciones.value = ubicacionesRes.data
     tiposMaterial.value = tiposMaterialRes.data
@@ -56,6 +56,11 @@ async function cargarCatalogos() {
 }
 
 onMounted(cargarCatalogos)
+
+async function buscarCategorias(texto: string) {
+  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
+  return data
+}
 
 const tieneFiltro = computed(() =>
   Boolean(filtro.ubicacion_id || filtro.estado_proceso_actual || filtro.tipo_material_id || filtro.categoria_id || filtro.q.trim())
@@ -112,7 +117,7 @@ const descripcionCriterios = computed(() => {
   if (filtro.ubicacion_id) partes.push(`ubicación "${ubicaciones.value.find((u) => u.id === filtro.ubicacion_id)?.nombre}"`)
   if (filtro.estado_proceso_actual) partes.push(`estado actual "${filtro.estado_proceso_actual}"`)
   if (filtro.tipo_material_id) partes.push(`tipo "${tiposMaterial.value.find((t) => t.id === filtro.tipo_material_id)?.nombre}"`)
-  if (filtro.categoria_id) partes.push(`categoría "${categorias.value.find((c) => c.id === filtro.categoria_id)?.nombre}"`)
+  if (filtro.categoria_id) partes.push(`categoría "${categoriaElegida.value?.nombre}"`)
   if (filtro.q.trim()) partes.push(`texto "${filtro.q.trim()}"`)
   return partes.join(', ')
 })
@@ -186,10 +191,15 @@ async function confirmarEjecucion() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-            <select v-model="filtro.categoria_id" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-              <option value="">Cualquiera</option>
-              <option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nombre }}</option>
-            </select>
+            <SelectorBuscable
+              v-model="filtro.categoria_id"
+              :buscar="buscarCategorias"
+              todas="Cualquiera"
+              placeholder="Cualquiera"
+              etiqueta="Categoría"
+              clase-campo="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm placeholder:text-gray-900"
+              @elegir="categoriaElegida = $event"
+            />
           </div>
           <div class="sm:col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Búsqueda por título o código de barras</label>

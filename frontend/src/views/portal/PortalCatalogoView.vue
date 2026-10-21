@@ -6,6 +6,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
+import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import apiUsuario from '@/services/apiUsuario'
 import { useToast } from '@/composables/useToast'
 import { inicialesPortada, tonoPortada } from '@/utils/portada'
@@ -123,7 +124,6 @@ onUnmounted(() => clearTimeout(debounceTimer))
 
 onMounted(() => {
   cargar()
-  cargarAreas()
   cargarMisReservas()
   cargarCondiciones()
 })
@@ -137,15 +137,11 @@ const soloDisponibles = ref(false)
 const areaFiltro = ref<number | ''>('')
 watch([soloDisponibles, areaFiltro], () => cargar())
 
-// Las áreas con algo en estante, de todo el catálogo (no solo de la página cargada).
-const areas = ref<{ id: number; nombre: string }[]>([])
-async function cargarAreas() {
-  try {
-    const { data } = await apiUsuario.get<{ id: number; nombre: string }[]>('/mi/catalogo/areas')
-    areas.value = data
-  } catch {
-    areas.value = []
-  }
+// Las áreas con algo en estante, de todo el catálogo: se buscan en el servidor a medida
+// que se escribe, porque con el catálogo real son miles.
+async function buscarAreas(texto: string) {
+  const { data } = await apiUsuario.get<{ id: number; nombre: string }[]>('/mi/catalogo/areas', { params: { q: texto || undefined } })
+  return data
 }
 
 function tonoDe(libro: LibroCatalogo) {
@@ -350,14 +346,14 @@ async function cancelar(reserva: ReservaLibro) {
         <div class="flex items-center gap-2">
           <span class="mx-1 hidden sm:block h-5 w-px bg-gray-300" aria-hidden="true"></span>
           <label for="filtro-area" class="text-xs text-gray-600">Área</label>
-          <select
-            id="filtro-area"
+          <SelectorBuscable
             v-model="areaFiltro"
-            class="rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Todas las áreas</option>
-            <option v-for="area in areas" :key="area.id" :value="area.id">{{ area.nombre }}</option>
-          </select>
+            id-campo="filtro-area"
+            :buscar="buscarAreas"
+            todas="Todas las áreas"
+            placeholder="Todas las áreas"
+            clase-campo="w-48 rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-3 text-xs text-gray-800 placeholder:text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
       </div>
 

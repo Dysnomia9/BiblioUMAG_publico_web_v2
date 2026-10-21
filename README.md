@@ -222,7 +222,9 @@ MySQL 8** (backend API), 100% dockerizada.
   los resultados, y los reportes se cuentan en la base con `GROUP BY`. Medido
   en MySQL con 20.000 títulos, 40.000 copias y 82.000 préstamos: ninguna
   pantalla pasa de 0,22 s (una página de 500 títulos de la exportación,
-  0,32 s).
+  0,32 s). Autores, materias y áreas tampoco viajan completos: los combobox y
+  filtros los buscan en el servidor a medida que se escribe y reciben a lo más
+  20 (`App\Support\OpcionesCatalogo`).
 - Límites de solicitudes: los logins cuentan los intentos por cuenta + IP
   (6 por minuto), y el resto de la API, por cuenta (240 por minuto). Así
   una cuenta atacada no bloquea a las demás, aunque todo el campus salga a
