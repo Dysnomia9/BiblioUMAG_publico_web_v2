@@ -236,13 +236,14 @@ class ReservaLibroService
 
     /**
      * Se llama siempre que una copia pasa a estar disponible: al devolver un
-     * préstamo (PrestamoController::devolver()) o al cancelar una reserva
-     * 'pendiente'. En vez de dejarla simplemente disponible, promueve a la
-     * primera persona en la cola de espera de ese título (FIFO por id) si hay
-     * alguien — la copia sigue "no disponible", ahora apartada para esa
-     * persona, con una fecha_retiro nueva desde este momento.
+     * préstamo (PrestamoController::devolver()), al cancelar una reserva
+     * 'pendiente' o al volver la copia al estante (EjemplarController). En vez de
+     * dejarla simplemente disponible, promueve a la primera persona en la cola de
+     * espera de ese título (FIFO por id) si hay alguien — la copia sigue "no
+     * disponible", ahora apartada para esa persona, con una fecha_retiro nueva desde
+     * este momento. Devuelve esa reserva, o null si la copia quedó disponible.
      */
-    public function liberarLibro(Ejemplar $ejemplar): void
+    public function liberarLibro(Ejemplar $ejemplar): ?ReservaLibro
     {
         // orderBy('id') en vez de created_at: dos filas creadas en el mismo segundo
         // tendrían el mismo timestamp y empatarían el orden FIFO; el id autoincremental
@@ -256,7 +257,7 @@ class ReservaLibroService
         if (! $siguiente) {
             $ejemplar->update(['disponible' => true]);
 
-            return;
+            return null;
         }
 
         $siguiente->update([
@@ -264,6 +265,8 @@ class ReservaLibroService
             'ejemplar_id' => $ejemplar->id,
             'fecha_retiro' => $this->fechaLimiteDeRetiro(),
         ]);
+        // Una copia que vuelve al estante llega disponible: desde ahora queda apartada.
+        $ejemplar->update(['disponible' => false]);
 
         // Sin SMTP configurado (ver .env.example), esto solo queda escrito en
         // storage/logs/laravel.log — no falla ni intenta salir a la red.
@@ -271,6 +274,8 @@ class ReservaLibroService
         if ($siguiente->usuario?->email) {
             $siguiente->usuario->notify(new ReservaListaParaRetirarNotification($siguiente));
         }
+
+        return $siguiente;
     }
 
     /**

@@ -101,7 +101,7 @@ async function buscarPreview() {
 const modalAbierto = ref(false)
 const textoConfirmacion = ref('')
 const ejecutando = ref(false)
-const resultado = ref<{ total_actualizados: number; lote_id: string } | null>(null)
+const resultado = ref<{ total_actualizados: number; lote_id: string; apartadas: number } | null>(null)
 
 function abrirModalConfirmacion() {
   if (nuevoEstado.value === 'personalizado' && !estadoPersonalizadoId.value) {
@@ -264,7 +264,7 @@ async function confirmarEjecucion() {
       </div>
 
       <div v-if="resultado" class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
-        Se actualizaron {{ resultado.total_actualizados }} ejemplar(es). Lote <span class="font-mono">{{ resultado.lote_id }}</span> —
+        Se actualizaron {{ resultado.total_actualizados }} ejemplar(es)<template v-if="resultado.apartadas">, y {{ resultado.apartadas === 1 ? '1 quedó apartado' : `${resultado.apartadas} quedaron apartados` }} para la lista de espera de su título</template>. Lote <span class="font-mono">{{ resultado.lote_id }}</span> —
         puedes verlo en <router-link :to="{ name: 'historial-estado-libro', query: { lote_id: resultado.lote_id } }" class="underline font-medium">Historial de Estado</router-link>.
       </div>
 

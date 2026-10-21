@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
+use App\Models\ReservaLibro;
+use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -15,6 +17,10 @@ use Illuminate\Validation\Rule;
 class EjemplarController extends Controller
 {
     private const ESTADOS = 'inventario,procesos_tecnicos,por_colocar,en_estante,estanteria_auxiliar,de_baja,coleccion_movil,personalizado';
+
+    public function __construct(private ReservaLibroService $reservaLibroService)
+    {
+    }
 
     /** Busca una copia física por su código de barras o su código de lomo (escaneo en préstamo/reserva/estado). */
     public function buscarPorCodigo(string $codigo)
@@ -95,26 +101,38 @@ class EjemplarController extends Controller
             ['motivo.required_if' => 'Indica el motivo de la baja: queda registrado en el historial.'],
         );
 
-        if ($data['estado_proceso'] === 'de_baja' && ! $ejemplar->disponible) {
+        // La copia queda bloqueada mientras cambia: un préstamo o una reserva que llega al
+        // mismo tiempo espera, y la decisión se toma con su disponibilidad al día.
+        [$estadoAnterior, $apartada] = DB::transaction(function () use ($ejemplar, $data, $request) {
+            $ejemplar = Ejemplar::whereKey($ejemplar->id)->lockForUpdate()->first();
+
+            if ($data['estado_proceso'] === 'de_baja' && ! $ejemplar->disponible) {
+                return [null, null];
+            }
+
+            return [
+                $ejemplar->estado_proceso,
+                $this->aplicarCambioDeEstado($ejemplar, $data['estado_proceso'], $data['estado_personalizado_id'] ?? null, $request->user()->id, null, $data['motivo'] ?? null),
+            ];
+        });
+
+        if ($estadoAnterior === null) {
             return response()->json(['message' => 'No se puede dar de baja un ejemplar actualmente prestado o reservado'], 409);
         }
 
-        $estadoAnterior = $ejemplar->estado_proceso;
-
-        DB::transaction(function () use ($ejemplar, $data, $request) {
-            $this->aplicarCambioDeEstado($ejemplar, $data['estado_proceso'], $data['estado_personalizado_id'] ?? null, $request->user()->id, null, $data['motivo'] ?? null);
-        });
-
-        $ejemplar->loadMissing('libro:id,titulo');
+        $ejemplar->refresh()->loadMissing('libro:id,titulo');
         Bitacora::registrar(
             $data['estado_proceso'] === 'de_baja' ? 'libros.dar_de_baja' : 'libros.cambiar_estado',
             "Cambió el estado de «{$ejemplar->libro?->titulo}» copia {$ejemplar->numero_copia} ({$ejemplar->codigo_barras}): ".self::nombreEstado($estadoAnterior).' → '.self::nombreEstado($data['estado_proceso'])
-                .(! empty($data['motivo']) ? ". Motivo: {$data['motivo']}" : ''),
+                .(! empty($data['motivo']) ? ". Motivo: {$data['motivo']}" : '')
+                .($apartada ? ". Quedó apartada para {$apartada->usuario?->descripcion()}, primera en la lista de espera" : ''),
             entidad: $ejemplar,
             datos: ['estado' => [$estadoAnterior, $data['estado_proceso']], 'motivo' => $data['motivo'] ?? null],
+            afectado: $apartada?->usuario,
         );
 
-        return response()->json($ejemplar->fresh(['libro', 'estadoPersonalizado', 'ubicacion']));
+        return response()->json($ejemplar->fresh(['libro', 'estadoPersonalizado', 'ubicacion'])
+            ->setAttribute('apartada_para', $apartada ? trim("{$apartada->usuario?->nombre} {$apartada->usuario?->apellido}") : null));
     }
 
     /**
@@ -187,9 +205,10 @@ class EjemplarController extends Controller
         $loteId = (string) Str::uuid();
         $staffId = $request->user()->id;
 
-        $totalActualizados = DB::transaction(function () use ($request, $data, $loteId, $staffId) {
+        [$totalActualizados, $apartadas] = DB::transaction(function () use ($request, $data, $loteId, $staffId) {
             $ejemplares = $this->filtrarEjemplares($request)->lockForUpdate()->get();
             $actualizados = 0;
+            $apartadas = 0;
 
             foreach ($ejemplares as $ejemplar) {
                 // Igual que en el cambio individual: un ejemplar actualmente prestado o
@@ -199,25 +218,29 @@ class EjemplarController extends Controller
                     continue;
                 }
 
-                $this->aplicarCambioDeEstado($ejemplar, $data['nuevo_estado'], $data['estado_personalizado_id'] ?? null, $staffId, $loteId, $data['motivo'] ?? null);
+                if ($this->aplicarCambioDeEstado($ejemplar, $data['nuevo_estado'], $data['estado_personalizado_id'] ?? null, $staffId, $loteId, $data['motivo'] ?? null)) {
+                    $apartadas++;
+                }
                 $actualizados++;
             }
 
-            return $actualizados;
+            return [$actualizados, $apartadas];
         });
 
         Bitacora::registrar(
             'libros.cambio_masivo',
-            "Cambio masivo de estado: {$totalActualizados} ".($totalActualizados === 1 ? 'copia pasó' : 'copias pasaron').' a '.self::nombreEstado($data['nuevo_estado']),
+            "Cambio masivo de estado: {$totalActualizados} ".($totalActualizados === 1 ? 'copia pasó' : 'copias pasaron').' a '.self::nombreEstado($data['nuevo_estado'])
+                .($apartadas ? " ({$apartadas} ".($apartadas === 1 ? 'quedó apartada' : 'quedaron apartadas').' para la lista de espera)' : ''),
             datos: [
                 'lote_id' => $loteId,
                 'total' => $totalActualizados,
+                'apartadas' => $apartadas,
                 'filtro' => array_filter($request->only(['ubicacion_id', 'estado_proceso_actual', 'tipo_material_id', 'categoria_id', 'q'])),
                 'motivo' => $data['motivo'] ?? null,
             ],
         );
 
-        return response()->json(['lote_id' => $loteId, 'total_actualizados' => $totalActualizados]);
+        return response()->json(['lote_id' => $loteId, 'total_actualizados' => $totalActualizados, 'apartadas' => $apartadas]);
     }
 
     public function historialEstado(Request $request)
@@ -286,7 +309,12 @@ class EjemplarController extends Controller
         ][$estado] ?? $estado;
     }
 
-    private function aplicarCambioDeEstado(Ejemplar $ejemplar, string $nuevoEstado, ?int $estadoPersonalizadoId, int $staffId, ?string $loteId = null, ?string $motivo = null): void
+    /**
+     * $ejemplar llega bloqueado. Si vuelve al estante disponible y hay lista de espera de
+     * su título, queda apartada para el primero de la fila (no para quien llegue antes al
+     * mesón) y se devuelve esa reserva.
+     */
+    private function aplicarCambioDeEstado(Ejemplar $ejemplar, string $nuevoEstado, ?int $estadoPersonalizadoId, int $staffId, ?string $loteId = null, ?string $motivo = null): ?ReservaLibro
     {
         $estadoAnterior = $ejemplar->estado_proceso;
         $estadoPersonalizadoAnteriorId = $ejemplar->estado_personalizado_id;
@@ -308,6 +336,12 @@ class EjemplarController extends Controller
             'lote_id' => $loteId,
             'motivo' => $motivo,
         ]);
+
+        if ($nuevoEstado === 'en_estante' && $estadoAnterior !== 'en_estante' && $ejemplar->disponible) {
+            return $this->reservaLibroService->liberarLibro($ejemplar);
+        }
+
+        return null;
     }
 
     private function filtrarEjemplares(Request $request): Builder

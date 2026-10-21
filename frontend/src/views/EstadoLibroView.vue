@@ -195,15 +195,20 @@ async function confirmarCambio() {
   if (!copia || !objetivo.value) return
   guardando.value = true
   try {
-    const { data } = await api.patch<Ejemplar>(`/ejemplares/${copia.id}/estado`, {
+    const { data } = await api.patch<Ejemplar & { apartada_para: string | null }>(`/ejemplares/${copia.id}/estado`, {
       estado_proceso: objetivo.value,
       estado_personalizado_id: objetivo.value === 'personalizado' ? personalizadoId.value : null,
       motivo: nota.value.trim() || null,
     })
+    const { apartada_para: apartadaPara, ...actualizada } = data
     const libro = libros.value.find((l) => l.id === copia.libro_id)
-    const i = libro?.ejemplares?.findIndex((e) => e.id === data.id) ?? -1
-    if (libro?.ejemplares && i !== -1) libro.ejemplares[i] = { ...libro.ejemplares[i], ...data }
-    toast.success(objetivo.value === 'de_baja' ? 'Copia dada de baja' : `Estado cambiado a «${textoObjetivo.value}»`)
+    const i = libro?.ejemplares?.findIndex((e) => e.id === actualizada.id) ?? -1
+    if (libro?.ejemplares && i !== -1) libro.ejemplares[i] = { ...libro.ejemplares[i], ...actualizada }
+    if (apartadaPara) {
+      toast.success(`Estado cambiado a «${textoObjetivo.value}». La copia quedó apartada para ${apartadaPara}, primera en la lista de espera.`)
+    } else {
+      toast.success(objetivo.value === 'de_baja' ? 'Copia dada de baja' : `Estado cambiado a «${textoObjetivo.value}»`)
+    }
     objetivo.value = null
     personalizadoId.value = null
     nota.value = ''
