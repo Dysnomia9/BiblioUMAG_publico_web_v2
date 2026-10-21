@@ -82,7 +82,9 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
    retirar, aviso de multa generada) pero sin un SMTP configurado quedan
    solo registradas en el log del servidor en vez de enviarse. Necesitamos
    host, puerto, usuario y contraseña de un SMTP institucional (o un
-   servicio como SendGrid/Mailgun si prefieren).
+   servicio como SendGrid/Mailgun si prefieren). Si ese servidor se cae o no
+   responde en 10 segundos (`MAIL_TIMEOUT`), el aviso queda anotado en el log y
+   el préstamo, la devolución o la multa se registran igual.
 7. **Login institucional (LDAP/Active Directory)**: si quieren que el
    personal/alumnos puedan entrar con su cuenta institucional en vez de
    usuario y contraseña propios del sistema, necesitamos: host y puerto del

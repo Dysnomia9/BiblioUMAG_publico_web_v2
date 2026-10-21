@@ -11,7 +11,7 @@ use Illuminate\Notifications\Notification;
  * Se envía cuando PrestamoController::devolver() genera una multa por atraso, o cuando
  * el mesón cursa la de devolver tarde la llave de una sala (SalaController::multarAtraso()).
  * No es queued (ver nota en ReservaListaParaRetirarNotification — no hay
- * queue:work en este proyecto, se manda en línea).
+ * queue:work en este proyecto, se manda en línea con App\Support\Notificar).
  */
 class MultaGeneradaNotification extends Notification
 {

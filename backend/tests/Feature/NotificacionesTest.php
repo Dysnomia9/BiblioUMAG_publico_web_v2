@@ -10,7 +10,10 @@ use App\Models\Staff;
 use App\Models\Usuario;
 use App\Notifications\MultaGeneradaNotification;
 use App\Notifications\ReservaListaParaRetirarNotification;
+use App\Services\ReservaLibroService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -114,5 +117,46 @@ class NotificacionesTest extends TestCase
         $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertStatus(200);
 
         Notification::assertNothingSent();
+    }
+
+    public function test_si_el_correo_falla_la_devolucion_queda_hecha_y_la_fila_avanza(): void
+    {
+        Exceptions::fake();
+        Notification::shouldReceive('send')->andThrow(new \RuntimeException('El servidor de correo no responde'));
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $prestamo = Prestamo::factory()->create([
+            'usuario_id' => Usuario::factory()->create()->id,
+            'ejemplar_id' => $ejemplar->id,
+            'tipo_item' => 'libro',
+            'fecha_devolucion' => now()->subDays(2),
+        ]);
+        $enCola = Usuario::factory()->create();
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $enCola->id, 'codigo_barras' => $ejemplar->codigo_barras])->assertStatus(201);
+
+        // Fallan los dos avisos: el de la multa por atraso y el de "tu libro está listo".
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertStatus(200);
+
+        $this->assertDatabaseHas('prestamos', ['id' => $prestamo->id, 'estado' => 'devuelto']);
+        $this->assertDatabaseHas('multas', ['prestamo_id' => $prestamo->id, 'estado' => 'pendiente']);
+        $this->assertDatabaseHas('reservas_libro', ['usuario_id' => $enCola->id, 'estado' => 'pendiente', 'ejemplar_id' => $ejemplar->id]);
+        Exceptions::assertReported(fn (\RuntimeException $e) => $e->getMessage() === 'El servidor de correo no responde');
+    }
+
+    public function test_el_correo_sale_recien_cuando_la_devolucion_quedo_guardada(): void
+    {
+        Notification::fake();
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['disponible' => false]);
+        $enCola = Usuario::factory()->create();
+        $this->postJson('/api/reservas-libro', ['usuario_id' => $enCola->id, 'codigo_barras' => $ejemplar->codigo_barras])->assertStatus(201);
+
+        DB::transaction(function () use ($ejemplar) {
+            app(ReservaLibroService::class)->liberarLibro($ejemplar);
+            Notification::assertNothingSent();
+        });
+
+        Notification::assertSentTo($enCola, ReservaListaParaRetirarNotification::class);
     }
 }

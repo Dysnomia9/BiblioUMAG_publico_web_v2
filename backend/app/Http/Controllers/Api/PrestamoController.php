@@ -16,6 +16,7 @@ use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
+use App\Support\Notificar;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -325,9 +326,7 @@ class PrestamoController extends Controller
         // storage/logs/laravel.log — no falla ni intenta salir a la red.
         if ($multa) {
             $prestamo->loadMissing('usuario');
-            if ($prestamo->usuario?->email) {
-                $prestamo->usuario->notify(new MultaGeneradaNotification($multa));
-            }
+            Notificar::enviar($prestamo->usuario, new MultaGeneradaNotification($multa));
         }
 
         return response()->json($prestamo->load(['usuario:id,nombre,apellido,rut', 'multas:id,prestamo_id,tipo,monto,estado']));

@@ -242,7 +242,10 @@ MySQL 8** (backend API), 100% dockerizada.
   desde el flujo real, pero sin servidor SMTP configurado todavía, así
   que hoy quedan escritas en `storage/logs/laravel.log` en vez de salir
   por correo real. Activarlas es solo configurar `MAIL_MAILER`/`MAIL_HOST`
-  en `.env`, sin tocar código.
+  en `.env`, sin tocar código. Cada aviso sale cuando la devolución o la
+  multa ya quedó guardada (`App\Support\Notificar`): si el servidor de correo
+  falla o no responde en 10 segundos (`MAIL_TIMEOUT`), el error queda en el
+  log y la operación sigue igual.
 - Login unificado (`/login/v2`) con Google y LDAP institucional además del
   login local, con el mismo diseño del login del portal. Entra **solo con
   correo**, para el personal y los usuarios por igual: por ahora con correos
