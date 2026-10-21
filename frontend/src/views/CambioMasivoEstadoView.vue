@@ -108,6 +108,10 @@ function abrirModalConfirmacion() {
     toast.error('Selecciona cuál estado personalizado aplicar')
     return
   }
+  if (nuevoEstado.value === 'de_baja' && !motivo.value.trim()) {
+    toast.error('Indica el motivo de la baja: queda registrado en el historial de cada copia')
+    return
+  }
   textoConfirmacion.value = ''
   modalAbierto.value = true
 }
@@ -250,8 +254,8 @@ async function confirmarEjecucion() {
           </div>
 
           <div class="mb-4">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Motivo (opcional, queda en el historial)</label>
-            <input v-model="motivo" placeholder="Ej: inventario anual" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            <label class="block text-xs font-medium text-gray-600 mb-1">{{ nuevoEstado === 'de_baja' ? 'Motivo de la baja (obligatorio, queda en el historial)' : 'Motivo (opcional, queda en el historial)' }}</label>
+            <input v-model="motivo" :required="nuevoEstado === 'de_baja'" :placeholder="nuevoEstado === 'de_baja' ? 'Ej: deterioro, pérdida, descarte por inventario' : 'Ej: inventario anual'" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
           </div>
 
           <button

@@ -200,7 +200,11 @@ class EjemplarController extends Controller
     public function cambioMasivoEjecutar(Request $request)
     {
         $this->validarFiltro($request);
-        $data = $request->validate($this->reglasEstado('nuevo_estado'));
+        // Como en el cambio individual, una baja siempre dice por qué.
+        $data = $request->validate(
+            [...$this->reglasEstado('nuevo_estado'), 'motivo' => ['required_if:nuevo_estado,de_baja', 'nullable', 'string', 'max:500']],
+            ['motivo.required_if' => 'Indica el motivo de la baja: queda registrado en el historial de cada copia.'],
+        );
 
         $loteId = (string) Str::uuid();
         $staffId = $request->user()->id;
