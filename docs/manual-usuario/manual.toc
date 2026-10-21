@@ -54,8 +54,8 @@
 \contentsline {section}{\numberline {9.1}Inicio de sesión}{51}{section.9.1}%
 \contentsline {section}{\numberline {9.2}Página de Inicio}{52}{section.9.2}%
 \contentsline {section}{\numberline {9.3}Marcar Entrada}{53}{section.9.3}%
-\contentsline {section}{\numberline {9.4}Catálogo}{54}{section.9.4}%
+\contentsline {section}{\numberline {9.4}Catálogo}{55}{section.9.4}%
 \contentsline {section}{\numberline {9.5}Mi perfil y Mis ingresos}{57}{section.9.5}%
-\contentsline {section}{\numberline {9.6}Salas de Estudio}{58}{section.9.6}%
-\contentsline {chapter}{\numberline {10}Preguntas Frecuentes}{60}{chapter.10}%
-\contentsline {chapter}{Glosario}{61}{chapter*.2}%
+\contentsline {section}{\numberline {9.6}Salas de Estudio}{59}{section.9.6}%
+\contentsline {chapter}{\numberline {10}Preguntas Frecuentes}{61}{chapter.10}%
+\contentsline {chapter}{Glosario}{62}{chapter*.2}%

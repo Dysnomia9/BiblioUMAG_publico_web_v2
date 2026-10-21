@@ -6,18 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\Autor;
 use App\Models\Carrera;
 use App\Models\Categoria;
+use App\Support\OpcionesCatalogo;
+use Illuminate\Http\Request;
 
-/** Listas de catálogo (autores/categorías/carreras) para poblar los combobox de catalogación de libros. */
+/**
+ * Listas de catálogo para los combobox y filtros de libros. Autores y categorías se
+ * buscan por lo que se escribe (?q=) y llegan de a pocas (ver OpcionesCatalogo); las
+ * carreras son pocas y van completas.
+ */
 class CatalogoLibroController extends Controller
 {
-    public function autores()
+    public function autores(Request $request)
     {
-        return response()->json(Autor::orderBy('nombre')->get(['id', 'nombre']));
+        return response()->json(OpcionesCatalogo::buscar(Autor::class, $request->query('q')));
     }
 
-    public function categorias()
+    public function categorias(Request $request)
     {
-        return response()->json(Categoria::orderBy('nombre')->get(['id', 'nombre']));
+        return response()->json(OpcionesCatalogo::buscar(Categoria::class, $request->query('q')));
     }
 
     public function carreras()

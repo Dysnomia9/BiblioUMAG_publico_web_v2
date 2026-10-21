@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
+import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { construirCsv, descargarCsv, type SeccionCsv } from '@/utils/csv'
@@ -17,7 +18,8 @@ import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial } from
 const props = defineProps<{
   abierto: boolean
   inicial: { q: string; estado_proceso: string; tipo_material_id: number | ''; categoria_id: number | ''; carrera_id: number | '' }
-  categorias: Categoria[]
+  /** La categoría de inicial.categoria_id, con su nombre (las categorías se buscan, no hay lista). */
+  categoriaInicial: Categoria | null
   carreras: Carrera[]
   tiposMaterial: TipoMaterial[]
 }>()
@@ -34,6 +36,7 @@ const filtros = reactive({
   carrera_id: '' as number | '',
   situacion: '' as Situacion,
 })
+const categoriaElegida = ref<Categoria | null>(null)
 const contenido = ref<'ambos' | 'titulos' | 'ejemplares'>('ambos')
 const formato = ref<'excel' | 'csv'>('excel')
 
@@ -50,6 +53,7 @@ watch(
   (abierto) => {
     if (!abierto) return
     Object.assign(filtros, { ...props.inicial, situacion: '' })
+    categoriaElegida.value = props.categoriaInicial
     contenido.value = 'ambos'
     formato.value = 'excel'
     cargar()
@@ -127,6 +131,11 @@ const totalCopias = computed(() => seleccion.value.reduce((n, x) => n + x.copias
 
 const nombreDe = <T extends { id: number; nombre: string }>(lista: T[], id: number | '') => lista.find((x) => x.id === id)?.nombre
 
+async function buscarCategorias(texto: string) {
+  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
+  return data
+}
+
 const SITUACIONES: Record<Exclude<Situacion, ''>, string> = { disponible: 'Disponibles', prestado: 'Prestadas', reservado: 'Reservadas' }
 
 const descripcionFiltros = computed(() => {
@@ -134,7 +143,7 @@ const descripcionFiltros = computed(() => {
   if (filtros.q.trim()) partes.push(`búsqueda «${filtros.q.trim()}»`)
   if (filtros.estado_proceso) partes.push(`estado ${ESTADOS_EJEMPLAR[filtros.estado_proceso as keyof typeof ESTADOS_EJEMPLAR]?.label ?? filtros.estado_proceso}`)
   if (filtros.carrera_id) partes.push(`carrera ${nombreDe(props.carreras, filtros.carrera_id)}`)
-  if (filtros.categoria_id) partes.push(`categoría ${nombreDe(props.categorias, filtros.categoria_id)}`)
+  if (filtros.categoria_id) partes.push(`categoría ${categoriaElegida.value?.nombre ?? ''}`)
   if (filtros.tipo_material_id) partes.push(`tipo ${nombreDe(props.tiposMaterial, filtros.tipo_material_id)}`)
   if (filtros.situacion) partes.push(`copias ${SITUACIONES[filtros.situacion].toLowerCase()}`)
   return partes.length ? partes.join(', ') : 'sin filtros (todo el catálogo)'
@@ -290,10 +299,16 @@ const claseSelect = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:
         </div>
         <div>
           <label for="exp-categoria" class="mb-1 block text-xs font-medium text-gray-600">Categoría</label>
-          <select id="exp-categoria" v-model="filtros.categoria_id" :class="claseSelect">
-            <option value="">Todas las categorías</option>
-            <option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nombre }}</option>
-          </select>
+          <SelectorBuscable
+            v-model="filtros.categoria_id"
+            id-campo="exp-categoria"
+            :buscar="buscarCategorias"
+            :nombre-elegido="categoriaElegida?.nombre"
+            todas="Todas las categorías"
+            placeholder="Todas las categorías"
+            :clase-campo="`${claseSelect} placeholder:text-gray-900`"
+            @elegir="categoriaElegida = $event"
+          />
         </div>
         <div>
           <label for="exp-tipo" class="mb-1 block text-xs font-medium text-gray-600">Tipo de material</label>

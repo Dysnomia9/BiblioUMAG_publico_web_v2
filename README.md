@@ -221,7 +221,10 @@ PostgreSQL** (backend API), 100% dockerizada.
   (`pg_trgm`) y los reportes se cuentan en la base con `GROUP BY`. Medido con
   20.000 títulos, 40.000 copias y 82.000 préstamos: ninguna pantalla pasa de
   0,13 s (una página de 500 títulos de la exportación, 0,33 s) ni de 46 MB de
-  memoria por petición.
+  memoria por petición. Autores, materias y áreas tampoco viajan completos: los
+  combobox y filtros los buscan en el servidor a medida que se escribe y reciben
+  a lo más 20 (`App\Support\OpcionesCatalogo`). Con 100.000 títulos, 20.000
+  autores y 2.000 materias, cada búsqueda tarda menos de 0,1 s.
 - Límites de solicitudes: los logins cuentan los intentos por cuenta + IP
   (6 por minuto), y el resto de la API, por cuenta (240 por minuto). Así
   una cuenta atacada no bloquea a las demás, aunque todo el campus salga a

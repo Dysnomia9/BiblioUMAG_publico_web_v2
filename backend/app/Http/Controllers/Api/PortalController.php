@@ -22,6 +22,7 @@ use App\Support\BusquedaLibros;
 use App\Support\Documento;
 use App\Support\FichaBibliografica;
 use App\Support\HorarioBiblioteca;
+use App\Support\OpcionesCatalogo;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -248,14 +249,18 @@ class PortalController extends Controller
         ]));
     }
 
-    /** Áreas (categorías) que tienen al menos un título en estante: las opciones del filtro del catálogo. */
-    public function areasCatalogo()
+    /**
+     * Áreas (categorías) con al menos un título en estante, para el filtro del catálogo:
+     * las que coinciden con lo escrito o, sin escribir, las de más títulos (ver
+     * OpcionesCatalogo). Con el catálogo real son miles: todas juntas no servían.
+     */
+    public function areasCatalogo(Request $request)
     {
-        return response()->json(
-            Categoria::whereHas('libros.ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
-                ->orderBy('nombre')
-                ->get(['id', 'nombre'])
-        );
+        return response()->json(OpcionesCatalogo::buscar(
+            Categoria::class,
+            $request->query('q'),
+            fn ($libros) => $libros->whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante')),
+        ));
     }
 
     public function salas(Request $request)
