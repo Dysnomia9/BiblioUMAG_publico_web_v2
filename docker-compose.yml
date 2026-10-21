@@ -31,6 +31,9 @@ services:
       # Desarrollo declarado: solo con APP_ENV=local el arranque carga los datos de
       # prueba (admin@umag.cl / admin123) y crea la base de tests (docker-entrypoint.sh).
       APP_ENV: local
+      # Sin DB_CONNECTION a propósito: el .env de la imagen ya dice pgsql, y si se
+      # define acá, phpunit.xml no puede cambiarla a pgsql_testing y los tests vacían
+      # 'biblioteca' (ver backend/README.md).
       DB_HOST: db
       DB_DATABASE: biblioteca
       DB_USERNAME: biblioteca
@@ -53,6 +56,8 @@ services:
   # `schedule:work` en vez del servidor. No publica puertos.
   scheduler:
     image: bibliomag-backend
+    # La imagen la construye "backend": no hay nada que descargar de Docker Hub.
+    pull_policy: never
     restart: unless-stopped
     depends_on:
       - backend
