@@ -474,7 +474,8 @@ categorías administrables y el máximo por persona) (incluida la protección
 contra condición de carrera con `DB::transaction()`+`lockForUpdate()`),
 catalogación y cambio de estado de ejemplares (incluido el cambio masivo y
 su historial), el catálogo administrable de tipos de material, CHECK
-constraints de las columnas tipo enum, cascadas de borrado `RESTRICT` en el
+constraints de las columnas tipo enum y de que un préstamo apunte a una copia
+o a un recurso según su tipo (nunca a los dos), cascadas de borrado `RESTRICT` en el
 historial, atribución real de staff en préstamos, las notificaciones por correo (reserva
 lista para retirar, multa generada; con `Notification::fake()`, sin
 depender de un servidor de correo real), configuración institucional, la
