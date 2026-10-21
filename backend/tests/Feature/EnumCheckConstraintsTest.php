@@ -81,6 +81,16 @@ class EnumCheckConstraintsTest extends TestCase
         Multa::factory()->create(['tipo' => 'invalido']);
     }
 
+    public function test_multa_de_un_prestamo_y_de_una_reserva_a_la_vez_falla_a_nivel_de_base_de_datos(): void
+    {
+        $prestamo = Prestamo::factory()->create();
+        $reserva = Reserva::factory()->create();
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('chk_multas_prestamo_o_reserva');
+        Multa::factory()->create(['prestamo_id' => $prestamo->id, 'reserva_id' => $reserva->id]);
+    }
+
     public function test_multas_monto_cero_falla_a_nivel_de_base_de_datos(): void
     {
         $this->expectException(QueryException::class);

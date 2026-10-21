@@ -31,6 +31,7 @@ class Multa extends Model
     protected $fillable = [
         'usuario_id',
         'prestamo_id',
+        'reserva_id',
         'tipo',
         'monto',
         'estado',
@@ -69,6 +70,12 @@ class Multa extends Model
     public function prestamo(): BelongsTo
     {
         return $this->belongsTo(Prestamo::class);
+    }
+
+    /** La reserva de sala, si la multa es por devolver tarde la llave. */
+    public function reserva(): BelongsTo
+    {
+        return $this->belongsTo(Reserva::class);
     }
 
     public function registradaPor(): BelongsTo

@@ -5,10 +5,11 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import DetalleReserva from '@/components/salas/DetalleReserva.vue'
+import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { SITUACIONES, duracion, fechaReserva, horaDe, reservaEditable } from '@/utils/reservas'
-import type { ListadoReservas, ReservaListado, VistaReservas } from '@/types'
+import type { AtrasoDevolucion, ListadoReservas, ReservaListado, VistaReservas } from '@/types'
 
 const auth = useAuthStore()
 // Ver el listado es de quien ve los listados; cambiar una reserva, del permiso de editarlas.
@@ -31,6 +32,8 @@ const vista = ref<VistaReservas>('activas')
 const pagina = ref(1)
 
 const seleccionada = ref<ReservaListado | null>(null)
+// Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
+const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 
 async function cargar() {
   cargando.value = true
@@ -256,6 +259,14 @@ function iniciales(r: ReservaListado) {
       />
     </div>
 
-    <DetalleReserva :reserva="seleccionada" :salas="salas" :puede-editar="puedeEditar" @cerrar="seleccionada = null" @actualizada="cargar" />
+    <DetalleReserva
+      :reserva="seleccionada"
+      :salas="salas"
+      :puede-editar="puedeEditar"
+      @cerrar="seleccionada = null"
+      @actualizada="cargar"
+      @atraso="atrasoDevolucion = $event"
+    />
+    <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
   </StaffLayout>
 </template>

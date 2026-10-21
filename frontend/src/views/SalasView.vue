@@ -6,6 +6,7 @@ import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import ListaConfirmacionAsistencia from '@/components/salas/ListaConfirmacionAsistencia.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
+import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
@@ -16,7 +17,7 @@ import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { largoSegunModo } from '@/utils/documento'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
-import type { AsistenciaSala, IntegrantesReserva, Sala, TramoReserva } from '@/types'
+import type { AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TramoReserva } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -111,6 +112,8 @@ const detalleSala = ref<Sala | null>(null)
 const cancelacionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
 const devolucionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
 const devolviendo = ref(false)
+// Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
+const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; personas: TramoReserva['personas'] } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
@@ -176,8 +179,10 @@ async function escanearLogia() {
     const { data } = await api.post('/salas/scan-logia', {
       codigo_barras: codigoLogiaScan.value.trim(),
     })
-    if (data.hora_devolucion_real) toast.success('Devolución de logia registrada')
-    else toast.success(`Entrega de logia registrada. ${textoAsistencia(data.asistencia)}`)
+    if (data.hora_devolucion_real) {
+      toast.success('Devolución de logia registrada')
+      atrasoDevolucion.value = data.atraso_devolucion ?? null
+    } else toast.success(`Entrega de logia registrada. ${textoAsistencia(data.asistencia)}`)
     codigoLogiaScan.value = ''
     await cargar()
   } catch (e: any) {
@@ -452,8 +457,9 @@ async function confirmarDevolucion() {
   if (!devolucionPendiente.value) return
   devolviendo.value = true
   try {
-    await api.patch(`/reservas/${devolucionPendiente.value.reservaId}/devolver`)
+    const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null }>(`/reservas/${devolucionPendiente.value.reservaId}/devolver`)
     toast.success('Devolución de llave confirmada')
+    atrasoDevolucion.value = data.atraso_devolucion ?? null
     devolucionPendiente.value = null
     detalleOpen.value = false
     await cargar()
@@ -1286,5 +1292,7 @@ const proximaConfirmacion = computed(() => {
         </div>
       </div>
     </div>
+
+    <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
   </StaffLayout>
 </template>

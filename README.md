@@ -47,7 +47,11 @@ MySQL 8** (backend API), 100% dockerizada.
 - Multas en su propia tabla (`multas`), con un módulo dedicado: la multa
   por atraso se genera sola al devolver un libro fuera de plazo (tarifa en
   `config/multas.php`: $15 por día, tope de $15.000), y las de deterioro,
-  pérdida u otro motivo se cursan a mano. Se marcan pagadas o se anulan
+  pérdida u otro motivo se cursan a mano. Al devolver tarde la llave de una
+  sala (más de 5 minutos, con el botón o escaneando la logia), el mesón ve un
+  aviso con los minutos de atraso y decide si genera la multa o la deja pasar
+  (`config/multas.php`, «sala»: montos provisionales, $50 por minuto con tope
+  de $5.000, hasta que la biblioteca fije la tarifa). Se marcan pagadas o se anulan
   con motivo, nunca se borran, y queda registrado quién hizo cada cosa.
   Mientras una persona tenga multas pendientes no puede llevarse libros ni
   recursos de apoyo, ni reservar libros (en mesón ni en el portal), y tampoco obtener
