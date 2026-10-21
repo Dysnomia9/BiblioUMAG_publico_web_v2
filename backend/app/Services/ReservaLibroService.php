@@ -160,16 +160,10 @@ class ReservaLibroService
     public function cancelar(ReservaLibro $reserva): bool
     {
         $cancelada = DB::transaction(function () use ($reserva) {
-            $ejemplar = $reserva->ejemplar_id ? Ejemplar::whereKey($reserva->ejemplar_id)->lockForUpdate()->first() : null;
-            $actual = ReservaLibro::whereKey($reserva->id)->lockForUpdate()->first();
+            [$actual, $ejemplar] = $this->bloquearSiSigueActiva($reserva);
 
-            if (! in_array($actual?->estado, ['pendiente', 'en_cola'], true)) {
+            if (! $actual) {
                 return false;
-            }
-
-            // Estaba en la fila y justo le tocó una copia: esa es la que se libera.
-            if ($actual->ejemplar_id && $actual->ejemplar_id !== $ejemplar?->id) {
-                $ejemplar = Ejemplar::whereKey($actual->ejemplar_id)->lockForUpdate()->first();
             }
 
             $liberaEjemplar = $actual->estado === 'pendiente';
@@ -187,6 +181,63 @@ class ReservaLibroService
         $reserva->refresh();
 
         return $cancelada;
+    }
+
+    /**
+     * Al prestarle a alguien una copia de un título que tenía reservado por otra copia, o
+     * cuya lista de espera esperaba, ya se lo lleva: esa reserva queda retirada con la
+     * copia prestada, y la que tenía apartada pasa al siguiente de la fila. Sin esto, la
+     * copia apartada quedaba retenida hasta la fecha límite y la persona no podía reservar
+     * otro libro. Va dentro de la transacción del préstamo, con $prestada ya bloqueada.
+     * Devuelve cuántas reservas cerró.
+     */
+    public function cerrarAlPrestarOtraCopia(int $usuarioId, Ejemplar $prestada): int
+    {
+        $abiertas = ReservaLibro::where('usuario_id', $usuarioId)
+            ->where('libro_id', $prestada->libro_id)
+            ->whereIn('estado', ['pendiente', 'en_cola'])
+            ->get();
+
+        $cerradas = 0;
+        foreach ($abiertas as $reserva) {
+            [$actual, $apartada] = $this->bloquearSiSigueActiva($reserva);
+
+            if (! $actual) {
+                continue;
+            }
+
+            $actual->update(['estado' => 'retirado', 'ejemplar_id' => $prestada->id]);
+            if ($apartada && $apartada->id !== $prestada->id) {
+                $this->liberarLibro($apartada);
+            }
+            $cerradas++;
+        }
+
+        return $cerradas;
+    }
+
+    /**
+     * Como al prestar, primero la copia apartada y después la reserva, para no trabarse
+     * con un préstamo o una cancelación simultáneos; el estado se lee ya bloqueado.
+     * [null, null] si la reserva ya no está activa (la retiraron o la cancelaron).
+     *
+     * @return array{0: ReservaLibro|null, 1: Ejemplar|null}
+     */
+    private function bloquearSiSigueActiva(ReservaLibro $reserva): array
+    {
+        $ejemplar = $reserva->ejemplar_id ? Ejemplar::whereKey($reserva->ejemplar_id)->lockForUpdate()->first() : null;
+        $actual = ReservaLibro::whereKey($reserva->id)->lockForUpdate()->first();
+
+        if (! in_array($actual?->estado, ['pendiente', 'en_cola'], true)) {
+            return [null, null];
+        }
+
+        // Estaba en la fila y justo le tocó una copia: esa es la que se libera.
+        if ($actual->ejemplar_id && $actual->ejemplar_id !== $ejemplar?->id) {
+            $ejemplar = Ejemplar::whereKey($actual->ejemplar_id)->lockForUpdate()->first();
+        }
+
+        return [$actual, $ejemplar];
     }
 
     /**

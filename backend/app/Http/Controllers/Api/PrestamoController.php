@@ -225,6 +225,7 @@ class PrestamoController extends Controller
             $ejemplar?->update(['disponible' => false]);
             $equipo?->update(['disponible' => false]);
             $reservaPropia?->update(['estado' => 'retirado']);
+            $otraReservaCerrada = $ejemplar && $this->reservaLibroService->cerrarAlPrestarOtraCopia($data['usuario_id'], $ejemplar) > 0;
 
             $prestamo->load('usuario:id,nombre,apellido,rut,tipo_documento,pais');
 
@@ -232,7 +233,8 @@ class PrestamoController extends Controller
                 'prestamos.prestar',
                 ($esLibro ? "Prestó «{$prestamo->libro_titulo}»" : "Prestó el recurso {$prestamo->libro_titulo}")
                     .($prestamo->fecha_devolucion ? ', devolución el '.$prestamo->fecha_devolucion->format('d/m/Y') : '')
-                    .($reservaPropia ? ' (retiro de su reserva)' : ''),
+                    .($reservaPropia ? ' (retiro de su reserva)' : '')
+                    .($otraReservaCerrada ? ' (cierra la reserva que tenía de este título)' : ''),
                 entidad: $prestamo,
                 datos: ['codigo_barras' => $prestamo->codigo_barras, 'tipo_item' => $prestamo->tipo_item],
                 afectado: $prestamo->usuario,
