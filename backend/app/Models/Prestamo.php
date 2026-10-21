@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -39,6 +40,16 @@ class Prestamo extends Model
             'fecha_devolucion' => 'datetime',
             'fecha_devolucion_real' => 'datetime',
         ];
+    }
+
+    /**
+     * Atrasados: sin devolver y con la fecha de devolución ya pasada (el que vence hoy
+     * todavía no). Es la única definición de atraso: el estado dice solo si se devolvió.
+     * estaVencido() del frontend usa la misma.
+     */
+    public function scopeVencidos(Builder $query): Builder
+    {
+        return $query->where('estado', 'activo')->whereDate('fecha_devolucion', '<', now()->toDateString());
     }
 
     public function usuario()

@@ -22,12 +22,9 @@ class DashboardController extends Controller
             // store()). "Personas en sala" es, en la práctica, el total de ingresos del día.
             'personasEnSala' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
             'aforo' => config('biblioteca.aforo'),
-            // 'atrasado' también es un préstamo que sigue afuera (lo escribe el
-            // mockup/importación); contarlo solo como 'activo' lo dejaba fuera de ambos.
             'prestamosActivos' => Prestamo::where('estado', '!=', 'devuelto')->count(),
-            'prestamosAtrasados' => Prestamo::where('estado', '!=', 'devuelto')
-                ->where(fn ($q) => $q->where('estado', 'atrasado')->orWhere('fecha_devolucion', '<', now()))
-                ->count(),
+            // El que vence hoy todavía no está atrasado, igual que en el Listado de préstamos.
+            'prestamosAtrasados' => Prestamo::vencidos()->count(),
             'ultimasEntradas' => Entrada::with('usuario:id,nombre,apellido,rut')
                 ->latest('fecha_hora_entrada')
                 ->limit(5)

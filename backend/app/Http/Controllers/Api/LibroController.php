@@ -28,7 +28,7 @@ class LibroController extends Controller
             // Cada copia dice si está prestada o reservada (listado de libros y estado de ejemplares).
             // MySQL devuelve el EXISTS como 0/1: el cast lo deja en true/false para el frontend.
             'ejemplares' => fn ($q) => $q->orderBy('numero_copia')->withExists([
-                'prestamos as prestado' => fn ($p) => $p->whereIn('estado', ['activo', 'atrasado']),
+                'prestamos as prestado' => fn ($p) => $p->where('estado', '!=', 'devuelto'),
                 'reservasLibro as reservado' => fn ($r) => $r->where('estado', 'pendiente'),
             ])->withCasts(['prestado' => 'boolean', 'reservado' => 'boolean']),
             'ejemplares.ubicacion',

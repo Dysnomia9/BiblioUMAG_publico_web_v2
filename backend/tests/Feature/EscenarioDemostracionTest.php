@@ -27,7 +27,7 @@ class EscenarioDemostracionTest extends TestCase
         $this->assertSame(0, Prestamo::where('usuario_id', $valentina->id)->count());
         $this->assertSame(0, Multa::pendientes()->where('usuario_id', $valentina->id)->count());
 
-        $this->assertSame('atrasado', Prestamo::where('usuario_id', $persona('22.222.222-2')->id)->sole()->estado);
+        $this->assertTrue(Prestamo::vencidos()->where('usuario_id', $persona('22.222.222-2')->id)->exists());
         $this->assertSame(3500, Multa::pendientes()->where('usuario_id', $persona('33.333.333-3')->id)->sole()->monto);
         $this->assertSame('pendiente', ReservaLibro::where('usuario_id', $persona('44.444.444-4')->id)->sole()->estado);
         $this->assertSame('en_cola', ReservaLibro::where('usuario_id', $persona('55.555.555-5')->id)->sole()->estado);

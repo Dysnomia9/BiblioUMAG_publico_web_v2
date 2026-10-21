@@ -131,7 +131,8 @@ export type Prestamo = {
   fecha_prestamo: string
   fecha_devolucion: string | null
   fecha_devolucion_real: string | null
-  estado: 'activo' | 'atrasado' | 'devuelto'
+  /** Si se devolvió. El atraso se calcula con fecha_devolucion (estaVencido() en utils/prestamos.ts). */
+  estado: 'activo' | 'devuelto'
   prestado_por: string | null
   prestado_por_staff_id?: number | null
   devuelto_por: string | null

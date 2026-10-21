@@ -125,7 +125,6 @@ const TIPO_BADGES: Record<string, string> = {
 
 const ESTADO_LABELS: Record<string, string> = {
   activo: 'Activo',
-  atrasado: 'Atrasado',
   devuelto: 'Devuelto',
   activa: 'Activa',
   finalizada: 'Finalizada',
