@@ -442,8 +442,35 @@ corrida a mano), el arranque los omite, y en producción (`APP_ENV=production`)
 conocidas. Lo que el sistema necesita para funcionar sí lo crean
 las migraciones: los roles, los catálogos base y las salas; los códigos de
 barras reales de las logias se aplican con `php artisan horizon:codigos-logia`. La primera cuenta con acceso total se crea con
-`php artisan personal:crear-admin <correo> --nombre="Nombre Apellido"` (ver
+`php artisan sistema:iniciar <correo> --nombre="Nombre Apellido"` (ver
 [`docs/handoff-informatica.md`](docs/handoff-informatica.md)).
+
+## Empezar sin datos de prueba
+
+Para ensayar la carga de los datos reales (los usuarios desde la planilla, el
+catálogo desde Horizon) en una base vacía, como la de producción:
+
+```bash
+docker compose exec backend php artisan sistema:iniciar --vaciar   # borra todo lo que haya; pide escribir VACIAR
+```
+
+Queda solo lo que crean las migraciones (roles, las 18 salas, carreras, categorías
+de recursos, tipos de material) y una cuenta: la del administrador general,
+`admin@umag.cl`, con una contraseña al azar que se muestra una sola vez (otro
+correo: `sistema:iniciar <correo> --nombre="Nombre Apellido"`). Si la base ya
+está vacía no hace falta `--vaciar`, y si tiene datos, sin `--vaciar` el comando no
+hace nada (`app/Console/Commands/IniciarSistema.php`).
+
+Para que una base nueva arranque vacía desde el principio, sin pasar por los datos
+de prueba, se pone `DATOS_DE_PRUEBA=no` en un archivo `.env` junto a
+`docker-compose.yml` (git lo ignora) antes de crearla:
+
+```bash
+docker compose down -v                                   # borra la base de desarrollo actual
+echo DATOS_DE_PRUEBA=no > .env
+docker compose up -d --build
+docker compose exec backend php artisan sistema:iniciar
+```
 
 Si necesitas empezar completamente de cero (esquema incluido):
 

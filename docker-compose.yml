@@ -31,6 +31,10 @@ services:
       # Desarrollo declarado: solo con APP_ENV=local el arranque carga los datos de
       # prueba (admin@umag.cl / admin123) y crea la base de tests (docker-entrypoint.sh).
       APP_ENV: local
+      # Una base nueva arranca con los datos de prueba (mockup:datos). Con
+      # DATOS_DE_PRUEBA=no arranca vacía, como producción: la primera cuenta se crea
+      # con php artisan sistema:iniciar (ver README, «Empezar sin datos de prueba»).
+      DATOS_DE_PRUEBA: ${DATOS_DE_PRUEBA:-si}
       # Sin DB_CONNECTION a propósito: el .env de la imagen ya dice pgsql, y si se
       # define acá, phpunit.xml no puede cambiarla a pgsql_testing y los tests vacían
       # 'biblioteca' (ver backend/README.md).
