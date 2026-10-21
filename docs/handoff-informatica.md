@@ -149,6 +149,14 @@ Para que no se lean como carencias en la revisión:
 
 ## Recomendaciones de infraestructura
 
+- **Actualizaciones de seguridad:** el sistema corre sobre PHP 8.3 (arreglos de
+  seguridad hasta el 31-12-2027), nginx 1.30 y, para compilar el frontend, Node 24.
+  Cada `docker compose -f docker-compose.prod.yml up -d --build` baja las imágenes
+  base al día (`pull: true`) y las instala con sus últimos parches: conviene
+  repetirlo cuando PHP o nginx publiquen un arreglo de seguridad (por ejemplo,
+  PHP 8.3.36 del 2026-10-21 corrigió dos fallas críticas de ejecución remota de
+  código). `docker compose -f docker-compose.prod.yml exec backend php -v` muestra
+  la versión que está corriendo.
 - **Frontend:** `docker-compose.prod.yml` ya compila la aplicación y la sirve
   con nginx (etapa `produccion` de `frontend/Dockerfile`, configuración en
   `frontend/nginx.conf`). Al navegador solo llegan los archivos compilados y
