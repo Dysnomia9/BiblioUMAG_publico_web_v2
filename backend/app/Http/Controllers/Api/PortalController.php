@@ -27,6 +27,7 @@ use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PortalController extends Controller
 {
@@ -428,46 +429,110 @@ class PortalController extends Controller
 
     /**
      * Soft delete vía estado — ver SalaController::destroyReserva() para el detalle.
-     * La cancela quien la hizo o cualquiera de sus integrantes: a quien incluyeron en
-     * una reserva tiene que poder deshacerla para reservar otra sala.
+     * Solo la cancela quien la hizo; un integrante se sale de ella (salirDeReservaSala()).
      */
     public function cancelarReservaSala(Request $request, Reserva $reserva)
     {
         $usuario = $request->user();
 
-        if ($reserva->usuario_id !== $usuario->id && ! $reserva->participantes()->whereKey($usuario->id)->exists()) {
-            return response()->json(['message' => 'Solo puedes cancelar reservas en las que participas'], 403);
+        if ($reserva->usuario_id !== $usuario->id) {
+            return response()->json(['message' => $reserva->participantes()->whereKey($usuario->id)->exists()
+                ? 'Esta reserva la hizo otra persona: puedes salirte de ella, pero solo quien la hizo la cancela.'
+                : 'Solo puedes cancelar reservas en las que participas'], 403);
         }
 
-        // Solo lo que todavía no ocurre: una reserva finalizada, cancelada o en que no se
-        // presentaron queda como registro (igual que en el panel, que solo edita las
-        // activas). Una vencida sin confirmar pasa aquí mismo a inasistencia, para que no
-        // se pueda cancelar justo antes de que se marque como tal.
-        $this->reservaSalaService->liberarSiVencida($reserva);
-
-        if ($reserva->estado !== 'activa') {
-            return response()->json(['message' => match ($reserva->estado) {
-                'no_show' => 'El grupo no llegó a tiempo a esta reserva: quedó registrada como inasistencia y ya no se puede cancelar.',
-                'finalizada' => 'Esta reserva ya terminó: queda en tu historial y no se puede cancelar.',
-                'cancelada' => 'Esta reserva ya estaba cancelada.',
-                default => 'Esta reserva ya no está activa: no se puede cancelar.',
-            }], 409);
-        }
-
-        if ($reserva->hora_prestamo_real) {
-            return response()->json(['message' => 'El grupo ya está usando la sala: la reserva se cierra en el mesón al devolver la llave.'], 409);
+        if ($motivo = $this->motivoParaNoCambiarReserva($reserva, 'no se puede cancelar')) {
+            return response()->json(['message' => $motivo], 409);
         }
 
         $reserva->update(['estado' => 'cancelada']);
-
-        // Solo pesa en quien la hizo: un integrante (quizás lo pusieron sin preguntarle)
-        // puede salirse sin consecuencias.
-        if ($reserva->usuario_id === $usuario->id) {
-            $this->reservaSalaService->registrarCancelacionDelPortal($usuario);
-        }
+        $this->reservaSalaService->registrarCancelacionDelPortal($usuario);
 
         Bitacora::registrar('salas.cancelar', "Canceló desde el portal su reserva de {$reserva->descripcion()}", entidad: $reserva, afectado: $request->user());
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Un integrante (quizás lo pusieron sin preguntarle) se sale de una reserva que hizo
+     * otra persona, sin consecuencias para nadie: el resto del grupo la mantiene, con una
+     * persona menos, y él queda libre para reservar otra sala. Si quedaría una sola
+     * persona, la reserva se cancela, porque las salas se reservan para 2 a 5.
+     */
+    public function salirDeReservaSala(Request $request, Reserva $reserva)
+    {
+        $usuario = $request->user();
+
+        if ($reserva->usuario_id === $usuario->id) {
+            return response()->json(['message' => 'Tú hiciste esta reserva: para dejarla, cancélala.'], 409);
+        }
+
+        if (! $reserva->participantes()->whereKey($usuario->id)->exists()) {
+            return response()->json(['message' => 'Solo puedes salirte de reservas en las que participas'], 403);
+        }
+
+        // La reserva queda bloqueada: si dos integrantes se salen a la vez, el segundo ve
+        // que el primero ya se fue.
+        [$motivo, $cancelada] = DB::transaction(function () use ($reserva, $usuario) {
+            $reserva = Reserva::whereKey($reserva->id)->lockForUpdate()->first();
+
+            if ($motivo = $this->motivoParaNoCambiarReserva($reserva, 'no puedes salirte de ella')) {
+                return [$motivo, false];
+            }
+
+            $quedan = $reserva->participantes()->whereKeyNot($usuario->id)->count();
+            if ($quedan < 2) {
+                $reserva->update(['estado' => 'cancelada']);
+
+                return [null, true];
+            }
+
+            $reserva->participantes()->detach($usuario->id);
+            $reserva->update(['cantidad_personas' => $quedan]);
+
+            return [null, false];
+        });
+
+        if ($motivo) {
+            return response()->json(['message' => $motivo], 409);
+        }
+
+        $reserva->refresh();
+        Bitacora::registrar(
+            $cancelada ? 'salas.cancelar' : 'salas.integrantes',
+            "Se salió desde el portal de {$reserva->descripcion()}"
+                .($cancelada ? ': como quedaba una sola persona, la reserva se canceló' : ''),
+            entidad: $reserva,
+            datos: ['quitados' => $usuario->descripcion()],
+            afectado: $usuario,
+        );
+
+        return response()->json(['cancelada' => $cancelada]);
+    }
+
+    /**
+     * Solo cambia lo que todavía no ocurre: una reserva finalizada, cancelada o en que no
+     * se presentaron queda como registro (igual que en el panel, que solo edita las
+     * activas), y la que ya tiene la llave se cierra en el mesón. Una vencida sin
+     * confirmar pasa aquí mismo a inasistencia, para que nadie la deje justo antes.
+     */
+    private function motivoParaNoCambiarReserva(Reserva $reserva, string $noSePuede): ?string
+    {
+        $this->reservaSalaService->liberarSiVencida($reserva);
+
+        if ($reserva->estado !== 'activa') {
+            return match ($reserva->estado) {
+                'no_show' => "El grupo no llegó a tiempo a esta reserva: quedó registrada como inasistencia y ya {$noSePuede}.",
+                'finalizada' => "Esta reserva ya terminó: queda en tu historial y {$noSePuede}.",
+                'cancelada' => 'Esta reserva ya estaba cancelada.',
+                default => "Esta reserva ya no está activa: {$noSePuede}.",
+            };
+        }
+
+        if ($reserva->hora_prestamo_real) {
+            return 'El grupo ya está usando la sala: la reserva se cierra en el mesón al devolver la llave.';
+        }
+
+        return null;
     }
 }

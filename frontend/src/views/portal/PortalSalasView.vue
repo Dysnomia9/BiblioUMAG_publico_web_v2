@@ -187,12 +187,17 @@ const pasosAyuda = computed(() => [
   'Preséntate con tu grupo en el mesón dentro de los <strong>15 minutos</strong> desde la hora de inicio; si no, la sala se libera sola.',
 ])
 const consejoAyuda = computed(
-  () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul. Puedes cancelar una reserva hecha por ti al día sin consecuencias; desde la segunda, tendrás que esperar ${cancelaciones.value.minutos_espera} minutos para reservar otra sala.`,
+  () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul. Puedes cancelar una reserva hecha por ti al día sin consecuencias; desde la segunda, tendrás que esperar ${cancelaciones.value.minutos_espera} minutos para reservar otra sala. Si te incluyó otra persona, al tocarla te sales de ella sin consecuencias y el resto del grupo la mantiene (si quedaría una sola persona, se cancela).`,
 )
 
 // La hizo la persona o la incluyeron como integrante (el servidor lo indica en es_mia).
 function esMia(tramo: TramoReserva) {
   return tramo.es_mia ?? tramo.usuario_id === auth.usuario?.id
+}
+
+// La hizo otra persona y la incluyó: no la cancela, se sale de ella.
+function meIncluyeron(tramo: TramoReserva) {
+  return esMia(tramo) && tramo.usuario_id !== auth.usuario?.id
 }
 
 function disponibilidadDesde(sala: Sala, desdeMin: number): number {
@@ -337,12 +342,16 @@ async function confirmarReserva() {
 const reservaPorCancelar = ref<{ sala: Sala; tramo: TramoReserva } | null>(null)
 const cancelando = ref(false)
 
+const saliendo = computed(() => !!reservaPorCancelar.value && meIncluyeron(reservaPorCancelar.value.tramo))
+// Las salas se reservan para 2 o más: si sale uno de un grupo de 2, la reserva se cancela.
+const salirLaCancela = computed(() => saliendo.value && reservaPorCancelar.value!.tramo.cantidad_personas <= 2)
+
 /** Qué significa cancelar esta reserva para la espera: solo pesa en quien la hizo. */
 const avisoCancelacion = computed(() => {
   const r = reservaPorCancelar.value
   const { sin_espera_restantes: libres, minutos_espera: minutos } = cancelaciones.value
-  if (!r || !minutos) return null
-  if (r.tramo.usuario_id !== auth.usuario?.id) return 'No hiciste tú esta reserva: cancelarla no tiene consecuencias para ti.'
+  if (!r || saliendo.value) return null
+  if (!minutos) return null
   if (libres === 1) return `Esta cancelación no tiene consecuencias, pero es la única del día: si vuelves a cancelar otra reserva hoy, tendrás que esperar ${minutos} minutos para reservar una sala.`
   if (libres > 1) return `Esta cancelación no tiene consecuencias (hoy te quedan ${libres} sin espera). Después, cada vez que canceles tendrás que esperar ${minutos} minutos para reservar una sala.`
   return `Ya cancelaste una reserva hoy: si cancelas esta, tendrás que esperar ${minutos} minutos para reservar otra sala.`
@@ -351,12 +360,18 @@ const avisoCancelacion = computed(() => {
 async function confirmarCancelacion() {
   if (!reservaPorCancelar.value) return
   cancelando.value = true
+  const id = reservaPorCancelar.value.tramo.reserva_id
   try {
-    await apiUsuario.delete(`/mi/reservas/${reservaPorCancelar.value.tramo.reserva_id}`)
-    toast.success('Reserva cancelada')
+    if (saliendo.value) {
+      const { data } = await apiUsuario.patch<{ cancelada: boolean }>(`/mi/reservas/${id}/salir`)
+      toast.success(data.cancelada ? 'Saliste de la reserva: como quedaba una sola persona, se canceló' : 'Saliste de la reserva')
+    } else {
+      await apiUsuario.delete(`/mi/reservas/${id}`)
+      toast.success('Reserva cancelada')
+    }
     await cargar()
   } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo cancelar la reserva')
+    toast.error(e?.response?.data?.message ?? (saliendo.value ? 'No se pudo salir de la reserva' : 'No se pudo cancelar la reserva'))
   } finally {
     cancelando.value = false
     reservaPorCancelar.value = null
@@ -506,10 +521,10 @@ async function confirmarCancelacion() {
                 class="absolute inset-y-1 border flex items-center justify-center text-[10px] font-semibold overflow-hidden whitespace-nowrap shadow-sm hover:shadow-md hover:z-20 hover:scale-y-105 transition-all"
                 :class="[esMia(tramo) ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-red-100 border-red-300 text-red-700', anchoTramoPct(tramo) < 6 ? 'rounded-full' : 'rounded-lg px-1.5']"
                 :style="{ left: posicionTramo(tramo.hora_inicio, tramo.hora_fin).izquierda + '%', width: anchoTramoPct(tramo) + '%' }"
-                :title="`${tramo.hora_inicio.slice(0, 5)} – ${tramo.hora_fin.slice(0, 5)}${esMia(tramo) ? ' · tu reserva (clic para cancelar)' : ''}`"
+                :title="`${tramo.hora_inicio.slice(0, 5)} – ${tramo.hora_fin.slice(0, 5)}${meIncluyeron(tramo) ? ' · te incluyeron (clic para salirte)' : esMia(tramo) ? ' · tu reserva (clic para cancelar)' : ''}`"
               >
                 <button v-if="esMia(tramo)" @click.stop="reservaPorCancelar = { sala, tramo }" class="hover:underline w-full h-full flex items-center justify-center">
-                  <span v-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }}<template v-if="anchoTramoPct(tramo) >= 13"> (cancelar)</template></span>
+                  <span v-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }}<template v-if="anchoTramoPct(tramo) >= 13"> ({{ meIncluyeron(tramo) ? 'salir' : 'cancelar' }})</template></span>
                   <span v-else>×</span>
                 </button>
                 <span v-else-if="anchoTramoPct(tramo) >= 6">{{ tramo.hora_inicio.slice(0, 5) }}–{{ tramo.hora_fin.slice(0, 5) }}</span>
@@ -633,15 +648,25 @@ async function confirmarCancelacion() {
 
     <DialogoConfirmacion
       :abierto="reservaPorCancelar !== null"
-      titulo="¿Cancelar tu reserva?"
-      confirmar="Sí, cancelar"
+      :titulo="saliendo ? '¿Salir de esta reserva?' : '¿Cancelar tu reserva?'"
+      :confirmar="saliendo ? 'Sí, salirme' : 'Sí, cancelar'"
       cancelar="No, mantener"
       tono="peligro"
       :cargando="cancelando"
       @confirmar="confirmarCancelacion"
       @cancelar="reservaPorCancelar = null"
     >
-      <p v-if="reservaPorCancelar">
+      <p v-if="reservaPorCancelar && saliendo && !salirLaCancela">
+        Saldrás de la reserva de <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
+        <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>.
+        El resto del grupo la mantiene, y tú quedas libre para reservar otra sala.
+      </p>
+      <p v-else-if="reservaPorCancelar && saliendo">
+        Como en el grupo quedaría una sola persona, la reserva de <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
+        <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>
+        se cancelará y la sala quedará disponible para otras personas.
+      </p>
+      <p v-else-if="reservaPorCancelar">
         Se liberará <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
         <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>
         y quedará disponible para otras personas.
