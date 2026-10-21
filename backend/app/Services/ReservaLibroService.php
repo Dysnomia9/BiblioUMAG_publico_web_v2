@@ -8,6 +8,7 @@ use App\Models\ReservaLibro;
 use App\Models\Usuario;
 use App\Notifications\ReservaListaParaRetirarNotification;
 use App\Support\HorarioBiblioteca;
+use App\Support\Notificar;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -322,9 +323,7 @@ class ReservaLibroService
         // Sin SMTP configurado (ver .env.example), esto solo queda escrito en
         // storage/logs/laravel.log — no falla ni intenta salir a la red.
         $siguiente->load(['usuario', 'libro']);
-        if ($siguiente->usuario?->email) {
-            $siguiente->usuario->notify(new ReservaListaParaRetirarNotification($siguiente));
-        }
+        Notificar::enviar($siguiente->usuario, new ReservaListaParaRetirarNotification($siguiente));
 
         return $siguiente;
     }

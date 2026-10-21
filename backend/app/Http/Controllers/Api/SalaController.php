@@ -12,6 +12,7 @@ use App\Services\MultaService;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
 use App\Support\Documento;
+use App\Support\Notificar;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -436,9 +437,7 @@ class SalaController extends Controller
             afectado: $multa->usuario,
         );
 
-        if ($multa->usuario?->email) {
-            $multa->usuario->notify(new MultaGeneradaNotification($multa));
-        }
+        Notificar::enviar($multa->usuario, new MultaGeneradaNotification($multa));
 
         return response()->json($multa, 201);
     }

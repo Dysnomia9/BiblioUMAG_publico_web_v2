@@ -11,8 +11,8 @@ use Illuminate\Notifications\Notification;
  * Se envía cuando ReservaLibroService::liberarLibro() promueve a alguien de la cola
  * de espera a 'pendiente' (le tocó el turno). No es queued a propósito: no hay un
  * proceso `queue:work` corriendo en docker-compose.yml, así que ShouldQueue dejaría
- * esto sin enviar nunca — se manda en línea, dentro del mismo request que libera el
- * ejemplar.
+ * esto sin enviar nunca — se manda en el mismo request que libera el ejemplar, apenas
+ * se guarda, con App\Support\Notificar.
  */
 class ReservaListaParaRetirarNotification extends Notification
 {

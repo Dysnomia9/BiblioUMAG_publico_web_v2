@@ -11,6 +11,7 @@ use App\Models\Usuario;
 use App\Notifications\MultaGeneradaNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -158,5 +159,18 @@ class MultaSalaTest extends TestCase
 
         $this->assertNotNull($anterior->fresh()->hora_devolucion_real);
         $this->assertNotNull($siguiente->fresh()->hora_prestamo_real);
+    }
+
+    public function test_si_el_correo_falla_la_multa_de_sala_queda_cursada(): void
+    {
+        Exceptions::fake();
+        Notification::shouldReceive('send')->andThrow(new \RuntimeException('El servidor de correo no responde'));
+        $reserva = $this->reservaEnUso();
+        $this->devolverA('12:20:00', $reserva);
+
+        $this->postJson("/api/reservas/{$reserva->id}/multa-atraso")->assertCreated();
+
+        $this->assertSame($reserva->id, Multa::sole()->reserva_id);
+        Exceptions::assertReported(\RuntimeException::class);
     }
 }
