@@ -67,7 +67,9 @@ MySQL 8** (backend API), 100% dockerizada.
   sala se libere sola, una cuota diaria de 4 horas por persona, sin
   importar en cuántas salas distintas se reparta, y **una sola reserva
   pendiente por persona**: para entrar en otra, primero usa o cancela la que
-  tiene, en el mesón, en el portal y al sumar integrantes) y de libros del catálogo
+  tiene, en el mesón, en el portal y al sumar integrantes; con bloqueo de la
+  sala y de los integrantes para que dos reservas simultáneas no tomen el
+  mismo tramo ni pongan a alguien en dos salas a la vez) y de libros del catálogo
   para retiro. Ambas comparten la disponibilidad del ejemplar como fuente
   de verdad: no se puede reservar ni prestar algo ya ocupado.
 - Catalogación de libros con soporte real para **múltiples copias del

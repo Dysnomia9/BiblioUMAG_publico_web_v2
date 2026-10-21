@@ -15,7 +15,6 @@ use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class SalaController extends Controller
@@ -120,44 +119,48 @@ class SalaController extends Controller
             return response()->json(['message' => $error], 422);
         }
 
-        if ($this->reservaSalaService->existeSolapamiento($data['sala_id'], $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id)) {
-            return response()->json(['message' => 'Ese tramo ya se encuentra reservado en esa sala'], 409);
-        }
+        $integrantes = $reserva->participantes()->get(['usuarios.id', 'usuarios.rut']);
 
-        $ruts = $reserva->participantes()->pluck('rut')->all();
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $integrantes->pluck('id'), function () use ($data, $reserva, $integrantes) {
+            if ($this->reservaSalaService->existeSolapamiento($data['sala_id'], $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id)) {
+                return response()->json(['message' => 'Ese tramo ya se encuentra reservado en esa sala'], 409);
+            }
 
-        $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada($ruts, $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id);
-        if ($rutConflicto) {
-            return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
-        }
+            $ruts = $integrantes->pluck('rut')->all();
 
-        $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($ruts, $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id);
-        if ($excedeCuota) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
-        }
+            $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada($ruts, $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id);
+            if ($rutConflicto) {
+                return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
+            }
 
-        $resumen = fn (Reserva $r) => [
-            'sala' => $r->sala->nombre,
-            'fecha' => $r->fecha->format('d/m/Y'),
-            'horario' => substr($r->hora_inicio, 0, 5).' a '.substr($r->hora_fin, 0, 5),
-        ];
-        $antes = $resumen($reserva);
-        $descripcionAntes = $reserva->descripcion();
+            $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($ruts, $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id);
+            if ($excedeCuota) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
+            }
 
-        $reserva->update(Arr::only($data, ['sala_id', 'fecha', 'hora_inicio', 'hora_fin']));
-        $reserva->load(['sala:id,nombre,tipo', 'participantes:id,nombre,apellido,rut']);
+            $resumen = fn (Reserva $r) => [
+                'sala' => $r->sala->nombre,
+                'fecha' => $r->fecha->format('d/m/Y'),
+                'horario' => substr($r->hora_inicio, 0, 5).' a '.substr($r->hora_fin, 0, 5),
+            ];
+            $antes = $resumen($reserva);
+            $descripcionAntes = $reserva->descripcion();
 
-        if ($cambios = Bitacora::cambios($antes, $resumen($reserva))) {
-            Bitacora::registrar(
-                'salas.editar',
-                "Cambió la reserva de {$descripcionAntes} a {$reserva->descripcion()}",
-                entidad: $reserva,
-                datos: $cambios,
-                afectado: $reserva->usuario,
-            );
-        }
+            $reserva->update(Arr::only($data, ['sala_id', 'fecha', 'hora_inicio', 'hora_fin']));
+            $reserva->load(['sala:id,nombre,tipo', 'participantes:id,nombre,apellido,rut']);
 
-        return response()->json(ReservaSalaService::paraListado($reserva));
+            if ($cambios = Bitacora::cambios($antes, $resumen($reserva))) {
+                Bitacora::registrar(
+                    'salas.editar',
+                    "Cambió la reserva de {$descripcionAntes} a {$reserva->descripcion()}",
+                    entidad: $reserva,
+                    datos: $cambios,
+                    afectado: $reserva->usuario,
+                );
+            }
+
+            return response()->json(ReservaSalaService::paraListado($reserva));
+        });
     }
 
     public function index(Request $request)
@@ -213,67 +216,69 @@ class SalaController extends Controller
             return response()->json(['message' => $error], 422);
         }
 
-        $existe = $this->reservaSalaService->existeSolapamiento(
-            $data['sala_id'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
-
-        if ($existe) {
-            return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
-        }
-
-        if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
-        }
-
-        $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada(
-            $data['ruts'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
-
-        if ($rutConflicto) {
-            return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
-        }
-
-        $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria(
-            $data['ruts'],
-            $data['fecha'],
-            $data['hora_inicio'],
-            $data['hora_fin'],
-        );
-
-        if ($excedeCuota) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
-        }
-
         $usuarios = Usuario::whereIn('rut', $data['ruts'])->get()->keyBy('rut');
 
-        $reserva = Reserva::create([
-            'sala_id' => $data['sala_id'],
-            'usuario_id' => $usuarios[$data['ruts'][0]]->id,
-            'rut_usuario' => $data['ruts'][0],
-            'cantidad_personas' => $data['cantidad_personas'],
-            'fecha' => $data['fecha'],
-            'hora_inicio' => $data['hora_inicio'],
-            'hora_fin' => $data['hora_fin'],
-            'estado' => 'activa',
-        ]);
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $usuarios->pluck('id'), function () use ($data, $usuarios) {
+            $existe = $this->reservaSalaService->existeSolapamiento(
+                $data['sala_id'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
 
-        $reserva->participantes()->attach($usuarios->pluck('id'));
+            if ($existe) {
+                return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
+            }
 
-        Bitacora::registrar(
-            'salas.reservar',
-            "Reservó {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
-            entidad: $reserva,
-            datos: ['integrantes' => $data['ruts']],
-            afectado: $usuarios[$data['ruts'][0]],
-        );
+            if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
+            }
 
-        return response()->json($reserva, 201);
+            $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada(
+                $data['ruts'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
+
+            if ($rutConflicto) {
+                return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
+            }
+
+            $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria(
+                $data['ruts'],
+                $data['fecha'],
+                $data['hora_inicio'],
+                $data['hora_fin'],
+            );
+
+            if ($excedeCuota) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
+            }
+
+            $reserva = Reserva::create([
+                'sala_id' => $data['sala_id'],
+                'usuario_id' => $usuarios[$data['ruts'][0]]->id,
+                'rut_usuario' => $data['ruts'][0],
+                'cantidad_personas' => $data['cantidad_personas'],
+                'fecha' => $data['fecha'],
+                'hora_inicio' => $data['hora_inicio'],
+                'hora_fin' => $data['hora_fin'],
+                'estado' => 'activa',
+            ]);
+
+            $reserva->participantes()->attach($usuarios->pluck('id'));
+
+            Bitacora::registrar(
+                'salas.reservar',
+                "Reservó {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
+                entidad: $reserva,
+                datos: ['integrantes' => $data['ruts']],
+                afectado: $usuarios[$data['ruts'][0]],
+            );
+
+            return response()->json($reserva, 201);
+        });
     }
 
     /**
@@ -304,67 +309,67 @@ class SalaController extends Controller
 
         $ruts = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
         $fecha = $reserva->fecha->toDateString();
-
-        // Mientras el grupo no llega, esta reserva es la pendiente de cada integrante:
-        // quien se suma no puede tener ya otra.
-        $quienesSeSuman = array_values(array_diff($ruts, $reserva->participantes()->pluck('rut')->all()));
-        if (! $reserva->hora_prestamo_real && $quienesSeSuman
-            && $pendiente = $this->reservaSalaService->participanteConReservaPendiente($quienesSeSuman, $reserva->id)) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
-        }
-
-        $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada($ruts, $fecha, $reserva->hora_inicio, $reserva->hora_fin, $reserva->id);
-        if ($rutConflicto) {
-            return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
-        }
-
-        $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($ruts, $fecha, $reserva->hora_inicio, $reserva->hora_fin, $reserva->id);
-        if ($excedeCuota) {
-            return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
-        }
-
-        $antes = $reserva->participantes()->get();
         $despues = Usuario::whereIn('rut', $ruts)->get()->sortBy(fn (Usuario $u) => array_search($u->rut, $ruts, true))->values();
-        $agregados = $despues->whereNotIn('id', $antes->pluck('id'));
-        $quitados = $antes->whereNotIn('id', $despues->pluck('id'));
 
-        if ($agregados->isNotEmpty() || $quitados->isNotEmpty()) {
-            // Quien reservó sigue a cargo mientras siga en el grupo; si se fue, lo
-            // reemplaza el primero de la lista.
-            $titular = $despues->firstWhere('id', $reserva->usuario_id) ?? $despues->first();
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados(null, $despues->pluck('id'), function () use ($request, $reserva, $entradas, $ruts, $fecha, $despues) {
+            // Mientras el grupo no llega, esta reserva es la pendiente de cada integrante:
+            // quien se suma no puede tener ya otra.
+            $quienesSeSuman = array_values(array_diff($ruts, $reserva->participantes()->pluck('rut')->all()));
+            if (! $reserva->hora_prestamo_real && $quienesSeSuman
+                && $pendiente = $this->reservaSalaService->participanteConReservaPendiente($quienesSeSuman, $reserva->id)) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
+            }
 
-            DB::transaction(function () use ($reserva, $despues, $titular) {
+            $rutConflicto = $this->reservaSalaService->participanteConReservaSolapada($ruts, $fecha, $reserva->hora_inicio, $reserva->hora_fin, $reserva->id);
+            if ($rutConflicto) {
+                return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
+            }
+
+            $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($ruts, $fecha, $reserva->hora_inicio, $reserva->hora_fin, $reserva->id);
+            if ($excedeCuota) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
+            }
+
+            $antes = $reserva->participantes()->get();
+            $agregados = $despues->whereNotIn('id', $antes->pluck('id'));
+            $quitados = $antes->whereNotIn('id', $despues->pluck('id'));
+
+            if ($agregados->isNotEmpty() || $quitados->isNotEmpty()) {
+                // Quien reservó sigue a cargo mientras siga en el grupo; si se fue, lo
+                // reemplaza el primero de la lista.
+                $titular = $despues->firstWhere('id', $reserva->usuario_id) ?? $despues->first();
+
                 $reserva->update([
                     'usuario_id' => $titular->id,
                     'rut_usuario' => $titular->rut,
                     'cantidad_personas' => $despues->count(),
                 ]);
                 $reserva->participantes()->sync($despues->pluck('id'));
-            });
 
-            Bitacora::registrar(
-                'salas.integrantes',
-                "Modificó los integrantes de {$reserva->descripcion()}",
-                entidad: $reserva,
-                datos: array_filter([
-                    'agregados' => $agregados->map->descripcion()->join(', '),
-                    'quitados' => $quitados->map->descripcion()->join(', '),
-                ]),
-                afectado: $titular,
-            );
-        }
+                Bitacora::registrar(
+                    'salas.integrantes',
+                    "Modificó los integrantes de {$reserva->descripcion()}",
+                    entidad: $reserva,
+                    datos: array_filter([
+                        'agregados' => $agregados->map->descripcion()->join(', '),
+                        'quitados' => $quitados->map->descripcion()->join(', '),
+                    ]),
+                    afectado: $titular,
+                );
+            }
 
-        $reserva->load('participantes');
+            $reserva->load('participantes');
 
-        return response()->json([
-            'reserva_id' => $reserva->id,
-            'cantidad_personas' => $reserva->cantidad_personas,
-            'personas' => ReservaSalaService::personas($reserva),
-            // Con la llegada ya confirmada, quien se suma también queda presente.
-            'asistencia' => $reserva->hora_prestamo_real && $agregados->isNotEmpty()
-                ? $entradas->marcarPresentesPorReserva($reserva, $request->user())
-                : null,
-        ]);
+            return response()->json([
+                'reserva_id' => $reserva->id,
+                'cantidad_personas' => $reserva->cantidad_personas,
+                'personas' => ReservaSalaService::personas($reserva),
+                // Con la llegada ya confirmada, quien se suma también queda presente.
+                'asistencia' => $reserva->hora_prestamo_real && $agregados->isNotEmpty()
+                    ? $entradas->marcarPresentesPorReserva($reserva, $request->user())
+                    : null,
+            ]);
+        });
     }
 
     /**
