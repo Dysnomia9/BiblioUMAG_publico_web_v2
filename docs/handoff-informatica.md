@@ -133,8 +133,9 @@ Para que no se lean como carencias en la revisión:
 - **Sin renovación de préstamos** ni **aviso automático de "tu préstamo
   vence mañana"** (el segundo sería una tarea programada más: el servicio
   `scheduler` de `docker-compose.prod.yml` ya ejecuta las de
-  `backend/routes/console.php`: hoy, la limpieza de sesiones vencidas y el
-  vencimiento de las reservas de libros no retiradas).
+  `backend/routes/console.php`: hoy, la limpieza de sesiones vencidas, el
+  vencimiento de las reservas de libros no retiradas y el cierre de las reservas
+  de sala a las que nadie llegó).
 - **Sin backups automatizados**: la integridad de datos (transacciones,
   bloqueos, restricciones a nivel de base de datos) ya está resuelta; los
   backups periódicos son responsabilidad operativa de quien administre el
@@ -187,7 +188,8 @@ Para que no se lean como carencias en la revisión:
   entorno que `backend`, con `php artisan schedule:work`) ejecuta las tareas de
   `backend/routes/console.php`; hoy, la limpieza diaria de las sesiones
   vencidas y, cada noche, el vencimiento de las reservas de libros que no se
-  retiraron a tiempo (si no corre, esas copias quedan apartadas). Si
+  retiraron a tiempo (si no corre, esas copias quedan apartadas) y el cierre como
+  inasistencia de las reservas de sala a las que nadie llegó. Si
   Informática prefiere su propio cron, basta con
   `* * * * * php artisan schedule:run` en el contenedor `backend` y no levantar
   el servicio `scheduler`.
