@@ -218,8 +218,10 @@ PostgreSQL** (backend API), 100% dockerizada.
 - **Tareas programadas**: el servicio `scheduler` de los dos docker-compose
   corre `php artisan schedule:work` con la misma imagen y el mismo entorno
   del backend, y ejecuta las tareas de `routes/console.php`: la limpieza diaria
-  de sesiones vencidas y el vencimiento de las reservas de libros no retiradas
-  (`reservas-libro:vencer`, cada noche a las 00:05).
+  de sesiones vencidas, el vencimiento de las reservas de libros no retiradas
+  (`reservas-libro:vencer`, cada noche a las 00:05) y el cierre de las reservas
+  de sala a las que nadie llegó, que quedan como inasistencia
+  (`salas:liberar-vencidas`, a las 00:10).
 - **Pensado para un catálogo grande**: los listados que crecen sin límite
   (listado de libros, historial de libros, listado de préstamos, catálogo del
   portal, estado de ejemplares) van **por páginas**, con búsqueda y filtros en
