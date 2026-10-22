@@ -4,7 +4,9 @@ FROM node:24-alpine AS base
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install
+# npm ci instala exactamente lo de package-lock.json (lo revisado con npm audit), sin
+# subir versiones por su cuenta; si el lock no calza con package.json, falla.
+RUN npm ci
 
 COPY . .
 
