@@ -7,6 +7,7 @@ use App\Models\Rol;
 use App\Models\Staff;
 use App\Support\Bitacora;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -26,6 +27,7 @@ class PersonalController extends Controller
 
     public function store(Request $request)
     {
+        $this->correoEnMinuscula($request);
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:staff,email'],
@@ -42,6 +44,7 @@ class PersonalController extends Controller
 
     public function update(Request $request, Staff $staff)
     {
+        $this->correoEnMinuscula($request);
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('staff', 'email')->ignore($staff->id)],
@@ -153,6 +156,17 @@ class PersonalController extends Controller
     }
 
     /** ¿Quitarle el acceso total a $staff (cambiándolo a $nuevoRol, o desactivándolo si es null) deja al sistema sin nadie con acceso total? */
+    /**
+     * Antes de validar, para que "Ana@umag.cl" choque con la cuenta "ana@umag.cl" que ya
+     * existe en vez de pasar como un correo distinto (se guardan en minúscula).
+     */
+    private function correoEnMinuscula(Request $request): void
+    {
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => Str::lower(trim($request->input('email')))]);
+        }
+    }
+
     private function dejariaSinAccesoTotal(Staff $staff, ?string $nuevoRol): bool
     {
         $clavesAccesoTotal = Rol::where('acceso_total', true)->pluck('clave');

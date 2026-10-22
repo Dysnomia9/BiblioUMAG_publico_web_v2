@@ -33,7 +33,8 @@ class LoginUnificadoService
     /** La cuenta activa dueña de ese email (primero el personal, después los usuarios), o null. */
     public function cuentaPorEmail(string $email): Staff|Usuario|null
     {
-        $staff = Staff::where('email', $email)->first();
+        // Google o el directorio pueden devolverlo con mayúsculas; el del personal se guarda en minúscula.
+        $staff = Staff::where('email', Str::lower(trim($email)))->first();
         if ($staff) {
             return $staff->activo ? $staff : null;
         }
