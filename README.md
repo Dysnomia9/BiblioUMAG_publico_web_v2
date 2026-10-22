@@ -255,7 +255,8 @@ MySQL 8** (backend API), 100% dockerizada.
   correo**, para el personal y los usuarios por igual: por ahora con correos
   **simulados** de iniciales (Ignacio Contreras → `igcontre@umag.cl`) y la
   clave de prueba `demo1234`, guardados aparte en `credenciales_simuladas`
-  (`php artisan login-v2:correos`; `mockup:datos` ya los crea). No cambian el
+  (`php artisan login-v2:correos`; `mockup:datos` ya los crea), o con el correo
+  real de la cuenta y su propia contraseña. No cambian el
   correo, el RUT ni la clave reales de nadie: `/login` y el portal siguen
   igual, y en producción este ingreso está apagado
   (`LOGIN_V2_CORREOS_SIMULADOS`, ver `config/login_v2.php`). El bind LDAP (patrón

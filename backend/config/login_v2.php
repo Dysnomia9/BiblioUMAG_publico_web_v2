@@ -4,7 +4,8 @@
 // cuenta del personal y cada usuario recibe un correo SIMULADO con sus iniciales
 // (Ignacio Contreras → igcontre@umag.cl) y una clave de prueba, guardados aparte en
 // credenciales_simuladas (php artisan login-v2:correos): no reemplazan el correo, el
-// RUT ni la clave reales de nadie. Encendido solo en desarrollo; nunca en producción.
+// RUT ni la clave reales de nadie, y el correo real con su clave también entra.
+// Encendido solo en desarrollo; nunca en producción.
 return [
     'correos_simulados' => (bool) env('LOGIN_V2_CORREOS_SIMULADOS', env('APP_ENV') === 'local'),
     'dominio' => 'umag.cl',

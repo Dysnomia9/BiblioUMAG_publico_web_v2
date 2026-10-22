@@ -108,14 +108,17 @@ simulados**: cada cuenta del personal y cada usuario tiene uno con sus iniciales
 `igcontre@umag.cl`; si se repite, `camunoz2@umag.cl`) y la clave de prueba
 `demo1234`. Se guardan aparte, en la tabla `credenciales_simuladas`: no cambian el
 correo, el RUT ni la clave reales, así que `/login` y el portal funcionan igual.
+También se entra con el correo real de la cuenta y su propia contraseña (por ejemplo
+`admin@umag.cl` con la clave que da `sistema:iniciar`, que no tiene correo simulado).
 
 - Crearlos o completar a quienes falten: `php artisan login-v2:correos`
   (`mockup:datos` lo corre al final).
 - Encendido con `APP_ENV=local`; en producción está apagado
   (`LOGIN_V2_CORREOS_SIMULADOS=false`) y el servidor lo rechaza igual con
   `APP_ENV=production`, porque una clave común sería una puerta trasera.
-- Cuando el login v2 pase a usar correos reales, se borra la tabla y la ruta
-  `POST /api/auth/v2/login` pasa a comparar contra el correo real de cada cuenta.
+- Cuando el login v2 deje los correos simulados, se borra la tabla y
+  `POST /api/auth/v2/login` queda comparando solo contra el correo real de cada
+  cuenta, que ya acepta.
 
 ## Ambos: cuentas que no auto-provisionan
 
