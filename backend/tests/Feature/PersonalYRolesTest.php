@@ -43,6 +43,26 @@ class PersonalYRolesTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('email');
     }
 
+    public function test_el_mismo_correo_con_mayusculas_tambien_esta_repetido(): void
+    {
+        $admin = Staff::factory()->admin()->create(['email' => 'ya@umag.cl']);
+        $otra = Staff::factory()->create(['email' => 'otra@umag.cl']);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/personal', [
+            'nombre' => 'Otra',
+            'email' => 'YA@umag.cl',
+            'password' => 'clave12345',
+            'rol' => 'asistente',
+        ])->assertStatus(422)->assertJsonValidationErrors('email');
+
+        $this->putJson("/api/personal/{$otra->id}", ['nombre' => $otra->nombre, 'email' => 'Ya@UMAG.cl', 'rol' => $otra->rol])
+            ->assertStatus(422)->assertJsonValidationErrors('email');
+
+        $this->putJson("/api/personal/{$otra->id}", ['nombre' => $otra->nombre, 'email' => 'Otra.Nueva@umag.cl', 'rol' => $otra->rol])->assertOk();
+        $this->assertSame('otra.nueva@umag.cl', $otra->fresh()->email);
+    }
+
     public function test_cambiar_rol_de_una_cuenta(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());

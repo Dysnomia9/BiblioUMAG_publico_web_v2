@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Mockery;
 use Tests\TestCase;
@@ -62,5 +63,30 @@ class AuthTest extends TestCase
         $this->postJson('/api/auth/login', ['email' => 'nadie@umag.cl', 'password' => 'algo'])->assertStatus(422);
         $this->postJson('/api/auth/usuario/login', ['rut' => '15.000.000-9', 'password' => 'algo'])->assertStatus(422);
         $this->postJson('/api/auth/usuario/login', ['rut' => $sinClave->rut, 'password' => 'algo'])->assertStatus(422);
+    }
+
+    public function test_el_correo_del_personal_entra_con_o_sin_mayusculas(): void
+    {
+        Staff::factory()->create(['email' => 'Ana.Soto@UMAG.cl', 'password' => 'password123']);
+
+        $this->assertDatabaseHas('staff', ['email' => 'ana.soto@umag.cl']);
+        $this->postJson('/api/auth/login', ['email' => 'ANA.SOTO@umag.cl ', 'password' => 'password123'])->assertStatus(200);
+        $this->postJson('/api/auth/login', ['email' => 'ana.soto@umag.cl', 'password' => 'password123'])->assertStatus(200);
+    }
+
+    public function test_los_correos_con_mayusculas_que_ya_existian_pasan_a_minuscula(): void
+    {
+        $migracion = require database_path('migrations/2026_10_23_000001_pasar_a_minuscula_los_correos_del_personal.php');
+        // Escritos así antes de que el sistema los guardara en minúscula. En MySQL el índice
+        // único ya no distingue mayúsculas: no puede haber dos que solo difieran en eso.
+        $ana = Staff::factory()->create();
+        $luis = Staff::factory()->create();
+        DB::table('staff')->where('id', $ana->id)->update(['email' => 'Ana@umag.cl']);
+        DB::table('staff')->where('id', $luis->id)->update(['email' => 'LUIS@UMAG.CL']);
+
+        $migracion->up();
+
+        $this->assertSame('ana@umag.cl', DB::table('staff')->where('id', $ana->id)->value('email'));
+        $this->assertSame('luis@umag.cl', DB::table('staff')->where('id', $luis->id)->value('email'));
     }
 }

@@ -8,6 +8,7 @@ use App\Support\Bitacora;
 use App\Support\Credenciales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -20,7 +21,8 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $staff = Staff::where('email', $data['email'])->first();
+        // Los correos se guardan en minúscula (Staff::email()): da igual cómo se escriba.
+        $staff = Staff::where('email', Str::lower(trim($data['email'])))->first();
 
         // La clave se compara aunque la cuenta no exista: que no se note por el tiempo.
         $claveCorrecta = Credenciales::coinciden($data['password'], $staff?->password);
