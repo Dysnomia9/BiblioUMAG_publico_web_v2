@@ -4,3 +4,8 @@ dist
 *.log
 *.tsbuildinfo
 .DS_Store
+
+# Archivos que deja pdflatex al compilar el manual (se regeneran solos)
+docs/manual-usuario/*.aux
+docs/manual-usuario/*.out
+docs/manual-usuario/*.toc

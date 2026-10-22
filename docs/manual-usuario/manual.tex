@@ -572,7 +572,9 @@ equipos no tienen ese límite.
 Si el libro que se quiere prestar ya está prestado o reservado por otra
 persona, el sistema lo rechaza. En ese caso aparece la opción de
 \textbf{unirse a la lista de espera} en su lugar --- cuando la copia se
-devuelva, se ofrece automáticamente a la primera persona en la fila.
+devuelva, o cuando otra copia de ese título vuelva al estante (una nueva que
+sale de inventario, o una que regresa de procesos técnicos), se aparta
+automáticamente para la primera persona en la fila.
 \end{importante}
 
 \section{Reservar un libro}
@@ -587,7 +589,10 @@ el portal o cuando le toca el turno a alguien de la lista de espera), es
 de tres días; si cae en domingo, pasa al lunes. Si la persona no retira el
 libro hasta la fecha límite, la reserva se cancela sola al comenzar el día
 siguiente: la copia pasa a quien sigue en la lista de espera (que recibe el
-aviso) o vuelve a quedar disponible, y queda anotado en la bitácora.
+aviso) o vuelve a quedar disponible, y queda anotado en la bitácora. Si
+alguien con una reserva se lleva otra copia del mismo título, su reserva
+queda como retirada con esa copia, y la que tenía apartada pasa a quien
+sigue en la fila.
 
 Cuando la persona viene a retirar su libro, se busca su RUT y, en la
 pestaña \textbf{Reservas} (o con el acceso \textbf{reservas listas para
