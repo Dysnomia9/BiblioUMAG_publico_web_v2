@@ -200,6 +200,18 @@ class LibroCatalogacionTest extends TestCase
         $response->assertStatus(200)->assertJsonPath('codigo_barras', '30000003227566');
     }
 
+    public function test_siguiente_codigo_de_barras_con_ceros_a_la_izquierda(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '00000000000099']);
+        Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '00000000000100']);
+        Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '99999']);
+
+        $this->getJson('/api/ejemplares/siguiente-codigo-barras')
+            ->assertStatus(200)
+            ->assertJsonPath('codigo_barras', '00000000000101');
+    }
+
     public function test_siguiente_codigo_de_barras_ignora_codigos_que_no_son_14_digitos(): void
     {
         Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
