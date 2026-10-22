@@ -84,12 +84,11 @@ class EjemplarController extends Controller
      */
     public function siguienteCodigoBarras()
     {
-        $ultimoNumero = Ejemplar::whereRaw("codigo_barras ~ '^[0-9]{14}$'")
-            ->get(['codigo_barras'])
-            ->map(fn ($e) => (int) $e->codigo_barras)
-            ->max();
+        // El mayor se calcula en la base, sin traer los miles de códigos: todos tienen 14
+        // dígitos, así que el mayor como texto es también el mayor como número.
+        $ultimo = Ejemplar::whereRaw("codigo_barras ~ '^[0-9]{14}$'")->max('codigo_barras');
 
-        $codigo = str_pad((string) (($ultimoNumero ?? 0) + 1), 14, '0', STR_PAD_LEFT);
+        $codigo = str_pad((string) ((int) ($ultimo ?? 0) + 1), 14, '0', STR_PAD_LEFT);
 
         return response()->json(['codigo_barras' => $codigo]);
     }
