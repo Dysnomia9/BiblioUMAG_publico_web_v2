@@ -5,7 +5,7 @@ server {
     listen 8000;
     server_tokens off;
 
-    # La carga masiva de estudiantes manda hasta 5.000 filas en un JSON.
+    # La carga masiva de estudiantes manda hasta 10.000 filas en un JSON.
     client_max_body_size 20m;
 
     # Las respuestas son JSON: que el navegador no las interprete como otra cosa ni las

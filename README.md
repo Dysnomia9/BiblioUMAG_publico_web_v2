@@ -289,7 +289,6 @@ biblioteca-vue-laravel/
 │   ├── estilo-visual.md   # Guía de estilo de la interfaz
 │   ├── handoff-informatica.md       # Qué necesitamos de Informática para producción
 │   ├── login-externo-pendientes.md  # Cómo activar el login con Google y LDAP
-│   ├── recorrido-presentacion.md    # Guion para presentar el sistema con los datos de demostración
 │   └── ejemplos/          # Planilla de ejemplo para la carga masiva de estudiantes (.xlsx y .csv)
 └── docker-compose.yml
 ```
@@ -452,9 +451,7 @@ Este comando (`app/Console/Commands/SeedMockupData.php`) genera:
   extranjeros (Martina Gómez, DNI argentino 38456123, y Lucas Silva,
   pasaporte brasileño FT482913), un título con ficha
   completa de cada tipo y tres recursos de apoyo disponibles (audífonos,
-  notebook y bicicleta). El guion para presentar el
-  sistema con esos datos está en
-  [`docs/recorrido-presentacion.md`](docs/recorrido-presentacion.md).
+  notebook y bicicleta).
 
 Los datos de prueba se cargan solo en desarrollo declarado: `APP_ENV=local`, que
 pone `docker-compose.yml`. Con cualquier otro valor, o sin `APP_ENV` (la imagen
@@ -511,8 +508,8 @@ npm run dev
 
 ## Tests y benchmark de rendimiento
 
-Hay una suite de Feature tests (`backend/tests/Feature/`, 448 tests al
-2026-10-20) que cubre login de staff/usuario, fichas bibliográficas (qué ve
+Hay una suite de Feature tests (`backend/tests/Feature/`, 505 tests al
+2026-10-21) que cubre login de staff/usuario, fichas bibliográficas (qué ve
 el usuario según el tipo de material), el escenario de demostración, roles y
 permisos (qué puede y no puede hacer cada rol, incluida la protección contra darse más permisos a
 uno mismo), cuentas del personal, multas (generación por atraso, manuales,
