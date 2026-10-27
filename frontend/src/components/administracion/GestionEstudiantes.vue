@@ -7,10 +7,12 @@ import Paginacion from '@/components/ui/Paginacion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useListadoPaginado } from '@/composables/useListadoPaginado'
+import { useAuthStore } from '@/stores/auth'
 import { describirDocumento, errorDocumento, formatearInputIdentificador, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
 import type { OpcionesUsuarios, Paginado, Usuario } from '@/types'
 
 const toast = useToast()
+const auth = useAuthStore()
 
 const opciones = ref<OpcionesUsuarios>({ carreras: [], tipos_documento: [], tipos: ['estudiante', 'docente', 'funcionario'], sexos: ['Femenino', 'Masculino', 'Otro'] })
 
@@ -147,6 +149,9 @@ const cambios = computed(() => {
 })
 
 const cambiaDocumento = computed(() => !!form.original && (form.original.rut !== form.ficha.rut || form.original.tipo_documento !== form.ficha.tipo_documento))
+
+// Habilitar lo puede cualquiera que edite; desactivar, solo el Administrador/a.
+const bloqueaDesactivar = computed(() => !!form.original?.activo && !auth.puede('usuarios.desactivar'))
 
 function validar(): boolean {
   const errores: Record<string, string> = {}
@@ -409,10 +414,13 @@ const clasesInput = (campo: string) =>
             />
             <p v-if="form.errores.password" class="text-xs text-red-600 mt-1">{{ form.errores.password }}</p>
           </div>
-          <label v-if="form.id" class="sm:col-span-2 flex items-center gap-2 text-sm text-gray-700">
-            <input v-model="form.ficha.activo" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-            Activo (si se desactiva, no puede registrar entradas, pedir préstamos ni entrar al portal)
-          </label>
+          <div v-if="form.id" class="sm:col-span-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700" :class="{ 'opacity-60': bloqueaDesactivar }">
+              <input v-model="form.ficha.activo" type="checkbox" :disabled="bloqueaDesactivar" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              Activo (si se desactiva, no puede registrar entradas, pedir préstamos ni entrar al portal)
+            </label>
+            <p v-if="bloqueaDesactivar" class="mt-1 text-xs text-gray-500">Solo un Administrador/a puede desactivar a un usuario.</p>
+          </div>
         </div>
       </div>
       <template #pie>

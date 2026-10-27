@@ -109,8 +109,12 @@ PostgreSQL** (backend API), 100% dockerizada.
   pasaporte (y guarda el país), los textos en mayúsculas se pasan a nombre
   propio y la carrera se escribe igual que la que ya existe en el sistema.
 - Gestión de usuarios (con acceso directo a sus préstamos, botón de acceso
-  a la base de datos digital externa y generación de Constancia de No Multa
-  en PDF), recursos de apoyo (agregar/dar de baja), listado de préstamos, listado de
+  a la base de datos digital externa, generación de Constancia de No Multa
+  en PDF y botón **Habilitar** para quien está inactivo, por ejemplo porque su
+  registro venció en Horizon: lo usa todo el personal, permiso
+  `usuarios.habilitar`; **Desactivar** queda solo para el Administrador/a,
+  permiso `usuarios.desactivar`, que ningún otro rol puede recibir), recursos
+  de apoyo (agregar/dar de baja), listado de préstamos, listado de
   libros (filtrable por estado, tipo, categoría y **carrera asignada**, y
   **exportable a Excel o CSV**, de títulos, ejemplares o ambos, con sus propios
   filtros) y etiquetas para imprimir: códigos de barras (Code128) y
@@ -305,7 +309,7 @@ interfaz está en [`docs/estilo-visual.md`](docs/estilo-visual.md).
 | Préstamos | `/prestamo` | `prestamos.gestionar` | `PrestamoController` |
 | Salas (logias) | `/salas` | `salas.gestionar` (+ `salas.hora_pasada`) | `SalaController` |
 | Reportes | `/reportes` | `reportes.ver` | `ReporteController` |
-| Usuarios | `/usuarios` | `usuarios.ver` | `UsuarioController` |
+| Usuarios | `/usuarios` | `usuarios.ver` (habilitar: `usuarios.habilitar`; desactivar: `usuarios.desactivar`) | `UsuarioController` |
 | Multas | `/multas` | `multas.ver` (+ `multas.cobrar`, `multas.crear`, `multas.anular`) | `MultaController`, `MultaService` |
 | Listado de libros | `/libros/listado` | `listados.ver` | `LibroController` |
 | Catalogación de libros | `/libros/catalogacion` | `libros.catalogar` | `LibroController::store/update`, `EjemplarController::store` |

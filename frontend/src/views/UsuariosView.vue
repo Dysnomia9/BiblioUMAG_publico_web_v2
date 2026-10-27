@@ -2,9 +2,10 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Paginacion from '@/components/ui/Paginacion.vue'
 import api from '@/services/api'
-import { useToast } from '@/composables/useToast'
+import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { useAuthStore } from '@/stores/auth'
 import { generarConstanciaNoMulta } from '@/utils/constancia'
@@ -87,6 +88,31 @@ watch(pagina, () => listado.value?.scrollIntoView({ behavior: 'smooth', block: '
 
 onMounted(cargarUsuarios)
 
+// Habilitar a quien está inactivo lo puede hacer todo el personal; desactivar, solo el
+// Administrador/a (el servidor vuelve a revisar el permiso).
+const cambioEstado = ref<{ usuario: Usuario; activo: boolean } | null>(null)
+const guardandoEstado = ref(false)
+
+function pedirCambioEstado(usuario: Usuario, activo: boolean) {
+  cambioEstado.value = { usuario, activo }
+}
+
+async function confirmarCambioEstado() {
+  if (!cambioEstado.value) return
+  const { usuario, activo } = cambioEstado.value
+  guardandoEstado.value = true
+  try {
+    await api.patch(`/usuarios/${usuario.id}/${activo ? 'habilitar' : 'desactivar'}`)
+    toast.success(`${usuario.nombre} ${usuario.apellido} ${activo ? 'quedó habilitado/a' : 'quedó inactivo/a'}`)
+    cambioEstado.value = null
+    await cargarUsuarios()
+  } catch (e) {
+    toast.error(mensajeDeError(e, activo ? 'No se pudo habilitar' : 'No se pudo desactivar'))
+  } finally {
+    guardandoEstado.value = false
+  }
+}
+
 const tipoLabel: Record<string, string> = {
   estudiante: 'Estudiante',
   docente: 'Docente',
@@ -112,7 +138,9 @@ const hayResultados = computed(() => usuarios.value.length > 0)
         <div class="px-6 py-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Usuarios</h1>
-            <p class="text-sm text-white/60 mt-1">Información de usuarios registrados en el sistema institucional (solo lectura)</p>
+            <p class="text-sm text-white/60 mt-1">
+              Información de usuarios registrados en el sistema institucional{{ auth.puede('usuarios.habilitar') ? '. Desde aquí puedes habilitar a quien esté inactivo.' : ' (solo lectura)' }}
+            </p>
           </div>
           <router-link
             v-if="auth.puede('usuarios.gestionar')"
@@ -202,6 +230,20 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                   >
                     {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia de No Multa' }}
                   </button>
+                  <button
+                    v-if="!u.activo && auth.puede('usuarios.habilitar')"
+                    @click="pedirCambioEstado(u, true)"
+                    class="ml-3 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    Habilitar
+                  </button>
+                  <button
+                    v-else-if="u.activo && auth.puede('usuarios.desactivar')"
+                    @click="pedirCambioEstado(u, false)"
+                    class="ml-3 font-medium text-red-600 hover:text-red-700"
+                  >
+                    Desactivar
+                  </button>
                 </td>
               </tr>
               <tr v-if="!hayResultados && !loading">
@@ -231,7 +273,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
             <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
               {{ u.activo ? 'Activo' : 'Inactivo' }}
             </span>
-            <div class="flex items-center gap-3 text-xs">
+            <div class="flex items-center gap-3 text-xs flex-wrap">
               <router-link v-if="auth.puede('prestamos.gestionar')" :to="{ name: 'prestamo', query: { rut: u.rut } }" class="font-medium text-indigo-700">
                 Ver préstamos
               </router-link>
@@ -241,6 +283,16 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                 class="font-medium text-indigo-700 disabled:opacity-50"
               >
                 {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia de No Multa' }}
+              </button>
+              <button
+                v-if="!u.activo && auth.puede('usuarios.habilitar')"
+                @click="pedirCambioEstado(u, true)"
+                class="rounded-lg bg-emerald-600 px-3 py-1 font-semibold text-white"
+              >
+                Habilitar
+              </button>
+              <button v-else-if="u.activo && auth.puede('usuarios.desactivar')" @click="pedirCambioEstado(u, false)" class="font-medium text-red-600">
+                Desactivar
               </button>
             </div>
           </div>
@@ -280,5 +332,34 @@ const hayResultados = computed(() => usuarios.value.length > 0)
         </div>
       </div>
     </div>
+
+    <DialogoConfirmacion
+      :abierto="!!cambioEstado"
+      :titulo="cambioEstado?.activo === false ? '¿Desactivar a este usuario?' : '¿Habilitar a este usuario?'"
+      :confirmar="cambioEstado?.activo === false ? 'Sí, desactivar' : 'Sí, habilitar'"
+      :tono="cambioEstado?.activo === false ? 'peligro' : 'exito'"
+      :cargando="guardandoEstado"
+      @confirmar="confirmarCambioEstado"
+      @cancelar="cambioEstado = null"
+    >
+      <template v-if="cambioEstado">
+        <p class="mb-2">
+          <strong class="text-gray-900">{{ cambioEstado.usuario.nombre }} {{ cambioEstado.usuario.apellido }}</strong>,
+          {{ describirDocumento(cambioEstado.usuario.rut, cambioEstado.usuario.tipo_documento, cambioEstado.usuario.pais) }}
+        </p>
+        <p>
+          Estado: <span class="line-through">{{ cambioEstado.activo ? 'Inactivo' : 'Activo' }}</span> →
+          <strong class="text-gray-900">{{ cambioEstado.activo ? 'Activo' : 'Inactivo' }}</strong>
+        </p>
+        <p v-if="cambioEstado.activo" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+          Podrá marcar su entrada, pedir préstamos y reservas, y entrar al portal. Si tiene multas pendientes, los préstamos y reservas
+          siguen bloqueados hasta que pague.
+        </p>
+        <p v-else class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-red-700">
+          No podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien lo vuelva a habilitar. Se cierran las sesiones
+          que tenga abiertas en el portal.
+        </p>
+      </template>
+    </DialogoConfirmacion>
   </StaffLayout>
 </template>

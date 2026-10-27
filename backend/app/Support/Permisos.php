@@ -12,11 +12,12 @@ namespace App\Support;
 final class Permisos
 {
     /**
-     * Permisos que ningún rol editable puede recibir: quien administra cuentas y
-     * roles podría darse a sí mismo cualquier otro permiso, así que queda reservado
-     * al rol con acceso total (Administrador).
+     * Permisos que ningún rol editable puede recibir, reservados al rol con acceso
+     * total (Administrador): quien administra cuentas y roles podría darse a sí mismo
+     * cualquier otro permiso, y desactivar a un usuario lo deja sin entradas, préstamos
+     * ni portal (habilitarlo, en cambio, lo puede hacer todo el personal).
      */
-    public const SOLO_ACCESO_TOTAL = ['personal.gestionar'];
+    public const SOLO_ACCESO_TOTAL = ['personal.gestionar', 'usuarios.desactivar'];
 
     public const GRUPOS = [
         'atencion' => [
@@ -29,6 +30,7 @@ final class Permisos
                 'salas.hora_pasada' => ['Reservas en horas ya pasadas', 'Registrar después una reserva de sala que se atendió sin pasar por el sistema.'],
                 'reservas.editar' => ['Editar reservas de salas', 'Desde el Listado de reservas: cambiar la sala, el día o el horario de una reserva activa, corregir sus integrantes, cancelarla o registrar una devolución de llave que quedó pendiente.'],
                 'usuarios.ver' => ['Consultar usuarios', 'Ver el listado de usuarios y emitir la Constancia de No Multa.'],
+                'usuarios.habilitar' => ['Habilitar usuarios inactivos', 'Desde el listado de Usuarios, volver a habilitar a quien está inactivo (por ejemplo, porque su registro venció en Horizon) para que pueda marcar su entrada, pedir préstamos y entrar al portal.'],
             ],
         ],
         'multas' => [
@@ -70,6 +72,7 @@ final class Permisos
                 'configuracion.editar' => ['Configuración institucional', 'Cambiar el nombre y cargo de quien firma la Constancia de No Multa.'],
                 'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas).'],
                 'usuarios.gestionar' => ['Crear y editar estudiantes', 'Registrar estudiantes y otros usuarios (con RUT, pasaporte o DNI), editar sus datos y cargarlos en forma masiva desde Excel o CSV.'],
+                'usuarios.desactivar' => ['Desactivar usuarios', 'Dejar inactivo a un usuario: no podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien lo vuelva a habilitar.'],
                 'personal.gestionar' => ['Cuentas y roles del personal', 'Crear cuentas, asignar roles y definir qué puede hacer cada rol.'],
             ],
         ],

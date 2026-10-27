@@ -117,6 +117,9 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     });
 
     Route::get('/usuarios', [UsuarioController::class, 'index'])->middleware('permiso:usuarios.ver,usuarios.gestionar');
+    // Habilitar a quien está inactivo lo hace todo el personal; desactivar, solo el Administrador/a.
+    Route::patch('/usuarios/{usuario}/habilitar', [UsuarioController::class, 'habilitar'])->whereNumber('usuario')->middleware('permiso:usuarios.habilitar');
+    Route::patch('/usuarios/{usuario}/desactivar', [UsuarioController::class, 'desactivar'])->whereNumber('usuario')->middleware('permiso:usuarios.desactivar');
     Route::middleware('permiso:usuarios.gestionar')->group(function () {
         Route::get('/usuarios/opciones', [UsuarioController::class, 'opciones']);
         Route::post('/usuarios', [UsuarioController::class, 'store']);

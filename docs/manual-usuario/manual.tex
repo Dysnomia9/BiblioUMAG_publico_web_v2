@@ -244,15 +244,16 @@ botones se pueden usar. El sistema trae tres roles de fábrica:
 \begin{itemize}
   \item \textbf{Atención de público:} el personal de mesón. Registra
   entradas, presta y recibe libros y equipos, y reserva salas. Puede
-  consultar usuarios, multas y listados, pero no cataloga, no cambia
-  estados de libros ni la configuración.
+  consultar usuarios (y habilitar a quien esté inactivo), multas y
+  listados, pero no cataloga, no cambia estados de libros ni la
+  configuración.
   \item \textbf{Bibliotecario/a:} lo anterior, más los procesos técnicos y
   la supervisión: catalogación, estados de libros (incluida la baja),
   cambio masivo, equipos, cobro y anulación de multas, historiales y
   reportes.
   \item \textbf{Administrador/a:} acceso total, incluidos el Registro
-  Absoluto, la configuración institucional, los catálogos del sistema y
-  las cuentas y roles del personal.
+  Absoluto, la configuración institucional, los catálogos del sistema,
+  desactivar usuarios y las cuentas y roles del personal.
 \end{itemize}
 
 \begin{center}
@@ -265,6 +266,7 @@ Registrar entradas & \checkmark & \checkmark & \checkmark \\
 Préstamos, devoluciones y reservas de libros & \checkmark & \checkmark & \checkmark \\
 Salas de estudio & \checkmark & \checkmark & \checkmark \\
 Consultar usuarios y Constancia de No Multa & \checkmark & \checkmark & \checkmark \\
+Habilitar usuarios inactivos & \checkmark & \checkmark & \checkmark \\
 Ver multas & \checkmark & \checkmark & \checkmark \\
 Listados de préstamos y de libros & \checkmark & \checkmark & \checkmark \\
 Mostrar el código QR de acceso & \checkmark & \checkmark & \checkmark \\
@@ -278,6 +280,7 @@ Historiales y reportes & --- & \checkmark & \checkmark \\
 Regenerar el código QR & --- & \checkmark & \checkmark \\
 Registro Absoluto & --- & --- & \checkmark \\
 Configuración institucional y catálogos & --- & --- & \checkmark \\
+Desactivar usuarios & --- & --- & \checkmark \\
 Cuentas y roles del personal & --- & --- & \checkmark \\
 \bottomrule
 \end{tabularx}
@@ -869,10 +872,20 @@ usuarios}); al buscar o cambiar un filtro vuelve a la primera página.
 Desde cada fila se puede:
 
 \begin{itemize}
+  \item \textbf{Habilitar} (solo en quien está inactivo, por ejemplo
+  porque su registro venció en el sistema anterior): pide confirmar y desde
+  ese momento la persona puede marcar su entrada, pedir préstamos y
+  reservas, y entrar al portal. Si tiene multas pendientes, los préstamos y
+  las reservas siguen bloqueados hasta que pague. Lo puede hacer todo el
+  personal.
   \item \textbf{Ver préstamos:} abre la pantalla de Préstamos con esa
   persona ya buscada.
   \item Generar su \textbf{Constancia de No Multa} en PDF (se bloquea con
   un aviso si el usuario tiene multas pendientes).
+  \item \textbf{Desactivar} (solo el Administrador/a): pide confirmar; la
+  persona deja de poder marcar su entrada, pedir préstamos y entrar al
+  portal, y se cierran las sesiones que tenga abiertas en el portal. Ningún
+  otro rol puede recibir este permiso.
 \end{itemize}
 
 \section{Multas}

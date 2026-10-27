@@ -8,6 +8,7 @@ use App\Models\Usuario;
 use App\Services\MultaService;
 use App\Support\Bitacora;
 use App\Support\Documento;
+use App\Support\Permisos;
 use App\Support\Texto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +113,12 @@ class UsuarioController extends Controller
     {
         $datos = $this->validarFicha($request->all(), $usuario);
 
+        if ($usuario->activo && isset($datos['activo']) && ! $datos['activo'] && ! $request->user()->puede('usuarios.desactivar')) {
+            return response()->json([
+                'message' => 'Tu rol no tiene el permiso «'.Permisos::etiqueta('usuarios.desactivar').'». Si lo necesitas, pídeselo a un administrador.',
+            ], 403);
+        }
+
         $antes = $usuario->only(self::CAMPOS);
         $usuario->update($datos);
 
@@ -135,6 +142,42 @@ class UsuarioController extends Controller
         );
 
         return response()->json($usuario);
+    }
+
+    /**
+     * Desde el listado de Usuarios: vuelve a habilitar a quien está inactivo (por
+     * ejemplo, porque su registro venció en Horizon). Lo puede hacer todo el personal.
+     */
+    public function habilitar(Usuario $usuario)
+    {
+        return $this->cambiarEstado($usuario, true);
+    }
+
+    /** Solo el Administrador/a: el usuario queda sin entradas, préstamos ni portal. */
+    public function desactivar(Usuario $usuario)
+    {
+        return $this->cambiarEstado($usuario, false);
+    }
+
+    private function cambiarEstado(Usuario $usuario, bool $activo)
+    {
+        // Solo si sigue en el estado anterior: si dos personas lo hacen a la vez, el
+        // cambio y su registro en la bitácora quedan una sola vez.
+        if (Usuario::whereKey($usuario->id)->where('activo', ! $activo)->update(['activo' => $activo])) {
+            if (! $activo) {
+                $usuario->tokens()->delete();
+            }
+
+            Bitacora::registrar(
+                $activo ? 'usuarios.habilitar' : 'usuarios.desactivar',
+                ($activo ? 'Habilitó' : 'Desactivó')." a {$usuario->nombre} {$usuario->apellido}",
+                entidad: $usuario,
+                datos: ['activo' => [! $activo, $activo]],
+                afectado: $usuario,
+            );
+        }
+
+        return response()->json($usuario->fresh());
     }
 
     /**
