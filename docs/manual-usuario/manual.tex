@@ -1293,8 +1293,8 @@ pantalla solo muestra, descarga e imprime el código vigente.
 \section{Administración}
 \label{sec:administracion}
 
-Configuración general del sistema y catálogos administrables, en dos
-pestañas. Cada una aparece solo si el rol tiene su permiso.
+Configuración general del sistema, catálogos administrables y estudiantes,
+en tres pestañas. Cada una aparece solo si el rol tiene su permiso.
 
 \captura{23-administracion.png}{Página de Administración, pestaña de configuración institucional.}
 
@@ -1318,7 +1318,38 @@ pestañas. Cada una aparece solo si el rol tiene su permiso.
     Cambiar la ficha de un tipo existente pide confirmación; lo ya
     catalogado conserva sus datos.
   \end{itemize}
+  \item \textbf{Estudiantes} (permiso \textit{Crear y editar estudiantes}):
+  registrar estudiantes y otros usuarios, corregir sus datos con
+  \textbf{Editar} y cargarlos en forma masiva desde una planilla Excel o
+  CSV, también el reporte de matrícula de la universidad tal como viene. La
+  \textbf{carga masiva} primero muestra qué pasará con cada fila, sin
+  guardar nada:
+  \begin{itemize}
+    \item \textbf{Se cargará:} la persona no está en el sistema y se crea,
+    activa.
+    \item \textbf{Se actualizará:} ya está (mismo RUT o documento). Sus
+    datos se completan o corrigen con los de la planilla (nombre,
+    apellidos, carrera, año de ingreso, sexo, correo) y, si estaba
+    inactiva, queda activa. Se ve cada cambio como ``antes $\rightarrow$
+    después''. Lo que en la planilla viene vacío no borra nada, y el tipo
+    (estudiante, docente o funcionario) solo cambia si la planilla trae esa
+    columna.
+    \item \textbf{Sin cambios:} ya está y sus datos coinciden con la
+    planilla.
+    \item \textbf{Repetido en el archivo} o \textbf{Con errores:} no se
+    carga; el detalle dice por qué y se puede descargar para corregir la
+    planilla.
+  \end{itemize}
+  Nada se guarda hasta marcar la casilla de confirmación y pulsar el botón.
+  Cada persona actualizada queda en el Registro Absoluto con lo que cambió.
 \end{itemize}
+
+\begin{nota}
+Si el correo de la planilla ya lo usa otra persona, ese correo no se
+cambia y el resto de los datos sí. Y si el número de un RUT coincide con
+el de un DNI o pasaporte extranjero de la planilla, la fila no se carga
+para no mezclar a dos personas: hay que revisarla a mano.
+\end{nota}
 
 \captura{23b-administracion-tipos.png}{Tipos de material, cada uno con la ficha que usa.}
 

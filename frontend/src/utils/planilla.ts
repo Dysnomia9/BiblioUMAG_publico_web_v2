@@ -40,13 +40,13 @@ export const COLUMNAS_PLANTILLA: { encabezado: string; campo: CampoEstudiante; n
   { encabezado: 'RUT o documento', campo: 'rut', nota: 'Obligatorio. RUT con o sin puntos y guion (12.345.678-5 o 123456785), o el número de pasaporte o DNI si es extranjero.' },
   { encabezado: 'Tipo de documento', campo: 'tipo_documento', nota: 'RUT, Pasaporte o DNI. Si se deja vacío: con letras es pasaporte; solo números, RUT. Un DNI o cédula extranjera (solo números) debe decir DNI.' },
   { encabezado: 'País', campo: 'pais', nota: 'Opcional, para extranjeros (ej. Argentina).' },
-  { encabezado: 'Nombre', campo: 'nombre', nota: 'Obligatorio.' },
-  { encabezado: 'Apellido', campo: 'apellido', nota: 'Obligatorio.' },
+  { encabezado: 'Nombre', campo: 'nombre', nota: 'Obligatorio para quien no está en el sistema.' },
+  { encabezado: 'Apellido', campo: 'apellido', nota: 'Obligatorio para quien no está en el sistema.' },
   { encabezado: 'Correo', campo: 'email', nota: 'Opcional. No puede repetirse con el de otro usuario.' },
   { encabezado: 'Carrera', campo: 'carrera', nota: 'Opcional. Escríbela igual que en el sistema para que los reportes la agrupen (ej. Pedagogía en Educación Básica).' },
   { encabezado: 'Año de ingreso', campo: 'anio_ingreso', nota: 'Opcional. Cuatro dígitos (ej. 2026).' },
   { encabezado: 'Sexo', campo: 'sexo', nota: 'Opcional. Femenino, Masculino u Otro (también F o M).' },
-  { encabezado: 'Tipo', campo: 'tipo', nota: 'Opcional. Estudiante (si se deja vacío), Docente o Funcionario.' },
+  { encabezado: 'Tipo', campo: 'tipo', nota: 'Opcional. Estudiante, Docente o Funcionario. Si se deja vacío, Estudiante para quien es nuevo; a quien ya está se le deja el suyo.' },
 ]
 
 /** Encabezados que se aceptan para cada campo, ya sin tildes, en minúscula y sin signos. */

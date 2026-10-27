@@ -95,10 +95,16 @@ PostgreSQL** (backend API), 100% dockerizada.
 - **Estudiantes** (Administración → Estudiantes, permiso `usuarios.gestionar`):
   crear y editar estudiantes y otros usuarios, y **carga masiva** desde una
   planilla Excel o CSV en tres pasos: elegir el archivo, revisar qué pasará
-  con cada fila (nueva, **ya existente: no se carga ni se modifica**,
-  repetida dentro del archivo o con errores) y confirmar de forma explícita
-  (casilla + botón; el servidor exige `confirmado` y vuelve a revisar todo al
-  cargar). La pantalla trae la plantilla para descargar; hay un ejemplo listo
+  con cada fila (nueva; **ya existente: se completan o corrigen sus datos con
+  los de la planilla y queda activa**, mostrando antes → después de cada
+  cambio; ya existente y al día; repetida dentro del archivo o con errores) y
+  confirmar de forma explícita (casilla + botón; el servidor exige
+  `confirmado` y vuelve a revisar todo al cargar). Lo que en la planilla viene
+  vacío no borra nada, el tipo de usuario solo cambia si la planilla trae esa
+  columna, un correo que ya usa otra persona se deja como estaba, y un RUT que
+  coincide en los números con un DNI o pasaporte extranjero no se mezcla: queda
+  para revisar a mano. Cada persona actualizada queda en la bitácora con lo que
+  cambió. La pantalla trae la plantilla para descargar; hay un ejemplo listo
   en [`docs/ejemplos/`](docs/ejemplos/). También acepta tal cual el **reporte
   de matrícula de pregrado** de la universidad (Excel, o CSV en UTF-8,
   Windows-1252 o Mac Roman, hasta 10.000 filas): toma solo RUT, nombre,
@@ -513,8 +519,8 @@ npm run dev
 
 ## Tests y benchmark de rendimiento
 
-Hay una suite de Feature tests (`backend/tests/Feature/`, 505 tests al
-2026-10-21) que cubre login de staff/usuario, fichas bibliográficas (qué ve
+Hay una suite de Feature tests (`backend/tests/Feature/`, 519 tests al
+2026-10-27) que cubre login de staff/usuario, fichas bibliográficas (qué ve
 el usuario según el tipo de material), el escenario de demostración, roles y
 permisos (qué puede y no puede hacer cada rol, incluida la protección contra darse más permisos a
 uno mismo), cuentas del personal, multas (generación por atraso, manuales,
@@ -523,8 +529,9 @@ retiro de reservas, límites de solicitudes, registro de entradas (incluido
 el modo búsqueda por rango de fechas y RUT/nombre, y que nadie quede presente
 dos veces el mismo día) y su historial, la entrada automática al confirmar la
 llegada a una sala, la identificación con pasaporte o DNI extranjero, la
-gestión y carga masiva de estudiantes (sin duplicar a los que ya existen), la
-bitácora de acciones del personal, reservas
+gestión y carga masiva de estudiantes (sin duplicar a los que ya existen: se
+les actualizan los datos y quedan activos), habilitar y desactivar usuarios
+(desactivar, solo el Administrador/a), la bitácora de acciones del personal, reservas
 de sala en horario continuo (inicio libre + duración de hasta 2 horas,
 solapamiento y validación grupal, cuota diaria de 4 horas por participante
 sin importar en cuántas salas distintas se reparta, restricción a "solo

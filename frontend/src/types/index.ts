@@ -626,20 +626,23 @@ export type OpcionesUsuarios = {
   sexos: string[]
 }
 
-export type EstadoFilaImportacion = 'nuevo' | 'existe' | 'duplicado' | 'invalido'
+export type EstadoFilaImportacion = 'nuevo' | 'actualizar' | 'sin_cambios' | 'duplicado' | 'invalido'
 
 export type FilaImportacion = {
   fila: number
   estado: EstadoFilaImportacion
   datos: Partial<Usuario> & { rut: string }
+  /** Solo en quien ya existe: lo que cambia, como campo → [antes, después]. */
+  cambios: Partial<Record<keyof Usuario, [unknown, unknown]>>
   mensajes: string[]
   existente: Pick<Usuario, 'id' | 'rut' | 'nombre' | 'apellido'> | null
 }
 
 export type ResultadoImportacion = {
-  resumen: { total: number; nuevos: number; existentes: number; duplicados: number; invalidos: number }
+  resumen: { total: number; nuevos: number; actualizados: number; sin_cambios: number; duplicados: number; invalidos: number }
   filas: FilaImportacion[]
   creados?: number
+  actualizados?: number
 }
 
 /** Respuesta por páginas de la API (paginate() de Laravel): una página de filas y el total. */

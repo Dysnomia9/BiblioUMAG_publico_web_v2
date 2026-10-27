@@ -11,6 +11,7 @@ use App\Support\Documento;
 use App\Support\Permisos;
 use App\Support\Texto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -182,8 +183,9 @@ class UsuarioController extends Controller
 
     /**
      * Primer paso de la carga masiva: revisa las filas de la planilla sin escribir
-     * nada y dice qué pasará con cada una — nueva, ya existe (no se carga), repetida
-     * dentro del mismo archivo (no se carga) o con errores (no se carga).
+     * nada y dice qué pasará con cada una — nueva, ya existe (se actualizan sus datos
+     * y queda activa), ya existe y está al día, repetida dentro del mismo archivo (no
+     * se carga) o con errores (no se carga).
      */
     public function revisarImportacion(Request $request)
     {
@@ -192,9 +194,10 @@ class UsuarioController extends Controller
 
     /**
      * Segundo paso: exige la confirmación explícita y vuelve a clasificar las filas en
-     * el servidor (no confía en la revisión anterior: alguien pudo crear a uno de esos
-     * estudiantes entretanto). Solo se crean las filas nuevas; las que ya existen no
-     * se tocan ni se sobrescriben.
+     * el servidor (no confía en la revisión anterior: alguien pudo crear o editar a una
+     * de esas personas entretanto). Crea las filas nuevas y, a quienes ya existen, les
+     * completa o corrige los datos con los de la planilla y los deja activos; lo que
+     * viene vacío en la planilla no borra nada.
      */
     public function importar(Request $request)
     {
@@ -203,42 +206,67 @@ class UsuarioController extends Controller
             ['confirmado.accepted' => 'Confirma la carga antes de continuar: revisa el resumen y marca la casilla.'],
         );
         $filas = $this->filasDe($request);
+        $archivo = $request->input('archivo');
 
-        $resultado = DB::transaction(function () use ($filas) {
-            // Dos cargas a la vez con el mismo estudiante: la segunda espera a la primera y
-            // lo ve como "ya existe" en vez de chocar con el índice único.
+        $resultado = DB::transaction(function () use ($filas, $archivo) {
+            // Dos cargas a la vez con la misma persona: la segunda espera a la primera y la
+            // ve como "ya existe" en vez de chocar con el índice único o pisar sus cambios.
             DB::statement('LOCK TABLE usuarios IN SHARE ROW EXCLUSIVE MODE');
 
             $clasificacion = $this->clasificar($filas);
+            $porActualizar = Usuario::findMany(collect($clasificacion['filas'])->where('estado', 'actualizar')->pluck('existente.id'))->keyBy('id');
             $creados = [];
+            $actualizados = [];
 
             foreach ($clasificacion['filas'] as $fila) {
                 if ($fila['estado'] === 'nuevo') {
                     $creados[] = Usuario::create($fila['datos'] + ['activo' => true]);
+                } elseif ($fila['estado'] === 'actualizar') {
+                    $usuario = $porActualizar[$fila['existente']['id']];
+                    $usuario->update(array_map(fn (array $cambio) => $cambio[1], $fila['cambios']));
+                    $actualizados[] = $usuario;
+
+                    // Uno por persona, como al editarla a mano: así se encuentra buscándola.
+                    Bitacora::registrar(
+                        'usuarios.editar',
+                        "Actualizó los datos de {$usuario->nombre} {$usuario->apellido} desde ".($archivo ? "la planilla «{$archivo}»" : 'una planilla'),
+                        entidad: $usuario,
+                        datos: $fila['cambios'],
+                        afectado: $usuario,
+                    );
                 }
             }
 
-            return [$clasificacion, $creados];
+            return [$clasificacion, $creados, $actualizados];
         });
 
-        [$clasificacion, $creados] = $resultado;
+        [$clasificacion, $creados, $actualizados] = $resultado;
         $resumen = $clasificacion['resumen'];
-        $omitidas = $resumen['existentes'] + $resumen['duplicados'] + $resumen['invalidos'];
+        $habilitados = collect($clasificacion['filas'])->where('estado', 'actualizar')->filter(fn ($f) => isset($f['cambios']['activo']))->count();
+        $omitidas = $resumen['duplicados'] + $resumen['invalidos'];
+
+        $hecho = array_filter([
+            $creados ? 'cargó '.count($creados).' '.(count($creados) === 1 ? 'usuario nuevo' : 'usuarios nuevos') : null,
+            $actualizados ? 'actualizó '.count($actualizados).($habilitados ? " ({$habilitados} ".($habilitados === 1 ? 'quedó habilitado' : 'quedaron habilitados').')' : '') : null,
+        ]);
+        $notas = array_filter([
+            $resumen['sin_cambios'] ? "{$resumen['sin_cambios']} ".($resumen['sin_cambios'] === 1 ? 'ya estaba' : 'ya estaban').' al día' : null,
+            $omitidas ? "{$omitidas} ".($omitidas === 1 ? 'fila no se cargó' : 'filas no se cargaron') : null,
+        ]);
 
         Bitacora::registrar(
             'usuarios.importar',
-            'Cargó '.count($creados).' '.(count($creados) === 1 ? 'usuario' : 'usuarios').' desde una planilla'
-                .($omitidas ? " ({$omitidas} ".($omitidas === 1 ? 'fila no se cargó' : 'filas no se cargaron').')' : ''),
+            ucfirst(implode(' y ', $hecho) ?: 'no cargó ni actualizó a nadie').' desde una planilla'.($notas ? ' ('.implode('; ', $notas).')' : ''),
             datos: [
-                'archivo' => $request->input('archivo'),
+                'archivo' => $archivo,
                 'resumen' => $resumen,
                 'creados' => collect($creados)->map(fn (Usuario $u) => $u->rut)->all(),
-                'ya_existian' => collect($clasificacion['filas'])->where('estado', 'existe')->pluck('datos.rut')->values()->all(),
             ],
         );
 
         return response()->json([
             'creados' => count($creados),
+            'actualizados' => count($actualizados),
             'resumen' => $resumen,
             'filas' => $clasificacion['filas'],
         ], 201);
@@ -472,10 +500,10 @@ class UsuarioController extends Controller
 
         // Cada fila como quedaría en el sistema. Contraseñas no viajan en planillas: quien se
         // carga así entra al portal con el login institucional o con la contraseña que se le
-        // asigne después al editarlo.
+        // asigne después al editarlo. Y una carga nunca deja a nadie inactivo.
         $preparadas = array_map(function (array $fila) use ($carreras) {
             $errores = [];
-            $datos = $this->comoEnElSistema($this->normalizar(array_diff_key($fila, ['password' => 0]), $errores), $carreras);
+            $datos = $this->comoEnElSistema($this->normalizar(array_diff_key($fila, ['password' => 0, 'activo' => 0]), $errores), $carreras);
 
             return [$fila, $datos, $errores];
         }, $filas);
@@ -487,30 +515,36 @@ class UsuarioController extends Controller
         $existentes = $normalizados->chunk(1000)->flatMap(fn ($lote) => Usuario::whereRaw(
             Documento::sql('rut').' in ('.implode(',', array_fill(0, $lote->count(), '?')).')',
             $lote->values()->all(),
-        )->get(['id', 'rut', 'nombre', 'apellido']))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
+        )->get(['id', ...self::CAMPOS]))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
 
         $emails = collect($filas)->map(fn ($f) => mb_strtolower(trim((string) ($f['email'] ?? ''))))->filter()->unique()->values();
         $emailsTomados = $emails->chunk(1000)->flatMap(fn ($lote) => Usuario::whereIn(DB::raw('lower(email)'), $lote->all())
-            ->get(['rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email));
+            ->get(['id', 'rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email));
 
         $reglasFila = $this->reglas();
         $reglasFila['email'] = ['nullable', 'email', 'max:255'];
+        // A quien ya existe le basta con lo que traiga la planilla (por ejemplo, solo RUT y carrera).
+        $reglasExistente = [
+            'nombre' => ['nullable', 'string', 'max:255'],
+            'apellido' => ['nullable', 'string', 'max:255'],
+            'tipo' => ['nullable', Rule::in(self::TIPOS)],
+        ] + $reglasFila;
 
         foreach ($preparadas as $i => [$fila, $datos, $errores]) {
             $numero = (int) ($fila['fila'] ?? $i + 2);
             $clave = Documento::normalizar($datos['rut']);
             $mensajes = [];
+            $cambios = [];
             $existente = null;
 
             if (isset($errores['rut'])) {
                 $estado = 'invalido';
                 $mensajes = array_merge($errores['rut'], Validator::make($datos, $reglasFila, $this->mensajes())->errors()->all());
-            } elseif ($existente = $existentes->get($clave)) {
-                $estado = 'existe';
-                $mensajes[] = "Ya existe: {$existente->nombre} {$existente->apellido} ({$existente->rut}). No se cargará.";
             } elseif (isset($vistos[$clave])) {
                 $estado = 'duplicado';
                 $mensajes[] = "Este {$this->nombreDocumento($datos['tipo_documento'])} ya aparece en la fila {$vistos[$clave]} del archivo. No se cargará dos veces.";
+            } elseif ($existente = $existentes->get($clave)) {
+                [$estado, $mensajes, $cambios] = $this->compararConExistente($existente, $fila, $datos, $reglasExistente, $emailsTomados, $emailsVistos, $numero);
             } else {
                 $mensajes = Validator::make($datos, $reglasFila, $this->mensajes())->errors()->all();
 
@@ -534,6 +568,7 @@ class UsuarioController extends Controller
                 'fila' => $numero,
                 'estado' => $estado,
                 'datos' => $datos,
+                'cambios' => $cambios,
                 'mensajes' => $mensajes,
                 'existente' => $existente?->only(['id', 'rut', 'nombre', 'apellido']),
             ];
@@ -545,11 +580,71 @@ class UsuarioController extends Controller
             'resumen' => [
                 'total' => count($resultado),
                 'nuevos' => $porEstado->get('nuevo', 0),
-                'existentes' => $porEstado->get('existe', 0),
+                'actualizados' => $porEstado->get('actualizar', 0),
+                'sin_cambios' => $porEstado->get('sin_cambios', 0),
                 'duplicados' => $porEstado->get('duplicado', 0),
                 'invalidos' => $porEstado->get('invalido', 0),
             ],
             'filas' => $resultado,
+        ];
+    }
+
+    /**
+     * Qué cambia en quien ya existe: cada dato que trae la planilla y es distinto del
+     * guardado (lo que viene vacío no borra nada) y, si estaba inactivo, que quede activo.
+     * El tipo (estudiante, docente…) cambia solo si la planilla tiene esa columna: el
+     * reporte de matrícula no la trae, y una docente que además estudia sigue docente.
+     *
+     * @param  Collection<string, Usuario>  $emailsTomados
+     * @param  array<string, int>  $emailsVistos  correo => fila del archivo que ya lo usa
+     * @return array{0: string, 1: list<string>, 2: array<string, array{0: mixed, 1: mixed}>}  estado, mensajes y cambios [campo => [antes, después]]
+     */
+    private function compararConExistente(Usuario $existente, array $fila, array $datos, array $reglas, Collection $emailsTomados, array &$emailsVistos, int $numero): array
+    {
+        $quien = "{$existente->nombre} {$existente->apellido} ({$existente->rut})";
+
+        // Un RUT y un DNI o pasaporte pueden tener los mismos números sin ser la misma persona.
+        if ($existente->tipo_documento !== 'otro' && ($existente->tipo_documento === 'rut') !== ($datos['tipo_documento'] === 'rut')) {
+            return ['invalido', ["El número coincide con el {$this->nombreDocumento($existente->tipo_documento)} de {$quien}, pero en la planilla viene como {$this->nombreDocumento($datos['tipo_documento'])}: revisa si es la misma persona. No se cargará."], []];
+        }
+
+        if ($errores = Validator::make($datos, $reglas, $this->mensajes())->errors()->all()) {
+            return ['invalido', [...$errores, "No se actualizará a {$quien}."], []];
+        }
+
+        $campos = ['nombre', 'apellido', 'carrera', 'anio_ingreso', 'sexo', 'pais'];
+        if (trim((string) ($fila['tipo'] ?? '')) !== '') {
+            $campos[] = 'tipo';
+        }
+
+        $cambios = [];
+        foreach ($campos as $campo) {
+            if ($datos[$campo] !== null && (string) $datos[$campo] !== (string) $existente->{$campo}) {
+                $cambios[$campo] = [$existente->{$campo}, $datos[$campo]];
+            }
+        }
+
+        $avisos = [];
+        $email = $datos['email'];
+        if ($email !== null && $email !== mb_strtolower((string) $existente->email)) {
+            if (($duenio = $emailsTomados->get($email)) && $duenio->id !== $existente->id) {
+                $avisos[] = "El correo {$email} ya lo usa {$duenio->nombre} {$duenio->apellido} ({$duenio->rut}): se deja el que tenía.";
+            } elseif (isset($emailsVistos[$email])) {
+                $avisos[] = "El correo {$email} ya aparece en la fila {$emailsVistos[$email]} del archivo: se deja el que tenía.";
+            } else {
+                $cambios['email'] = [$existente->email, $email];
+                $emailsVistos[$email] = $numero;
+            }
+        }
+
+        if (! $existente->activo) {
+            $cambios['activo'] = [false, true];
+        }
+
+        return [
+            $cambios ? 'actualizar' : 'sin_cambios',
+            [($cambios ? 'Ya existe: ' : 'Ya existe y sus datos están al día: ').$quien.'.', ...$avisos],
+            $cambios,
         ];
     }
 }
