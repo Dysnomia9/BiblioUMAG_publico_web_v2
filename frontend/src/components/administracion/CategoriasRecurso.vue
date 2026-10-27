@@ -265,7 +265,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
               :aria-checked="form.ficha.color === clave"
               :title="color.nombre"
               class="h-8 w-8 rounded-full ring-offset-2 transition"
-              :class="[color.punto, form.ficha.color === clave ? 'ring-2 ring-gray-900' : 'hover:scale-110']"
+              :class="[color.punto, form.ficha.color === clave ? 'ring-2 ring-gray-900 dark:ring-white' : 'hover:scale-110']"
               @click="form.ficha.color = clave"
             >
               <span class="sr-only">{{ color.nombre }}</span>

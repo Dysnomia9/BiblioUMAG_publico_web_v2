@@ -44,7 +44,7 @@ const estado = computed(() => {
 })
 
 const clases = computed(() => {
-  if (props.oscura) return 'bg-white/15 border-white/20 text-white'
+  if (props.oscura) return 'bg-blanco/15 border-white/20 text-white'
   return estado.value.abierta ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-gray-100 border-gray-200 text-gray-600'
 })
 </script>

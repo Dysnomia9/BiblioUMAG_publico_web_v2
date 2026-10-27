@@ -102,7 +102,7 @@ function buscarEnCatalogo() {
         <h1 class="mt-0.5 text-[28px] font-serif font-bold leading-tight">Hola, {{ auth.usuario?.nombre }}</h1>
         <div class="mt-3 flex flex-wrap items-center gap-2">
           <PildoraHorario v-if="horario" oscura :horario="horario" />
-          <span class="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-medium text-white">
+          <span class="inline-flex items-center rounded-full border border-white/20 bg-blanco/15 px-3 py-1.5 text-xs font-medium text-white">
             {{ personasEnSala }} {{ personasEnSala === 1 ? 'ingreso' : 'ingresos' }} hoy
           </span>
         </div>
@@ -217,7 +217,7 @@ function buscarEnCatalogo() {
             </router-link>
             <router-link
               :to="{ name: 'portal-entrada', query: { metodo: 'rut' } }"
-              class="flex items-center justify-center rounded-lg border border-white/50 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 transition-colors"
+              class="flex items-center justify-center rounded-lg border border-white/50 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blanco/10 transition-colors"
             >
               Usar mi RUT
             </router-link>

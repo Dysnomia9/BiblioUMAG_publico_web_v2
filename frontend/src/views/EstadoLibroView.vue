@@ -267,7 +267,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                 :key="c.valor"
                 type="button"
                 class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="filtroEstado === c.valor ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                :class="filtroEstado === c.valor ? 'border-gray-900 bg-gray-900 text-white dark:border-indigo-500 dark:bg-indigo-500' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
                 @click="filtroEstado = c.valor"
               >
                 <span class="h-1.5 w-1.5 rounded-full" :class="c.punto"></span>

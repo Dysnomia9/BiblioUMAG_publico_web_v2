@@ -98,7 +98,7 @@ onMounted(cargar)
           </button>
         </div>
         <template v-else-if="codigo">
-          <div class="inline-block p-4 bg-white border border-gray-200 rounded-lg">
+          <div class="tema-claro inline-block p-4 bg-white border border-gray-200 rounded-lg">
             <canvas ref="canvas" />
           </div>
           <p class="mt-4 text-xs font-mono tracking-wider text-gray-500 break-all">{{ codigo.codigo }}</p>

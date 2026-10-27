@@ -9,9 +9,10 @@ esta guía no coincide con la app, manda la app: corrige la guía.
 > navegación sin acordarlo antes con la biblioteca.
 
 Todo se escribe con clases de Tailwind directamente en los componentes. El
-`tailwind.config.js` solo agrega las dos tipografías y el radio por defecto; no
-hay colores propios definidos ahí: se usa la paleta estándar de Tailwind más los
-valores fijos de la sección 1.
+`tailwind.config.js` agrega las dos tipografías, el radio por defecto y el modo
+noche (sección 1b); los colores son la paleta estándar de Tailwind más los
+valores fijos de la sección 1, y solo tres nombres propios: `blanco`, `dorado` y
+`pizarra`.
 
 ---
 
@@ -31,8 +32,10 @@ Se usa en:
   salvo las que usan `EncabezadoGestion` (sección 3);
 - los logins.
 
-Sobre el degradado, el texto va en blanco o `slate-100/200`, y el secundario en
-`slate-400` o `white/60`. Los separadores son `bg-white/10`.
+Sobre el degradado, el texto va en blanco o `indigo-100/200`, y el secundario en
+`white/60`. Los velos y separadores translúcidos son `bg-blanco/10` (o `/15`,
+`/20`…): `blanco` es el blanco que no cambia en modo noche, a diferencia de
+`bg-white` (sección 1b).
 
 ### Dorado de la pestaña activa
 
@@ -45,8 +48,7 @@ uno de sus módulos) usa:
 | Texto e ícono | `#1a2430` → `text-[#1a2430]` |
 | Brillo superior | `box-shadow: inset 0 1px 0 rgba(255,255,255,0.28)` |
 
-Los enlaces inactivos van en `text-slate-200 hover:bg-white/5`, con el ícono en
-`text-slate-400`.
+Los enlaces inactivos van en `text-white/85 hover:bg-blanco/10`.
 
 ### Color de acción
 
@@ -83,9 +85,13 @@ Se toman siempre de ese archivo, sin repetir los colores en cada pantalla.
 |---|---|
 | `<body>` | `bg-slate-50` (en `index.html`) |
 | Fondo de las pantallas del personal | `bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40` (en `StaffLayout.vue`) |
-| Fondo de las pantallas del portal | `linear-gradient(180deg, #F7F8FC 0%, #ffffff 60%)` (en `PortalLayout.vue`) |
+| Fondo de las pantallas del portal | `bg-gradient-to-b from-[#F7F8FC] to-[#ffffff] to-60%` (en `PortalLayout.vue`) |
 | Texto normal / secundario / apagado | `gray-900` / `gray-500–600` / `gray-400` |
 | Bordes | `gray-200` (tarjetas y tablas), `gray-300` (campos y botones secundarios) |
+| Textos dorado y azul pizarra (catalogación, recursos de apoyo) | `text-dorado-600` / `-700` y `text-pizarra-600` / `-700` (antes `#8a6a3b`, `#6f5226`, `#3F5F8A`, `#2f4a6e`) |
+
+Los tres fondos de página tienen además su versión de modo noche (`dark:`), un
+azul casi negro más oscuro que las tarjetas.
 
 ### Colores por módulo en el Menú de Gestión
 
@@ -106,6 +112,43 @@ Un módulo nuevo toma uno de esos 11 colores, sin inventar otros.
 - **Reportes**: los gráficos usan su propia paleta categórica
   (`PALETA_CATEGORICA` en `ReportesView.vue`) y una rampa azul para el mapa de
   calor (`Heatmap.vue`). No se reutilizan en el resto de la interfaz.
+
+## 1b. Modo día y noche
+
+Un interruptor arriba a la derecha (`components/ui/InterruptorTema.vue`, a la
+izquierda de la burbuja de la cuenta en la barra del personal y en la del
+portal) cambia toda la interfaz a colores oscuros. La elección queda guardada en
+ese navegador (`localStorage`, clave `tema`); `public/tema.js` la aplica antes de
+dibujar la página, para que no aparezca un instante en claro (va en un archivo
+aparte porque la política de seguridad no deja correr código escrito en la
+página), y `composables/useTema.ts` la cambia. Lo impreso sale siempre en claro.
+
+**Cómo funciona.** El modo noche es la clase `.dark` en `<html>`. En
+`tailwind.config.js`, los tonos que se usan como fondo claro (`-50` a `-300`),
+como texto oscuro (`-600` a `-950`, y en los grises desde `-300`) o como borde
+claro valen una variable CSS: en modo claro, el color de siempre de Tailwind (la
+interfaz se ve idéntica); en modo noche, su equivalente oscuro. `bg-white` es la
+superficie de tarjetas y modales. El resto (los botones `indigo-600`, los puntos
+de estado, el degradado morado, el dorado) se ve bien en los dos modos y no
+cambia. Por eso **las pantallas no necesitan clases `dark:`**.
+
+Para que una pantalla nueva funcione en los dos modos:
+
+- Usar la paleta de Tailwind como en el resto de la app: `bg-white` para
+  tarjetas, `-50`/`-100` para fondos suaves y etiquetas, `-600`/`-700` para
+  textos y enlaces sobre ellos.
+- Sobre el degradado morado, los velos translúcidos van con `bg-blanco/…`, no
+  con `bg-white/…` (que en modo noche se oscurecería).
+- No escribir colores fijos (`text-[#…]`, `style="background: #…"`) sobre las
+  tarjetas o el fondo. Si hacen falta, agregar su variante `dark:` o usar los
+  nombres propios `dorado` y `pizarra`.
+- Lo que debe verse siempre como en papel o sobre el morado lleva la clase
+  `tema-claro`: el marco del código QR (para que se escanee bien), la miniatura de
+  la etiqueta de lomo y la pestaña activa del portal.
+- Los colores que se eligen en código (gráficos de Reportes, mapa de calor) toman
+  `oscuro` de `useTema()` y usan su versión para fondo oscuro.
+- Las píldoras seleccionadas en `gray-900` (grupos de vista) pasan a `indigo-500`
+  en modo noche (`dark:bg-indigo-500`), porque el negro no se distingue del fondo.
 
 ---
 
@@ -134,9 +177,9 @@ pantalla. **No hay sidebar.**
 
 La barra superior (`TopBar.vue`) tiene, de izquierda a derecha:
 
-1. Logo en un cuadro `bg-white/10`, "Biblioteca UMAG" en serif blanco (dos
+1. Logo en un cuadro `bg-blanco/10`, "Biblioteca UMAG" en serif blanco (dos
    líneas) y la etiqueta dorada **ADMIN** (lleva al Inicio).
-2. Al centro, un bloque `bg-white/10 rounded-xl` con **Inicio** y los módulos
+2. Al centro, un bloque `bg-blanco/10 rounded-xl` con **Inicio** y los módulos
    principales con su atajo de teclado: **Entradas (F1)**, **Préstamos (F2)**,
    **Salas (F3)**, **Reportes (F4)**. La activa va en dorado.
 3. El botón **Gestión** (engranaje y flecha, translúcido con borde `white/20`;
@@ -145,7 +188,9 @@ La barra superior (`TopBar.vue`) tiene, de izquierda a derecha:
    *Colección*, *Consultas e historiales* y *Administración del sistema*. Las
    páginas pueden abrirlo con `window.dispatchEvent(new Event('abrir-menu-gestion'))`
    (lo usa la ruta «Gestión › Catalogación»).
-4. La burbuja de la cuenta, igual a la del portal: iniciales en un círculo
+4. El interruptor **día / noche** (sol y luna, translúcido con borde
+   `white/20`; la perilla blanca muestra el modo actual), en todos los anchos.
+5. La burbuja de la cuenta, igual a la del portal: iniciales en un círculo
    dorado, nombre y rol (desde `xl`). Abre un menú con el correo, **Cambiar mi
    contraseña** y **Cerrar sesión** (las dos piden confirmación).
 
@@ -157,11 +202,12 @@ permiso, vuelve al Inicio con un aviso.
 ### Portal del usuario
 
 `PortalLayout.vue` usa el mismo degradado morado del panel, con su propio
-diseño: el logo en un cuadrado `bg-white/10` sin borde (el mismo tono de la burbuja de la persona) y
+diseño: el logo en un cuadrado `bg-blanco/10` sin borde (el mismo tono de la burbuja de la persona) y
 «Biblioteca UMAG» en serif blanca; al centro, las pestañas Inicio, Entrada,
-Catálogo y Salas como un control segmentado (fondo `bg-white/10`, la activa
-en blanco con texto `indigo-900`); a la derecha, una burbuja (`rounded-full`,
-`bg-white/10`, borde `white/20`) con las iniciales en un círculo dorado
+Catálogo y Salas como un control segmentado (fondo `bg-blanco/10`, la activa
+en blanco con texto `indigo-900`, también en modo noche: lleva `tema-claro`); a la
+derecha, el interruptor día / noche y una burbuja (`rounded-full`,
+`bg-blanco/10`, borde `white/20`) con las iniciales en un círculo dorado
 `#b08d57`, el nombre completo y el tipo de usuario, que abre un menú con el
 RUT, «Mi perfil», «Mis ingresos» y «Cerrar sesión». La pestaña dorada queda
 solo en la barra del personal.

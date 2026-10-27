@@ -58,11 +58,12 @@ function titulo(d: SerieItem) {
           >{{ d.value }}</span>
           <span
             v-else-if="!d.cerrado || d.value"
-            class="pointer-events-none absolute -top-1 z-10 rounded bg-gray-900 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 tabular-nums"
+            class="pointer-events-none absolute -top-1 z-10 rounded bg-gray-900 dark:bg-gray-700 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 tabular-nums"
           >{{ d.value }}</span>
           <div
             class="relative w-full max-w-[3rem] rounded-t-md transition-all"
-            :style="{ height: d.value ? `${(d.value / maximo) * 100}%` : d.cerrado ? '0' : '2px', backgroundColor: d.value ? colorDe(d) : '#E5E7EB' }"
+            :class="{ 'bg-gray-200': !d.value }"
+            :style="{ height: d.value ? `${(d.value / maximo) * 100}%` : d.cerrado ? '0' : '2px', backgroundColor: d.value ? colorDe(d) : undefined }"
           />
         </div>
       </div>

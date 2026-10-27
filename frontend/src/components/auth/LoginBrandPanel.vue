@@ -15,8 +15,8 @@ defineProps<{ subtitulo?: string }>()
     ></div>
 
     <!-- Decoración: manchas suaves para dar profundidad -->
-    <div class="pointer-events-none absolute -top-16 -right-16 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
-    <div class="pointer-events-none absolute bottom-10 -left-10 h-48 w-48 rounded-full bg-white/5 blur-3xl"></div>
+    <div class="pointer-events-none absolute -top-16 -right-16 h-64 w-64 rounded-full bg-blanco/10 blur-3xl"></div>
+    <div class="pointer-events-none absolute bottom-10 -left-10 h-48 w-48 rounded-full bg-blanco/5 blur-3xl"></div>
 
     <!-- Decoración: grilla de puntos, esquina inferior izquierda -->
     <div
@@ -25,7 +25,7 @@ defineProps<{ subtitulo?: string }>()
     ></div>
 
     <div class="relative flex-1 flex flex-col items-center justify-center text-center">
-      <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
+      <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-blanco/10">
         <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
@@ -33,7 +33,7 @@ defineProps<{ subtitulo?: string }>()
 
       <h1 class="text-3xl font-serif font-bold">Biblioteca UMAG</h1>
 
-      <div class="my-4 h-px w-16 bg-white/25"></div>
+      <div class="my-4 h-px w-16 bg-blanco/25"></div>
 
       <p class="text-sm text-white/70 leading-relaxed">
         {{ subtitulo ?? 'Sistema de gestión bibliotecaria' }}<br />

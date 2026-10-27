@@ -104,13 +104,13 @@ function multa(p: Prestamo) {
           :key="v.id"
           type="button"
           class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
-          :class="vista === v.id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
+          :class="vista === v.id ? 'border-gray-900 bg-gray-900 text-white dark:border-indigo-500 dark:bg-indigo-500' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
           @click="vista = v.id"
         >
           {{ v.texto }}
           <span
             class="rounded-full px-2 py-0.5 text-xs font-bold"
-            :class="vista === v.id ? 'bg-white/20 text-white' : v.id === 'vencidos' && conteos.vencidos ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'"
+            :class="vista === v.id ? 'bg-blanco/20 text-white' : v.id === 'vencidos' && conteos.vencidos ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'"
           >
             {{ conteos[v.id] }}
           </span>

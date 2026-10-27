@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useTema } from '@/composables/useTema'
 import type { HoraPorSala } from '@/types'
 
 const props = defineProps<{ data: HoraPorSala[] }>()
+const { oscuro } = useTema()
 
 // Rampa secuencial de un solo tono (magnitud) — paso 0 "recede" al plano de fondo
-// para valor cero, pasos 1-7 de menor a mayor intensidad.
-const RAMPA = ['#f4f2ec', '#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']
+// para valor cero, pasos 1-7 de menor a mayor intensidad. En modo oscuro la intensidad
+// es brillo: de un azul apagado a uno claro.
+const RAMPA_CLARA = ['#f4f2ec', '#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']
+const RAMPA_OSCURA = ['#232942', '#1d3051', '#1e3d69', '#1f4b83', '#205a9e', '#236ab9', '#2a7bd2', '#3a8de6']
+const RAMPA = computed(() => (oscuro.value ? RAMPA_OSCURA : RAMPA_CLARA))
 
 const horas = computed(() => props.data[0]?.horas.map((h) => h.label) ?? [])
 
@@ -22,15 +27,15 @@ const maxValor = computed(() => {
 
 function pasoDe(valor: number) {
   if (valor === 0 || maxValor.value === 0) return 0
-  return Math.max(1, Math.ceil((valor / maxValor.value) * (RAMPA.length - 1)))
+  return Math.max(1, Math.ceil((valor / maxValor.value) * (RAMPA.value.length - 1)))
 }
 
 function colorDe(valor: number) {
-  return RAMPA[pasoDe(valor)]
+  return RAMPA.value[pasoDe(valor)]
 }
 
 function textoClaro(valor: number) {
-  return pasoDe(valor) >= 5
+  return pasoDe(valor) >= (oscuro.value ? 1 : 5)
 }
 </script>
 
@@ -62,7 +67,7 @@ function textoClaro(valor: number) {
           >
             {{ celda.value > 0 ? celda.value : '' }}
             <div
-              class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[11px] text-white group-hover:block"
+              class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 dark:bg-gray-700 px-2 py-1 text-[11px] text-white group-hover:block"
             >
               {{ fila.sala }} · {{ celda.label }}: <strong>{{ celda.value }}</strong> reserva(s)
             </div>

@@ -6,6 +6,7 @@ import { mensajeDeError, useToast } from '@/composables/useToast'
 import { itemPorRuta } from '@/navegacion'
 import api from '@/services/api'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 import logoUmag from '@/assets/logo-umag.png'
 
 const auth = useAuthStore()
@@ -213,7 +214,7 @@ async function guardarClave() {
   >
     <!-- Logo -->
     <router-link :to="{ name: 'dashboard' }" class="flex items-center gap-2.5 shrink-0">
-      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 p-1">
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blanco/10 p-1">
         <img :src="logoUmag" alt="UMAG" class="h-full w-full rounded-lg object-cover" />
       </span>
       <span class="hidden sm:block font-serif text-[15px] font-bold leading-[1.1] text-white">Biblioteca<br />UMAG</span>
@@ -224,19 +225,19 @@ async function guardarClave() {
 
     <!-- Módulos principales (desde pantallas anchas) -->
     <nav class="hidden lg:flex flex-1 min-w-0 justify-center" aria-label="Módulos principales">
-      <div class="flex items-center gap-0.5 rounded-xl bg-white/10 p-1">
+      <div class="flex items-center gap-0.5 rounded-xl bg-blanco/10 p-1">
         <router-link
           v-for="link in [{ name: 'dashboard', label: 'Inicio', shortcut: '' }, ...moduleLinks]"
           :key="link.name"
           :to="{ name: link.name }"
           class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-colors"
-          :class="route.name === link.name ? 'bg-[#b08d57] text-[#1a2430] shadow-sm' : 'text-white/85 hover:bg-white/10 hover:text-white'"
+          :class="route.name === link.name ? 'bg-[#b08d57] text-[#1a2430] shadow-sm' : 'text-white/85 hover:bg-blanco/10 hover:text-white'"
         >
           {{ link.label }}
           <kbd
             v-if="link.shortcut"
             class="rounded border px-1 py-px text-[10px] font-bold leading-none"
-            :class="route.name === link.name ? 'border-[#1a2430]/30 bg-[#1a2430]/10 text-[#1a2430]' : 'border-white/25 bg-white/10 text-white/90'"
+            :class="route.name === link.name ? 'border-[#1a2430]/30 bg-[#1a2430]/10 text-[#1a2430]' : 'border-white/25 bg-blanco/10 text-white/90'"
           >{{ link.shortcut }}</kbd>
         </router-link>
       </div>
@@ -246,7 +247,7 @@ async function guardarClave() {
       v-if="secciones.length"
       @click="abrirMenuGestion"
       class="hidden lg:flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors"
-      :class="adminActive ? 'border-transparent bg-[#b08d57] text-[#1a2430]' : 'border-white/20 bg-white/10 text-white hover:bg-white/15'"
+      :class="adminActive ? 'border-transparent bg-[#b08d57] text-[#1a2430]' : 'border-white/20 bg-blanco/10 text-white hover:bg-blanco/15'"
     >
       <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -261,7 +262,7 @@ async function guardarClave() {
     <!-- Botón de menú (celular y tablet) -->
     <button
       @click="abrirMenuGestion"
-      class="lg:hidden flex-1 min-w-0 flex items-center justify-center gap-2 h-10 px-3 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/15"
+      class="lg:hidden flex-1 min-w-0 flex items-center justify-center gap-2 h-10 px-3 rounded-lg text-sm font-medium text-white bg-blanco/10 hover:bg-blanco/15"
       aria-label="Abrir menú"
     >
       <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -278,7 +279,7 @@ async function guardarClave() {
       >
         <!-- Marco con bisel: más claro arriba y más oscuro abajo, para que el panel no sea un cuadrado plano -->
         <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 rounded-[22px] p-[5px] bg-gradient-to-b from-white/85 via-indigo-200/70 to-indigo-400/70 shadow-2xl ring-1 ring-white/30">
-        <div class="rounded-2xl border border-indigo-200/80 bg-white shadow-[inset_0_2px_0_rgba(255,255,255,1),inset_0_-2px_0_rgba(79,70,229,0.08)]">
+        <div class="rounded-2xl border border-indigo-200/80 bg-white shadow-[inset_0_2px_0_rgba(255,255,255,1),inset_0_-2px_0_rgba(79,70,229,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-2px_0_rgba(79,70,229,0.2)]">
           <div class="px-5 py-5 sm:px-7 sm:py-6">
             <div class="flex items-start justify-between gap-4 mb-5">
               <div class="flex items-center gap-2.5">
@@ -358,11 +359,13 @@ async function guardarClave() {
       </div>
     </Teleport>
 
+    <InterruptorTema />
+
     <!-- Cuenta: nombre y rol; el menú tiene «Cambiar mi contraseña» y «Cerrar sesión» -->
     <div ref="menuCuenta" class="relative shrink-0">
       <button
         type="button"
-        class="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-white/15 sm:border sm:border-white/20 sm:bg-white/10 sm:py-1 sm:pl-1 sm:pr-3"
+        class="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-blanco/15 sm:border sm:border-white/20 sm:bg-blanco/10 sm:py-1 sm:pl-1 sm:pr-3"
         aria-haspopup="menu"
         :aria-expanded="menuCuentaAbierto"
         aria-label="Menú de tu cuenta"

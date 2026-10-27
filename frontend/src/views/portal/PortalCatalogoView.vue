@@ -329,7 +329,7 @@ async function cancelar(reserva: ReservaLibro) {
           @click="soloDisponibles = false"
           :aria-pressed="!soloDisponibles"
           class="rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors"
-          :class="!soloDisponibles ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'"
+          :class="!soloDisponibles ? 'bg-gray-900 border-gray-900 text-white dark:bg-indigo-500 dark:border-indigo-500' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'"
         >
           Todos
         </button>
@@ -338,7 +338,7 @@ async function cancelar(reserva: ReservaLibro) {
           @click="soloDisponibles = true"
           :aria-pressed="soloDisponibles"
           class="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors"
-          :class="soloDisponibles ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'"
+          :class="soloDisponibles ? 'bg-gray-900 border-gray-900 text-white dark:bg-indigo-500 dark:border-indigo-500' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'"
         >
           <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
           Disponibles ahora

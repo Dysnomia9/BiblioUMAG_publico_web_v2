@@ -583,7 +583,7 @@ function formatHora(iso: string | null) {
           </div>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+            class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-white/85 transition-colors hover:bg-blanco/10 hover:text-white"
             :aria-expanded="guiaAbierta"
             @click="guiaAbierta = !guiaAbierta"
           >
@@ -890,7 +890,7 @@ function formatHora(iso: string | null) {
             {{ t.texto }}
             <span
               class="min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-xs font-bold"
-              :class="usuario && activeTab === t.id ? 'bg-white/20 text-white' : 'bg-gray-200/80 text-gray-600'"
+              :class="usuario && activeTab === t.id ? 'bg-blanco/20 text-white' : 'bg-gray-200/80 text-gray-600'"
             >{{ usuario ? t.n : '–' }}</span>
           </button>
         </div>

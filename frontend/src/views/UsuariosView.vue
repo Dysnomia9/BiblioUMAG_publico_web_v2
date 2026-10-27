@@ -145,7 +145,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
           <router-link
             v-if="auth.puede('usuarios.gestionar')"
             :to="{ name: 'administracion', query: { seccion: 'estudiantes' } }"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white/15 px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/30 transition hover:bg-white/25"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blanco/15 px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/30 transition hover:bg-blanco/25"
           >
             Crear, editar o cargar estudiantes →
           </router-link>

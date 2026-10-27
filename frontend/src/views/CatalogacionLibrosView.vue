@@ -757,7 +757,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </button>
               </li>
             </ol>
-            <p class="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-[#6f5226]">
+            <p class="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-dorado-700">
               Los números como
               <span class="rounded bg-white px-1 py-0.5 font-mono text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-100">245</span>
               son las etiquetas MARC 21 de cada campo.
@@ -774,7 +774,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               v-if="borrador && !desdeBorrador && !editandoId"
               class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
-              <p class="text-sm text-[#6f5226]">
+              <p class="text-sm text-dorado-700">
                 Tienes un borrador sin terminar<template v-if="borrador.form.titulo">: <strong>«{{ borrador.form.titulo }}»</strong></template>,
                 guardado el {{ fechaBorrador }}.
               </p>
@@ -782,7 +782,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <button type="button" class="rounded-lg bg-[#b08d57] px-3 py-1.5 text-sm font-semibold text-white transition hover:brightness-110" @click="pedirRecuperarBorrador">
                   Recuperar
                 </button>
-                <button type="button" class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-[#6f5226] transition-colors hover:bg-amber-100" @click="confirmandoDescartar = true">
+                <button type="button" class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-dorado-700 transition-colors hover:bg-amber-100" @click="confirmandoDescartar = true">
                   Descartar
                 </button>
               </div>
@@ -875,7 +875,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <div v-if="!verMasTitulo" class="sm:col-span-6">
                     <button
                       type="button"
-                      class="inline-flex items-center gap-2 rounded-lg border border-dashed border-amber-300 px-3 py-2 text-xs font-semibold text-[#8a6a3b] transition-colors hover:bg-amber-50"
+                      class="inline-flex items-center gap-2 rounded-lg border border-dashed border-amber-300 px-3 py-2 text-xs font-semibold text-dorado-600 transition-colors hover:bg-amber-50"
                       @click="verMasTitulo = true"
                     >
                       <span class="text-sm leading-none">+</span> {{ textoExtras(extrasTitulo) }}
@@ -959,7 +959,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <div v-if="!verMasMaterias" class="sm:col-span-6">
                     <button
                       type="button"
-                      class="inline-flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-[#3F5F8A] transition-colors hover:bg-slate-50"
+                      class="inline-flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-pizarra-600 transition-colors hover:bg-slate-50"
                       @click="verMasMaterias = true"
                     >
                       <span class="text-sm leading-none">+</span> {{ textoExtras(extrasMaterias) }}
@@ -1149,7 +1149,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           </div>
 
           <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8a6a3b]">Obligatorios</span>
+            <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-dorado-600">Obligatorios</span>
             <ul class="mt-3 space-y-2">
               <li v-for="o in obligatorios" :key="o.texto">
                 <button

@@ -178,6 +178,11 @@ PostgreSQL** (backend API), 100% dockerizada.
 - Cada persona cambia su propia contraseña desde la barra superior, y las
   pantallas de uso diario traen una guía "¿Cómo se usa esta pantalla?"
   (oculta por defecto) para el personal nuevo.
+- **Modo día y noche**: un interruptor arriba a la derecha (panel del
+  personal y portal) pasa toda la interfaz a colores oscuros, para cansar menos
+  la vista; queda guardado en ese navegador y lo impreso sale siempre en claro.
+  Cómo funciona y qué cuidar en pantallas nuevas: `docs/estilo-visual.md`
+  (sección 1b).
 - Las búsquedas por título, autor o nombre no distinguen tildes, ñ ni
   mayúsculas ("calculo" encuentra "Cálculo I"), en el panel y en el portal.
 - Las acciones delicadas piden confirmación con un resumen de lo que va a

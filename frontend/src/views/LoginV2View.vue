@@ -144,14 +144,14 @@ const destacados = [
     <div class="relative flex-1 flex flex-col">
       <div class="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-6 sm:px-10 py-6">
         <div class="hidden lg:block max-w-md">
-          <div class="rounded-3xl bg-white/10 backdrop-blur-md border border-white/15 px-10 py-10 text-center text-white shadow-xl">
+          <div class="rounded-3xl bg-blanco/10 backdrop-blur-md border border-white/15 px-10 py-10 text-center text-white shadow-xl">
             <img :src="logoUmag" alt="Universidad de Magallanes" class="mx-auto h-14 w-14 object-contain mb-5" />
             <h1 class="text-4xl font-serif font-bold mb-4">Biblioteca UMAG</h1>
-            <div class="h-px w-32 bg-white/30 mb-6 mx-auto"></div>
+            <div class="h-px w-32 bg-blanco/30 mb-6 mx-auto"></div>
 
             <div class="flex justify-center gap-5">
               <div v-for="d in destacados" :key="d.label" class="text-center">
-                <div class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 border border-white/15">
+                <div class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blanco/10 border border-white/15">
                   <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="d.icon" />
                   </svg>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 import logoUmag from '@/assets/logo-umag.png'
 
 const auth = useUsuarioAuthStore()
@@ -90,20 +91,20 @@ async function onLogout() {
     >
       <div class="flex h-16 items-center gap-3 px-4 sm:px-8">
         <router-link :to="{ name: 'portal-home' }" class="flex items-center gap-2.5 shrink-0">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 p-1">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blanco/10 p-1">
             <img :src="logoUmag" alt="UMAG" class="h-full w-full rounded-lg object-cover" />
           </span>
           <span class="font-serif text-[15px] font-bold text-white">Biblioteca UMAG</span>
         </router-link>
 
         <nav class="hidden md:flex flex-1 justify-center" aria-label="Portal del usuario">
-          <div class="flex items-center gap-1 rounded-xl bg-white/10 p-1">
+          <div class="flex items-center gap-1 rounded-xl bg-blanco/10 p-1">
             <router-link
               v-for="link in links"
               :key="link.name"
               :to="{ name: link.name }"
               class="rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors"
-              :class="route.name === link.name ? 'bg-white text-indigo-900 shadow-sm' : 'text-indigo-100 hover:bg-white/10 hover:text-white'"
+              :class="route.name === link.name ? 'tema-claro bg-white text-indigo-900 shadow-sm' : 'text-indigo-100 hover:bg-blanco/10 hover:text-white'"
             >
               {{ link.label }}
             </router-link>
@@ -112,10 +113,12 @@ async function onLogout() {
 
         <div class="flex-1 md:hidden"></div>
 
+        <InterruptorTema />
+
         <div ref="menu" class="relative shrink-0">
           <button
             type="button"
-            class="flex items-center gap-2.5 rounded-full sm:border sm:border-white/20 sm:bg-white/10 sm:py-1 sm:pl-1 sm:pr-3 sm:hover:bg-white/15 transition-colors"
+            class="flex items-center gap-2.5 rounded-full sm:border sm:border-white/20 sm:bg-blanco/10 sm:py-1 sm:pl-1 sm:pr-3 sm:hover:bg-blanco/15 transition-colors"
             aria-haspopup="menu"
             :aria-expanded="menuAbierto"
             @click="menuAbierto = !menuAbierto"
@@ -171,7 +174,7 @@ async function onLogout() {
       </div>
       <slot name="cabecera" />
     </header>
-    <main class="flex-1 p-6 pb-28 md:pb-6" style="background: linear-gradient(180deg, #F7F8FC 0%, #ffffff 60%);">
+    <main class="flex-1 p-6 pb-28 md:pb-6 bg-gradient-to-b from-[#F7F8FC] to-[#ffffff] to-60% dark:from-[#12152b] dark:to-[#0e1124]">
       <slot />
     </main>
 
@@ -191,7 +194,7 @@ async function onLogout() {
         >
           <span
             v-if="item.central"
-            class="-mt-7 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-900/30 ring-4 ring-white"
+            class="-mt-7 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-900/30 ring-4 ring-white dark:ring-[#181c30]"
             style="background: linear-gradient(135deg, #3B28A3 0%, #4F46E5 100%);"
           >
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">

@@ -24,7 +24,10 @@
 @layer components {
   /* Parte de la línea de tiempo de salas que ya pasó: gris con rayas diagonales. */
   .franja-pasada {
-    background-color: rgb(241 245 249 / 0.92);
+    background-color: rgb(var(--fondo-slate-100) / 0.92);
     background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.3) 0 3px, transparent 3px 9px);
+  }
+  .dark .franja-pasada {
+    background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.14) 0 3px, transparent 3px 9px);
   }
 }

@@ -205,7 +205,7 @@ const claseInput = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:rin
             <tr v-for="e in etiquetas" :key="e.id" class="align-middle">
               <td class="px-3 py-2">
                 <!-- Miniatura: la clasificación apilada y el código parado a la derecha. -->
-                <div class="flex h-14 w-28 items-stretch rounded border border-dashed border-gray-300 bg-white p-1">
+                <div class="tema-claro flex h-14 w-28 items-stretch rounded border border-dashed border-gray-300 bg-white p-1">
                   <div class="flex w-[45%] flex-col items-center justify-center border-r border-gray-900 pr-1 font-bold leading-tight text-[9px] text-gray-900">
                     <span v-for="(l, i) in lineasDeLomo(e, opciones.conCopia)" :key="i" class="whitespace-nowrap">{{ l }}</span>
                   </div>

@@ -23,7 +23,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 </script>
 
 <template>
-  <div class="flex flex-col min-h-screen bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40">
+  <div class="flex flex-col min-h-screen bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40 dark:from-[#10132b] dark:via-[#0e1124] dark:to-[#151230]">
     <TopBar />
     <main class="flex-1 p-4 sm:p-6">
       <slot />

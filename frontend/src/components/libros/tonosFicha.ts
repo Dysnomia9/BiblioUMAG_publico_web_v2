@@ -16,10 +16,10 @@ export const TONOS_FICHA: Record<TonoFicha, { cabecera: string; numero: string; 
   dorado: {
     cabecera: 'bg-amber-50/80',
     numero: 'bg-[#b08d57] text-white',
-    detalle: 'text-[#8a6a3b]',
-    etiqueta: 'bg-amber-50 text-[#8a6a3b] ring-amber-100',
-    chip: 'bg-amber-50 text-[#6f5226] ring-amber-200',
-    paso: 'bg-amber-100 text-[#8a6a3b]',
+    detalle: 'text-dorado-600',
+    etiqueta: 'bg-amber-50 text-dorado-600 ring-amber-100',
+    chip: 'bg-amber-50 text-dorado-700 ring-amber-200',
+    paso: 'bg-amber-100 text-dorado-600',
   },
   teal: {
     cabecera: 'bg-teal-50/80',
@@ -32,10 +32,10 @@ export const TONOS_FICHA: Record<TonoFicha, { cabecera: string; numero: string; 
   pizarra: {
     cabecera: 'bg-slate-100/80',
     numero: 'bg-[#3F5F8A] text-white',
-    detalle: 'text-[#3F5F8A]',
-    etiqueta: 'bg-slate-100 text-[#3F5F8A] ring-slate-200',
-    chip: 'bg-slate-100 text-[#2f4a6e] ring-slate-200',
-    paso: 'bg-slate-200 text-[#3F5F8A]',
+    detalle: 'text-pizarra-600',
+    etiqueta: 'bg-slate-100 text-pizarra-600 ring-slate-200',
+    chip: 'bg-slate-100 text-pizarra-700 ring-slate-200',
+    paso: 'bg-slate-200 text-pizarra-600',
   },
   violeta: {
     cabecera: 'bg-violet-50/80',

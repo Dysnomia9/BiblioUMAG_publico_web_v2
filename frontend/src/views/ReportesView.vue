@@ -10,6 +10,7 @@ import TablaReporte from '@/components/reportes/TablaReporte.vue'
 import Heatmap from '@/components/reportes/Heatmap.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
+import { useTema } from '@/composables/useTema'
 import { descargarExcel } from '@/utils/excel'
 import { construirCsv, descargarCsv } from '@/utils/csv'
 import { diaIso, textoHorarioSemana } from '@/utils/horario'
@@ -75,13 +76,18 @@ const PERIODOS: { id: Periodo; label: string }[] = [
   { id: 'anio', label: 'Año' },
 ]
 
+const { oscuro } = useTema()
+
 const INDIGO = '#4F46E5'
-const INDIGO_OSCURO = '#3730A3'
-const INDIGO_SUAVE = '#C7D2FE'
 const DORADO = '#B08D57'
-const DORADO_SUAVE = '#EADFC9'
 const VERDE_AZULADO = '#0D9488'
 const PIZARRA = '#3F5F8A'
+// La primera barra del ranking resalta más oscura en modo claro y más clara en oscuro;
+// las columnas suaves (fines de semana, horas que no son pico) quedan apagadas en oscuro.
+const INDIGO_DESTACADO = computed(() => (oscuro.value ? '#818CF8' : '#3730A3'))
+const INDIGO_SUAVE = computed(() => (oscuro.value ? '#34378a' : '#C7D2FE'))
+const DORADO_DESTACADO = computed(() => (oscuro.value ? '#D6B67C' : '#8A6A3B'))
+const DORADO_SUAVE = computed(() => (oscuro.value ? '#5c4f3b' : '#EADFC9'))
 
 const UNIDAD: Record<ReporteTab, { plural: string; titulo: string; quien: string }> = {
   prestamos: { plural: 'préstamos', titulo: 'Préstamos', quien: 'pidió el préstamo' },
@@ -544,7 +550,7 @@ async function confirmarExportar() {
           <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: DORADO }">
             <div class="flex items-start justify-between gap-3">
               <p class="text-xs font-medium text-gray-600">{{ destacado.titulo }}</p>
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-[#8a6a3b]">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-dorado-600">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
                 </svg>
@@ -602,7 +608,7 @@ async function confirmarExportar() {
             <p class="mt-0.5 mb-4 text-xs text-gray-500">Recurso bibliográfico (libros) o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
-              <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="'#8A6A3B'" />
+              <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />
             </div>
           </section>
 
@@ -612,7 +618,7 @@ async function confirmarExportar() {
               <p class="mt-0.5 mb-4 text-xs text-gray-500">
                 Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ unidad.plural }} (todas en la vista Tabla)</template>
               </p>
-              <BarrasRanking :datos="resumen.porCarrera" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_OSCURO" />
+              <BarrasRanking :datos="resumen.porCarrera" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" />
             </section>
 
             <div class="space-y-5 lg:col-span-2">
@@ -658,7 +664,7 @@ async function confirmarExportar() {
           <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Salas más usadas</h3>
             <p class="mt-0.5 mb-4 text-xs text-gray-500">Ordenado de mayor a menor</p>
-            <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="'#8A6A3B'" :limite="10" />
+            <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :limite="10" />
           </section>
           <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Horas más solicitadas por sala</h3>
@@ -668,7 +674,7 @@ async function confirmarExportar() {
           <section v-if="tab === 'libros'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Libros más prestados</h3>
             <p class="mt-0.5 mb-4 text-xs text-gray-500">Ranking por cantidad de préstamos (cada copia cuenta por separado)</p>
-            <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_OSCURO" :limite="10" />
+            <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
           </section>
         </template>
 
