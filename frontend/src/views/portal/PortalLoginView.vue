@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useToast } from '@/composables/useToast'
@@ -49,6 +50,10 @@ const destacados = [
       class="absolute inset-0"
       style="background: linear-gradient(90deg, rgba(28,16,66,0.93) 0%, rgba(59,40,163,0.85) 28%, rgba(67,56,202,0.55) 52%, rgba(224,221,250,0.55) 75%, rgba(248,247,255,0.85) 100%);"
     ></div>
+
+    <div class="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
+      <InterruptorTema en-pagina />
+    </div>
 
     <div class="relative flex-1 flex flex-col">
       <!-- Contenido central -->

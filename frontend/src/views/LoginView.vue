@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginBrandPanel from '@/components/auth/LoginBrandPanel.vue'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 import logoUmag from '@/assets/logo-umag.png'
 import { useToast } from '@/composables/useToast'
 
@@ -26,12 +27,15 @@ function onOlvidoPassword() {
 
 <template>
   <div class="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-slate-50 to-purple-50/60 px-4 py-12">
-    <router-link
-      :to="{ name: 'login-v2' }"
-      class="absolute top-4 right-4 sm:top-6 sm:right-6 text-xs font-medium text-gray-500 hover:text-indigo-600 border border-gray-200 hover:border-indigo-300 rounded-full px-3 py-1.5 bg-white/70 backdrop-blur-sm transition-colors"
-    >
-      Versión 2
-    </router-link>
+    <div class="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
+      <InterruptorTema en-pagina />
+      <router-link
+        :to="{ name: 'login-v2' }"
+        class="text-xs font-medium text-gray-500 hover:text-indigo-600 border border-gray-200 hover:border-indigo-300 rounded-full px-3 py-1.5 bg-white/70 backdrop-blur-sm transition-colors"
+      >
+        Versión 2
+      </router-link>
+    </div>
 
     <div class="w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden grid md:grid-cols-2 bg-white">
       <LoginBrandPanel />

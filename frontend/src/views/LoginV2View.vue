@@ -7,6 +7,7 @@ import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useToast } from '@/composables/useToast'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -140,6 +141,10 @@ const destacados = [
       class="absolute inset-0"
       style="background: linear-gradient(90deg, rgba(28,16,66,0.93) 0%, rgba(59,40,163,0.85) 28%, rgba(67,56,202,0.55) 52%, rgba(224,221,250,0.55) 75%, rgba(248,247,255,0.85) 100%);"
     ></div>
+
+    <div class="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
+      <InterruptorTema en-pagina />
+    </div>
 
     <div class="relative flex-1 flex flex-col">
       <div class="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-6 sm:px-10 py-6">
