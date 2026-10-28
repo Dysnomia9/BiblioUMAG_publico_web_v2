@@ -221,35 +221,38 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                     {{ u.vigente_hasta ? (u.activo ? 'Vigente hasta ' : 'Venció el ') + fechaVigencia(u.vigente_hasta) : u.activo ? 'Sin vencimiento' : '' }}
                   </p>
                 </td>
-                <td class="px-5 py-3 text-sm whitespace-nowrap">
-                  <router-link
-                    v-if="auth.puede('prestamos.gestionar')"
-                    :to="{ name: 'prestamo', query: { rut: u.rut } }"
-                    class="font-medium text-indigo-700 hover:text-indigo-800 mr-3"
-                  >
-                    Ver préstamos
-                  </router-link>
-                  <button
-                    @click="pedirConfirmacionConstancia(u)"
-                    :disabled="generandoConstanciaRut === u.rut"
-                    class="font-medium text-indigo-700 hover:text-indigo-800 disabled:opacity-50"
-                  >
-                    {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia de No Multa' }}
-                  </button>
-                  <button
-                    v-if="!u.activo && auth.puede('usuarios.habilitar')"
-                    @click="pedirCambioEstado(u, true)"
-                    class="ml-3 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
-                  >
-                    Renovar
-                  </button>
-                  <button
-                    v-else-if="u.activo && auth.puede('usuarios.desactivar')"
-                    @click="pedirCambioEstado(u, false)"
-                    class="ml-3 font-medium text-red-600 hover:text-red-700"
-                  >
-                    Desactivar
-                  </button>
+                <!-- Una acción debajo de la otra: en fila, con Renovar, no cabían en el ancho de la tabla. -->
+                <td class="px-5 py-3 text-sm">
+                  <div class="flex flex-col items-start gap-1.5 whitespace-nowrap">
+                    <router-link
+                      v-if="auth.puede('prestamos.gestionar')"
+                      :to="{ name: 'prestamo', query: { rut: u.rut } }"
+                      class="font-medium text-indigo-700 hover:text-indigo-800"
+                    >
+                      Ver préstamos
+                    </router-link>
+                    <button
+                      @click="pedirConfirmacionConstancia(u)"
+                      :disabled="generandoConstanciaRut === u.rut"
+                      class="font-medium text-indigo-700 hover:text-indigo-800 disabled:opacity-50"
+                    >
+                      {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia de No Multa' }}
+                    </button>
+                    <button
+                      v-if="!u.activo && auth.puede('usuarios.habilitar')"
+                      @click="pedirCambioEstado(u, true)"
+                      class="mt-0.5 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Renovar
+                    </button>
+                    <button
+                      v-else-if="u.activo && auth.puede('usuarios.desactivar')"
+                      @click="pedirCambioEstado(u, false)"
+                      class="font-medium text-red-600 hover:text-red-700"
+                    >
+                      Desactivar
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="!hayResultados && !loading">
