@@ -69,6 +69,16 @@ class Usuario extends Authenticatable
         return trim("{$this->nombre} {$this->apellido}").' ('.Documento::describir($this->rut, $this->tipo_documento, $this->pais).')';
     }
 
+    /**
+     * Por qué no se le puede prestar ni reservar material, o null si puede. Una cuenta
+     * inactiva (por ejemplo, porque su registro venció en Horizon) no marca entrada ni
+     * entra al portal; tampoco se lleva nada hasta que la habiliten.
+     */
+    public function mensajeInactivo(): ?string
+    {
+        return $this->activo ? null : 'Este usuario se encuentra inactivo: debe ser habilitado antes de llevarse o reservar material.';
+    }
+
     public function entradas()
     {
         return $this->hasMany(Entrada::class);

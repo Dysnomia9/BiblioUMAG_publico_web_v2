@@ -53,7 +53,7 @@ class PrestamoController extends Controller
         $usuario = Usuario::findOrFail($data['usuario_id']);
         $condiciones = $this->reglas->condiciones($usuario, $ejemplar, Carbon::parse($data['fecha_prestamo'] ?? now()));
 
-        return response()->json([...$condiciones, 'motivo_rechazo' => $this->reglas->motivoRechazo($usuario, $ejemplar)]);
+        return response()->json([...$condiciones, 'motivo_rechazo' => $usuario->mensajeInactivo() ?? $this->reglas->motivoRechazo($usuario, $ejemplar)]);
     }
 
     /**
@@ -151,6 +151,10 @@ class PrestamoController extends Controller
 
         $staff = $request->user();
         $esLibro = $data['tipo_item'] === 'libro';
+
+        if ($inactivo = Usuario::findOrFail($data['usuario_id'])->mensajeInactivo()) {
+            return response()->json(['message' => $inactivo], 409);
+        }
 
         if ($bloqueo = $this->multaService->mensajeBloqueo($data['usuario_id'])) {
             return response()->json(['message' => $bloqueo], 409);

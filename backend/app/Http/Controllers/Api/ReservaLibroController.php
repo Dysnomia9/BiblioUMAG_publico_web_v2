@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReservaLibro;
+use App\Models\Usuario;
 use App\Rules\DiaConAtencion;
 use App\Services\MultaService;
 use App\Services\ReservaLibroService;
@@ -43,6 +44,10 @@ class ReservaLibroController extends Controller
             'fecha_reserva' => ['nullable', 'date'],
             'fecha_retiro' => ['nullable', 'date', 'after_or_equal:fecha_reserva', new DiaConAtencion('para el retiro')],
         ]);
+
+        if ($inactivo = Usuario::findOrFail($data['usuario_id'])->mensajeInactivo()) {
+            return response()->json(['message' => $inactivo], 409);
+        }
 
         if ($bloqueo = $this->multaService->mensajeBloqueo($data['usuario_id'])) {
             return response()->json(['message' => $bloqueo], 409);
