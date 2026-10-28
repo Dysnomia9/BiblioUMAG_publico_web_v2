@@ -650,6 +650,13 @@ function seleccionarLibroParaCopia(libro: Libro) {
   busquedaCopia.value = libro.titulo
 }
 
+/** Desde «Títulos catalogados»: salta al formulario de copia con ese título ya elegido. */
+function agregarCopiaDe(libro: Libro) {
+  modo.value = 'copia'
+  seleccionarLibroParaCopia(libro)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function cambiarObra() {
   libroParaCopia.value = null
   busquedaCopia.value = ''
@@ -1300,7 +1307,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </div>
                 </td>
                 <td class="px-5 py-3">
-                  <button type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="libroAEditar = l">Editar</button>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <button type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="libroAEditar = l">Editar</button>
+                    <button type="button" class="text-sm font-medium text-emerald-700 hover:text-emerald-800" @click="agregarCopiaDe(l)">Agregar copia</button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="!cargando && !libros.length">
