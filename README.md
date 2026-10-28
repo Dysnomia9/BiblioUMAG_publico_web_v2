@@ -451,6 +451,10 @@ en CI contra la rama `main` de este repositorio.
 - **Identificadores estilo Horizon**: las copias ya están separadas de la obra
   (`Ejemplar` / `Libro`), pero no se usan «Bib No.» / «Item No.» como
   identificadores formales; hoy es `libro_id` + `numero_copia`.
+- **Tabla institucional de multas**: las multas de Horizon ya llegan con el ETL
+  (`origen = importada`, con su `referencia_externa`); si la biblioteca entrega
+  además su propia tabla de multas, se importa en `MultaService` con esas mismas
+  columnas.
 - **Credenciales de Postgres en `docker-compose.yml`**: aceptable en desarrollo;
   en producción usar `docker-compose.prod.yml` y `.env.production.example`.
 - **`PortalController` concentra varias responsabilidades**: si crece, conviene
