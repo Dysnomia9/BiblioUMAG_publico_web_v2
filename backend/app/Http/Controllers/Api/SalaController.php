@@ -417,7 +417,7 @@ class SalaController extends Controller
         // volvió antes, si libera el resto del bloque (liberarRestoDelBloque()).
         return response()->json($reserva
             ->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva))
-            ->setAttribute('tiempo_sin_usar', $this->reservaSalaService->tiempoSinUsar($reserva)));
+            ->setAttribute('tiempo_sin_usar', ReservaSalaService::tiempoSinUsar($reserva)));
     }
 
     /**
@@ -426,7 +426,7 @@ class SalaController extends Controller
      */
     public function liberarRestoDelBloque(Reserva $reserva)
     {
-        $sinUsar = $this->reservaSalaService->tiempoSinUsar($reserva);
+        $sinUsar = ReservaSalaService::tiempoSinUsar($reserva);
         $descripcion = $reserva->descripcion();
 
         try {
@@ -537,7 +537,7 @@ class SalaController extends Controller
         if ($reserva->hora_devolucion_real) {
             Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()} (código de barras)", entidad: $reserva, afectado: $reserva->usuario);
             $reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva))
-                ->setAttribute('tiempo_sin_usar', $this->reservaSalaService->tiempoSinUsar($reserva));
+                ->setAttribute('tiempo_sin_usar', ReservaSalaService::tiempoSinUsar($reserva));
         } else {
             $reserva = $this->conAsistencia($reserva, $request, $entradas, 'Entregó con código de barras');
         }

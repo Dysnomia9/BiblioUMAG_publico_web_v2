@@ -4,6 +4,7 @@ import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { SITUACIONES, duracion, fechaLargaReserva, horaDe, reservaEditable } from '@/utils/reservas'
 import type { AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado, TiempoSinUsar } from '@/types'
@@ -51,6 +52,15 @@ watch(
 )
 
 const editable = computed(() => props.puedeEditar && !!actual.value && reservaEditable(actual.value))
+// Liberar el resto de un bloque devuelto antes lo puede el mesón de salas o quien edita reservas.
+const auth = useAuthStore()
+const puedeLiberar = computed(() => !!actual.value?.tiempo_sin_usar && (props.puedeEditar || auth.puede('salas.gestionar')))
+
+function liberarResto() {
+  if (!actual.value?.tiempo_sin_usar) return
+  emit('sinUsar', actual.value.tiempo_sin_usar)
+  emit('cerrar')
+}
 // Con el grupo ya en la sala se cambia la sala o el horario, pero no el día.
 const conLlegada = computed(() => !!actual.value?.hora_prestamo_real)
 const hayCambios = computed(() => {
@@ -276,6 +286,14 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
     <template #pie>
       <button type="button" :disabled="ocupado" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm sm:mr-auto" @click="cerrar">
         Cerrar
+      </button>
+      <button
+        v-if="puedeLiberar && actual?.tiempo_sin_usar"
+        type="button"
+        class="px-4 py-2.5 border border-emerald-300 rounded-lg text-emerald-700 hover:bg-emerald-50 transition-colors font-medium text-sm"
+        @click="liberarResto"
+      >
+        Liberar el resto del bloque · {{ duracion(actual.tiempo_sin_usar.minutos) }} sin usar
       </button>
       <template v-if="editable && actual">
         <button

@@ -103,11 +103,12 @@ class ReservaSalaService
      * El grupo devolvió la llave antes de que terminara su horario: lo que queda del bloque,
      * para que el mesón decida si lo libera (liberarResto()). Null si quedan menos de
      * config('salas.minimo_para_liberar') minutos, si ya se liberó o si la reserva no está
-     * devuelta hoy.
+     * devuelta hoy. Va también en cada reserva del día y del listado, para que el detalle
+     * ofrezca liberarlo después (si el aviso se cerró o la devolución se hizo sin él).
      *
      * @return array{reserva_id: int, sala: string, devuelta: string, hora_fin: string, minutos: int}|null
      */
-    public function tiempoSinUsar(Reserva $reserva): ?array
+    public static function tiempoSinUsar(Reserva $reserva): ?array
     {
         if ($reserva->estado !== 'finalizada' || ! $reserva->hora_devolucion_real || $reserva->hora_fin_reservada || ! $reserva->fecha->isToday()) {
             return null;
@@ -138,7 +139,7 @@ class ReservaSalaService
      */
     public function liberarResto(Reserva $reserva): Reserva
     {
-        if (! $this->tiempoSinUsar($reserva)) {
+        if (! self::tiempoSinUsar($reserva)) {
             throw new \RuntimeException('Esta reserva no tiene tiempo sin usar que liberar: la llave no se ha devuelto, su horario ya terminó o ya se liberó.');
         }
 
@@ -561,6 +562,7 @@ class ReservaSalaService
                 'hora_devolucion_real' => $r->hora_devolucion_real,
                 'plazo_confirmacion' => $r->plazoConfirmacion(),
                 'vencida_sin_confirmar' => $r->estaVencidaSinConfirmar(),
+                'tiempo_sin_usar' => self::tiempoSinUsar($r),
                 'personas' => self::personas($r),
             ])->sortBy('hora_inicio')->values()
         );
@@ -625,6 +627,7 @@ class ReservaSalaService
             'hora_devolucion_real' => $reserva->hora_devolucion_real,
             'via' => $reserva->via,
             'plazo_confirmacion' => $reserva->plazoConfirmacion(),
+            'tiempo_sin_usar' => self::tiempoSinUsar($reserva),
             'created_at' => $reserva->created_at,
         ];
     }

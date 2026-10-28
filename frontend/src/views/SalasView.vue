@@ -12,6 +12,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
+import { duracion } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
@@ -1019,7 +1020,7 @@ const proximaConfirmacion = computed(() => {
         @click.self="detalleOpen = false"
       >
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">{{ detalleSala.nombre }} — Ocupada</h3>
+          <h3 class="text-lg font-bold text-gray-900 mb-1">{{ detalleSala.nombre }} — {{ detalleTramo.hora_devolucion_real ? 'Llave devuelta' : 'Ocupada' }}</h3>
           <p class="text-sm text-gray-500 mb-5">
             {{ labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }} · {{ detalleTramo.cantidad_personas }} persona(s) · {{ formatFechaLarga(selectedDate) }}
           </p>
@@ -1069,11 +1070,22 @@ const proximaConfirmacion = computed(() => {
             </div>
           </div>
 
-          <div v-if="detalleTramo.hora_devolucion_real" class="mb-6 flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            Devolución de llave confirmada<template v-if="detalleTramo.hora_fin_reservada"> · se liberó el resto del bloque (era hasta las {{ detalleTramo.hora_fin_reservada }})</template>
+          <div v-if="detalleTramo.hora_devolucion_real" class="mb-6 space-y-2">
+            <div class="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Devolución de llave confirmada<template v-if="detalleTramo.hora_fin_reservada"> · se liberó el resto del bloque (era hasta las {{ detalleTramo.hora_fin_reservada }})</template>
+            </div>
+            <!-- Devolvieron antes y el bloque sigue reservado: el aviso de la devolución se cerró o no salió. -->
+            <button
+              v-if="detalleTramo.tiempo_sin_usar"
+              type="button"
+              class="w-full rounded-lg border border-emerald-300 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+              @click="tiempoSinUsar = detalleTramo.tiempo_sin_usar"
+            >
+              Liberar el resto del bloque · {{ duracion(detalleTramo.tiempo_sin_usar.minutos) }} sin usar
+            </button>
           </div>
           <div
             v-else-if="!detalleTramo.hora_prestamo_real"
@@ -1301,6 +1313,6 @@ const proximaConfirmacion = computed(() => {
     </div>
 
     <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
-    <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="cargar" />
+    <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="detalleOpen = false; cargar()" />
   </StaffLayout>
 </template>

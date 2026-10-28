@@ -473,6 +473,8 @@ export type TramoReserva = {
   hora_devolucion_real: string | null
   plazo_confirmacion: string
   vencida_sin_confirmar: boolean
+  /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
+  tiempo_sin_usar?: TiempoSinUsar | null
   /** Solo en el portal: la hizo la persona o la incluyeron como integrante. */
   es_mia?: boolean
 }
@@ -810,6 +812,8 @@ export type ReservaListado = {
   /** Cómo se entregó la llave: 'BC' (código de barras) o 'manual'. */
   via: string | null
   plazo_confirmacion: string
+  /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
+  tiempo_sin_usar: TiempoSinUsar | null
   created_at: string
 }
 

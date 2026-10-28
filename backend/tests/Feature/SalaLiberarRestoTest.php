@@ -98,6 +98,34 @@ class SalaLiberarRestoTest extends TestCase
         );
     }
 
+    public function test_el_detalle_del_dia_y_el_listado_ofrecen_liberar_despues(): void
+    {
+        $reserva = $this->reservaEnUso();
+        Carbon::setTestNow('2026-08-14 10:20:00');
+        $this->patchJson("/api/reservas/{$reserva->id}/devolver")->assertOk();
+
+        // Más tarde, con el aviso ya cerrado, el detalle todavía lo ofrece.
+        Carbon::setTestNow('2026-08-14 10:50:00');
+        $logia = $this->logiaDelDia($reserva);
+        $this->assertFalse($logia['libre_ahora']);
+        $this->assertSame(70, $logia['tramos'][0]['tiempo_sin_usar']['minutos']);
+        $this->assertSame('10:20', $logia['tramos'][0]['tiempo_sin_usar']['devuelta']);
+        $this->getJson('/api/reservas?vista=todas')->assertOk()->assertJsonPath('data.0.tiempo_sin_usar.minutos', 70);
+
+        $this->patchJson("/api/reservas/{$reserva->id}/liberar-resto")->assertOk();
+
+        $logia = $this->logiaDelDia($reserva);
+        $this->assertTrue($logia['libre_ahora']);
+        $this->assertNull($logia['tramos'][0]['tiempo_sin_usar']);
+        $this->assertSame('10:20', $logia['tramos'][0]['hora_fin']);
+    }
+
+    /** La sala de la reserva en la vista del día de Salas. */
+    private function logiaDelDia(Reserva $reserva): array
+    {
+        return collect($this->getJson('/api/salas?fecha=2026-08-14')->assertOk()->json('salas'))->firstWhere('id', $reserva->sala_id);
+    }
+
     public function test_el_escaneo_de_la_llave_tambien_ofrece_liberar(): void
     {
         $this->reservaEnUso();
