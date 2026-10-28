@@ -5,7 +5,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
-import { devolucionDe, estaVencido, estadoDe, fechaCorta } from '@/utils/prestamos'
+import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import { itemPrestamo, useCategoriasRecurso } from '@/utils/recursos'
 import type { ListadoPrestamos, Prestamo, VistaPrestamos } from '@/types'
 
@@ -19,7 +19,8 @@ const apiError = ref(false)
 
 const busqueda = ref('')
 const tipo = ref<'todos' | 'libros' | 'recursos'>('todos')
-const vista = ref<VistaPrestamos>('activos')
+// Abre en Todos: el préstamo que se busca puede estar en cualquier estado.
+const vista = ref<VistaPrestamos>('todos')
 const pagina = ref(1)
 
 async function cargar() {
@@ -73,10 +74,10 @@ function irAPagina(nueva: number) {
 }
 
 const VISTAS = [
-  { id: 'activos' as const, texto: 'Activos' },
-  { id: 'vencidos' as const, texto: 'Vencidos' },
-  { id: 'devueltos' as const, texto: 'Devueltos' },
   { id: 'todos' as const, texto: 'Todos' },
+  { id: 'activos' as const, texto: 'Activos' },
+  { id: 'devueltos' as const, texto: 'Devueltos' },
+  { id: 'vencidos' as const, texto: 'Vencidos' },
 ]
 
 function iniciales(p: Prestamo) {
@@ -168,9 +169,11 @@ function multa(p: Prestamo) {
           <li
             v-for="p in prestamos"
             :key="p.id"
-            class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_7rem_minmax(0,1fr)_7rem] lg:items-center lg:gap-4 lg:px-5"
-            :class="estaVencido(p) ? 'bg-red-50/40' : ''"
+            class="relative grid grid-cols-2 gap-x-3 gap-y-2.5 px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_7rem_minmax(0,1fr)_7rem] lg:items-center lg:gap-4 lg:px-5"
+            :class="estadoDe(p).fila"
           >
+            <!-- El color del estado: verde activo, ámbar vence hoy, rojo vencido, celeste devuelto. -->
+            <span class="absolute inset-y-0 left-0 w-1" :class="estadoDe(p).barra" aria-hidden="true"></span>
             <div class="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{{ iniciales(p) }}</span>
               <span class="min-w-0">

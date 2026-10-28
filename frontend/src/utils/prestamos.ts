@@ -35,12 +35,16 @@ export function devolucionDe(p: Prestamo) {
   return { linea1: fechaCorta(p.fecha_devolucion), linea2: `En ${dias} ${dias === 1 ? 'día' : 'días'}`, clase: 'text-emerald-700' }
 }
 
-/** La etiqueta de estado de un préstamo. */
+/**
+ * La etiqueta de estado de un préstamo y su color en las tablas: `barra` es la franja de la
+ * izquierda de la fila y `fila` el tinte de fondo. Los activos van en verde (los que vencen hoy,
+ * en ámbar), los vencidos en rojo y los devueltos en celeste, con un ✓.
+ */
 export function estadoDe(p: Prestamo) {
-  if (p.estado === 'devuelto') return { texto: 'Devuelto', clase: 'bg-gray-100 text-gray-700' }
-  if (estaVencido(p)) return { texto: 'Vencido', clase: 'bg-red-50 text-red-700' }
-  if (p.en_sala) return { texto: 'En sala', clase: 'bg-indigo-50 text-indigo-700' }
-  if (!p.fecha_devolucion) return { texto: 'En uso', clase: 'bg-indigo-50 text-indigo-700' }
-  if (diasParaDevolver(p.fecha_devolucion) === 0) return { texto: 'Vence hoy', clase: 'bg-amber-50 text-amber-700' }
-  return { texto: 'Vigente', clase: 'bg-emerald-50 text-emerald-700' }
+  if (p.estado === 'devuelto') return { texto: '✓ Devuelto', clase: 'bg-sky-100 text-sky-800', barra: 'bg-sky-400', fila: '' }
+  if (estaVencido(p)) return { texto: 'Vencido', clase: 'bg-red-100 text-red-800', barra: 'bg-red-500', fila: 'bg-red-50/50' }
+  if (p.en_sala) return { texto: 'En sala', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
+  if (!p.fecha_devolucion) return { texto: 'En uso', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
+  if (diasParaDevolver(p.fecha_devolucion) === 0) return { texto: 'Vence hoy', clase: 'bg-amber-100 text-amber-800', barra: 'bg-amber-500', fila: 'bg-amber-50/40' }
+  return { texto: 'Activo', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
 }
