@@ -195,6 +195,9 @@ const nombreExterno = ref('')
 // Extranjeros: pasaporte o el documento de su país (DNI argentino, cédula…).
 const documentoExterno = ref<TipoDocumento>('rut')
 const paisExterno = ref('')
+// Sin documento (a veces son muchas personas y no todas lo quieren dar): se registra a todas de una vez.
+const cantidadExterno = ref(1)
+const sinDocumento = computed(() => !rutExterno.value.trim())
 const registrandoExterno = ref(false)
 
 function abrirModalExterno() {
@@ -202,6 +205,7 @@ function abrirModalExterno() {
   nombreExterno.value = ''
   documentoExterno.value = 'rut'
   paisExterno.value = ''
+  cantidadExterno.value = 1
   tipoExterno.value = 'externo'
   externoModalOpen.value = true
 }
@@ -212,7 +216,7 @@ function elegirDocumentoExterno(tipo: TipoDocumento) {
 }
 
 async function registrarExterno() {
-  const error = errorDocumento(rutExterno.value, documentoExterno.value)
+  const error = sinDocumento.value ? '' : errorDocumento(rutExterno.value, documentoExterno.value)
   if (error) {
     toast.error(error)
     return
@@ -220,13 +224,16 @@ async function registrarExterno() {
 
   registrandoExterno.value = true
   try {
+    const cantidad = sinDocumento.value ? Math.min(200, Math.max(1, Math.floor(Number(cantidadExterno.value)) || 1)) : 1
     await api.post(tipoExterno.value === 'visita' ? '/entrada/visita' : '/entrada/externo', {
-      rut: rutExterno.value,
-      tipo_documento: documentoExterno.value,
-      pais: documentoExterno.value === 'rut' ? undefined : paisExterno.value.trim() || undefined,
+      rut: sinDocumento.value ? undefined : rutExterno.value,
+      tipo_documento: sinDocumento.value ? undefined : documentoExterno.value,
+      pais: sinDocumento.value || documentoExterno.value === 'rut' ? undefined : paisExterno.value.trim() || undefined,
       nombre: nombreExterno.value.trim() || undefined,
+      cantidad: sinDocumento.value ? cantidad : undefined,
     })
-    toast.success(tipoExterno.value === 'visita' ? 'Entrada de visita registrada' : 'Entrada de externo registrada')
+    const quien = tipoExterno.value === 'visita' ? 'visita' : 'externo'
+    toast.success(cantidad > 1 ? `Entradas registradas: ${cantidad} personas (${quien}, sin documento)` : `Entrada de ${quien} registrada${sinDocumento.value ? ' (sin documento)' : ''}`)
     externoModalOpen.value = false
     await cargar()
   } catch (e) {
@@ -289,7 +296,7 @@ const nombre = (e: Entrada) => (e.usuario ? `${e.usuario.nombre} ${e.usuario.ape
 const rutDe = (e: Entrada) => e.usuario?.rut ?? e.rut_externo ?? '—'
 /** El RUT, o «Pasaporte FT482913 · Brasil» si es un documento extranjero. */
 const documentoDe = (e: Entrada) =>
-  e.usuario ? describirDocumento(e.usuario.rut, e.usuario.tipo_documento, e.usuario.pais) : describirDocumento(e.rut_externo, e.tipo_documento_externo, e.pais_externo)
+  e.usuario ? describirDocumento(e.usuario.rut, e.usuario.tipo_documento, e.usuario.pais) : e.rut_externo ? describirDocumento(e.rut_externo, e.tipo_documento_externo, e.pais_externo) : 'Sin documento'
 const hora = (e: Entrada) => new Date(e.fecha_hora_entrada).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })
 const fechaCorta = (e: Entrada) => new Date(e.fecha_hora_entrada).toLocaleDateString('es-CL')
 
@@ -299,7 +306,7 @@ function iniciales(e: Entrada) {
 }
 
 /** Clave de una persona: su cuenta o, si viene de afuera, el RUT que declaró. */
-const persona = (e: Entrada) => (e.usuario_id ? `u${e.usuario_id}` : `x${e.rut_externo}`)
+const persona = (e: Entrada) => (e.usuario_id ? `u${e.usuario_id}` : e.rut_externo ? `x${e.rut_externo}` : `a${e.id}`)
 
 // Una entrada a pocos minutos de la anterior de la misma persona suele ser un escaneo repetido.
 const MINUTOS_REPETIDA = 10
@@ -805,7 +812,7 @@ function verSusPrestamos(e: Entrada) {
           </div>
         </div>
         <div>
-          <p class="mb-1 block text-sm font-medium text-gray-700">Documento</p>
+          <p class="mb-1 block text-sm font-medium text-gray-700">Documento <span class="font-normal text-gray-500">(opcional)</span></p>
           <div class="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de documento">
             <button
               v-for="tipo in (['rut', 'pasaporte', 'dni'] as const)"
@@ -824,7 +831,7 @@ function verSusPrestamos(e: Entrada) {
         <div :class="documentoExterno === 'rut' ? '' : 'grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]'">
           <div>
             <label for="rut-externo" class="mb-1 block text-sm font-medium text-gray-700">
-              {{ documentoExterno === 'rut' ? 'RUT' : documentoExterno === 'pasaporte' ? 'N.º de pasaporte' : 'N.º de documento' }}
+              {{ documentoExterno === 'rut' ? 'RUT' : documentoExterno === 'pasaporte' ? 'N.º de pasaporte' : 'N.º de documento' }} (opcional)
             </label>
             <input
               id="rut-externo"
@@ -860,6 +867,22 @@ function verSusPrestamos(e: Entrada) {
             class="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
             @keydown.enter="registrarExterno"
           />
+        </div>
+        <div v-if="sinDocumento" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <p class="text-xs text-amber-800">Sin documento queda anotada como «Sin documento»: cuenta como una persona más en el día, pero no se puede reconocer si vuelve a entrar.</p>
+          <div class="mt-2 flex items-center gap-2">
+            <label for="cantidad-externo" class="text-sm font-medium text-gray-700">Cantidad de personas</label>
+            <input
+              id="cantidad-externo"
+              v-model.number="cantidadExterno"
+              type="number"
+              min="1"
+              max="200"
+              inputmode="numeric"
+              class="w-24 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-center outline-none focus:ring-2 focus:ring-indigo-500"
+              @keydown.enter="registrarExterno"
+            />
+          </div>
         </div>
       </div>
       <template #pie>

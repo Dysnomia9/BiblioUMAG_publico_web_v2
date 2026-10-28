@@ -96,6 +96,32 @@ class EntradaService
     }
 
     /**
+     * Entradas de personas que no quisieron dar documento: una fila por persona, sin revisar
+     * repetidas (no hay con qué compararlas).
+     *
+     * @param  array<string, mixed>  $atributos
+     * @return list<Entrada>
+     */
+    public function registrarSinDocumento(int $cantidad, array $atributos): array
+    {
+        return DB::transaction(function () use ($cantidad, $atributos) {
+            $ahora = now();
+            $creadas = [];
+
+            for ($i = 0; $i < $cantidad; $i++) {
+                $creadas[] = Entrada::create([
+                    ...$atributos,
+                    'rut_externo' => null,
+                    'fecha_hora_entrada' => $ahora,
+                    'fecha_hora_salida' => $ahora,
+                ]);
+            }
+
+            return $creadas;
+        });
+    }
+
+    /**
      * Al confirmar la llegada a una sala reservada, cada integrante queda presente en
      * la biblioteca: a quien no había marcado entrada hoy se le registra; a quien ya
      * la tenía, no se le crea otra.

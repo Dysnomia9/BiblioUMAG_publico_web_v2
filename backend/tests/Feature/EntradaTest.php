@@ -39,6 +39,19 @@ class EntradaTest extends TestCase
         $this->assertDatabaseHas('entradas', ['rut_externo' => $rutExterno]);
     }
 
+    public function test_una_visita_se_registra_sin_documento_y_cada_persona_cuenta(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $this->postJson('/api/entrada/visita', ['nombre' => 'Colegio San José', 'cantidad' => 3])
+            ->assertCreated()->assertJsonPath('es_visita', true);
+        $this->postJson('/api/entrada/externo', [])->assertCreated();
+
+        $this->assertSame(4, Entrada::whereNull('rut_externo')->whereNull('usuario_id')->count());
+        $this->assertSame(3, Entrada::where('nombre_externo', 'Colegio San José')->where('es_visita', true)->count());
+        $this->getJson('/api/entrada')->assertOk()->assertJsonPath('hoy.personas', 4);
+    }
+
     public function test_post_entrada_visita_devuelve_201_y_marca_es_visita(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

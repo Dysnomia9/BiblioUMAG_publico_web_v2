@@ -104,7 +104,7 @@ class EntradaController extends Controller
 
         return [
             'hoy' => [
-                'personas' => (int) $hoy()->selectRaw("count(distinct coalesce(usuario_id::text, 'externo:' || rut_externo)) as total")->value('total'),
+                'personas' => (int) $hoy()->selectRaw("count(distinct coalesce(usuario_id::text, 'externo:' || rut_externo, 'anonimo:' || id::text)) as total")->value('total'),
                 'entradas' => $hoy()->count(),
                 'qr' => $hoy()->where('via', 'qr')->count(),
                 'portal' => $hoy()->where('via', 'portal')->count(),
@@ -207,12 +207,18 @@ class EntradaController extends Controller
     private function registrarExterno(Request $request, EntradaService $entradas, array $marca, string $deQuien)
     {
         $data = $request->validate([
-            'rut' => ['required', 'string', 'max:30'],
+            // Sin documento la visita se registra igual (a veces son muchas personas y no todas quieren darlo).
+            'rut' => ['nullable', 'string', 'max:30'],
+            'cantidad' => ['nullable', 'integer', 'min:1', 'max:200'],
             'nombre' => ['nullable', 'string', 'max:255'],
             // Extranjeros: pasaporte o el documento de su país. Sin tipo, se deduce del valor.
             'tipo_documento' => ['nullable', Rule::in(array_keys(Documento::TIPOS))],
             'pais' => ['nullable', 'string', 'max:100'],
         ]);
+
+        if (blank($data['rut'] ?? null)) {
+            return $this->registrarSinDocumento($request, $entradas, $marca, $deQuien, $data);
+        }
 
         $tipo = $data['tipo_documento'] ?? Documento::detectarTipo($data['rut']);
         if ($error = Documento::validar($data['rut'], $tipo)) {
@@ -250,5 +256,31 @@ class EntradaController extends Controller
         );
 
         return response()->json($entrada, 201);
+    }
+
+    /**
+     * Visitas sin documento: cada persona queda como una entrada anónima (sin dedupe, porque
+     * no hay con qué compararla). `cantidad` registra de una vez a todo un grupo.
+     */
+    private function registrarSinDocumento(Request $request, EntradaService $entradas, array $marca, string $deQuien, array $data)
+    {
+        $cantidad = (int) ($data['cantidad'] ?? 1);
+
+        $creadas = $entradas->registrarSinDocumento($cantidad, [
+            ...$marca,
+            'nombre_externo' => $data['nombre'] ?? null,
+            'registrado_por_staff_id' => $request->user()->id,
+            'via' => 'manual',
+            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
+        ]);
+
+        Bitacora::registrar(
+            'entradas.registrar_externo',
+            "Registró la entrada {$deQuien} sin documento".($cantidad > 1 ? " ({$cantidad} personas)" : ''),
+            entidad: $creadas[0],
+            afectado: trim(($data['nombre'] ?? '').' (sin documento)'),
+        );
+
+        return response()->json($creadas[0]->setAttribute('cantidad', $cantidad), 201);
     }
 }
