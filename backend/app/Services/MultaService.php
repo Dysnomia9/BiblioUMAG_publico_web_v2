@@ -191,12 +191,40 @@ class MultaService
     }
 
     /**
-     * Las multas pendientes bloquean préstamos (libros y equipos) y reservas de
-     * libros hasta que se paguen o se anulen. Devuelve el motivo del rechazo, o
-     * null si la persona no tiene deuda. $paraElUsuario redacta el mensaje para el
-     * propio usuario (portal) en vez de para quien atiende en el mesón.
+     * Las multas pendientes y los libros vencidos sin devolver bloquean préstamos (libros
+     * y equipos) y reservas de libros: las multas hasta que se paguen o se anulen, el
+     * atraso hasta que se devuelva el libro (desde el primer día pasado el vencimiento).
+     * Devuelve el motivo del rechazo, o null si la persona puede llevarse material.
+     * $paraElUsuario redacta el mensaje para el propio usuario (portal) en vez de para
+     * quien atiende en el mesón.
      */
     public function mensajeBloqueo(Usuario|int $usuario, bool $paraElUsuario = false): ?string
+    {
+        return $this->mensajeMultasPendientes($usuario, $paraElUsuario) ?? $this->mensajeLibrosVencidos($usuario, $paraElUsuario);
+    }
+
+    /** Cuántos libros vencidos sin devolver tiene la persona y, si hay, por qué no puede llevarse más. */
+    private function mensajeLibrosVencidos(Usuario|int $usuario, bool $paraElUsuario): ?string
+    {
+        $usuarioId = $usuario instanceof Usuario ? $usuario->id : $usuario;
+        $vencidos = Prestamo::vencidos()->where('usuario_id', $usuarioId)->count();
+
+        if ($vencidos === 0) {
+            return null;
+        }
+
+        if ($paraElUsuario) {
+            return $vencidos === 1
+                ? 'Tienes un libro vencido: devuélvelo en la biblioteca antes de reservar libros.'
+                : "Tienes {$vencidos} libros vencidos: devuélvelos en la biblioteca antes de reservar libros.";
+        }
+
+        return $vencidos === 1
+            ? 'Este usuario tiene 1 libro vencido sin devolver: debe devolverlo antes de llevarse o reservar material.'
+            : "Este usuario tiene {$vencidos} libros vencidos sin devolver: debe devolverlos antes de llevarse o reservar material.";
+    }
+
+    private function mensajeMultasPendientes(Usuario|int $usuario, bool $paraElUsuario): ?string
     {
         ['cantidad' => $cantidad, 'monto_total' => $monto] = $this->resumenPendiente($usuario);
 

@@ -53,7 +53,7 @@ class PrestamoController extends Controller
         $usuario = Usuario::findOrFail($data['usuario_id']);
         $condiciones = $this->reglas->condiciones($usuario, $ejemplar, Carbon::parse($data['fecha_prestamo'] ?? now()));
 
-        return response()->json([...$condiciones, 'motivo_rechazo' => $usuario->mensajeInactivo() ?? $this->reglas->motivoRechazo($usuario, $ejemplar)]);
+        return response()->json([...$condiciones, 'motivo_rechazo' => $usuario->mensajeInactivo() ?? $this->multaService->mensajeBloqueo($usuario) ?? $this->reglas->motivoRechazo($usuario, $ejemplar)]);
     }
 
     /**

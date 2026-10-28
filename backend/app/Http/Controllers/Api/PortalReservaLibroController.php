@@ -42,7 +42,7 @@ class PortalReservaLibroController extends Controller
      * para retirar el libro si lo reserva ahora, y cuántas reservas activas (por
      * retirar o en espera) puede tener a la vez — así el aviso coincide con lo que
      * store() va a aplicar. "bloqueo"
-     * trae el motivo si tiene multas pendientes, para apagar el botón de reservar.
+     * trae el motivo si tiene multas pendientes o libros vencidos, para apagar el botón de reservar.
      */
     public function condiciones(Request $request)
     {
