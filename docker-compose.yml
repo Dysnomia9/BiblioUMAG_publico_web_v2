@@ -25,7 +25,7 @@ services:
       # seguridad, en vez de reusar una copia vieja guardada en el computador.
       pull: true
     # Con nombre propio: el servicio "scheduler" usa esta misma imagen.
-    image: bibliomag-backend
+    image: biblioumag-backend
     restart: unless-stopped
     depends_on:
       db:
@@ -62,7 +62,7 @@ services:
   # de sesiones vencidas: la misma imagen y el mismo entorno del backend, con
   # `schedule:work` en vez del servidor. No publica puertos.
   scheduler:
-    image: bibliomag-backend
+    image: biblioumag-backend
     # La imagen la construye "backend": no hay nada que descargar de Docker Hub.
     pull_policy: never
     restart: unless-stopped
