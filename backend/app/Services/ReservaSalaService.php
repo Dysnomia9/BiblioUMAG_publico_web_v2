@@ -143,12 +143,24 @@ class ReservaSalaService
             throw new \RuntimeException('Esta reserva no tiene tiempo sin usar que liberar: la llave no se ha devuelto, su horario ya terminó o ya se liberó.');
         }
 
-        // Al minuto (con los segundos, «Reservar ahora» en ese mismo minuto chocaría con ella) y
-        // nunca antes de su inicio, para que no quede una reserva de duración cero.
+        // Al minuto: con los segundos, «Reservar ahora» en ese mismo minuto chocaría con ella.
         $inicio = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_inicio);
-        $fin = $reserva->hora_devolucion_real->copy()->startOfMinute()->max($inicio->addMinute());
+        $devuelta = $reserva->hora_devolucion_real->copy()->startOfMinute();
+        $cambios = ['hora_fin_reservada' => $reserva->hora_fin];
 
-        $reserva->update(['hora_fin_reservada' => $reserva->hora_fin, 'hora_fin' => $fin->format('H:i:s')]);
+        if ($devuelta->lessThan($inicio)) {
+            // Le entregaron la llave antes de su horario y volvió antes de que empezara: el bloque
+            // entero queda libre y la reserva cubre solo el rato en que tuvieron la llave. Si
+            // terminara al minuto siguiente de su inicio, ese minuto seguiría tapando el bloque.
+            $desde = ($reserva->hora_prestamo_real ?? $reserva->hora_devolucion_real)->copy()->startOfMinute();
+            $cambios['hora_inicio'] = $desde->format('H:i:s');
+            $cambios['hora_fin'] = $devuelta->max($desde->copy()->addMinute())->format('H:i:s');
+        } else {
+            // Nunca antes de su inicio, para que no quede una reserva de duración cero.
+            $cambios['hora_fin'] = $devuelta->max($inicio->addMinute())->format('H:i:s');
+        }
+
+        $reserva->update($cambios);
 
         return $reserva->fresh();
     }

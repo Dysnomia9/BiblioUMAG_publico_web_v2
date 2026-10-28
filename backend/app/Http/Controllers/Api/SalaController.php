@@ -428,6 +428,8 @@ class SalaController extends Controller
     {
         $sinUsar = ReservaSalaService::tiempoSinUsar($reserva);
         $descripcion = $reserva->descripcion();
+        $horario = fn (Reserva $r) => substr($r->hora_inicio, 0, 5).'–'.substr($r->hora_fin, 0, 5);
+        $antes = $horario($reserva);
 
         try {
             $reserva = $this->reservaSalaService->liberarResto($reserva);
@@ -439,7 +441,7 @@ class SalaController extends Controller
             'salas.liberar_resto',
             "Liberó {$sinUsar['minutos']} minutos sin usar de {$descripcion}: la llave volvió a las {$sinUsar['devuelta']}",
             entidad: $reserva,
-            datos: ['hora_fin' => [substr($reserva->hora_fin_reservada, 0, 5), substr($reserva->hora_fin, 0, 5)]],
+            datos: ['horario' => [$antes, $horario($reserva)]],
             afectado: $reserva->usuario,
         );
 

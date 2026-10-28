@@ -126,6 +126,27 @@ class SalaLiberarRestoTest extends TestCase
         return collect($this->getJson('/api/salas?fecha=2026-08-14')->assertOk()->json('salas'))->firstWhere('id', $reserva->sala_id);
     }
 
+    public function test_si_la_llave_volvio_antes_de_que_empezara_su_horario_queda_libre_el_bloque_entero(): void
+    {
+        $reserva = $this->reservaEnUso();
+        $reserva->update(['hora_prestamo_real' => '2026-08-14 09:40:30']);
+        Carbon::setTestNow('2026-08-14 09:50:20');
+        $this->patchJson("/api/reservas/{$reserva->id}/devolver")->assertOk()->assertJsonPath('tiempo_sin_usar.minutos', 129);
+
+        Carbon::setTestNow('2026-08-14 09:55:00');
+        $this->patchJson("/api/reservas/{$reserva->id}/liberar-resto")->assertOk()
+            ->assertJsonPath('hora_inicio', '09:40')
+            ->assertJsonPath('hora_fin', '09:50')
+            ->assertJsonPath('hora_fin_reservada', '12:00');
+
+        // Nada queda tapando el bloque de las 10:00.
+        $grupo = Usuario::factory()->count(2)->create();
+        $this->postJson('/api/reservas', [
+            'sala_id' => $reserva->sala_id, 'fecha' => '2026-08-14', 'hora_inicio' => '10:00', 'hora_fin' => '11:00',
+            'cantidad_personas' => 2, 'ruts' => $grupo->pluck('rut')->all(),
+        ])->assertCreated();
+    }
+
     public function test_el_escaneo_de_la_llave_tambien_ofrece_liberar(): void
     {
         $this->reservaEnUso();
