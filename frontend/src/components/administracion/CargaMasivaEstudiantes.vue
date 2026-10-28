@@ -5,6 +5,7 @@ import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { construirCsv, descargarCsv } from '@/utils/csv'
 import { describirDocumento } from '@/utils/documento'
+import { fechaVigencia, proximoVencimiento } from '@/utils/vigencia'
 import { COLUMNAS_PLANTILLA, descargarPlantilla, leerPlanilla, type FilaPlanilla } from '@/utils/planilla'
 import type { EstadoFilaImportacion, FilaImportacion, ResultadoImportacion } from '@/types'
 
@@ -130,12 +131,13 @@ const tarjetas = computed(() => {
 })
 
 const CAMPOS: Record<string, string> = {
-  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado',
+  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado', vigente_hasta: 'Vigente hasta',
 }
 
 /** Null si no había dato (se muestra «sin dato»). */
 function valorCambio(campo: string, valor: unknown): string | null {
   if (campo === 'activo') return valor ? 'Activo' : 'Inactivo'
+  if (campo === 'vigente_hasta') return valor ? fechaVigencia(String(valor)) : null
   if (valor === null || valor === undefined || valor === '') return null
   const texto = String(valor)
   return campo === 'tipo' ? texto.charAt(0).toUpperCase() + texto.slice(1) : texto
@@ -233,7 +235,7 @@ function descargarDetalle() {
       <p class="text-gray-600">
         Sube una planilla <strong>Excel (.xlsx)</strong> o <strong>CSV</strong> con una fila por estudiante. Antes de guardar nada, el sistema te
         mostrará quiénes son nuevos y quiénes <strong>ya existen</strong>: a ellos se les completan o corrigen los datos con los de la planilla (lo
-        que venga vacío no borra nada) y <strong>quedan activos</strong>. Verás qué cambia en cada uno y tendrás que confirmar.
+        que venga vacío no borra nada) y <strong>se renueva su cuenta</strong> hasta el {{ fechaVigencia(proximoVencimiento()) }} (a los que no vienen en la planilla no se les toca nada: vencen solos en su fecha). Verás qué cambia en cada uno y tendrás que confirmar.
       </p>
       <p class="rounded-lg bg-indigo-50/60 px-3 py-2 text-indigo-950 ring-1 ring-indigo-100">
         <strong>¿Tienes el reporte de matrícula de pregrado de la universidad?</strong> Súbelo tal cual (Excel o CSV, también el guardado en Mac). Se
@@ -310,7 +312,7 @@ function descargarDetalle() {
           <strong>{{ resumen.actualizados }} {{ resumen.actualizados === 1 ? 'persona ya existe' : 'personas ya existen' }}</strong> en el sistema (mismo
           RUT o documento): <strong>se actualizarán sus datos con los de la planilla</strong>
           <template v-if="habilitados">
-            y {{ habilitados === 1 ? 'la que estaba inactiva quedará activa' : `las ${habilitados} que estaban inactivas quedarán activas` }}</template
+            y {{ habilitados === 1 ? 'la que estaba inactiva quedará activa' : `las ${habilitados} que estaban inactivas quedarán activas` }} (cuentas renovadas hasta el {{ fechaVigencia(proximoVencimiento()) }})</template
           >. Lo que en la planilla viene vacío no borra nada; abajo se ve qué cambia en cada una.
         </p>
         <p v-if="resumen.duplicados" class="rounded-lg bg-orange-50 px-3 py-2 text-orange-900 ring-1 ring-orange-200">

@@ -49,7 +49,8 @@ class UsuarioController extends Controller
         }
 
         if ($request->has('activo')) {
-            $query->where('activo', filter_var($request->query('activo'), FILTER_VALIDATE_BOOLEAN));
+            // «Activos» son los que sirven hoy (dentro de su vigencia); «inactivos», los desactivados y los vencidos.
+            filter_var($request->query('activo'), FILTER_VALIDATE_BOOLEAN) ? $query->vigentes() : $query->noVigentes();
         }
 
         // De a una página (25 por defecto): con el reporte de matrícula son miles de personas.
@@ -97,7 +98,7 @@ class UsuarioController extends Controller
     {
         $datos = $this->validarFicha($request->all());
 
-        $usuario = Usuario::create($datos + ['activo' => true]);
+        $usuario = Usuario::create($datos + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento()->toDateString()]);
 
         Bitacora::registrar(
             'usuarios.crear',
@@ -118,6 +119,11 @@ class UsuarioController extends Controller
             return response()->json([
                 'message' => 'Tu rol no tiene el permiso «'.Permisos::etiqueta('usuarios.desactivar').'». Si lo necesitas, pídeselo a un administrador.',
             ], 403);
+        }
+
+        // Marcar como activa una cuenta que no servía es renovarla: también corre su vigencia.
+        if (($datos['activo'] ?? false) === true && ! $usuario->activo) {
+            $datos['vigente_hasta'] = Usuario::proximoVencimiento()->toDateString();
         }
 
         $antes = $usuario->only(self::CAMPOS);
@@ -146,12 +152,33 @@ class UsuarioController extends Controller
     }
 
     /**
-     * Desde el listado de Usuarios: vuelve a habilitar a quien está inactivo (por
-     * ejemplo, porque su registro venció en Horizon). Lo puede hacer todo el personal.
+     * Renueva la cuenta de quien está inactivo (vencida, o desactivada, como las que
+     * venían vencidas de Horizon): queda activa hasta el cierre del año académico
+     * siguiente (config/usuarios.php). Lo puede hacer todo el personal. Si la cuenta
+     * ya sirve, no cambia nada.
      */
     public function habilitar(Usuario $usuario)
     {
-        return $this->cambiarEstado($usuario, true);
+        if ($usuario->activo) {
+            return response()->json($usuario->fresh());
+        }
+
+        $antes = $usuario->vigente_hasta?->toDateString();
+        $hasta = Usuario::proximoVencimiento();
+
+        // Solo si sigue sin servir: si dos personas la renuevan a la vez, el cambio y su
+        // registro en la bitácora quedan una sola vez.
+        if (Usuario::whereKey($usuario->id)->noVigentes()->update(['activo' => true, 'vigente_hasta' => $hasta->toDateString()])) {
+            Bitacora::registrar(
+                'usuarios.habilitar',
+                "Renovó la cuenta de {$usuario->nombre} {$usuario->apellido} hasta el {$hasta->format('d/m/Y')}",
+                entidad: $usuario,
+                datos: ['activo' => [false, true], 'vigente_hasta' => [$antes, $hasta->toDateString()]],
+                afectado: $usuario,
+            );
+        }
+
+        return response()->json($usuario->fresh());
     }
 
     /** Solo el Administrador/a: el usuario queda sin entradas, préstamos ni portal. */
@@ -170,10 +197,10 @@ class UsuarioController extends Controller
             }
 
             Bitacora::registrar(
-                $activo ? 'usuarios.habilitar' : 'usuarios.desactivar',
-                ($activo ? 'Habilitó' : 'Desactivó')." a {$usuario->nombre} {$usuario->apellido}",
+                'usuarios.desactivar',
+                "Desactivó a {$usuario->nombre} {$usuario->apellido}",
                 entidad: $usuario,
-                datos: ['activo' => [! $activo, $activo]],
+                datos: ['activo' => [true, false]],
                 afectado: $usuario,
             );
         }
@@ -196,7 +223,7 @@ class UsuarioController extends Controller
      * Segundo paso: exige la confirmación explícita y vuelve a clasificar las filas en
      * el servidor (no confía en la revisión anterior: alguien pudo crear o editar a una
      * de esas personas entretanto). Crea las filas nuevas y, a quienes ya existen, les
-     * completa o corrige los datos con los de la planilla y los deja activos; lo que
+     * completa o corrige los datos con los de la planilla y renueva su cuenta; lo que
      * viene vacío en la planilla no borra nada.
      */
     public function importar(Request $request)
@@ -220,7 +247,7 @@ class UsuarioController extends Controller
 
             foreach ($clasificacion['filas'] as $fila) {
                 if ($fila['estado'] === 'nuevo') {
-                    $creados[] = Usuario::create($fila['datos'] + ['activo' => true]);
+                    $creados[] = Usuario::create($fila['datos'] + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento()->toDateString()]);
                 } elseif ($fila['estado'] === 'actualizar') {
                     $usuario = $porActualizar[$fila['existente']['id']];
                     $usuario->update(array_map(fn (array $cambio) => $cambio[1], $fila['cambios']));
@@ -515,7 +542,7 @@ class UsuarioController extends Controller
         $existentes = $normalizados->chunk(1000)->flatMap(fn ($lote) => Usuario::whereRaw(
             Documento::sql('rut').' in ('.implode(',', array_fill(0, $lote->count(), '?')).')',
             $lote->values()->all(),
-        )->get(['id', ...self::CAMPOS]))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
+        )->get(['id', 'vigente_hasta', ...self::CAMPOS]))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
 
         $emails = collect($filas)->map(fn ($f) => mb_strtolower(trim((string) ($f['email'] ?? ''))))->filter()->unique()->values();
         $emailsTomados = $emails->chunk(1000)->flatMap(fn ($lote) => Usuario::whereIn(DB::raw('lower(email)'), $lote->all())
@@ -637,8 +664,14 @@ class UsuarioController extends Controller
             }
         }
 
+        // Venir en la planilla renueva la cuenta: queda vigente hasta el próximo cierre de año
+        // académico. Quien ya está vigente hasta esa fecha no cambia.
+        $vigencia = Usuario::proximoVencimiento();
         if (! $existente->activo) {
             $cambios['activo'] = [false, true];
+        }
+        if (! $existente->vigente_hasta || $existente->vigente_hasta->lessThan($vigencia)) {
+            $cambios['vigente_hasta'] = [$existente->vigente_hasta?->toDateString(), $vigencia->toDateString()];
         }
 
         return [

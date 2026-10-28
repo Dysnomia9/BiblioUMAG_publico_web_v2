@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Support\Documento;
 use App\Support\Rut;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -29,6 +31,7 @@ class Usuario extends Authenticatable
         'anio_ingreso',
         'sexo',
         'activo',
+        'vigente_hasta',
         'qr_code',
     ];
 
@@ -36,10 +39,14 @@ class Usuario extends Authenticatable
         'password',
     ];
 
+    // Lo que el listado y las fichas necesitan para decir por qué una cuenta no sirve.
+    protected $appends = ['inactividad'];
+
     protected function casts(): array
     {
         return [
             'activo' => 'boolean',
+            'vigente_hasta' => 'date',
             'password' => 'hashed',
         ];
     }
@@ -70,13 +77,79 @@ class Usuario extends Authenticatable
     }
 
     /**
+     * «Activo» es lo que sirve hoy: la cuenta no fue desactivada Y su vigencia no pasó.
+     * Así todo lo que pregunta `$usuario->activo` (entrada, portal, préstamos) respeta el
+     * vencimiento sin que nadie tenga que apagar cuentas a mano. El valor guardado, sin
+     * el vencimiento, es `$usuario->getRawOriginal('activo')`.
+     */
+    protected function activo(): Attribute
+    {
+        return Attribute::get(fn ($valor, array $atributos) => (bool) $valor && ! $this->venceAntesDeHoy($atributos['vigente_hasta'] ?? null));
+    }
+
+    private function venceAntesDeHoy(mixed $vigenteHasta): bool
+    {
+        return $vigenteHasta !== null && Carbon::parse($vigenteHasta)->endOfDay()->isPast();
+    }
+
+    /** La cuenta no fue desactivada pero su vigencia ya pasó: se arregla con una renovación. */
+    public function estaVencida(): bool
+    {
+        return (bool) ($this->attributes['activo'] ?? false) && $this->venceAntesDeHoy($this->attributes['vigente_hasta'] ?? null);
+    }
+
+    /** null si la cuenta sirve; «vencida» o «desactivada» si no, para que el personal sepa qué hacer. */
+    protected function inactividad(): Attribute
+    {
+        return Attribute::get(fn () => $this->activo ? null : ($this->estaVencida() ? 'vencida' : 'desactivada'));
+    }
+
+    /** Solo las cuentas que sirven hoy (activas y dentro de su vigencia). */
+    public function scopeVigentes(Builder $query): Builder
+    {
+        return $query->where('usuarios.activo', true)
+            ->where(fn ($q) => $q->whereNull('usuarios.vigente_hasta')->orWhere('usuarios.vigente_hasta', '>=', now()->toDateString()));
+    }
+
+    /** Las que no sirven hoy: desactivadas o vencidas. */
+    public function scopeNoVigentes(Builder $query): Builder
+    {
+        return $query->where(fn ($q) => $q->where('usuarios.activo', false)->orWhere('usuarios.vigente_hasta', '<', now()->toDateString()));
+    }
+
+    /**
+     * Hasta cuándo queda vigente una cuenta que se renueva hoy: el cierre del año
+     * académico del año calendario siguiente (ver config/usuarios.php).
+     */
+    public static function proximoVencimiento(?Carbon $desde = null): Carbon
+    {
+        $desde ??= now();
+
+        return Carbon::create($desde->year + 1, (int) config('usuarios.vigencia.mes'), (int) config('usuarios.vigencia.dia'))->startOfDay();
+    }
+
+    /**
      * Por qué no se le puede prestar ni reservar material, o null si puede. Una cuenta
-     * inactiva (por ejemplo, porque su registro venció en Horizon) no marca entrada ni
-     * entra al portal; tampoco se lleva nada hasta que la habiliten.
+     * inactiva (desactivada, o vencida como las de Horizon) no marca entrada ni entra al
+     * portal; tampoco se lleva nada hasta que la renueven.
      */
     public function mensajeInactivo(): ?string
     {
-        return $this->activo ? null : 'Este usuario se encuentra inactivo: debe ser habilitado antes de llevarse o reservar material.';
+        if ($this->activo) {
+            return null;
+        }
+
+        return $this->estaVencida()
+            ? "La cuenta de este usuario venció el {$this->vigente_hasta->format('d/m/Y')}: debe renovarse antes de llevarse o reservar material."
+            : 'Este usuario se encuentra inactivo: debe ser renovado antes de llevarse o reservar material.';
+    }
+
+    /** El mismo motivo, para decírselo a la propia persona (entrada, portal). */
+    public function mensajeCuentaInactiva(): string
+    {
+        return $this->estaVencida()
+            ? "Tu cuenta venció el {$this->vigente_hasta->format('d/m/Y')}. Acércate a biblioteca para renovarla."
+            : 'Tu cuenta se encuentra inactiva. Contacta a biblioteca.';
     }
 
     public function entradas()

@@ -58,7 +58,12 @@ export type Usuario = {
   carrera: string | null
   anio_ingreso: number | null
   sexo: string | null
+  /** Sirve hoy: no fue desactivada y su vigencia no pasó. */
   activo: boolean
+  /** Último día en que la cuenta sirve (null: sin vencimiento). */
+  vigente_hasta?: string | null
+  /** Por qué no sirve: pasó su vigencia («vencida») o la desactivó el personal; null si sirve. */
+  inactividad?: 'vencida' | 'desactivada' | null
   qr_code: string | null
   multas_pendientes?: { cantidad: number; monto_total: number }
 }

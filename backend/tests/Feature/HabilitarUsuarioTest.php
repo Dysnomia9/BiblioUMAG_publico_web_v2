@@ -35,7 +35,7 @@ class HabilitarUsuarioTest extends TestCase
 
         $this->assertTrue($usuario->fresh()->activo);
         $registro = Bitacora::where('accion', 'usuarios.habilitar')->sole();
-        $this->assertSame('Habilitó a Valentina Soto', $registro->descripcion);
+        $this->assertStringStartsWith('Renovó la cuenta de Valentina Soto hasta el ', $registro->descripcion);
         $this->assertSame('Mesón Mañana', $registro->actor_nombre);
         $this->assertSame([false, true], $registro->datos['activo']);
     }

@@ -12,6 +12,7 @@ import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
+import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
@@ -227,7 +228,7 @@ const inicialesUsuario = computed(() => `${usuario.value?.nombre?.charAt(0) ?? '
 
 /** La cuenta: habilitada para pedir, bloqueada por multas o inactiva. */
 const estadoCuenta = computed(() => {
-  if (usuario.value?.activo === false) return { texto: 'Inactiva', clase: 'bg-gray-100 text-gray-600' }
+  if (usuario.value?.activo === false) return { texto: usuario.value.inactividad === 'vencida' ? 'Cuenta vencida' : 'Inactiva', clase: 'bg-amber-50 text-amber-800' }
   if (bloqueadoPorMultas.value) return { texto: 'Bloqueada por multa', clase: 'bg-red-50 text-red-700' }
   return { texto: 'Habilitada', clase: 'bg-emerald-50 text-emerald-700' }
 })
@@ -775,6 +776,8 @@ function formatHora(iso: string | null) {
             </button>
           </div>
         </div>
+
+        <RenovarCuenta v-if="usuario.activo === false" class="mt-4" :usuario="usuario" @renovada="usuario = $event" />
 
         <div v-if="showForm && !bloqueadoPorMultas" class="mt-5 border-t border-indigo-100 pt-4">
           <h4 class="text-sm font-semibold text-gray-800">Nuevo préstamo por código de barras</h4>

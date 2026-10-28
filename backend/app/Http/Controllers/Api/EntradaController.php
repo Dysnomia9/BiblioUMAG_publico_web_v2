@@ -132,7 +132,19 @@ class EntradaController extends Controller
         }
 
         if (! $usuario->activo) {
-            return response()->json(['message' => 'El usuario se encuentra inactivo'], 403);
+            return response()->json([
+                'message' => $usuario->estaVencida()
+                    ? "La cuenta de este usuario venció el {$usuario->vigente_hasta->format('d/m/Y')}: debe renovarse"
+                    : 'El usuario se encuentra inactivo',
+                'inactividad' => $usuario->inactividad,
+                'usuario' => [
+                    'id' => $usuario->id,
+                    'nombre' => $usuario->nombre,
+                    'apellido' => $usuario->apellido,
+                    'vigente_hasta' => $usuario->vigente_hasta?->toDateString(),
+                    'inactividad' => $usuario->inactividad,
+                ],
+            ], 403);
         }
 
         // Horizon gestiona toda la asistencia (usuarios, docentes, funcionarios) con el

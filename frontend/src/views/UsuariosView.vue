@@ -10,6 +10,7 @@ import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { useAuthStore } from '@/stores/auth'
 import { generarConstanciaNoMulta } from '@/utils/constancia'
 import { describirDocumento } from '@/utils/documento'
+import { fechaVigencia, proximoVencimiento } from '@/utils/vigencia'
 import type { ConfiguracionInstitucional, Paginado, Usuario } from '@/types'
 
 const toast = useToast()
@@ -103,11 +104,11 @@ async function confirmarCambioEstado() {
   guardandoEstado.value = true
   try {
     await api.patch(`/usuarios/${usuario.id}/${activo ? 'habilitar' : 'desactivar'}`)
-    toast.success(`${usuario.nombre} ${usuario.apellido} ${activo ? 'quedó habilitado/a' : 'quedó inactivo/a'}`)
+    toast.success(`${usuario.nombre} ${usuario.apellido} ${activo ? 'quedó con la cuenta renovada' : 'quedó inactivo/a'}`)
     cambioEstado.value = null
     await cargarUsuarios()
   } catch (e) {
-    toast.error(mensajeDeError(e, activo ? 'No se pudo habilitar' : 'No se pudo desactivar'))
+    toast.error(mensajeDeError(e, activo ? 'No se pudo renovar la cuenta' : 'No se pudo desactivar'))
   } finally {
     guardandoEstado.value = false
   }
@@ -139,7 +140,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
           <div>
             <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Usuarios</h1>
             <p class="text-sm text-white/60 mt-1">
-              Información de usuarios registrados en el sistema institucional{{ auth.puede('usuarios.habilitar') ? '. Desde aquí puedes habilitar a quien esté inactivo.' : ' (solo lectura)' }}
+              Información de usuarios registrados en el sistema institucional{{ auth.puede('usuarios.habilitar') ? '. Desde aquí puedes renovar la cuenta de quien esté vencido o inactivo.' : ' (solo lectura)' }}
             </p>
           </div>
           <router-link
@@ -211,9 +212,12 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                   </span>
                 </td>
                 <td class="px-5 py-3">
-                  <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
-                    {{ u.activo ? 'Activo' : 'Inactivo' }}
+                  <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : u.inactividad === 'vencida' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
+                    {{ u.activo ? 'Activo' : u.inactividad === 'vencida' ? 'Vencida' : 'Inactivo' }}
                   </span>
+                  <p class="mt-1 text-[11px] text-gray-400">
+                    {{ u.vigente_hasta ? (u.activo ? 'Vigente hasta ' : 'Venció el ') + fechaVigencia(u.vigente_hasta) : u.activo ? 'Sin vencimiento' : '' }}
+                  </p>
                 </td>
                 <td class="px-5 py-3 text-sm whitespace-nowrap">
                   <router-link
@@ -235,7 +239,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                     @click="pedirCambioEstado(u, true)"
                     class="ml-3 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
                   >
-                    Habilitar
+                    Renovar
                   </button>
                   <button
                     v-else-if="u.activo && auth.puede('usuarios.desactivar')"
@@ -270,8 +274,8 @@ const hayResultados = computed(() => usuarios.value.length > 0)
           </div>
           <p class="text-xs text-gray-500 mt-2">{{ u.carrera ?? 'Sin carrera' }} · {{ u.email ?? 'Sin email' }}</p>
           <div class="mt-3 flex items-center justify-between gap-2 flex-wrap">
-            <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
-              {{ u.activo ? 'Activo' : 'Inactivo' }}
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : u.inactividad === 'vencida' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
+              {{ u.activo ? 'Activo' : u.inactividad === 'vencida' ? 'Vencida' : 'Inactivo' }}<template v-if="u.vigente_hasta"> · {{ u.activo ? 'hasta' : 'venció' }} {{ fechaVigencia(u.vigente_hasta) }}</template>
             </span>
             <div class="flex items-center gap-3 text-xs flex-wrap">
               <router-link v-if="auth.puede('prestamos.gestionar')" :to="{ name: 'prestamo', query: { rut: u.rut } }" class="font-medium text-indigo-700">
@@ -289,7 +293,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
                 @click="pedirCambioEstado(u, true)"
                 class="rounded-lg bg-emerald-600 px-3 py-1 font-semibold text-white"
               >
-                Habilitar
+                Renovar
               </button>
               <button v-else-if="u.activo && auth.puede('usuarios.desactivar')" @click="pedirCambioEstado(u, false)" class="font-medium text-red-600">
                 Desactivar
@@ -335,8 +339,8 @@ const hayResultados = computed(() => usuarios.value.length > 0)
 
     <DialogoConfirmacion
       :abierto="!!cambioEstado"
-      :titulo="cambioEstado?.activo === false ? '¿Desactivar a este usuario?' : '¿Habilitar a este usuario?'"
-      :confirmar="cambioEstado?.activo === false ? 'Sí, desactivar' : 'Sí, habilitar'"
+      :titulo="cambioEstado?.activo === false ? '¿Desactivar a este usuario?' : '¿Renovar la cuenta de este usuario?'"
+      :confirmar="cambioEstado?.activo === false ? 'Sí, desactivar' : 'Sí, renovar'"
       :tono="cambioEstado?.activo === false ? 'peligro' : 'exito'"
       :cargando="guardandoEstado"
       @confirmar="confirmarCambioEstado"
@@ -349,11 +353,11 @@ const hayResultados = computed(() => usuarios.value.length > 0)
         </p>
         <p>
           Estado: <span class="line-through">{{ cambioEstado.activo ? 'Inactivo' : 'Activo' }}</span> →
-          <strong class="text-gray-900">{{ cambioEstado.activo ? 'Activo' : 'Inactivo' }}</strong>
+          <strong class="text-gray-900">{{ cambioEstado.activo ? `Vigente hasta el ${fechaVigencia(proximoVencimiento())}` : 'Inactivo' }}</strong>
         </p>
         <p v-if="cambioEstado.activo" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
-          Podrá marcar su entrada, pedir préstamos y reservas, y entrar al portal. Si tiene multas pendientes, los préstamos y reservas
-          siguen bloqueados hasta que pague.
+          Podrá marcar su entrada, pedir préstamos y reservas, y entrar al portal. Si tiene multas pendientes o libros vencidos, los
+          préstamos y reservas siguen bloqueados hasta que se resuelvan.
         </p>
         <p v-else class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-red-700">
           No podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien lo vuelva a habilitar. Se cierran las sesiones

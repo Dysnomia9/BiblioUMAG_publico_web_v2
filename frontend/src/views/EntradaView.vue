@@ -15,7 +15,8 @@ import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useAuthStore } from '@/stores/auth'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
-import type { Entrada, HorarioBiblioteca, RespuestaEntradas } from '@/types'
+import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
+import type { Entrada, HorarioBiblioteca, RespuestaEntradas, Usuario } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -31,6 +32,8 @@ const rut = ref('')
 const { modo: modoRut, escribir: escribirRut, error: errorDelRut } = useModoDocumento(rut)
 const rutInput = ref<HTMLInputElement | null>(null)
 const errorRut = ref('')
+// La persona existe pero su cuenta no sirve (vencida o desactivada): se ofrece renovarla ahí mismo.
+const cuentaInactiva = ref<Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'vigente_hasta' | 'inactividad'> | null>(null)
 const registrando = ref(false)
 const guiaAbierta = ref(false)
 
@@ -133,6 +136,14 @@ function onRutInput(event: Event) {
   escribirRut(event)
   errorRut.value = ''
   yaPresente.value = ''
+  cuentaInactiva.value = null
+}
+
+/** Ya renovada la cuenta, se registra la entrada que había quedado pendiente. */
+function entradaTrasRenovar() {
+  cuentaInactiva.value = null
+  errorRut.value = ''
+  registrarEntrada()
 }
 
 async function registrarEntrada() {
@@ -145,6 +156,7 @@ async function registrarEntrada() {
   registrando.value = true
   errorRut.value = ''
   yaPresente.value = ''
+  cuentaInactiva.value = null
   try {
     const { data } = await api.post('/entrada', { rut: rut.value, via: 'manual' })
     toast.success(`Entrada registrada: ${data.usuario.nombre} ${data.usuario.apellido}`)
@@ -159,6 +171,10 @@ async function registrarEntrada() {
       rut.value = ''
       modoRut.value = 'rut'
       rutInput.value?.focus()
+      return
+    }
+    if (e?.response?.status === 403 && e.response.data?.usuario) {
+      cuentaInactiva.value = e.response.data.usuario
       return
     }
     errorRut.value =
@@ -465,6 +481,7 @@ function verSusPrestamos(e: Entrada) {
               {{ registrando ? 'Registrando…' : 'Registrar' }}
             </button>
           </div>
+          <RenovarCuenta v-if="cuentaInactiva" class="mt-3" :usuario="cuentaInactiva" @renovada="entradaTrasRenovar" />
           <p v-if="errorRut" class="mt-2.5 text-sm text-red-600" role="alert">{{ errorRut }}</p>
           <p v-else-if="yaPresente" class="mt-2.5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200" role="status">{{ yaPresente }}</p>
           <p class="mt-4 text-center text-sm text-gray-500">

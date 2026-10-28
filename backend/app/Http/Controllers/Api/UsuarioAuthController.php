@@ -32,7 +32,7 @@ class UsuarioAuthController extends Controller
 
         if (! $usuario->activo) {
             throw ValidationException::withMessages([
-                'rut' => ['Tu cuenta se encuentra inactiva. Contacta a biblioteca.'],
+                'rut' => [$usuario->mensajeCuentaInactiva()],
             ]);
         }
 

@@ -169,8 +169,15 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
 ### Usuarios y estudiantes
 
 - **Gestión de usuarios** con acceso a sus préstamos, Constancia de No Multa en
-  PDF, botón **Habilitar** (todo el personal) y **Desactivar** (solo
+  PDF, botón **Renovar** (todo el personal) y **Desactivar** (solo
   Administrador/a).
+- **Vigencia de las cuentas**: cada cuenta vence el **31 de marzo del año
+  siguiente** a su renovación (`config/usuarios.php`; columna
+  `usuarios.vigente_hasta`). Una cuenta vencida o desactivada no marca entrada,
+  no entra al portal ni se lleva ni reserva material, pero sí puede devolver
+  libros y pagar multas. Se renueva desde Usuarios o, en el momento, con el aviso
+  **Renovar cuenta** que sale en Préstamos y en Entradas; la carga masiva
+  renueva a quienes vienen en la planilla y no toca a los demás (vencen solos).
 - **Carga masiva de estudiantes** desde Excel o CSV en tres pasos: elegir el
   archivo, revisar qué pasará con cada fila (nueva, a actualizar con antes →
   después, al día, repetida o con errores) y confirmar. Lo vacío no borra nada,

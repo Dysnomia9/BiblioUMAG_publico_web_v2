@@ -292,8 +292,8 @@ const clasesInput = (campo: string) =>
               {{ u.carrera ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
             </td>
             <td class="px-4 py-2.5 hidden sm:table-cell">
-              <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
-                {{ u.activo ? 'Activo' : 'Inactivo' }}
+              <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : u.inactividad === 'vencida' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
+                {{ u.activo ? 'Activo' : u.inactividad === 'vencida' ? 'Vencida' : 'Inactivo' }}
               </span>
             </td>
             <td class="px-4 py-2.5 text-right">
