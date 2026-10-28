@@ -235,7 +235,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catalogación" titulo="Estado de ejemplares">
+      <EncabezadoGestion seccion="Catálogo" titulo="Estado de ejemplares">
         <template #acciones>
           <PestanasLibros actual="estado-libro" />
         </template>

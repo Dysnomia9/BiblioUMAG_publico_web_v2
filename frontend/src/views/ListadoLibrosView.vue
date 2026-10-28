@@ -227,7 +227,7 @@ function copiaGuardada(actualizada: Ejemplar) {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catalogación" titulo="Listado de libros">
+      <EncabezadoGestion seccion="Catálogo" titulo="Listado de material">
         <template #acciones>
           <PestanasLibros actual="listado-libros" />
           <button

@@ -715,7 +715,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catalogación" :titulo="modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material'">
+      <EncabezadoGestion seccion="Catálogo" :titulo="modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material'">
         <template #debajo>
           <p v-if="modo === 'nuevo' && editandoId" class="mt-1 truncate text-sm text-gray-500">{{ libroEditado?.titulo }}</p>
           <div class="mt-3 flex w-max max-w-full overflow-x-auto rounded-xl bg-gray-200/60 p-1" role="tablist" aria-label="Qué catalogar">

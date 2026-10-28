@@ -43,7 +43,7 @@ function fechaIso(offsetDias: number): string {
 const TIPOS_DISPONIBLES: { value: CategoriaOperacionRegistro; label: string }[] = [
   { value: 'prestamo', label: 'Préstamos' },
   { value: 'reserva_sala', label: 'Reservas de Sala' },
-  { value: 'reserva_libro', label: 'Reservas de Libro' },
+  { value: 'reserva_libro', label: 'Reservas de Material' },
   { value: 'entrada', label: 'Entradas' },
 ]
 
@@ -108,10 +108,10 @@ function irAPagina(nueva: number) {
 onMounted(cargar)
 
 const TIPO_LABELS: Record<string, string> = {
-  prestamo_libro: 'Préstamo de Libro',
+  prestamo_libro: 'Préstamo de Material',
   prestamo_equipo: 'Préstamo de Equipo',
   reserva_sala: 'Reserva de Sala',
-  reserva_libro: 'Reserva de Libro',
+  reserva_libro: 'Reserva de Material',
   entrada: 'Entrada',
 }
 

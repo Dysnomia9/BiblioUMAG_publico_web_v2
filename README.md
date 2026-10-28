@@ -335,15 +335,15 @@ interfaz está en [`docs/estilo-visual.md`](docs/estilo-visual.md).
 | Reportes | `/reportes` | `reportes.ver` | `ReporteController` |
 | Usuarios | `/usuarios` | `usuarios.ver` (habilitar: `usuarios.habilitar`; desactivar: `usuarios.desactivar`) | `UsuarioController` |
 | Multas | `/multas` | `multas.ver` (+ `multas.cobrar`, `multas.crear`, `multas.anular`) | `MultaController`, `MultaService` |
-| Listado de libros | `/libros/listado` | `listados.ver` | `LibroController` |
-| Catalogación de libros | `/libros/catalogacion` | `libros.catalogar` | `LibroController::store/update`, `EjemplarController::store` |
-| Estado de ejemplares | `/libros/estado` | `libros.estado` | `EjemplarController::cambiarEstado` |
-| Cambio masivo de estado | `/libros/cambio-masivo` | `libros.cambio_masivo` | `EjemplarController::cambioMasivo*` |
-| Etiquetas de código y de lomo | `/libros/etiquetas` | `libros.catalogar` | `EjemplarController::etiquetasLomo` (las de código, solo frontend) |
+| Listado de material | `/catalogo/listado` | `listados.ver` | `LibroController` |
+| Catalogación | `/catalogo/catalogacion` | `libros.catalogar` | `LibroController::store/update`, `EjemplarController::store` |
+| Estado de ejemplares | `/catalogo/estado` | `libros.estado` | `EjemplarController::cambiarEstado` |
+| Cambio masivo de estado | `/catalogo/cambio-masivo` | `libros.cambio_masivo` | `EjemplarController::cambioMasivo*` |
+| Etiquetas de código y de lomo | `/catalogo/etiquetas` | `libros.catalogar` | `EjemplarController::etiquetasLomo` (las de código, solo frontend) |
 | Recursos de apoyo | `/equipos` | `equipos.gestionar` | `EquipoController`, `CategoriaRecursoController` (categorías: `catalogos.gestionar`) |
 | Listado de préstamos | `/prestamos/listado` | `listados.ver` | `PrestamoController` |
-| Historial de estado | `/libros/historial-estado` | `historiales.ver` | `EjemplarController::historialEstado` |
-| Historial de libros | `/libros/historial-prestamos` | `historiales.ver` | `LibroController::historial` |
+| Historial de estado | `/catalogo/historial-estado` | `historiales.ver` | `EjemplarController::historialEstado` |
+| Historial de libros | `/catalogo/historial-prestamos` | `historiales.ver` | `LibroController::historial` |
 | Registro absoluto | `/registro-absoluto` | `registro_absoluto.ver` | `RegistroAbsolutoController`, `BitacoraController` |
 | Código QR de acceso | `/codigo-qr` | `codigo_qr.ver` (+ `codigo_qr.regenerar`) | `CodigoAccesoController` |
 | Administración | `/administracion` | `configuracion.editar` / `catalogos.gestionar` / `usuarios.gestionar` | `ConfiguracionInstitucionalController`, `EstadoLibroPersonalizadoController`, `UbicacionController`, `TipoMaterialController`, `UsuarioController` |
@@ -597,7 +597,7 @@ tests.
   controladores ni el frontend.
 - **Contadores históricos de préstamo** (cantidad, última fecha) no se
   guardan como columnas: son derivables por query sobre `prestamos`, y ya
-  hay una vista dedicada para verlos on-demand (Historial de Libros).
+  hay una vista dedicada para verlos on-demand (Historial de material).
 - **Credenciales de Postgres hardcodeadas** en `docker-compose.yml`:
   aceptable en desarrollo local, a propósito. Para un despliegue real usar
   `docker-compose.prod.yml` + `backend/.env.production.example` (plantillas,

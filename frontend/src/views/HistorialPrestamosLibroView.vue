@@ -169,7 +169,7 @@ async function verFicha() {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catalogación" titulo="Historial de libros">
+      <EncabezadoGestion seccion="Catálogo" titulo="Historial de material">
         <template #acciones>
           <PestanasLibros actual="historial-prestamos-libro" />
         </template>

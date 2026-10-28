@@ -182,7 +182,7 @@ const CAMPO =
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catalogación" titulo="Historial de estado" descripcion="Todos los cambios de estado de ejemplares, individuales y por lote">
+      <EncabezadoGestion seccion="Catálogo" titulo="Historial de estado" descripcion="Todos los cambios de estado de ejemplares, individuales y por lote">
         <template #acciones>
           <PestanasLibros actual="historial-estado-libro" />
         </template>

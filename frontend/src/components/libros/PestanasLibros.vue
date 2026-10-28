@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { itemPorRuta } from '@/navegacion'
 
-/** Pestañas del módulo de libros; solo las que el rol puede abrir. En pantallas angostas se deslizan. */
+/** Pestañas del módulo de catálogo; solo las que el rol puede abrir. En pantallas angostas se deslizan. */
 const props = defineProps<{
   actual: 'catalogacion-libros' | 'listado-libros' | 'historial-prestamos-libro' | 'estado-libro' | 'historial-estado-libro'
 }>()
@@ -31,7 +31,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <nav ref="barra" class="max-w-full overflow-x-auto" aria-label="Módulo de libros">
+  <nav ref="barra" class="max-w-full overflow-x-auto" aria-label="Módulo de catálogo">
     <div class="flex w-max rounded-xl bg-gray-200/60 p-1">
       <router-link
         v-for="p in visibles"

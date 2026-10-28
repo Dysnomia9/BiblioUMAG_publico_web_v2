@@ -382,7 +382,7 @@ async function confirmarDesactivar() {
           <div class="bg-white rounded-xl shadow-md p-6">
             <h3 class="font-semibold text-gray-900 mb-1">Tipos de material</h3>
             <p class="text-xs text-gray-500 mb-4">
-              Se eligen al catalogar un libro y sirven para filtrar en Listado de Libros y Cambio Masivo de Estado.
+              Se eligen al catalogar un libro y sirven para filtrar en Listado de material y Cambio Masivo de Estado.
               Cada tipo usa una <strong>ficha</strong>: qué etiquetas MARC se catalogan y cuáles ve el usuario en el portal.
             </p>
 
@@ -537,7 +537,7 @@ async function confirmarDesactivar() {
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
           <h3 class="text-lg font-bold text-gray-900 mb-1">¿Crear este tipo de material?</h3>
           <p class="text-sm text-gray-500 mb-3">
-            Quedará disponible para elegir al catalogar un libro y como filtro en Listado de Libros y Cambio Masivo de Estado.
+            Quedará disponible para elegir al catalogar un libro y como filtro en Listado de material y Cambio Masivo de Estado.
           </p>
           <div class="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-6">
             <p><strong>{{ nuevoTipoMaterial.nombre }}</strong></p>
