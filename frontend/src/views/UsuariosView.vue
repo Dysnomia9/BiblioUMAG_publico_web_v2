@@ -10,10 +10,12 @@ import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { useAuthStore } from '@/stores/auth'
 import { generarConstanciaNoMulta } from '@/utils/constancia'
 import { describirDocumento } from '@/utils/documento'
-import { fechaVigencia, proximoVencimiento } from '@/utils/vigencia'
+import { fechaVigencia, useVigencia } from '@/utils/vigencia'
 import type { ConfiguracionInstitucional, Paginado, Usuario } from '@/types'
 
 const toast = useToast()
+const vigencia = useVigencia()
+vigencia.cargar()
 const auth = useAuthStore()
 
 const generandoConstanciaRut = ref<string | null>(null)
@@ -353,7 +355,7 @@ const hayResultados = computed(() => usuarios.value.length > 0)
         </p>
         <p>
           Estado: <span class="line-through">{{ cambioEstado.activo ? 'Inactivo' : 'Activo' }}</span> →
-          <strong class="text-gray-900">{{ cambioEstado.activo ? `Vigente hasta el ${fechaVigencia(proximoVencimiento())}` : 'Inactivo' }}</strong>
+          <strong class="text-gray-900">{{ cambioEstado.activo ? `Vigente ${vigencia.hastaPara(cambioEstado.usuario.tipo)}` : 'Inactivo' }}</strong>
         </p>
         <p v-if="cambioEstado.activo" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
           Podrá marcar su entrada, pedir préstamos y reservas, y entrar al portal. Si tiene multas pendientes o libros vencidos, los

@@ -141,6 +141,7 @@ class EntradaController extends Controller
                     'id' => $usuario->id,
                     'nombre' => $usuario->nombre,
                     'apellido' => $usuario->apellido,
+                    'tipo' => $usuario->tipo,
                     'vigente_hasta' => $usuario->vigente_hasta?->toDateString(),
                     'inactividad' => $usuario->inactividad,
                 ],

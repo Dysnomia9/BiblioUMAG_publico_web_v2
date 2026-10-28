@@ -171,9 +171,15 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
 - **Gestión de usuarios** con acceso a sus préstamos, Constancia de No Multa en
   PDF, botón **Renovar** (todo el personal) y **Desactivar** (solo
   Administrador/a).
-- **Vigencia de las cuentas**: cada cuenta vence el **31 de marzo del año
-  siguiente** a su renovación (`config/usuarios.php`; columna
-  `usuarios.vigente_hasta`). Una cuenta vencida o desactivada no marca entrada,
+- **Vigencia de las cuentas**: cada cuenta tiene una fecha de vencimiento
+  (`usuarios.vigente_hasta`) que se fija al renovarla según su tipo de usuario.
+  Por defecto es el **31 de marzo del año siguiente**, pero el Administrador/a
+  la cambia por tipo (estudiantes, docentes, funcionarios) en Administración ›
+  **Vigencia de cuentas**: fecha fija del año, N años desde la renovación o sin
+  vencimiento (tabla `politicas_vigencia`; permiso `vigencia.gestionar`). En una
+  carga masiva puede además elegir otra fecha para toda la carga, o traerla fila
+  por fila en la columna «Vigente hasta». La fecha de los usuarios importados de
+  Horizon sale de `borrower.expiration_date` (fase `vigencia` del ETL). Una cuenta vencida o desactivada no marca entrada,
   no entra al portal ni se lleva ni reserva material, pero sí puede devolver
   libros y pagar multas. Se renueva desde Usuarios o, en el momento, con el aviso
   **Renovar cuenta** que sale en Préstamos y en Entradas; la carga masiva

@@ -4,7 +4,7 @@ import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { fechaVigencia, proximoVencimiento, textoInactividad } from '@/utils/vigencia'
+import { fechaVigencia, textoInactividad, useVigencia } from '@/utils/vigencia'
 import type { Usuario } from '@/types'
 
 /**
@@ -13,13 +13,16 @@ import type { Usuario } from '@/types'
  * (Préstamos, Entradas). Solo aparece el botón a quien puede renovar.
  */
 const props = defineProps<{
-  usuario: Pick<Usuario, 'id' | 'nombre' | 'apellido'> & Partial<Pick<Usuario, 'vigente_hasta' | 'inactividad'>>
+  usuario: Pick<Usuario, 'id' | 'nombre' | 'apellido'> & Partial<Pick<Usuario, 'vigente_hasta' | 'inactividad' | 'tipo'>>
 }>()
 
 const emit = defineEmits<{ renovada: [usuario: Usuario] }>()
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const vigencia = useVigencia()
+vigencia.cargar()
 
 const confirmando = ref(false)
 const guardando = ref(false)
@@ -28,7 +31,7 @@ async function renovar() {
   guardando.value = true
   try {
     const { data } = await api.patch<Usuario>(`/usuarios/${props.usuario.id}/habilitar`)
-    toast.success(`Cuenta renovada hasta el ${fechaVigencia(data.vigente_hasta)}`)
+    toast.success(data.vigente_hasta ? `Cuenta renovada hasta el ${fechaVigencia(data.vigente_hasta)}` : 'Cuenta renovada, sin vencimiento')
     confirmando.value = false
     emit('renovada', data)
   } catch (e) {
@@ -66,8 +69,8 @@ async function renovar() {
     @cancelar="confirmando = false"
   >
     <p>
-      <strong class="text-gray-900">{{ usuario.nombre }} {{ usuario.apellido }}</strong> quedará vigente hasta el
-      <strong class="text-gray-900">{{ fechaVigencia(proximoVencimiento()) }}</strong>. Podrá marcar su entrada, pedir préstamos y reservas, y entrar
+      <strong class="text-gray-900">{{ usuario.nombre }} {{ usuario.apellido }}</strong> quedará vigente
+      <strong class="text-gray-900">{{ vigencia.hastaPara(usuario.tipo) }}</strong>. Podrá marcar su entrada, pedir préstamos y reservas, y entrar
       al portal. Si tiene multas pendientes o libros vencidos, los préstamos y reservas siguen bloqueados hasta que se resuelvan.
     </p>
   </DialogoConfirmacion>

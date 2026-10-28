@@ -26,6 +26,12 @@ abstract class TestCase extends BaseTestCase
         return parent::setUpTraits();
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \App\Models\PoliticaVigencia::olvidar();
+    }
+
     /** A $dias de hoy, corrida al siguiente día con atención: una devolución o un retiro no puede caer en domingo. */
     protected function fechaConAtencion(int $dias): string
     {

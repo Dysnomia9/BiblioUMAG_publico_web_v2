@@ -8,6 +8,7 @@ import CategoriasRecurso from '@/components/administracion/CategoriasRecurso.vue
 import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
 import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import CopiasDadasDeBaja from '@/components/administracion/CopiasDadasDeBaja.vue'
+import PoliticasVigencia from '@/components/administracion/PoliticasVigencia.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -22,12 +23,13 @@ const cargando = ref(true)
 
 // Cada sección exige su propio permiso: alguien puede administrar los catálogos
 // (ubicaciones, tipos de material…) sin poder cambiar quién firma la constancia.
-type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'estudiantes' | 'eliminados'
+type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'estudiantes' | 'vigencia' | 'eliminados'
 const SECCIONES: { clave: Seccion; label: string; permiso: string }[] = [
   { clave: 'institucion', label: 'Configuración institucional', permiso: 'configuracion.editar' },
   { clave: 'catalogos', label: 'Catálogos (estados, ubicaciones, tipos y recursos)', permiso: 'catalogos.gestionar' },
   { clave: 'circulacion', label: 'Reglas de préstamo y días sin atención', permiso: 'catalogos.gestionar' },
   { clave: 'estudiantes', label: 'Estudiantes', permiso: 'usuarios.gestionar' },
+  { clave: 'vigencia', label: 'Vigencia de cuentas', permiso: 'vigencia.gestionar' },
   { clave: 'eliminados', label: 'Eliminados', permiso: 'libros.estado' },
 ]
 const secciones = computed(() => SECCIONES.filter((s) => auth.puede(s.permiso)))
@@ -292,6 +294,7 @@ async function confirmarDesactivar() {
 
       <div v-if="!cargando" class="space-y-6">
         <GestionEstudiantes v-if="seccion === 'estudiantes'" />
+        <PoliticasVigencia v-if="seccion === 'vigencia'" />
         <CopiasDadasDeBaja v-if="seccion === 'eliminados'" />
 
         <div v-if="seccion === 'institucion'" class="bg-white rounded-xl shadow-md p-6">

@@ -5,7 +5,8 @@ import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { construirCsv, descargarCsv } from '@/utils/csv'
 import { describirDocumento } from '@/utils/documento'
-import { fechaVigencia, proximoVencimiento } from '@/utils/vigencia'
+import { fechaVigencia, useVigencia } from '@/utils/vigencia'
+import { useAuthStore } from '@/stores/auth'
 import { COLUMNAS_PLANTILLA, descargarPlantilla, leerPlanilla, type FilaPlanilla } from '@/utils/planilla'
 import type { EstadoFilaImportacion, FilaImportacion, ResultadoImportacion } from '@/types'
 
@@ -19,6 +20,23 @@ const props = defineProps<{ abierto: boolean }>()
 const emit = defineEmits<{ 'update:abierto': [valor: boolean]; cargado: [] }>()
 
 const toast = useToast()
+const auth = useAuthStore()
+const vigencia = useVigencia()
+vigencia.cargar()
+
+// Quien administra puede elegir una fecha de vencimiento para toda la carga, en vez de la de
+// cada tipo (Administración › Vigencia de cuentas). Las filas que traen su propia fecha la conservan.
+const puedeElegirFecha = computed(() => auth.puede('vigencia.gestionar'))
+const usarFecha = ref(false)
+const fechaPropia = ref('')
+const parametrosFecha = () => (puedeElegirFecha.value && usarFecha.value && fechaPropia.value ? { vigente_hasta: fechaPropia.value } : {})
+
+/** Hasta cuándo quedan las cuentas que esta carga renueva. */
+const textoVigencia = computed(() => {
+  if (usarFecha.value && fechaPropia.value) return `hasta el ${fechaVigencia(fechaPropia.value)}`
+  const nombres: Record<string, string> = { estudiante: 'estudiantes', docente: 'docentes', funcionario: 'funcionarios' }
+  return `según su tipo: ${vigencia.politicas.value.map((p) => `${nombres[p.tipo]} ${vigencia.hastaPara(p.tipo)}`).join(', ')}`
+})
 
 type Paso = 'elegir' | 'revision' | 'resultado'
 const paso = ref<Paso>('elegir')
@@ -49,10 +67,26 @@ function reiniciar() {
   error.value = ''
   confirmado.value = false
   filtro.value = 'todas'
+  usarFecha.value = false
+  fechaPropia.value = ''
 }
 
 function cerrar() {
   if (!procesando.value) emit('update:abierto', false)
+}
+
+/** Con otra fecha elegida, vuelve a pedir la revisión de las mismas filas para ver qué cambia. */
+async function revisarDeNuevo() {
+  procesando.value = true
+  try {
+    const { data } = await api.post<ResultadoImportacion>('/usuarios/importar/revisar', { filas: filas.value, ...parametrosFecha() })
+    revision.value = data
+    confirmado.value = false
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo revisar de nuevo'))
+  } finally {
+    procesando.value = false
+  }
 }
 
 async function elegirArchivo(evento: Event) {
@@ -68,7 +102,7 @@ async function elegirArchivo(evento: Event) {
     if (!lectura.filas.length) throw new Error('El archivo no tiene filas con datos debajo de los encabezados.')
     if (lectura.filas.length > 10000) throw new Error(`El archivo tiene ${lectura.filas.length} filas: el máximo por carga es 10.000. Divídelo en partes.`)
 
-    const { data } = await api.post<ResultadoImportacion>('/usuarios/importar/revisar', { filas: lectura.filas })
+    const { data } = await api.post<ResultadoImportacion>('/usuarios/importar/revisar', { filas: lectura.filas, ...parametrosFecha() })
     archivo.value = elegido.name
     filas.value = lectura.filas
     ignoradas.value = lectura.ignoradas
@@ -184,9 +218,13 @@ const filasVisibles = computed(() => {
 
 async function cargar() {
   if (!confirmado.value || !porGuardar.value) return
+  if (usarFecha.value && !fechaPropia.value) {
+    toast.error('Elige la fecha de vencimiento de la carga o desmarca la casilla.')
+    return
+  }
   procesando.value = true
   try {
-    const { data } = await api.post<ResultadoImportacion>('/usuarios/importar', { filas: filas.value, confirmado: true, archivo: archivo.value })
+    const { data } = await api.post<ResultadoImportacion>('/usuarios/importar', { filas: filas.value, confirmado: true, archivo: archivo.value, ...parametrosFecha() })
     resultado.value = data
     paso.value = 'resultado'
     filtro.value = 'todas'
@@ -225,6 +263,33 @@ function descargarDetalle() {
 
 <template>
   <Modal :abierto="abierto" titulo="Carga masiva de estudiantes" ancho="xl" pie-fijo :bloqueado="procesando" @cerrar="cerrar">
+    <!-- Solo el Administrador/a: otra fecha de vencimiento para toda esta carga -->
+    <div v-if="puedeElegirFecha && paso !== 'resultado'" class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm">
+      <label class="flex items-center gap-2 font-medium text-gray-800">
+        <input v-model="usarFecha" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+        Elegir otra fecha de vencimiento para esta carga
+      </label>
+      <p class="mt-1 text-xs text-gray-600">
+        Si no, cada cuenta vence según su tipo ({{ textoVigencia }}). La fecha que elijas vale para todas las filas que no traigan la suya en la columna «Vigente hasta».
+      </p>
+      <div v-if="usarFecha" class="mt-2 flex flex-wrap items-end gap-2">
+        <div>
+          <label for="carga-fecha" class="mb-1 block text-xs font-medium text-gray-600">Cuentas vigentes hasta</label>
+          <input id="carga-fecha" v-model="fechaPropia" type="date" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
+        </div>
+        <button
+          v-if="paso === 'revision'"
+          type="button"
+          class="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          :disabled="procesando || !fechaPropia"
+          @click="revisarDeNuevo"
+        >
+          Volver a revisar con esta fecha
+        </button>
+        <span v-if="usarFecha && !fechaPropia" class="text-xs text-amber-700">Elige la fecha o desmarca la casilla.</span>
+      </div>
+    </div>
+
     <!-- Paso 1: elegir el archivo -->
     <div v-if="paso === 'elegir'" class="space-y-4 text-sm">
       <ol class="flex flex-wrap gap-2 text-xs font-medium text-gray-500">
@@ -235,7 +300,7 @@ function descargarDetalle() {
       <p class="text-gray-600">
         Sube una planilla <strong>Excel (.xlsx)</strong> o <strong>CSV</strong> con una fila por estudiante. Antes de guardar nada, el sistema te
         mostrará quiénes son nuevos y quiénes <strong>ya existen</strong>: a ellos se les completan o corrigen los datos con los de la planilla (lo
-        que venga vacío no borra nada) y <strong>se renueva su cuenta</strong> hasta el {{ fechaVigencia(proximoVencimiento()) }} (a los que no vienen en la planilla no se les toca nada: vencen solos en su fecha). Verás qué cambia en cada uno y tendrás que confirmar.
+        que venga vacío no borra nada) y <strong>se renueva su cuenta</strong> ({{ textoVigencia }}; a los que no vienen en la planilla no se les toca nada: vencen solos en su fecha). Verás qué cambia en cada uno y tendrás que confirmar.
       </p>
       <p class="rounded-lg bg-indigo-50/60 px-3 py-2 text-indigo-950 ring-1 ring-indigo-100">
         <strong>¿Tienes el reporte de matrícula de pregrado de la universidad?</strong> Súbelo tal cual (Excel o CSV, también el guardado en Mac). Se
@@ -312,7 +377,7 @@ function descargarDetalle() {
           <strong>{{ resumen.actualizados }} {{ resumen.actualizados === 1 ? 'persona ya existe' : 'personas ya existen' }}</strong> en el sistema (mismo
           RUT o documento): <strong>se actualizarán sus datos con los de la planilla</strong>
           <template v-if="habilitados">
-            y {{ habilitados === 1 ? 'la que estaba inactiva quedará activa' : `las ${habilitados} que estaban inactivas quedarán activas` }} (cuentas renovadas hasta el {{ fechaVigencia(proximoVencimiento()) }})</template
+            y {{ habilitados === 1 ? 'la que estaba inactiva quedará activa' : `las ${habilitados} que estaban inactivas quedarán activas` }} (cuentas renovadas {{ textoVigencia }})</template
           >. Lo que en la planilla viene vacío no borra nada; abajo se ve qué cambia en cada una.
         </p>
         <p v-if="resumen.duplicados" class="rounded-lg bg-orange-50 px-3 py-2 text-orange-900 ring-1 ring-orange-200">

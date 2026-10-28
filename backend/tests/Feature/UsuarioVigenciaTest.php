@@ -27,6 +27,9 @@ class UsuarioVigenciaTest extends TestCase
         $this->assertSame('2028-03-31', Usuario::proximoVencimiento(Carbon::parse('2027-02-10'))->toDateString());
         $this->assertSame('2028-03-31', Usuario::proximoVencimiento(Carbon::parse('2027-03-31'))->toDateString());
         $this->assertSame('2028-03-31', Usuario::proximoVencimiento(Carbon::parse('2027-04-01'))->toDateString());
+        // Una carga hecha en diciembre dura hasta marzo; la de marzo del año siguiente, hasta marzo del subsiguiente.
+        $this->assertSame('2027-03-31', Usuario::proximoVencimiento(Carbon::parse('2026-12-15'))->toDateString());
+        $this->assertSame('2028-03-31', Usuario::proximoVencimiento(Carbon::parse('2027-03-15'))->toDateString());
     }
 
     public function test_una_cuenta_cuya_vigencia_paso_ya_no_esta_activa_pero_se_distingue_de_una_desactivada(): void
@@ -122,5 +125,45 @@ class UsuarioVigenciaTest extends TestCase
         $this->assertSame('2026-03-31', $ausente->fresh()->vigente_hasta->toDateString());
         $this->assertFalse($ausente->fresh()->activo);
         $this->assertSame('2027-03-31', Usuario::where('rut', '12.345.678-5')->first()->vigente_hasta->toDateString());
+    }
+
+    public function test_la_planilla_puede_traer_la_fecha_de_vencimiento_y_esa_manda(): void
+    {
+        Carbon::setTestNow('2026-10-28 10:00:00');
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $existente = Usuario::factory()->create(['rut' => '11.111.111-1', 'activo' => true, 'vigente_hasta' => '2026-12-31']);
+
+        $this->postJson('/api/usuarios/importar', ['confirmado' => true, 'filas' => [
+            ['fila' => 2, 'rut' => '11.111.111-1', 'nombre' => $existente->nombre, 'apellido' => $existente->apellido, 'vigente_hasta' => '30/06/2027'],
+            ['fila' => 3, 'rut' => '12.345.678-5', 'nombre' => 'Nueva', 'apellido' => 'Persona', 'vigente_hasta' => '15-12-2026'],
+        ]])->assertCreated();
+
+        $this->assertSame('2027-06-30', $existente->fresh()->vigente_hasta->toDateString());
+        $this->assertSame('2026-12-15', Usuario::where('rut', '12.345.678-5')->first()->vigente_hasta->toDateString());
+    }
+
+    public function test_una_fecha_ilegible_en_la_planilla_se_avisa_y_no_se_carga(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+
+        $respuesta = $this->postJson('/api/usuarios/importar/revisar', ['filas' => [
+            ['fila' => 2, 'rut' => '12.345.678-5', 'nombre' => 'Nueva', 'apellido' => 'Persona', 'vigente_hasta' => 'pronto'],
+        ]])->assertOk();
+
+        $respuesta->assertJsonPath('filas.0.estado', 'invalido');
+        $this->assertStringContainsString('dd/mm/aaaa', $respuesta->json('filas.0.mensajes.0'));
+    }
+
+    public function test_el_personal_puede_cambiar_la_fecha_de_una_cuenta_a_mano(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $usuario = Usuario::factory()->create();
+
+        $this->putJson("/api/usuarios/{$usuario->id}", [
+            'tipo_documento' => 'rut', 'rut' => $usuario->rut, 'nombre' => $usuario->nombre, 'apellido' => $usuario->apellido,
+            'tipo' => 'estudiante', 'vigente_hasta' => '2026-12-31',
+        ])->assertOk();
+
+        $this->assertSame('2026-12-31', $usuario->fresh()->vigente_hasta->toDateString());
     }
 }

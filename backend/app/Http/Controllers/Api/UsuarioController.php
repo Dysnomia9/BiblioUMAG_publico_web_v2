@@ -11,6 +11,7 @@ use App\Support\Documento;
 use App\Support\Permisos;
 use App\Support\Texto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -98,7 +99,7 @@ class UsuarioController extends Controller
     {
         $datos = $this->validarFicha($request->all());
 
-        $usuario = Usuario::create($datos + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento()->toDateString()]);
+        $usuario = Usuario::create($datos + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento(tipo: $datos['tipo'])?->toDateString()]);
 
         Bitacora::registrar(
             'usuarios.crear',
@@ -123,7 +124,7 @@ class UsuarioController extends Controller
 
         // Marcar como activa una cuenta que no servía es renovarla: también corre su vigencia.
         if (($datos['activo'] ?? false) === true && ! $usuario->activo) {
-            $datos['vigente_hasta'] = Usuario::proximoVencimiento()->toDateString();
+            $datos['vigente_hasta'] ??= Usuario::proximoVencimiento(tipo: $datos['tipo'] ?? $usuario->tipo)?->toDateString();
         }
 
         $antes = $usuario->only(self::CAMPOS);
@@ -164,16 +165,16 @@ class UsuarioController extends Controller
         }
 
         $antes = $usuario->vigente_hasta?->toDateString();
-        $hasta = Usuario::proximoVencimiento();
+        $hasta = Usuario::proximoVencimiento(tipo: $usuario->tipo);
 
         // Solo si sigue sin servir: si dos personas la renuevan a la vez, el cambio y su
         // registro en la bitácora quedan una sola vez.
-        if (Usuario::whereKey($usuario->id)->noVigentes()->update(['activo' => true, 'vigente_hasta' => $hasta->toDateString()])) {
+        if (Usuario::whereKey($usuario->id)->noVigentes()->update(['activo' => true, 'vigente_hasta' => $hasta?->toDateString()])) {
             Bitacora::registrar(
                 'usuarios.habilitar',
-                "Renovó la cuenta de {$usuario->nombre} {$usuario->apellido} hasta el {$hasta->format('d/m/Y')}",
+                "Renovó la cuenta de {$usuario->nombre} {$usuario->apellido}".($hasta ? " hasta el {$hasta->format('d/m/Y')}" : ' (sin vencimiento)'),
                 entidad: $usuario,
-                datos: ['activo' => [false, true], 'vigente_hasta' => [$antes, $hasta->toDateString()]],
+                datos: ['activo' => [false, true], 'vigente_hasta' => [$antes, $hasta?->toDateString()]],
                 afectado: $usuario,
             );
         }
@@ -216,7 +217,7 @@ class UsuarioController extends Controller
      */
     public function revisarImportacion(Request $request)
     {
-        return response()->json($this->clasificar($this->filasDe($request)));
+        return response()->json($this->clasificar($this->filasDe($request), $this->fechaDeLaCarga($request)));
     }
 
     /**
@@ -234,20 +235,21 @@ class UsuarioController extends Controller
         );
         $filas = $this->filasDe($request);
         $archivo = $request->input('archivo');
+        $fechaCarga = $this->fechaDeLaCarga($request);
 
-        $resultado = DB::transaction(function () use ($filas, $archivo) {
+        $resultado = DB::transaction(function () use ($filas, $archivo, $fechaCarga) {
             // Dos cargas a la vez con la misma persona: la segunda espera a la primera y la
             // ve como "ya existe" en vez de chocar con el índice único o pisar sus cambios.
             DB::statement('LOCK TABLE usuarios IN SHARE ROW EXCLUSIVE MODE');
 
-            $clasificacion = $this->clasificar($filas);
+            $clasificacion = $this->clasificar($filas, $fechaCarga);
             $porActualizar = Usuario::findMany(collect($clasificacion['filas'])->where('estado', 'actualizar')->pluck('existente.id'))->keyBy('id');
             $creados = [];
             $actualizados = [];
 
             foreach ($clasificacion['filas'] as $fila) {
                 if ($fila['estado'] === 'nuevo') {
-                    $creados[] = Usuario::create($fila['datos'] + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento()->toDateString()]);
+                    $creados[] = Usuario::create($fila['datos'] + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento(tipo: $fila['datos']['tipo'] ?? null)?->toDateString()]);
                 } elseif ($fila['estado'] === 'actualizar') {
                     $usuario = $porActualizar[$fila['existente']['id']];
                     $usuario->update(array_map(fn (array $cambio) => $cambio[1], $fila['cambios']));
@@ -396,6 +398,12 @@ class UsuarioController extends Controller
             'sexo' => $sexo,
         ];
 
+        // «Vigente hasta»: opcional. Si viene, manda; si no, la cuenta se renueva con la fecha de siempre.
+        if (($vigente = $texto('vigente_hasta')) !== null) {
+            // Si no se entiende se deja tal cual: la validación de la fila la rechaza con su mensaje.
+            $datos['vigente_hasta'] = $this->fechaDeVigencia($vigente) ?? $vigente;
+        }
+
         if (array_key_exists('activo', $entrada)) {
             $datos['activo'] = filter_var($entrada['activo'], FILTER_VALIDATE_BOOLEAN);
         }
@@ -404,6 +412,43 @@ class UsuarioController extends Controller
         }
 
         return $datos;
+    }
+
+    /**
+     * La fecha de vencimiento que quien administra eligió para TODA esta carga, en vez de
+     * la que dice la política de cada tipo. Solo con el permiso de gestionar la vigencia.
+     */
+    private function fechaDeLaCarga(Request $request): ?string
+    {
+        if (! $request->filled('vigente_hasta')) {
+            return null;
+        }
+
+        if (! $request->user()->puede('vigencia.gestionar')) {
+            abort(403, 'Tu rol no tiene el permiso «'.Permisos::etiqueta('vigencia.gestionar').'». Si lo necesitas, pídeselo a un administrador.');
+        }
+
+        $fecha = $this->fechaDeVigencia((string) $request->input('vigente_hasta'));
+        if ($fecha === null) {
+            throw ValidationException::withMessages(['vigente_hasta' => ['La fecha de vencimiento de la carga no es válida.']]);
+        }
+
+        return $fecha;
+    }
+
+    /** «31/03/2027», «31-03-2027», «31.03.2027» o «2027-03-31» → «2027-03-31»; null si no es una fecha. */
+    private function fechaDeVigencia(string $texto): ?string
+    {
+        $texto = trim($texto);
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'd.m.Y'] as $formato) {
+            $fecha = \DateTimeImmutable::createFromFormat('!'.$formato, substr($texto, 0, 10));
+            $errores = \DateTimeImmutable::getLastErrors();
+            if ($fecha && ! ($errores['warning_count'] ?? 0) && ! ($errores['error_count'] ?? 0) && (int) $fecha->format('Y') >= 1990) {
+                return $fecha->format('Y-m-d');
+            }
+        }
+
+        return null;
     }
 
     private function reglas(?Usuario $ignorar = null): array
@@ -419,6 +464,7 @@ class UsuarioController extends Controller
             'anio_ingreso' => ['nullable', 'integer', 'min:1950', 'max:'.(now()->year + 1)],
             'sexo' => ['nullable', 'string', 'max:30'],
             'activo' => ['sometimes', 'boolean'],
+            'vigente_hasta' => ['nullable', 'date_format:Y-m-d'],
             'password' => ['nullable', 'string', 'min:6', 'max:100'],
         ];
     }
@@ -435,6 +481,7 @@ class UsuarioController extends Controller
             'anio_ingreso.min' => 'El año de ingreso no es válido.',
             'anio_ingreso.max' => 'El año de ingreso no puede ser futuro.',
             'password.min' => 'La contraseña del portal debe tener al menos 6 caracteres.',
+            'vigente_hasta.date_format' => 'La fecha de vencimiento no es válida: escríbela como dd/mm/aaaa (ej. 31/03/2027).',
         ];
     }
 
@@ -517,7 +564,7 @@ class UsuarioController extends Controller
      * @param  list<array<string, mixed>>  $filas  cada una con 'fila' (su número en el archivo) y los campos
      * @return array{resumen: array<string, int>, filas: list<array<string, mixed>>}
      */
-    private function clasificar(array $filas): array
+    private function clasificar(array $filas, ?string $fechaCarga = null): array
     {
         $resultado = [];
         $vistos = [];
@@ -528,9 +575,13 @@ class UsuarioController extends Controller
         // Cada fila como quedaría en el sistema. Contraseñas no viajan en planillas: quien se
         // carga así entra al portal con el login institucional o con la contraseña que se le
         // asigne después al editarlo. Y una carga nunca deja a nadie inactivo.
-        $preparadas = array_map(function (array $fila) use ($carreras) {
+        $preparadas = array_map(function (array $fila) use ($carreras, $fechaCarga) {
             $errores = [];
             $datos = $this->comoEnElSistema($this->normalizar(array_diff_key($fila, ['password' => 0, 'activo' => 0]), $errores), $carreras);
+            // La fecha escogida para toda la carga vale para las filas que no traen la suya.
+            if ($fechaCarga && ! isset($datos['vigente_hasta'])) {
+                $datos['vigente_hasta'] = $fechaCarga;
+            }
 
             return [$fila, $datos, $errores];
         }, $filas);
@@ -665,13 +716,24 @@ class UsuarioController extends Controller
         }
 
         // Venir en la planilla renueva la cuenta: queda vigente hasta el próximo cierre de año
-        // académico. Quien ya está vigente hasta esa fecha no cambia.
-        $vigencia = Usuario::proximoVencimiento();
-        if (! $existente->activo) {
+        // académico (quien ya está vigente hasta esa fecha no cambia). Si la planilla trae
+        // «Vigente hasta», esa fecha manda, sea más corta o más larga.
+        // Cuánto dura depende del tipo de usuario (los docentes y funcionarios pueden tener otra regla).
+        $explicita = isset($datos['vigente_hasta']) ? Carbon::parse($datos['vigente_hasta']) : null;
+        $tipoDeLaCuenta = trim((string) ($fila['tipo'] ?? '')) !== '' ? $datos['tipo'] : $existente->tipo;
+        $vigencia = $explicita ?? Usuario::proximoVencimiento(tipo: $tipoDeLaCuenta);
+        // Sin vencimiento ($vigencia null): solo cambia si hoy tiene una fecha.
+        $cambiaFecha = match (true) {
+            $vigencia === null => $existente->vigente_hasta !== null,
+            (bool) $explicita => ! $existente->vigente_hasta || ! $existente->vigente_hasta->equalTo($vigencia),
+            default => $existente->vigente_hasta !== null && $existente->vigente_hasta->lessThan($vigencia),
+        };
+
+        if (! $existente->activo && ($vigencia === null || $vigencia->copy()->endOfDay()->isFuture())) {
             $cambios['activo'] = [false, true];
         }
-        if (! $existente->vigente_hasta || $existente->vigente_hasta->lessThan($vigencia)) {
-            $cambios['vigente_hasta'] = [$existente->vigente_hasta?->toDateString(), $vigencia->toDateString()];
+        if ($cambiaFecha || ($vigencia && ! $existente->vigente_hasta)) {
+            $cambios['vigente_hasta'] = [$existente->vigente_hasta?->toDateString(), $vigencia?->toDateString()];
         }
 
         return [

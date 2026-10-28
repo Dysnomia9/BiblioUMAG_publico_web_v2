@@ -72,12 +72,14 @@ type Ficha = {
   anio_ingreso: string
   sexo: string
   activo: boolean
+  /** Último día en que la cuenta sirve (AAAA-MM-DD); vacío: sin vencimiento. */
+  vigente_hasta: string
   password: string
 }
 
 const fichaVacia = (): Ficha => ({
   tipo_documento: 'rut', rut: '', pais: '', nombre: '', apellido: '', email: '', tipo: 'estudiante',
-  carrera: '', anio_ingreso: String(new Date().getFullYear()), sexo: '', activo: true, password: '',
+  carrera: '', anio_ingreso: String(new Date().getFullYear()), sexo: '', activo: true, vigente_hasta: '', password: '',
 })
 
 const form = reactive({
@@ -103,6 +105,7 @@ function fichaDe(u: Usuario): Ficha {
     anio_ingreso: u.anio_ingreso ? String(u.anio_ingreso) : '',
     sexo: u.sexo ?? '',
     activo: u.activo,
+    vigente_hasta: u.vigente_hasta ? u.vigente_hasta.slice(0, 10) : '',
     password: '',
   }
 }
@@ -128,7 +131,7 @@ function elegirTipoDocumento(tipo: TipoDocumento) {
 
 const ETIQUETAS: Record<keyof Ficha, string> = {
   tipo_documento: 'Tipo de documento', rut: 'RUT / documento', pais: 'País', nombre: 'Nombre', apellido: 'Apellido', email: 'Correo',
-  tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', activo: 'Estado', password: 'Contraseña del portal',
+  tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', activo: 'Estado', vigente_hasta: 'Cuenta vigente hasta', password: 'Contraseña del portal',
 }
 
 function mostrar(campo: keyof Ficha, f: Ficha): string {
@@ -193,6 +196,7 @@ async function guardar() {
     anio_ingreso: f.anio_ingreso ? Number(f.anio_ingreso) : null,
     sexo: f.sexo || null,
     activo: f.activo,
+    vigente_hasta: f.vigente_hasta || undefined,
     password: f.password || undefined,
   }
   form.guardando = true
@@ -413,6 +417,12 @@ const clasesInput = (campo: string) =>
               @input="limpiarError('password')"
             />
             <p v-if="form.errores.password" class="text-xs text-red-600 mt-1">{{ form.errores.password }}</p>
+          </div>
+          <div v-if="form.id" class="sm:col-span-1">
+            <label for="usuario-vigente" class="block text-xs font-medium text-gray-600 mb-1">Cuenta vigente hasta</label>
+            <input id="usuario-vigente" v-model="form.ficha.vigente_hasta" type="date" :class="clasesInput('vigente_hasta')" @input="limpiarError('vigente_hasta')" />
+            <p v-if="form.errores.vigente_hasta" class="text-xs text-red-600 mt-1">{{ form.errores.vigente_hasta }}</p>
+            <p v-else class="mt-1 text-xs text-gray-500">Último día en que la cuenta sirve. Pasada esa fecha queda vencida hasta que se renueve.</p>
           </div>
           <div v-if="form.id" class="sm:col-span-2">
             <label class="flex items-center gap-2 text-sm text-gray-700" :class="{ 'opacity-60': bloqueaDesactivar }">

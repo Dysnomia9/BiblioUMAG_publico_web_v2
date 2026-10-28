@@ -584,6 +584,22 @@ export type ReporteResumen = {
   porHoraPorSala: HoraPorSala[]
 }
 
+export type ModoVigencia = 'fecha_fija' | 'duracion' | 'sin_vencimiento'
+
+/** Cuánto dura la cuenta de un tipo de usuario al renovarla (Administración › Vigencia de cuentas). */
+export type PoliticaVigencia = {
+  tipo: 'estudiante' | 'docente' | 'funcionario'
+  modo: ModoVigencia
+  mes: number | null
+  dia: number | null
+  anios: number | null
+  descripcion: string
+  /** Fecha (AAAA-MM-DD) que recibiría hoy una cuenta de este tipo al renovarse; null: no vence. */
+  proximo: string | null
+  cuentas_vigentes: number
+  por_vencer_60_dias: number
+}
+
 export type ReporteOpciones = {
   carreras: string[]
   aniosIngreso: number[]

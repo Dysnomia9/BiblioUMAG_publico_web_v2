@@ -118,12 +118,17 @@ class Usuario extends Authenticatable
     }
 
     /**
-     * Hasta cuándo queda vigente una cuenta que se renueva hoy: el cierre del año
-     * académico del año calendario siguiente (ver config/usuarios.php).
+     * Hasta cuándo queda vigente una cuenta de este tipo que se renueva hoy, o null si ese
+     * tipo no vence. Lo define la política de vigencia del tipo (Administración › Vigencia de
+     * cuentas); por defecto, el 31 de marzo del año calendario siguiente (config/usuarios.php).
      */
-    public static function proximoVencimiento(?Carbon $desde = null): Carbon
+    public static function proximoVencimiento(?Carbon $desde = null, ?string $tipo = null): ?Carbon
     {
         $desde ??= now();
+
+        if ($politica = PoliticaVigencia::de($tipo)) {
+            return $politica->vencimientoDesde($desde);
+        }
 
         return Carbon::create($desde->year + 1, (int) config('usuarios.vigencia.mes'), (int) config('usuarios.vigencia.dia'))->startOfDay();
     }

@@ -17,7 +17,7 @@ final class Permisos
      * cualquier otro permiso, y desactivar a un usuario lo deja sin entradas, préstamos
      * ni portal (habilitarlo, en cambio, lo puede hacer todo el personal).
      */
-    public const SOLO_ACCESO_TOTAL = ['personal.gestionar', 'usuarios.desactivar'];
+    public const SOLO_ACCESO_TOTAL = ['personal.gestionar', 'usuarios.desactivar', 'vigencia.gestionar'];
 
     public const GRUPOS = [
         'atencion' => [
@@ -73,6 +73,7 @@ final class Permisos
                 'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas), y administrar las reglas de préstamo y los días sin atención (feriados, vacaciones y cierres).'],
                 'usuarios.gestionar' => ['Crear y editar estudiantes', 'Registrar estudiantes y otros usuarios (con RUT, pasaporte o DNI), editar sus datos y cargarlos en forma masiva desde Excel o CSV.'],
                 'usuarios.desactivar' => ['Desactivar usuarios', 'Dejar inactivo a un usuario: no podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien renueve su cuenta.'],
+                'vigencia.gestionar' => ['Vigencia de las cuentas', 'Definir cuánto dura la cuenta de estudiantes, docentes y funcionarios al renovarla (fecha fija, años o sin vencimiento) y elegir otra fecha de vencimiento al hacer una carga masiva.'],
                 'personal.gestionar' => ['Cuentas y roles del personal', 'Crear cuentas, asignar roles y definir qué puede hacer cada rol.'],
             ],
         ],

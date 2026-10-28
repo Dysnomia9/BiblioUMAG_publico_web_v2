@@ -1,10 +1,42 @@
+import { ref } from 'vue'
+import api from '@/services/api'
+import type { PoliticaVigencia } from '@/types'
+
 /**
- * Vigencia de las cuentas. Es la misma regla de config/usuarios.php del backend: las
- * cuentas vencen el 31 de marzo del año calendario siguiente a la renovación. Acá solo
- * sirve para anunciar la fecha antes de renovar; la que vale es la que guarda el servidor.
+ * Vigencia de las cuentas. Cuánto dura la cuenta de cada tipo al renovarla lo define el
+ * Administrador/a en Administración › Vigencia de cuentas; acá solo se lee, para anunciar
+ * la fecha antes de renovar. La que vale es la que calcula y guarda el servidor.
  */
-export function proximoVencimiento(hoy: Date = new Date()): Date {
-  return new Date(hoy.getFullYear() + 1, 2, 31)
+const politicas = ref<PoliticaVigencia[]>([])
+let cargando: Promise<void> | null = null
+
+/** Las políticas por tipo; se piden una vez y se reusan (se vuelven a pedir con `recargar`). */
+export function useVigencia() {
+  async function cargar(recargar = false) {
+    if (recargar) cargando = null
+    cargando ??= api
+      .get<PoliticaVigencia[]>('/vigencia')
+      .then(({ data }) => {
+        politicas.value = data
+      })
+      .catch(() => {
+        cargando = null
+      })
+    await cargando
+  }
+
+  /** Fecha (AAAA-MM-DD) que recibiría hoy una cuenta de este tipo al renovarse; null si ese tipo no vence. */
+  function proximoPara(tipo: string | null | undefined): string | null {
+    return politicas.value.find((p) => p.tipo === (tipo ?? 'estudiante'))?.proximo ?? null
+  }
+
+  /** Frase para anunciar el resultado: «hasta el 31/03/2027» o «sin vencimiento». */
+  function hastaPara(tipo: string | null | undefined): string {
+    const fecha = proximoPara(tipo)
+    return fecha ? `hasta el ${fechaVigencia(fecha)}` : 'sin vencimiento'
+  }
+
+  return { politicas, cargar, proximoPara, hastaPara }
 }
 
 /** «31/03/2027» a partir de una fecha ISO («2027-03-31») o de un Date. */

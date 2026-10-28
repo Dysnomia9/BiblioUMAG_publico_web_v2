@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\TipoMaterialController;
 use App\Http\Controllers\Api\UbicacionController;
 use App\Http\Controllers\Api\UsuarioAuthController;
 use App\Http\Controllers\Api\UsuarioController;
+use App\Http\Controllers\Api\VigenciaController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
@@ -134,6 +135,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/usuarios/importar/revisar', [UsuarioController::class, 'revisarImportacion']);
         Route::post('/usuarios/importar', [UsuarioController::class, 'importar']);
     });
+
+    // Cuánto dura la cuenta de cada tipo al renovarla: la ven quienes renuevan y cargan usuarios; solo el Administrador/a la cambia.
+    Route::get('/vigencia', [VigenciaController::class, 'index'])->middleware('permiso:usuarios.habilitar,usuarios.gestionar,usuarios.ver,vigencia.gestionar');
+    Route::put('/vigencia', [VigenciaController::class, 'update'])->middleware('permiso:vigencia.gestionar');
 
     Route::get('/multas', [MultaController::class, 'index'])->middleware('permiso:multas.ver');
     Route::get('/multas/resumen', [MultaController::class, 'resumen'])->middleware('permiso:multas.ver');

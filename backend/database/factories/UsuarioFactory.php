@@ -30,7 +30,7 @@ class UsuarioFactory extends Factory
             'sexo' => fake()->randomElement(['M', 'F']),
             'activo' => true,
             // Vigente como lo estaría alguien recién renovado (ver config/usuarios.php).
-            'vigente_hasta' => Usuario::proximoVencimiento()->toDateString(),
+            'vigente_hasta' => Usuario::proximoVencimiento()?->toDateString(),
             'qr_code' => null,
         ];
     }
