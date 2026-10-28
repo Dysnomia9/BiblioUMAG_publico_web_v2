@@ -60,6 +60,10 @@ class FasciculoTest extends TestCase
             ->assertJsonPath('fecha_recepcion', '2026-07-08');
 
         $this->assertDatabaseHas('bitacora', ['accion' => 'libros.recibir_fasciculo', 'entidad_id' => $fasciculo->id]);
+
+        $otro = Fasciculo::create(['libro_id' => $revista->id, 'enumeracion' => 'Vol. 1, n.º 3', 'estado' => 'esperado']);
+        $this->patchJson("/api/fasciculos/{$otro->id}/recibir", ['fecha_recepcion' => '2026-07-20'])->assertStatus(422)
+            ->assertJsonPath('errors.fecha_recepcion.0', 'La fecha de recepción no puede ser futura.');
         $this->patchJson("/api/fasciculos/{$fasciculo->id}/recibir")->assertStatus(409);
     }
 

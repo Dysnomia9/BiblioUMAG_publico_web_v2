@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PortalLayout from '@/components/layout/PortalLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
+import CopiasPortal from '@/components/portal/CopiasPortal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
@@ -484,6 +485,7 @@ async function cancelar(reserva: ReservaLibro) {
               </div>
               <div v-if="fichaAbierta === fila.libro.id" class="hidden sm:block px-5 pb-4 bg-gray-50/60">
                 <FichaBibliografica :filas="fila.libro.ficha" />
+                <CopiasPortal :copias="fila.libro.copias ?? []" />
               </div>
             </div>
             <div
@@ -535,6 +537,7 @@ async function cancelar(reserva: ReservaLibro) {
         </div>
         <p class="mt-5 mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Ficha bibliográfica</p>
         <FichaBibliografica :filas="filaFicha.libro.ficha" />
+        <CopiasPortal :copias="filaFicha.libro.copias ?? []" />
       </template>
       <template #pie>
         <button

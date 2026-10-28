@@ -74,10 +74,11 @@ class FasciculoController extends Controller
     /** Llegó el número: queda «recibido» con su fecha de recepción (hoy, si no se indica). */
     public function recibir(Request $request, Fasciculo $fasciculo)
     {
+        // Un día de margen: el «hoy» del navegador puede ir adelantado al del servidor cerca de medianoche.
         $data = $request->validate([
-            'fecha_recepcion' => ['nullable', 'date', 'before_or_equal:today'],
+            'fecha_recepcion' => ['nullable', 'date', 'before_or_equal:tomorrow'],
             'nota' => ['nullable', 'string', 'max:5000'],
-        ]);
+        ], ['fecha_recepcion.before_or_equal' => 'La fecha de recepción no puede ser futura.']);
 
         if ($fasciculo->estado === 'recibido') {
             return response()->json(['message' => 'Este fascículo ya está registrado como recibido.'], 409);

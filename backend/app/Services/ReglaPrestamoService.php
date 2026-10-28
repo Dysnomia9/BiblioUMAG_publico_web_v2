@@ -15,10 +15,13 @@ use Illuminate\Support\Carbon;
  * Calzan las reglas cuyo tipo de usuario, tipo de material y ubicación son iguales a
  * los del préstamo o null (comodín). Gana la más específica: la que fija más de los
  * tres criterios; si empatan, desempata el criterio más importante, en este orden:
- * tipo de usuario, tipo de material, ubicación. Ejemplo: para un estudiante que pide
- * una revista de la Hemeroteca, «estudiante + revista» gana a «revista + Hemeroteca»
- * (mismo número de criterios, pero fija el tipo de usuario), y ambas ganan a
- * «estudiante» sola.
+ * tipo de material, ubicación, tipo de usuario (lo que es la copia y dónde está pesa
+ * más que quién la pide: una obra de referencia no se presta, la pida quien la pida).
+ * Ejemplos, para un estudiante que pide una revista de la Hemeroteca:
+ * - «revista: no se presta» gana a «estudiantes: 7 días» (empate a uno; manda el material);
+ * - «revista + Hemeroteca» gana a «estudiante + revista» (empate a dos; la ubicación
+ *   pesa más que el tipo de usuario);
+ * - «estudiante + revista» gana a «revista» sola (fija más criterios).
  *
  * Sin regla que calce, o en los valores que la regla deja en null, sigue lo de antes
  * de las reglas: un libro a la vez, la tarifa y el tope de config/multas.php y la
@@ -38,7 +41,7 @@ class ReglaPrestamoService
             ->tap(fn ($q) => $comodin($q, 'tipo_material_id', $tipoMaterialId))
             ->tap(fn ($q) => $comodin($q, 'ubicacion_id', $ubicacionId))
             ->orderByRaw('(CASE WHEN tipo_usuario IS NULL THEN 0 ELSE 1 END) + (CASE WHEN tipo_material_id IS NULL THEN 0 ELSE 1 END) + (CASE WHEN ubicacion_id IS NULL THEN 0 ELSE 1 END) DESC')
-            ->orderByRaw('(CASE WHEN tipo_usuario IS NULL THEN 0 ELSE 4 END) + (CASE WHEN tipo_material_id IS NULL THEN 0 ELSE 2 END) + (CASE WHEN ubicacion_id IS NULL THEN 0 ELSE 1 END) DESC')
+            ->orderByRaw('(CASE WHEN tipo_material_id IS NULL THEN 0 ELSE 4 END) + (CASE WHEN ubicacion_id IS NULL THEN 0 ELSE 2 END) + (CASE WHEN tipo_usuario IS NULL THEN 0 ELSE 1 END) DESC')
             ->first();
     }
 

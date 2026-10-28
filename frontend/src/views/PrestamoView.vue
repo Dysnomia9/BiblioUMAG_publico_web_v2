@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, useCategoriasRecurso } from '@/utils/recursos'
-import type { CategoriaRecurso, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
+import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -41,6 +41,7 @@ const today = new Date().toLocaleDateString('sv-SE')
 const codigoBarrasPrestamo = ref('')
 const libroEncontradoPrestamo = ref('')
 const libroDisponiblePrestamo = ref(true)
+const ubicacionPrestamo = ref<number | null>(null)
 const fechaPrestamo = ref(today)
 const fechaDevolucion = ref('')
 
@@ -52,30 +53,39 @@ const fechaRetiro = ref('')
 
 const prestamosLibros = computed(() => prestamos.value.filter((p) => p.tipo_item === 'libro' || !p.tipo_item))
 const librosEnPrestamo = computed(() => prestamosLibros.value.filter((p) => p.estado !== 'devuelto').length)
-const tieneLibroActivo = computed(() => librosEnPrestamo.value > 0)
 
 // Con multas pendientes no se presta ni se reserva nada (el backend lo rechaza igual).
 const bloqueadoPorMultas = computed(() => (usuario.value?.multas_pendientes?.cantidad ?? 0) > 0)
 const MENSAJE_BLOQUEO = 'Tiene multas pendientes: no puede llevarse ni reservar material hasta pagarlas'
 
 // ---------- Horario: la devolución y el retiro no pueden caer en un día sin atención ----------
+// Ni en los que la biblioteca no abre cada semana ni en los feriados, vacaciones y
+// cierres de Administración (de toda la biblioteca o de la ubicación de la copia).
 const horario = ref<HorarioBiblioteca | null>(null)
+const diasSinAtencion = ref<DiaSinAtencion[]>([])
 
 async function cargarHorario() {
   try {
-    const { data } = await api.get<HorarioBiblioteca>('/configuracion/horario')
-    horario.value = data
+    const [{ data: h }, { data: d }] = await Promise.all([
+      api.get<HorarioBiblioteca>('/configuracion/horario'),
+      api.get<DiaSinAtencion[]>('/dias-sin-atencion', { params: { desde: today } }),
+    ])
+    horario.value = h
+    diasSinAtencion.value = d
   } catch {
     horario.value = null
   }
 }
 
-function avisoDiaSinAtencion(fecha: string, para: string) {
+function avisoDiaSinAtencion(fecha: string, para: string, ubicacionId: number | null = null) {
   if (!fecha || !horario.value) return ''
   const dia = new Date(`${fecha}T12:00:00`)
-  return horario.value[diaIso(dia)] ? '' : `La biblioteca no atiende los ${diaEnPlural(dia)}: elige otro día ${para}.`
+  if (!horario.value[diaIso(dia)]) return `La biblioteca no atiende los ${diaEnPlural(dia)}: elige otro día ${para}.`
+  const cierre = diasSinAtencion.value.find((d) => d.fecha === fecha && (d.ubicacion_id === null || d.ubicacion_id === ubicacionId))
+  if (!cierre) return ''
+  return `La biblioteca no atiende el ${dia.toLocaleDateString('es-CL')} (${cierre.motivo || 'día sin atención'}): elige otro día ${para}.`
 }
-const avisoDevolucion = computed(() => avisoDiaSinAtencion(fechaDevolucion.value, 'para la devolución'))
+const avisoDevolucion = computed(() => avisoDiaSinAtencion(fechaDevolucion.value, 'para la devolución', ubicacionPrestamo.value))
 const avisoRetiro = computed(() => avisoDiaSinAtencion(fechaRetiro.value, 'para el retiro'))
 
 // ---------- Recursos de apoyo ----------
@@ -151,6 +161,7 @@ async function refrescarUsuario() {
 
 function buscarOtroUsuario() {
   usuario.value = null
+  condiciones.value = null
   prestamos.value = []
   reservas.value = []
   showForm.value = false
@@ -281,11 +292,11 @@ const subtituloItem = (p: Prestamo) => `${itemPrestamo(p.tipo_item).nombre} · $
  */
 const codigoCompleto = (codigo: string) => codigo.length === 8 || codigo.length >= 10
 
-async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean } | null> {
+async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; ubicacionId: number | null } | null> {
   try {
     const { data } = await api.get(`/ejemplares/${codigo}`)
     const titulo = data.numero_copia > 1 ? `${data.libro?.titulo} (Copia ${data.numero_copia})` : data.libro?.titulo
-    return { titulo, disponible: data.disponible && data.estado_proceso === 'en_estante' }
+    return { titulo, disponible: data.disponible && data.estado_proceso === 'en_estante', ubicacionId: data.ubicacion_id ?? null }
   } catch {
     return null
   }
@@ -296,14 +307,58 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
   codigoBarrasPrestamo.value = valor.replace(/\D/g, '')
   libroEncontradoPrestamo.value = ''
   libroDisponiblePrestamo.value = true
+  ubicacionPrestamo.value = null
+  condiciones.value = null
   clearTimeout(buscarLibroPrestamoTimer)
   if (!codigoCompleto(codigoBarrasPrestamo.value)) return
   buscarLibroPrestamoTimer = setTimeout(async () => {
     const libro = await buscarLibroApi(codigoBarrasPrestamo.value)
     libroEncontradoPrestamo.value = libro?.titulo ?? ''
     libroDisponiblePrestamo.value = libro?.disponible ?? true
+    ubicacionPrestamo.value = libro?.ubicacionId ?? null
+    if (libro) cargarCondiciones()
   }, 250)
 }
+
+// ---------- Regla de préstamo (Administración → Reglas de préstamo) ----------
+// Con la copia y la persona, el servidor dice qué regla se aplica: si se presta, cuántos
+// libros puede tener a la vez y la fecha de devolución que propone (ya corrida al siguiente
+// día con atención). La fecha propuesta se puede cambiar; si no hay regla, la elige el mesón.
+const condiciones = ref<CondicionesPrestamo | null>(null)
+let fechaPropuesta = ''
+
+async function cargarCondiciones() {
+  if (!usuario.value || !codigoBarrasPrestamo.value) return
+  const codigo = codigoBarrasPrestamo.value
+  try {
+    const { data } = await api.get<CondicionesPrestamo>('/prestamos/condiciones', {
+      params: { usuario_id: usuario.value.id, codigo_barras: codigo, fecha_prestamo: fechaPrestamo.value || undefined },
+    })
+    if (codigo !== codigoBarrasPrestamo.value) return
+    condiciones.value = data
+    // Solo se reemplaza una fecha vacía o la que propuso la regla antes, no la que eligió el mesón.
+    if (data.fecha_devolucion && (!fechaDevolucion.value || fechaDevolucion.value === fechaPropuesta)) {
+      fechaDevolucion.value = data.fecha_devolucion
+      fechaPropuesta = data.fecha_devolucion
+    }
+  } catch {
+    condiciones.value = null
+  }
+}
+
+function cambiarFechaPrestamo() {
+  if (condiciones.value) cargarCondiciones()
+}
+
+const rechazoRegla = computed(() => condiciones.value?.motivo_rechazo ?? '')
+
+/** «Regla Docentes · todo material · toda ubicación: 14 días · hasta 3 a la vez». */
+const textoRegla = computed(() => {
+  const c = condiciones.value
+  if (!c || !c.prestable) return ''
+  const plazo = c.dias_prestamo !== null ? `${c.dias_prestamo} ${c.dias_prestamo === 1 ? 'día' : 'días'}` : 'plazo a elección del mesón'
+  return `${c.regla ? `Regla ${c.regla.descripcion}` : 'Regla general'}: ${plazo} · hasta ${c.max_ejemplares} ${c.max_ejemplares === 1 ? 'libro' : 'libros'} a la vez · multa ${formatMonto(c.multa_por_dia)} por día`
+})
 
 // La copia apartada para esta misma persona (reserva lista para retirar) sí se le presta.
 const reservaPropiaPrestamo = computed(() =>
@@ -338,8 +393,8 @@ function pedirConfirmacionPrestamo() {
     toast.error('Este libro ya está reservado/prestado por otra persona')
     return
   }
-  if (tieneLibroActivo.value) {
-    toast.error('Este usuario ya tiene un libro prestado sin devolver')
+  if (rechazoRegla.value) {
+    toast.error(rechazoRegla.value)
     return
   }
   if (!fechaPrestamo.value || !fechaDevolucion.value) {
@@ -373,6 +428,8 @@ async function confirmarPrestamo() {
     libroEncontradoPrestamo.value = ''
     fechaPrestamo.value = today
     fechaDevolucion.value = ''
+    fechaPropuesta = ''
+    condiciones.value = null
     showForm.value = false
     prestamoPendiente.value = null
     await cargarPrestamosYReservas()
@@ -747,6 +804,10 @@ function formatHora(iso: string | null) {
               <span v-else-if="libroEncontradoPrestamo && !libroDisponiblePrestamo"><strong>{{ libroEncontradoPrestamo }}</strong> ya está reservado/prestado por otra persona</span>
               <span v-else>Código de barras no encontrado en el sistema</span>
             </div>
+            <p v-if="libroEncontradoPrestamo && rechazoRegla" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{{ rechazoRegla }}</p>
+            <p v-else-if="libroEncontradoPrestamo && textoRegla" class="text-xs text-gray-500">
+              {{ textoRegla }}<template v-if="condiciones?.fecha_devolucion"> · devolución propuesta el {{ formatFecha(`${condiciones.fecha_devolucion}T12:00:00`) }}</template>
+            </p>
             <div class="flex flex-wrap items-start gap-3">
               <div class="min-w-[160px] flex-1">
                 <label for="fecha-prestamo" class="mb-1 block text-xs font-medium text-gray-600">Fecha de préstamo</label>
@@ -755,6 +816,7 @@ function formatHora(iso: string | null) {
                   v-model="fechaPrestamo"
                   type="date"
                   :min="today"
+                  @change="cambiarFechaPrestamo"
                   class="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -774,7 +836,7 @@ function formatHora(iso: string | null) {
               <button
                 type="button"
                 class="mt-5 rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!libroEncontradoPrestamo || !puedePrestarLibro || !fechaPrestamo || !fechaDevolucion || tieneLibroActivo || !!avisoDevolucion"
+                :disabled="!libroEncontradoPrestamo || !puedePrestarLibro || !fechaPrestamo || !fechaDevolucion || !!rechazoRegla || !!avisoDevolucion"
                 @click="pedirConfirmacionPrestamo"
               >
                 Confirmar préstamo
@@ -846,13 +908,6 @@ function formatHora(iso: string | null) {
             </div>
           </div>
         </div>
-      </div>
-
-      <div v-if="usuario && tieneLibroActivo" class="mb-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-        </svg>
-        <span>Este usuario ya tiene un libro prestado sin devolver — no puede llevarse otro hasta devolverlo.</span>
       </div>
 
       <div v-if="usuario?.multas_pendientes?.cantidad" class="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -974,7 +1029,7 @@ function formatHora(iso: string | null) {
             </ul>
             <div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <p class="text-gray-500">
-                {{ librosEnPrestamo }} {{ librosEnPrestamo === 1 ? 'libro' : 'libros' }} en préstamo · máximo 1 a la vez
+                {{ librosEnPrestamo }} {{ librosEnPrestamo === 1 ? 'libro' : 'libros' }} en préstamo · {{ condiciones ? `máximo ${condiciones.max_ejemplares} a la vez` : 'el máximo a la vez depende de la regla de préstamo' }}
                 <template v-if="devueltosOcultables">
                   ·
                   <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarDevueltos = !mostrarDevueltos">

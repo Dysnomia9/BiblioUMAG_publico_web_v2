@@ -46,7 +46,7 @@ class ReglaPrestamoTest extends TestCase
         ]);
     }
 
-    public function test_gana_la_regla_mas_especifica_y_en_empate_la_que_fija_el_tipo_de_usuario(): void
+    public function test_gana_la_regla_mas_especifica_y_en_empate_manda_el_material_luego_la_ubicacion(): void
     {
         $revista = TipoMaterial::factory()->create();
         $hemeroteca = Ubicacion::factory()->create();
@@ -55,16 +55,23 @@ class ReglaPrestamoTest extends TestCase
         $general = ReglaPrestamo::create(['dias_prestamo' => 7]);
         $this->assertSame($general->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id);
 
+        // Empate a un criterio: el material gana al tipo de usuario.
         $soloEstudiante = ReglaPrestamo::create(['tipo_usuario' => 'estudiante', 'dias_prestamo' => 10]);
-        $materialYUbicacion = ReglaPrestamo::create(['tipo_material_id' => $revista->id, 'ubicacion_id' => $hemeroteca->id, 'dias_prestamo' => 2]);
-        $this->assertSame($materialYUbicacion->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id, 'dos criterios ganan a uno');
+        $soloRevista = ReglaPrestamo::create(['tipo_material_id' => $revista->id, 'prestable' => false]);
+        $this->assertSame($soloRevista->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id);
 
-        $estudianteYMaterial = ReglaPrestamo::create(['tipo_usuario' => 'estudiante', 'tipo_material_id' => $revista->id, 'dias_prestamo' => 3]);
-        $this->assertSame($estudianteYMaterial->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id, 'en empate, manda el tipo de usuario');
+        // Dos criterios ganan a uno.
+        $estudianteYRevista = ReglaPrestamo::create(['tipo_usuario' => 'estudiante', 'tipo_material_id' => $revista->id, 'dias_prestamo' => 3]);
+        $this->assertSame($estudianteYRevista->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id);
 
-        // Lo que no calza no cuenta: un docente cae en la que no fija tipo de usuario.
-        $this->assertSame($materialYUbicacion->id, $servicio->reglaPara('docente', $revista->id, $hemeroteca->id)->id);
-        $this->assertSame($soloEstudiante->id, $servicio->reglaPara('estudiante', null, null)->id);
+        // Empate a dos: la ubicación pesa más que el tipo de usuario.
+        $revistaYHemeroteca = ReglaPrestamo::create(['tipo_material_id' => $revista->id, 'ubicacion_id' => $hemeroteca->id, 'dias_prestamo' => 2]);
+        $this->assertSame($revistaYHemeroteca->id, $servicio->reglaPara('estudiante', $revista->id, $hemeroteca->id)->id);
+
+        // Lo que no calza no cuenta.
+        $this->assertSame($estudianteYRevista->id, $servicio->reglaPara('estudiante', $revista->id, null)->id);
+        $this->assertSame($soloRevista->id, $servicio->reglaPara('docente', $revista->id, null)->id);
+        $this->assertSame($soloEstudiante->id, $servicio->reglaPara('estudiante', null, $hemeroteca->id)->id);
         $this->assertSame($general->id, $servicio->reglaPara('docente', null, $hemeroteca->id)->id);
     }
 

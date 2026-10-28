@@ -6,6 +6,8 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
+import EditarCopia from '@/components/libros/EditarCopia.vue'
+import FasciculosRevista from '@/components/libros/FasciculosRevista.vue'
 import ExportarLibros from '@/components/libros/ExportarLibros.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
@@ -14,7 +16,7 @@ import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
 import { inicialesPortada, tonoPortada } from '@/utils/portada'
-import type { Carrera, Categoria, Libro, Paginado, TipoMaterial } from '@/types'
+import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -42,6 +44,7 @@ const categoriaElegida = ref<Categoria | null>(null)
 const carreras = ref<Carrera[]>([])
 const exportarAbierto = ref(false)
 const tiposMaterial = ref<TipoMaterial[]>([])
+const ubicaciones = ref<Ubicacion[]>([])
 const expandidos = ref<Set<number>>(new Set())
 
 const puedeCatalogar = computed(() => auth.puede('libros.catalogar'))
@@ -124,12 +127,14 @@ function irAPagina(nueva: number) {
 
 async function cargarCatalogos() {
   try {
-    const [tiposMaterialRes, carrerasRes] = await Promise.all([
+    const [tiposMaterialRes, carrerasRes, ubicacionesRes] = await Promise.all([
       api.get<TipoMaterial[]>('/tipos-material'),
       api.get<Carrera[]>('/carreras'),
+      api.get<Ubicacion[]>('/ubicaciones'),
     ])
     tiposMaterial.value = tiposMaterialRes.data
     carreras.value = carrerasRes.data
+    ubicaciones.value = ubicacionesRes.data
   } catch {
     // Sin catálogos, esos filtros quedan solo con «Todos».
   }
@@ -206,6 +211,16 @@ function irAEditar() {
 
 function agregarCopia(l: Libro) {
   router.push({ name: 'catalogacion-libros', query: { copia: l.id } })
+}
+
+// ---------- Editar una copia (ubicación, volumen, colección y notas) ----------
+const copiaAEditar = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
+
+function copiaGuardada(actualizada: Ejemplar) {
+  const libro = copiaAEditar.value?.libro
+  const i = libro?.ejemplares?.findIndex((e) => e.id === actualizada.id) ?? -1
+  if (libro?.ejemplares && i >= 0) libro.ejemplares[i] = { ...libro.ejemplares[i], ...actualizada, libro: undefined }
+  copiaAEditar.value = null
 }
 </script>
 
@@ -406,10 +421,24 @@ function agregarCopia(l: Libro) {
                     <li v-for="e in f.libro.ejemplares" :key="e.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
                       <div class="min-w-0">
                         <p class="font-mono text-sm font-semibold text-gray-900">{{ e.codigo_barras }}</p>
-                        <p class="text-xs text-gray-500">{{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span></p>
+                        <p class="text-xs text-gray-500">
+                          {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
+                          <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
+                        </p>
+                        <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota: {{ e.nota_publica }}</p>
+                        <p v-if="e.nota_interna" class="text-xs text-violet-700">Interna: {{ e.nota_interna }}</p>
                       </div>
                       <div class="flex shrink-0 items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="situacionCopia(e).badge">{{ situacionCopia(e).texto }}</span>
+                        <button
+                          v-if="puedeCatalogar"
+                          type="button"
+                          class="rounded-lg px-2 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-50"
+                          :aria-label="`Editar la copia ${e.numero_copia} (${e.codigo_barras})`"
+                          @click="copiaAEditar = { copia: e, libro: f.libro }"
+                        >
+                          Editar
+                        </button>
                         <!-- Abre Estado de ejemplares con esta copia ya elegida (la reconoce por su código). -->
                         <router-link
                           v-if="puedeCambiarEstado"
@@ -436,6 +465,13 @@ function agregarCopia(l: Libro) {
                     </button>
                   </div>
                 </div>
+                <FasciculosRevista
+                  v-if="f.libro.tipo_material?.plantilla === 'publicacion_seriada'"
+                  class="lg:col-span-2"
+                  :libro-id="f.libro.id"
+                  :copias="f.libro.ejemplares ?? []"
+                  :puede-editar="puedeCatalogar"
+                />
               </div>
             </div>
           </div>
@@ -462,6 +498,14 @@ function agregarCopia(l: Libro) {
       :categoria-inicial="categoriaElegida"
       :carreras="carreras"
       :tipos-material="tiposMaterial"
+    />
+
+    <EditarCopia
+      :copia="copiaAEditar?.copia ?? null"
+      :coleccion-libro="copiaAEditar?.libro.coleccion ?? null"
+      :ubicaciones="ubicaciones"
+      @cerrar="copiaAEditar = null"
+      @guardada="copiaGuardada"
     />
 
     <DialogoConfirmacion
