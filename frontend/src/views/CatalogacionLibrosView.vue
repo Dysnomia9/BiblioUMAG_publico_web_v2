@@ -14,7 +14,7 @@ import { TONOS_FICHA, type TonoFicha } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { inicialesPortada, tonoPortada } from '@/utils/portada'
+import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Autor, Carrera, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion } from '@/types'
 
 const toast = useToast()
@@ -293,8 +293,8 @@ function armarVista(datos: { titulo: string; autores: string[]; categorias: stri
     vacio: !titulo,
     autores: datos.autores.join(', '),
     detalle: [datos.tipo, datos.categorias.join(', ')].filter(Boolean).join(' · '),
-    iniciales: inicialesPortada(titulo || 'Título de la obra'),
-    tono: tonoPortada(datos.categorias[0] ?? datos.tipo ?? (titulo || 'libro')),
+    tipo: datos.tipo,
+    claveTono: datos.categorias[0] ?? datos.tipo ?? (titulo || 'libro'),
     estado,
   }
 }
@@ -1211,9 +1211,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             <span class="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700">Así se verá en el portal</span>
             <template v-if="vista">
               <div class="mt-3 flex items-start gap-3">
-                <div class="flex h-14 w-10 shrink-0 items-end rounded-sm border-l-4 px-1.5 pb-1 font-serif text-sm font-bold" :class="vista.tono" aria-hidden="true">
-                  {{ vista.iniciales }}
-                </div>
+                <PortadaMaterial :titulo="vista.titulo" :tipo="vista.tipo" :clave-tono="vista.claveTono" />
                 <div class="min-w-0">
                   <p class="text-sm font-semibold leading-snug" :class="vista.vacio ? 'text-gray-400' : 'text-gray-900'">{{ vista.titulo }}</p>
                   <p v-if="vista.autores" class="mt-0.5 truncate text-xs text-gray-600">{{ vista.autores }}</p>

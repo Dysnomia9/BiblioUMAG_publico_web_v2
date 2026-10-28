@@ -10,7 +10,7 @@ import Modal from '@/components/ui/Modal.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import apiUsuario from '@/services/apiUsuario'
 import { useToast } from '@/composables/useToast'
-import { inicialesPortada, tonoPortada } from '@/utils/portada'
+import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { CondicionesReservaLibro, LibroCatalogo, Paginado, ReservaLibro } from '@/types'
 
 const router = useRouter()
@@ -145,10 +145,6 @@ async function buscarAreas(texto: string) {
   return data
 }
 
-function tonoDe(libro: LibroCatalogo) {
-  return tonoPortada(libro.categorias?.[0]?.nombre ?? libro.tipo_material ?? libro.titulo)
-}
-
 function fechaLarga(fecha: string) {
   return new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
 }
@@ -195,8 +191,6 @@ const filas = computed(() =>
       libro,
       reserva: reservaDe(libro),
       estado: estadoLibro(libro),
-      tono: tonoDe(libro),
-      iniciales: inicialesPortada(libro.titulo),
       detalle: [libro.tipo_material, libro.categorias?.map((c) => c.nombre).join(', ')].filter(Boolean).join(' · '),
     })),
 )
@@ -436,13 +430,7 @@ async function cancelar(reserva: ReservaLibro) {
             >
               <div class="p-4 sm:px-5 sm:grid sm:grid-cols-[minmax(0,1fr)_11rem_10rem] sm:gap-5 sm:items-center">
                 <div class="flex items-start gap-4 min-w-0">
-                  <div
-                    class="flex h-14 w-10 shrink-0 items-end rounded-sm border-l-4 px-1.5 pb-1 font-serif text-sm font-bold"
-                    :class="fila.tono"
-                    aria-hidden="true"
-                  >
-                    {{ fila.iniciales }}
-                  </div>
+                  <PortadaMaterial :titulo="fila.libro.titulo" :tipo="fila.libro.tipo_material" :clave-tono="fila.libro.categorias?.[0]?.nombre" />
                   <div class="min-w-0">
                     <p class="text-[15px] sm:text-sm font-semibold text-gray-900 leading-snug">{{ fila.libro.titulo }}</p>
                     <p class="mt-0.5 text-xs text-gray-600 truncate">{{ fila.libro.autores?.map((a) => a.nombre).join(', ') }}</p>
@@ -519,13 +507,7 @@ async function cancelar(reserva: ReservaLibro) {
     >
       <template v-if="filaFicha">
         <div class="flex items-start gap-4">
-          <div
-            class="flex h-20 w-14 shrink-0 items-end rounded-sm border-l-4 px-2 pb-1.5 font-serif text-lg font-bold"
-            :class="filaFicha.tono"
-            aria-hidden="true"
-          >
-            {{ filaFicha.iniciales }}
-          </div>
+          <PortadaMaterial tamano="lg" :titulo="filaFicha.libro.titulo" :tipo="filaFicha.libro.tipo_material" :clave-tono="filaFicha.libro.categorias?.[0]?.nombre" />
           <div class="min-w-0">
             <p v-if="filaFicha.detalle" class="text-xs text-gray-500">{{ filaFicha.detalle }}</p>
             <p class="mt-2 flex items-center gap-1.5 text-sm font-semibold" :class="filaFicha.estado.color">

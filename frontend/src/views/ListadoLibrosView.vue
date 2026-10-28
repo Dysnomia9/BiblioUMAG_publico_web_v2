@@ -15,7 +15,7 @@ import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
-import { inicialesPortada, tonoPortada } from '@/utils/portada'
+import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
@@ -168,8 +168,6 @@ function filaDe(l: Libro) {
   const situaciones = copias.map((e) => situacionCopia(e))
   const plantilla = l.tipo_material?.plantilla
   return {
-    tono: tonoPortada(l.categorias?.[0]?.nombre ?? l.tipo_material?.nombre ?? l.titulo),
-    iniciales: inicialesPortada(l.titulo),
     autores: l.autores?.map((a) => a.nombre).join(', ') || (plantilla === 'publicacion_seriada' ? 'Publicación periódica' : 'Sin autor registrado'),
     categoria: l.categorias?.map((c) => c.nombre).join(', ') || '—',
     tipoClase:
@@ -327,9 +325,13 @@ function copiaGuardada(actualizada: Ejemplar) {
               </button>
 
               <div class="flex min-w-0 items-center gap-3">
-                <div class="flex h-11 w-9 shrink-0 items-end rounded-sm border-l-4 px-1 pb-0.5 font-serif text-xs font-bold" :class="f.tono" aria-hidden="true">
-                  {{ f.iniciales }}
-                </div>
+                <PortadaMaterial
+                  tamano="sm"
+                  :titulo="f.libro.titulo"
+                  :tipo="f.libro.tipo_material?.nombre"
+                  :plantilla="f.libro.tipo_material?.plantilla"
+                  :clave-tono="f.libro.categorias?.[0]?.nombre"
+                />
                 <div class="min-w-0">
                   <p class="font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
                   <p class="truncate text-xs text-gray-500">{{ f.autores }}</p>
