@@ -163,6 +163,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     });
     Route::middleware('permiso:equipos.gestionar')->group(function () {
         Route::post('/equipos', [EquipoController::class, 'store']);
+        Route::post('/equipos/lote', [EquipoController::class, 'storeLote']);
         Route::patch('/equipos/{equipo}/activo', [EquipoController::class, 'cambiarActivo']);
     });
 

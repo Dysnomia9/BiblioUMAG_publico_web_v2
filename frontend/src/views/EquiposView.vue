@@ -4,7 +4,7 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
-import { useToast } from '@/composables/useToast'
+import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { categoriaDe, COLORES_RECURSO, ICONOS_RECURSO, useCategoriasRecurso } from '@/utils/recursos'
 import { fechaCorta } from '@/utils/prestamos'
@@ -23,14 +23,110 @@ const equipos = ref<Equipo[]>([])
 const cargando = ref(true)
 const apiError = ref(false)
 
-const codigoNuevo = ref('')
-const codigoBarrasNuevo = ref('')
-const tipoNuevo = ref('')
-// Por defecto, la primera categoría activa (o la que se está mirando).
+// Registro de varios recursos a la vez: una fila por recurso (nombre, código y categoría).
+// Las filas vacías no cuentan; con el lector, el Enter del código salta a la fila siguiente.
+type FilaNueva = { id: number; nombre: string; codigo: string; tipo: string }
+type Problema = { campo: 'nombre' | 'codigo' | 'tipo'; mensaje: string }
+const FILAS_INICIALES = 5
+const MAXIMO_FILAS = 50
+let siguienteFila = 0
+
+/** La categoría que se está mirando o, si no, la primera activa. */
+function tipoPorDefecto() {
+  if (filtroCategoria.value && categoriasActivas.value.some((c) => c.clave === filtroCategoria.value)) return filtroCategoria.value
+  return categoriasActivas.value[0]?.clave ?? ''
+}
+const filaVacia = (tipo = tipoPorDefecto()): FilaNueva => ({ id: siguienteFila++, nombre: '', codigo: '', tipo })
+const filasIniciales = () => Array.from({ length: FILAS_INICIALES }, () => filaVacia())
+const estaVacia = (f: FilaNueva) => !f.nombre.trim() && !f.codigo.trim()
+
+const filas = ref<FilaNueva[]>(filasIniciales())
+const llenas = computed(() => filas.value.map((f, i) => ({ ...f, i })).filter((f) => !estaVacia(f)))
+const grilla = ref<HTMLElement | null>(null)
+
+// Las filas sin escribir siguen a la categoría que se está mirando.
 watch([categoriasActivas, filtroCategoria], () => {
-  if (filtroCategoria.value && categoriasActivas.value.some((c) => c.clave === filtroCategoria.value)) tipoNuevo.value = filtroCategoria.value
-  else if (!categoriasActivas.value.some((c) => c.clave === tipoNuevo.value)) tipoNuevo.value = categoriasActivas.value[0]?.clave ?? ''
+  const tipo = tipoPorDefecto()
+  for (const f of filas.value) {
+    if (estaVacia(f) || !categoriasActivas.value.some((c) => c.clave === f.tipo)) f.tipo = tipo
+  }
 })
+
+/** Al cambiar la categoría de una fila, las vacías de más abajo la siguen (cinco notebooks de una vez). */
+function alCambiarCategoria(i: number) {
+  for (const f of filas.value.slice(i + 1)) if (estaVacia(f)) f.tipo = filas.value[i].tipo
+}
+
+function agregarFila() {
+  if (filas.value.length < MAXIMO_FILAS) filas.value.push(filaVacia(filas.value[filas.value.length - 1]?.tipo))
+}
+
+function quitarFila(i: number) {
+  filas.value.splice(i, 1)
+  if (!filas.value.length) filas.value.push(filaVacia())
+}
+
+function enfocar(i: number, campo: 'nombre' | 'codigo') {
+  grilla.value?.querySelector<HTMLInputElement>(`[data-fila="${i}"][data-campo="${campo}"]`)?.focus()
+}
+
+/** Enter: del nombre al código y del código a la fila siguiente (si era la última, agrega una). */
+async function siguienteCampo(i: number, campo: 'nombre' | 'codigo') {
+  if (campo === 'nombre') return enfocar(i, 'codigo')
+  if (i === filas.value.length - 1) {
+    agregarFila()
+    await nextTick()
+  }
+  enfocar(i + 1, 'nombre')
+}
+
+async function agregarYEnfocar() {
+  agregarFila()
+  await nextTick()
+  enfocar(filas.value.length - 1, 'nombre')
+}
+
+const intentoRegistrar = ref(false)
+const erroresServidor = ref<Record<number, Problema>>({})
+watch(filas, () => (erroresServidor.value = {}), { deep: true })
+
+/** Lo que impide registrar cada fila (por id). Lo repetido se avisa al tiro; lo que falta, al registrar. */
+const problemas = computed(() => {
+  const resultado: Record<number, Problema & { siempre: boolean }> = {}
+  const porNombre = new Map(equipos.value.map((e) => [e.codigo_inventario, e]))
+  const porCodigo = new Map(equipos.value.map((e) => [e.codigo_barras, e]))
+  const nombresVistos = new Map<string, number>()
+  const codigosVistos = new Map<string, number>()
+  for (const f of llenas.value) {
+    const nombre = f.nombre.trim()
+    const codigo = f.codigo.trim()
+    let p: (Problema & { siempre: boolean }) | null = null
+    if (codigo && porCodigo.has(codigo)) p = { campo: 'codigo', mensaje: `Ese código de barras ya es de ${porCodigo.get(codigo)!.codigo_inventario}`, siempre: true }
+    else if (codigo && codigosVistos.has(codigo)) p = { campo: 'codigo', mensaje: `Código repetido: ya está en la fila ${codigosVistos.get(codigo)! + 1}`, siempre: true }
+    else if (nombre && porNombre.has(nombre)) p = { campo: 'nombre', mensaje: 'Ya hay un recurso con ese nombre', siempre: true }
+    else if (nombre && nombresVistos.has(nombre)) p = { campo: 'nombre', mensaje: `Nombre repetido: ya está en la fila ${nombresVistos.get(nombre)! + 1}`, siempre: true }
+    else if (!nombre) p = { campo: 'nombre', mensaje: 'Falta el nombre', siempre: false }
+    else if (!codigo) p = { campo: 'codigo', mensaje: 'Falta el código de barras', siempre: false }
+    else if (!f.tipo) p = { campo: 'tipo', mensaje: 'Elige la categoría', siempre: false }
+    if (p) resultado[f.id] = p
+    if (nombre && !nombresVistos.has(nombre)) nombresVistos.set(nombre, f.i)
+    if (codigo && !codigosVistos.has(codigo)) codigosVistos.set(codigo, f.i)
+  }
+  return resultado
+})
+
+function problemaDe(f: FilaNueva): Problema | null {
+  const p = problemas.value[f.id]
+  if (p && (p.siempre || intentoRegistrar.value)) return p
+  return erroresServidor.value[f.id] ?? null
+}
+const bordeDe = (f: FilaNueva, campo: Problema['campo']) => (problemaDe(f)?.campo === campo ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300')
+
+const textoRegistrar = computed(() => {
+  const n = llenas.value.length
+  return n === 0 ? 'Registrar' : n === 1 ? 'Registrar 1 recurso' : `Registrar ${n} recursos`
+})
+
 const creando = ref(false)
 const confirmandoCrear = ref(false)
 
@@ -54,35 +150,44 @@ onMounted(() => {
 })
 
 function pedirConfirmacionCrear() {
-  if (!codigoNuevo.value.trim()) {
-    toast.error('Ingrese un código de inventario')
+  intentoRegistrar.value = true
+  if (!llenas.value.length) {
+    toast.error('Escriba al menos un recurso: su nombre y su código de barras')
+    enfocar(0, 'nombre')
     return
   }
-  if (!codigoBarrasNuevo.value.trim()) {
-    toast.error('Ingrese un código de barras')
-    return
-  }
-  if (!tipoNuevo.value) {
-    toast.error('Elija la categoría del recurso')
+  if (Object.keys(problemas.value).length) {
+    toast.error('Revise las filas marcadas en rojo')
     return
   }
   confirmandoCrear.value = true
 }
 
-async function crearEquipo() {
+async function crearEquipos() {
+  const enviadas = llenas.value
   creando.value = true
   try {
-    await api.post('/equipos', {
-      codigo_inventario: codigoNuevo.value.trim(),
-      codigo_barras: codigoBarrasNuevo.value.trim(),
-      tipo: tipoNuevo.value,
+    await api.post('/equipos/lote', {
+      recursos: enviadas.map((f) => ({ codigo_inventario: f.nombre.trim(), codigo_barras: f.codigo.trim(), tipo: f.tipo })),
     })
-    toast.success('Recurso registrado')
-    codigoNuevo.value = ''
-    codigoBarrasNuevo.value = ''
+    toast.success(enviadas.length === 1 ? 'Recurso registrado' : `${enviadas.length} recursos registrados`)
+    filas.value = filasIniciales()
+    intentoRegistrar.value = false
     await cargar()
   } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo registrar el recurso')
+    // Los errores vienen por posición en la lista enviada («recursos.2.codigo_barras»): se marcan en
+    // su fila de la pantalla, sin el «Fila N» del servidor, que no cuenta las filas vacías.
+    const porFila: Record<number, Problema> = {}
+    const CAMPOS = { codigo_inventario: 'nombre', codigo_barras: 'codigo', tipo: 'tipo' } as const
+    for (const [clave, mensajes] of Object.entries<string[]>(e?.response?.data?.errors ?? {})) {
+      const m = clave.match(/^recursos\.(\d+)\.(codigo_inventario|codigo_barras|tipo)$/)
+      const fila = m ? enviadas[Number(m[1])] : undefined
+      if (!m || !fila || porFila[fila.id]) continue
+      const mensaje = mensajes[0].replace(/^Fila \d+: /, '').replace(/\.$/, '')
+      porFila[fila.id] = { campo: CAMPOS[m[2] as keyof typeof CAMPOS], mensaje: mensaje.charAt(0).toUpperCase() + mensaje.slice(1) }
+    }
+    erroresServidor.value = porFila
+    toast.error(Object.keys(porFila).length ? 'Revise las filas marcadas en rojo' : mensajeDeError(e, 'No se pudieron registrar los recursos'))
   } finally {
     creando.value = false
     confirmandoCrear.value = false
@@ -146,48 +251,98 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
       </div>
 
       <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h4 class="text-sm font-semibold text-gray-700">Registrar recurso nuevo</h4>
+        <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+          <h4 class="text-sm font-semibold text-gray-700">Registrar recursos nuevos</h4>
           <router-link
             v-if="auth.puede('catalogos.gestionar')"
             :to="{ name: 'administracion', query: { seccion: 'catalogos' } }"
             class="text-xs font-semibold text-indigo-700 hover:underline"
           >¿Falta una categoría? Créala en Administración →</router-link>
         </div>
-        <div class="flex gap-3 flex-wrap items-end">
-          <div class="flex-1 min-w-[180px]">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Nombre / identificador</label>
-            <input
-              v-model="codigoNuevo"
-              placeholder="Ej: Bicicleta 05"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-              @keydown.enter="pedirConfirmacionCrear"
-            />
+        <p class="mb-4 text-xs text-gray-500">
+          Una fila por recurso; las que quedan vacías no se registran. Con el lector, al escanear el código se pasa solo a la fila siguiente.
+        </p>
+
+        <div ref="grilla">
+          <div class="hidden sm:flex items-end gap-2 pb-1.5 text-xs font-medium text-gray-600">
+            <span class="w-5 shrink-0"></span>
+            <div class="grid flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem] gap-2">
+              <span>Nombre / identificador</span>
+              <span>Código de barras</span>
+              <span>Categoría</span>
+            </div>
+            <span class="w-8 shrink-0"></span>
           </div>
-          <div class="flex-1 min-w-[180px]">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Código de barras</label>
-            <input
-              v-model="codigoBarrasNuevo"
-              placeholder="Ej: 7512000000123"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-              @keydown.enter="pedirConfirmacionCrear"
-            />
+          <div class="space-y-3 sm:space-y-2">
+            <div v-for="(f, i) in filas" :key="f.id" :class="i ? 'border-t border-gray-100 pt-3 sm:border-0 sm:pt-0' : ''">
+              <div class="flex items-start gap-2">
+                <span class="mt-3 w-5 shrink-0 text-right text-xs font-semibold tabular-nums text-gray-400">{{ i + 1 }}</span>
+                <div class="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
+                  <input
+                    v-model="f.nombre"
+                    :data-fila="i"
+                    data-campo="nombre"
+                    :aria-label="`Fila ${i + 1}: nombre o identificador`"
+                    :placeholder="i ? 'Nombre' : 'Ej: Notebook 06'"
+                    maxlength="255"
+                    class="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500"
+                    :class="bordeDe(f, 'nombre')"
+                    @keydown.enter.prevent="siguienteCampo(i, 'nombre')"
+                  />
+                  <input
+                    v-model="f.codigo"
+                    :data-fila="i"
+                    data-campo="codigo"
+                    :aria-label="`Fila ${i + 1}: código de barras`"
+                    :placeholder="i ? 'Código de barras' : 'Escanee o escriba el código'"
+                    maxlength="255"
+                    class="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500"
+                    :class="bordeDe(f, 'codigo')"
+                    @keydown.enter.prevent="siguienteCampo(i, 'codigo')"
+                  />
+                  <select
+                    v-model="f.tipo"
+                    :aria-label="`Fila ${i + 1}: categoría`"
+                    class="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    :class="bordeDe(f, 'tipo')"
+                    @change="alCambiarCategoria(i)"
+                  >
+                    <option v-for="c in categoriasActivas" :key="c.clave" :value="c.clave">{{ c.nombre }}</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  :aria-label="`Quitar la fila ${i + 1}`"
+                  title="Quitar esta fila"
+                  @click="quitarFila(i)"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p v-if="problemaDe(f)" class="ml-7 mt-1 text-xs font-medium text-red-600">{{ problemaDe(f)!.mensaje }}</p>
+            </div>
           </div>
-          <div class="min-w-[160px]">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-            <select
-              v-model="tipoNuevo"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              <option v-for="c in categoriasActivas" :key="c.clave" :value="c.clave">{{ c.nombre }}</option>
-            </select>
-          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            class="text-sm font-semibold text-indigo-700 hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"
+            :disabled="filas.length >= MAXIMO_FILAS"
+            :title="filas.length >= MAXIMO_FILAS ? `Hasta ${MAXIMO_FILAS} recursos de una vez` : undefined"
+            @click="agregarYEnfocar"
+          >
+            + Agregar otra fila
+          </button>
           <button
             @click="pedirConfirmacionCrear"
-            :disabled="creando"
-            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-60"
+            :disabled="creando || !llenas.length"
+            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Registrar
+            {{ textoRegistrar }}
           </button>
         </div>
       </div>
@@ -283,16 +438,22 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
 
     <DialogoConfirmacion
       :abierto="confirmandoCrear"
-      titulo="¿Registrar este recurso?"
+      :titulo="llenas.length === 1 ? '¿Registrar este recurso?' : `¿Registrar estos ${llenas.length} recursos?`"
       confirmar="Sí, registrar"
       :cargando="creando"
-      @confirmar="crearEquipo"
+      @confirmar="crearEquipos"
       @cancelar="confirmandoCrear = false"
     >
-      <p>
-        Se agregará <strong class="text-gray-900">{{ codigoNuevo.trim() }}</strong> ({{ nombreCategoria(tipoNuevo).toLowerCase() }}, código de barras
-        <span class="font-mono">{{ codigoBarrasNuevo.trim() }}</span>) al inventario y quedará disponible para préstamo.
-      </p>
+      <p>{{ llenas.length === 1 ? 'Se agregará al inventario y quedará disponible' : 'Se agregarán al inventario y quedarán disponibles' }} para préstamo:</p>
+      <ul class="mt-3 max-h-64 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+        <li v-for="f in llenas" :key="f.id" class="flex items-center justify-between gap-3 px-3 py-2">
+          <span class="min-w-0">
+            <span class="block truncate font-mono font-medium text-gray-900">{{ f.nombre.trim() }}</span>
+            <span class="block text-xs text-gray-500">{{ nombreCategoria(f.tipo) }}</span>
+          </span>
+          <span class="shrink-0 font-mono text-xs text-gray-600">{{ f.codigo.trim() }}</span>
+        </li>
+      </ul>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion
