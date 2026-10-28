@@ -20,6 +20,7 @@ class Reserva extends Model
         'fecha',
         'hora_inicio',
         'hora_fin',
+        'hora_fin_reservada',
         'estado',
         'prestado_por',
         'prestado_por_staff_id',

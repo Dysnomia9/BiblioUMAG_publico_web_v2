@@ -446,10 +446,22 @@ export type AtrasoDevolucion = {
   monto_provisional: boolean
 }
 
+/** La llave volvió antes de tiempo: lo que quedaba del bloque, para ofrecer liberarlo. */
+export type TiempoSinUsar = {
+  reserva_id: number
+  sala: string
+  /** «10:32»: cuándo volvió la llave. */
+  devuelta: string
+  hora_fin: string
+  minutos: number
+}
+
 export type TramoReserva = {
   reserva_id: number
   hora_inicio: string
   hora_fin: string
+  /** Hasta qué hora estaba reservada, si se liberó el resto al devolverla antes. */
+  hora_fin_reservada?: string | null
   estado: string
   cantidad_personas: number
   rut_usuario: string
@@ -783,6 +795,8 @@ export type ReservaListado = {
   fecha: string
   hora_inicio: string
   hora_fin: string
+  /** Hasta qué hora estaba reservada, si se liberó el resto al devolverla antes. */
+  hora_fin_reservada: string | null
   duracion_minutos: number
   estado: 'activa' | 'finalizada' | 'no_show' | 'cancelada'
   situacion: SituacionReserva

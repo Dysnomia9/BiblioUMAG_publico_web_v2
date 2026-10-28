@@ -6,7 +6,7 @@ import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { SITUACIONES, duracion, fechaLargaReserva, horaDe, reservaEditable } from '@/utils/reservas'
-import type { AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado } from '@/types'
+import type { AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado, TiempoSinUsar } from '@/types'
 
 /**
  * Detalle de una reserva del Listado de reservas. Con el permiso de editar reservas,
@@ -20,9 +20,10 @@ const props = defineProps<{
   puedeEditar: boolean
 }>()
 
-// atraso: la llave volvió fuera de hora; la pantalla muestra el aviso para decidir la multa
-// (este detalle se cierra al registrar la devolución).
-const emit = defineEmits<{ cerrar: []; actualizada: []; atraso: [aviso: AtrasoDevolucion] }>()
+// atraso: la llave volvió fuera de hora; la pantalla muestra el aviso para decidir la multa.
+// sinUsar: volvió antes de tiempo; el aviso para liberar el resto del bloque.
+// (Este detalle se cierra al registrar la devolución.)
+const emit = defineEmits<{ cerrar: []; actualizada: []; atraso: [aviso: AtrasoDevolucion]; sinUsar: [aviso: TiempoSinUsar] }>()
 
 const toast = useToast()
 
@@ -92,9 +93,12 @@ async function ejecutar() {
       await api.delete(`/reservas/${actual.value.id}`)
       toast.success('Reserva cancelada: el horario quedó libre')
     } else {
-      const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null }>(`/reservas/${actual.value.id}/devolver`)
+      const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null; tiempo_sin_usar?: TiempoSinUsar | null }>(
+        `/reservas/${actual.value.id}/devolver`,
+      )
       toast.success('Devolución de la llave registrada')
       if (data.atraso_devolucion) emit('atraso', data.atraso_devolucion)
+      if (data.tiempo_sin_usar) emit('sinUsar', data.tiempo_sin_usar)
     }
     confirmando.value = null
     emit('actualizada')
@@ -190,7 +194,12 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
           </div>
           <div>
             <dt class="text-xs text-gray-500">Horario</dt>
-            <dd class="font-medium text-gray-900">{{ actual.hora_inicio }} a {{ actual.hora_fin }}</dd>
+            <dd class="font-medium text-gray-900">
+              {{ actual.hora_inicio }} a {{ actual.hora_fin }}
+              <span v-if="actual.hora_fin_reservada" class="block text-xs font-normal text-gray-500">
+                Reservada hasta las {{ actual.hora_fin_reservada }}: devolvieron antes y se liberó el resto
+              </span>
+            </dd>
           </div>
         </dl>
         <p v-if="puedeEditar && !editable" class="mt-2 text-xs text-gray-500">

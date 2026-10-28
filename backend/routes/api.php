@@ -120,6 +120,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::middleware('permiso:salas.gestionar,reservas.editar')->group(function () {
         Route::delete('/reservas/{reserva}', [SalaController::class, 'destroyReserva']);
         Route::patch('/reservas/{reserva}/devolver', [SalaController::class, 'devolverReserva']);
+        Route::patch('/reservas/{reserva}/liberar-resto', [SalaController::class, 'liberarRestoDelBloque']);
         Route::post('/reservas/{reserva}/multa-atraso', [SalaController::class, 'multarAtraso']);
         Route::put('/reservas/{reserva}/integrantes', [SalaController::class, 'actualizarIntegrantes']);
     });

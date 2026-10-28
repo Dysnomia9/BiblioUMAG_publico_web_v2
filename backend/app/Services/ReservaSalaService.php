@@ -100,6 +100,59 @@ class ReservaSalaService
     }
 
     /**
+     * El grupo devolvió la llave antes de que terminara su horario: lo que queda del bloque,
+     * para que el mesón decida si lo libera (liberarResto()). Null si quedan menos de
+     * config('salas.minimo_para_liberar') minutos, si ya se liberó o si la reserva no está
+     * devuelta hoy.
+     *
+     * @return array{reserva_id: int, sala: string, devuelta: string, hora_fin: string, minutos: int}|null
+     */
+    public function tiempoSinUsar(Reserva $reserva): ?array
+    {
+        if ($reserva->estado !== 'finalizada' || ! $reserva->hora_devolucion_real || $reserva->hora_fin_reservada || ! $reserva->fecha->isToday()) {
+            return null;
+        }
+
+        $termino = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_fin);
+        $minutos = (int) floor(now()->diffInMinutes($termino));
+        if ($minutos < config('salas.minimo_para_liberar', 5)) {
+            return null;
+        }
+
+        $reserva->loadMissing('sala:id,nombre');
+
+        return [
+            'reserva_id' => $reserva->id,
+            'sala' => $reserva->sala?->nombre ?? 'Sala',
+            'devuelta' => $reserva->hora_devolucion_real->format('H:i'),
+            'hora_fin' => substr($reserva->hora_fin, 0, 5),
+            'minutos' => $minutos,
+        ];
+    }
+
+    /**
+     * Libera lo que quedaba del bloque de una reserva devuelta antes de tiempo: la reserva
+     * pasa a terminar a la hora en que volvió la llave y la de término original queda en
+     * hora_fin_reservada. Así la sala se ve libre y se puede volver a reservar (o «Reservar
+     * ahora») en ese rato, y la cuota diaria del grupo cuenta solo lo que usó.
+     */
+    public function liberarResto(Reserva $reserva): Reserva
+    {
+        if (! $this->tiempoSinUsar($reserva)) {
+            throw new \RuntimeException('Esta reserva no tiene tiempo sin usar que liberar: la llave no se ha devuelto, su horario ya terminó o ya se liberó.');
+        }
+
+        // Al minuto (con los segundos, «Reservar ahora» en ese mismo minuto chocaría con ella) y
+        // nunca antes de su inicio, para que no quede una reserva de duración cero.
+        $inicio = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_inicio);
+        $fin = $reserva->hora_devolucion_real->copy()->startOfMinute()->max($inicio->addMinute());
+
+        $reserva->update(['hora_fin_reservada' => $reserva->hora_fin, 'hora_fin' => $fin->format('H:i:s')]);
+
+        return $reserva->fresh();
+    }
+
+    /**
      * Confirma que el grupo se presentó a retirar la sala (check-in manual, sin código de
      * barras — sirve tanto para logias como para las salas con nombre propio que no
      * tienen codigo_barras). Rechaza la confirmación si ya pasó el plazo de 15 minutos
@@ -497,6 +550,7 @@ class ReservaSalaService
                 'reserva_id' => $r->id,
                 'hora_inicio' => substr($r->hora_inicio, 0, 5),
                 'hora_fin' => substr($r->hora_fin, 0, 5),
+                'hora_fin_reservada' => $r->hora_fin_reservada ? substr($r->hora_fin_reservada, 0, 5) : null,
                 'estado' => $r->estado,
                 'cantidad_personas' => $r->cantidad_personas,
                 'rut_usuario' => $r->rut_usuario,
@@ -555,6 +609,7 @@ class ReservaSalaService
             'fecha' => $reserva->fecha->toDateString(),
             'hora_inicio' => substr($reserva->hora_inicio, 0, 5),
             'hora_fin' => substr($reserva->hora_fin, 0, 5),
+            'hora_fin_reservada' => $reserva->hora_fin_reservada ? substr($reserva->hora_fin_reservada, 0, 5) : null,
             'duracion_minutos' => $reserva->duracionMinutos(),
             'estado' => $reserva->estado,
             'situacion' => self::situacion($reserva),

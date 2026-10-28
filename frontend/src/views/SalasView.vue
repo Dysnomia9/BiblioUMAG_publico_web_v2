@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal.vue'
 import ListaConfirmacionAsistencia from '@/components/salas/ListaConfirmacionAsistencia.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
+import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
@@ -17,7 +18,7 @@ import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { largoSegunModo } from '@/utils/documento'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
-import type { AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TramoReserva } from '@/types'
+import type { AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TiempoSinUsar, TramoReserva } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -114,6 +115,8 @@ const devolucionPendiente = ref<{ reservaId: number; salaNombre: string; label: 
 const devolviendo = ref(false)
 // Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
+// Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
+const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
 const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; personas: TramoReserva['personas'] } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
@@ -182,6 +185,7 @@ async function escanearLogia() {
     if (data.hora_devolucion_real) {
       toast.success('Devolución de logia registrada')
       atrasoDevolucion.value = data.atraso_devolucion ?? null
+      tiempoSinUsar.value = data.tiempo_sin_usar ?? null
     } else toast.success(`Entrega de logia registrada. ${textoAsistencia(data.asistencia)}`)
     codigoLogiaScan.value = ''
     await cargar()
@@ -457,9 +461,12 @@ async function confirmarDevolucion() {
   if (!devolucionPendiente.value) return
   devolviendo.value = true
   try {
-    const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null }>(`/reservas/${devolucionPendiente.value.reservaId}/devolver`)
+    const { data } = await api.patch<{ atraso_devolucion?: AtrasoDevolucion | null; tiempo_sin_usar?: TiempoSinUsar | null }>(
+      `/reservas/${devolucionPendiente.value.reservaId}/devolver`,
+    )
     toast.success('Devolución de llave confirmada')
     atrasoDevolucion.value = data.atraso_devolucion ?? null
+    tiempoSinUsar.value = data.tiempo_sin_usar ?? null
     devolucionPendiente.value = null
     detalleOpen.value = false
     await cargar()
@@ -1066,7 +1073,7 @@ const proximaConfirmacion = computed(() => {
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Devolución de llave confirmada
+            Devolución de llave confirmada<template v-if="detalleTramo.hora_fin_reservada"> · se liberó el resto del bloque (era hasta las {{ detalleTramo.hora_fin_reservada }})</template>
           </div>
           <div
             v-else-if="!detalleTramo.hora_prestamo_real"
@@ -1294,5 +1301,6 @@ const proximaConfirmacion = computed(() => {
     </div>
 
     <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
+    <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="cargar" />
   </StaffLayout>
 </template>

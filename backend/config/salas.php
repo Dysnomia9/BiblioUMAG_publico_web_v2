@@ -12,6 +12,7 @@ return [
     'granularidad' => 30, // los inicios/fines deben caer en :00 o :30, salvo "inmediata"
     'cuota_diaria' => 240, // minutos por participante y día
     'plazo_confirmacion' => 15, // minutos
+    'minimo_para_liberar' => 5, // minutos sin usar desde los que, al devolver la llave antes, se ofrece liberar el resto del bloque
 
     // Cancelaciones desde el portal de quien hizo la reserva: las primeras del día no
     // tienen consecuencias (para corregir un error); desde la siguiente, espera estos

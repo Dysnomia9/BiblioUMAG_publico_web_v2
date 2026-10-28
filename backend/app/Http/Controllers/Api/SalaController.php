@@ -413,8 +413,37 @@ class SalaController extends Controller
 
         Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()}", entidad: $reserva, afectado: $reserva->usuario);
 
-        // Si llegó tarde, el mesón ve el aviso y decide si cursa la multa (multarAtraso()).
-        return response()->json($reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva)));
+        // Si llegó tarde, el mesón ve el aviso y decide si cursa la multa (multarAtraso()); si
+        // volvió antes, si libera el resto del bloque (liberarRestoDelBloque()).
+        return response()->json($reserva
+            ->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva))
+            ->setAttribute('tiempo_sin_usar', $this->reservaSalaService->tiempoSinUsar($reserva)));
+    }
+
+    /**
+     * El grupo devolvió la llave antes de tiempo y el mesón aceptó liberar lo que quedaba del
+     * bloque (el aviso que aparece al registrar la devolución): la sala queda libre para otro grupo.
+     */
+    public function liberarRestoDelBloque(Reserva $reserva)
+    {
+        $sinUsar = $this->reservaSalaService->tiempoSinUsar($reserva);
+        $descripcion = $reserva->descripcion();
+
+        try {
+            $reserva = $this->reservaSalaService->liberarResto($reserva);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        Bitacora::registrar(
+            'salas.liberar_resto',
+            "Liberó {$sinUsar['minutos']} minutos sin usar de {$descripcion}: la llave volvió a las {$sinUsar['devuelta']}",
+            entidad: $reserva,
+            datos: ['hora_fin' => [substr($reserva->hora_fin_reservada, 0, 5), substr($reserva->hora_fin, 0, 5)]],
+            afectado: $reserva->usuario,
+        );
+
+        return response()->json(ReservaSalaService::paraListado($reserva->load(['sala', 'participantes'])));
     }
 
     /**
@@ -507,7 +536,8 @@ class SalaController extends Controller
 
         if ($reserva->hora_devolucion_real) {
             Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()} (código de barras)", entidad: $reserva, afectado: $reserva->usuario);
-            $reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva));
+            $reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva))
+                ->setAttribute('tiempo_sin_usar', $this->reservaSalaService->tiempoSinUsar($reserva));
         } else {
             $reserva = $this->conAsistencia($reserva, $request, $entradas, 'Entregó con código de barras');
         }

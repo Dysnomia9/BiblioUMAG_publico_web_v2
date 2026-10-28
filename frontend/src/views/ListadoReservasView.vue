@@ -6,10 +6,11 @@ import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import DetalleReserva from '@/components/salas/DetalleReserva.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
+import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { SITUACIONES, duracion, fechaReserva, horaDe, reservaEditable } from '@/utils/reservas'
-import type { AtrasoDevolucion, ListadoReservas, ReservaListado, VistaReservas } from '@/types'
+import type { AtrasoDevolucion, ListadoReservas, ReservaListado, TiempoSinUsar, VistaReservas } from '@/types'
 
 const auth = useAuthStore()
 // Ver el listado es de quien ve los listados; cambiar una reserva, del permiso de editarlas.
@@ -35,6 +36,8 @@ const pagina = ref(1)
 const seleccionada = ref<ReservaListado | null>(null)
 // Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
+// Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
+const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
 
 async function cargar() {
   cargando.value = true
@@ -212,6 +215,7 @@ function iniciales(r: ReservaListado) {
             <div class="text-sm text-gray-700">
               <span class="block font-medium text-gray-900">{{ fechaReserva(r.fecha) }}</span>
               <span class="block text-xs text-gray-500">{{ r.hora_inicio }} a {{ r.hora_fin }} · {{ duracion(r.duracion_minutos) }}</span>
+              <span v-if="r.hora_fin_reservada" class="block text-xs text-emerald-700">Liberada · era hasta las {{ r.hora_fin_reservada }}</span>
             </div>
             <div class="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1 lg:col-span-1">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">{{ iniciales(r) }}</span>
@@ -267,7 +271,9 @@ function iniciales(r: ReservaListado) {
       @cerrar="seleccionada = null"
       @actualizada="cargar"
       @atraso="atrasoDevolucion = $event"
+      @sin-usar="tiempoSinUsar = $event"
     />
     <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
+    <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="cargar" />
   </StaffLayout>
 </template>
