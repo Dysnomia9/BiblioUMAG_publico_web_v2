@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Carrera;
 use App\Models\Usuario;
+use App\Models\UsuarioCorreo;
 use App\Services\MultaService;
 use App\Support\Bitacora;
 use App\Support\Documento;
 use App\Support\Permisos;
 use App\Support\Texto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +29,7 @@ class UsuarioController extends Controller
 
     public function index(Request $request)
     {
-        $query = Usuario::query();
+        $query = Usuario::query()->with('correos:id,usuario_id,email');
 
         if ($busqueda = $request->query('q')) {
             $documento = Documento::normalizar($busqueda);
@@ -36,6 +38,8 @@ class UsuarioController extends Controller
                 $q->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
                     ->orWhere('rut', 'ilike', "%{$busqueda}%")
                     ->orWhereSinTildes('carrera', $busqueda)
+                    ->orWhere('email', 'ilike', "%{$busqueda}%")
+                    ->orWhereHas('correos', fn ($c) => $c->where('email', 'ilike', "%{$busqueda}%"))
                     // RUT sin puntos ni guion, pasaporte o DNI.
                     ->when(strlen($documento) >= 3, fn ($q) => $q->orWhereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
             });
@@ -98,18 +102,20 @@ class UsuarioController extends Controller
     public function store(Request $request)
     {
         $datos = $this->validarFicha($request->all());
+        $adicionales = $this->correosAdicionalesDe($request, null, $datos['email'] ?? null);
 
         $usuario = Usuario::create($datos + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento(tipo: $datos['tipo'])?->toDateString()]);
+        $this->sincronizarCorreos($usuario, $adicionales ?? []);
 
         Bitacora::registrar(
             'usuarios.crear',
             'Creó '.($usuario->tipo === 'estudiante' ? 'al estudiante' : "al usuario ({$usuario->tipo})")." {$usuario->nombre} {$usuario->apellido}",
             entidad: $usuario,
-            datos: array_diff_key($datos, ['password' => 0]) + (isset($datos['password']) ? ['password' => '(asignada)'] : []),
+            datos: array_diff_key($datos, ['password' => 0]) + (isset($datos['password']) ? ['password' => '(asignada)'] : []) + ($adicionales ? ['correos_adicionales' => $adicionales] : []),
             afectado: $usuario,
         );
 
-        return response()->json($usuario, 201);
+        return response()->json($usuario->load('correos:id,usuario_id,email'), 201);
     }
 
     public function update(Request $request, Usuario $usuario)
@@ -127,8 +133,14 @@ class UsuarioController extends Controller
             $datos['vigente_hasta'] ??= Usuario::proximoVencimiento(tipo: $datos['tipo'] ?? $usuario->tipo)?->toDateString();
         }
 
+        $adicionales = $this->correosAdicionalesDe($request, $usuario, $datos['email'] ?? $usuario->email);
+
         $antes = $usuario->only(self::CAMPOS);
+        $correosAntes = $usuario->correos()->pluck('email')->sort()->values()->all();
         $usuario->update($datos);
+        if ($adicionales !== null) {
+            $this->sincronizarCorreos($usuario, $adicionales);
+        }
 
         // Desactivado o con contraseña nueva (por ejemplo, por sospecha de uso indebido):
         // las sesiones que tenía abiertas en el portal se cierran.
@@ -137,6 +149,9 @@ class UsuarioController extends Controller
         }
 
         $cambios = Bitacora::cambios($antes, $usuario->only(self::CAMPOS));
+        if ($adicionales !== null && $correosAntes !== collect($adicionales)->sort()->values()->all()) {
+            $cambios['correos_adicionales'] = [$correosAntes, $adicionales];
+        }
         if (isset($datos['password'])) {
             $cambios['password'] = '(cambiada)';
         }
@@ -149,7 +164,7 @@ class UsuarioController extends Controller
             afectado: $usuario,
         );
 
-        return response()->json($usuario);
+        return response()->json($usuario->load('correos:id,usuario_id,email'));
     }
 
     /**
@@ -252,7 +267,14 @@ class UsuarioController extends Controller
                     $creados[] = Usuario::create($fila['datos'] + ['activo' => true, 'vigente_hasta' => Usuario::proximoVencimiento(tipo: $fila['datos']['tipo'] ?? null)?->toDateString()]);
                 } elseif ($fila['estado'] === 'actualizar') {
                     $usuario = $porActualizar[$fila['existente']['id']];
-                    $usuario->update(array_map(fn (array $cambio) => $cambio[1], $fila['cambios']));
+                    $usuario->update(array_map(fn (array $cambio) => $cambio[1], Arr::except($fila['cambios'], ['correos_adicionales'])));
+                    foreach ($fila['cambios']['correos_adicionales'][1] ?? [] as $correo) {
+                        // Se vuelve a comprobar bajo el bloqueo de la tabla: nadie más pudo tomarlo entretanto.
+                        $tomado = Usuario::whereRaw('lower(email) = ?', [$correo])->exists() || UsuarioCorreo::whereRaw('lower(email) = ?', [$correo])->exists();
+                        if (! $tomado) {
+                            $usuario->correos()->create(['email' => $correo]);
+                        }
+                    }
                     $actualizados[] = $usuario;
 
                     // Uno por persona, como al editarla a mano: así se encuentra buscándola.
@@ -415,6 +437,55 @@ class UsuarioController extends Controller
     }
 
     /**
+     * Los correos adicionales que llegaron en la petición, listos para guardar: sin repetidos, sin
+     * el principal y sin que otra persona los tenga. Null si la petición no trae el campo (no se toca).
+     *
+     * @return list<string>|null
+     */
+    private function correosAdicionalesDe(Request $request, ?Usuario $ignorar, ?string $principal): ?array
+    {
+        if (! $request->has('correos_adicionales')) {
+            return null;
+        }
+
+        $lista = collect((array) $request->input('correos_adicionales'))
+            ->map(fn ($c) => mb_strtolower(trim((string) $c)))
+            ->filter()
+            ->reject(fn ($c) => $c === mb_strtolower((string) $principal))
+            ->unique()
+            ->values();
+
+        $errores = [];
+        foreach ($lista as $correo) {
+            if (! filter_var($correo, FILTER_VALIDATE_EMAIL) || mb_strlen($correo) > 255) {
+                $errores[] = "«{$correo}» no es un correo válido.";
+
+                continue;
+            }
+            $duenio = Usuario::whereRaw('lower(email) = ?', [$correo])->when($ignorar, fn ($q) => $q->whereKeyNot($ignorar->id))->first()
+                ?? UsuarioCorreo::whereRaw('lower(email) = ?', [$correo])->when($ignorar, fn ($q) => $q->where('usuario_id', '!=', $ignorar->id))->first()?->usuario;
+            if ($duenio) {
+                $errores[] = "El correo {$correo} ya lo usa {$duenio->nombre} {$duenio->apellido} ({$duenio->rut}).";
+            }
+        }
+        if ($errores) {
+            throw ValidationException::withMessages(['correos_adicionales' => $errores]);
+        }
+
+        return $lista->all();
+    }
+
+    /** Deja exactamente esos correos adicionales: agrega los nuevos y quita los que ya no están. */
+    private function sincronizarCorreos(Usuario $usuario, array $lista): void
+    {
+        $usuario->correos()->whereNotIn(DB::raw('lower(email)'), $lista ?: [''])->delete();
+        $actuales = $usuario->correos()->pluck('email')->map(fn ($c) => mb_strtolower($c))->all();
+        foreach (array_diff($lista, $actuales) as $correo) {
+            $usuario->correos()->create(['email' => $correo]);
+        }
+    }
+
+    /**
      * La fecha de vencimiento que quien administra eligió para TODA esta carga, en vez de
      * la que dice la política de cada tipo. Solo con el permiso de gestionar la vigencia.
      */
@@ -458,7 +529,14 @@ class UsuarioController extends Controller
             'pais' => ['nullable', 'string', 'max:100'],
             'nombre' => ['required', 'string', 'max:255'],
             'apellido' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', Rule::unique('usuarios', 'email')->ignore($ignorar?->id)],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('usuarios', 'email')->ignore($ignorar?->id), function (string $atributo, mixed $valor, \Closure $fallar) use ($ignorar) {
+                $esAdicionalDeOtro = $valor && UsuarioCorreo::whereRaw('lower(email) = ?', [mb_strtolower((string) $valor)])
+                    ->when($ignorar, fn ($q) => $q->where('usuario_id', '!=', $ignorar->id))
+                    ->exists();
+                if ($esAdicionalDeOtro) {
+                    $fallar('Ese correo ya lo usa otro usuario.');
+                }
+            }],
             'tipo' => ['required', Rule::in(self::TIPOS)],
             'carrera' => ['nullable', 'string', 'max:255'],
             'anio_ingreso' => ['nullable', 'integer', 'min:1950', 'max:'.(now()->year + 1)],
@@ -593,11 +671,15 @@ class UsuarioController extends Controller
         $existentes = $normalizados->chunk(1000)->flatMap(fn ($lote) => Usuario::whereRaw(
             Documento::sql('rut').' in ('.implode(',', array_fill(0, $lote->count(), '?')).')',
             $lote->values()->all(),
-        )->get(['id', 'vigente_hasta', ...self::CAMPOS]))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
+        )->with('correos:id,usuario_id,email')->get(['id', 'vigente_hasta', ...self::CAMPOS]))->keyBy(fn (Usuario $u) => Documento::normalizar($u->rut));
 
         $emails = collect($filas)->map(fn ($f) => mb_strtolower(trim((string) ($f['email'] ?? ''))))->filter()->unique()->values();
+        // Quién tiene cada correo: como principal o como adicional.
         $emailsTomados = $emails->chunk(1000)->flatMap(fn ($lote) => Usuario::whereIn(DB::raw('lower(email)'), $lote->all())
-            ->get(['id', 'rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email));
+            ->get(['id', 'rut', 'nombre', 'apellido', 'email']))->keyBy(fn (Usuario $u) => mb_strtolower($u->email))
+            ->union($emails->chunk(1000)->flatMap(fn ($lote) => UsuarioCorreo::whereIn(DB::raw('lower(email)'), $lote->all())
+                ->with('usuario:id,rut,nombre,apellido')->get())->filter(fn (UsuarioCorreo $c) => $c->usuario)
+                ->mapWithKeys(fn (UsuarioCorreo $c) => [mb_strtolower($c->email) => $c->usuario]));
 
         $reglasFila = $this->reglas();
         $reglasFila['email'] = ['nullable', 'email', 'max:255'];
@@ -709,8 +791,16 @@ class UsuarioController extends Controller
                 $avisos[] = "El correo {$email} ya lo usa {$duenio->nombre} {$duenio->apellido} ({$duenio->rut}): se deja el que tenía.";
             } elseif (isset($emailsVistos[$email])) {
                 $avisos[] = "El correo {$email} ya aparece en la fila {$emailsVistos[$email]} del archivo: se deja el que tenía.";
+            } elseif ($existente->correos->contains(fn (UsuarioCorreo $c) => mb_strtolower($c->email) === $email)) {
+                // Ya lo tiene como adicional: no hay nada que hacer.
+                $emailsVistos[$email] = $numero;
+            } elseif (! $existente->email) {
+                $cambios['email'] = [null, $email];
+                $emailsVistos[$email] = $numero;
             } else {
-                $cambios['email'] = [$existente->email, $email];
+                // Ya tenía un correo y la planilla trae otro: se guarda como segundo correo (+1).
+                $cambios['correos_adicionales'] = [null, [$email]];
+                $avisos[] = "Ya tenía el correo {$existente->email}: {$email} se agrega como correo adicional (+1).";
                 $emailsVistos[$email] = $numero;
             }
         }

@@ -67,6 +67,8 @@ type Ficha = {
   nombre: string
   apellido: string
   email: string
+  /** Correos adicionales (+1): además del principal. */
+  correos_adicionales: string[]
   tipo: Usuario['tipo']
   carrera: string
   anio_ingreso: string
@@ -77,9 +79,10 @@ type Ficha = {
   password: string
 }
 
-const fichaVacia = (): Ficha => ({
-  tipo_documento: 'rut', rut: '', pais: '', nombre: '', apellido: '', email: '', tipo: 'estudiante',
-  carrera: '', anio_ingreso: String(new Date().getFullYear()), sexo: '', activo: true, vigente_hasta: '', password: '',
+// Los docentes y funcionarios no tienen carrera ni año de ingreso: para ellos el formulario no los pide.
+const fichaVacia = (tipo: Usuario['tipo'] = 'estudiante'): Ficha => ({
+  tipo_documento: 'rut', rut: '', pais: '', nombre: '', apellido: '', email: '', correos_adicionales: [], tipo,
+  carrera: '', anio_ingreso: tipo === 'estudiante' ? String(new Date().getFullYear()) : '', sexo: '', activo: true, vigente_hasta: '', password: '',
 })
 
 const form = reactive({
@@ -100,6 +103,7 @@ function fichaDe(u: Usuario): Ficha {
     nombre: u.nombre,
     apellido: u.apellido,
     email: u.email ?? '',
+    correos_adicionales: (u.correos ?? []).map((c) => c.email),
     tipo: u.tipo,
     carrera: u.carrera ?? '',
     anio_ingreso: u.anio_ingreso ? String(u.anio_ingreso) : '',
@@ -110,8 +114,34 @@ function fichaDe(u: Usuario): Ficha {
   }
 }
 
-function abrirNuevo() {
-  Object.assign(form, { abierto: true, id: null, ficha: fichaVacia(), original: null, errores: {}, confirmando: false })
+function abrirNuevo(tipo: Usuario['tipo'] = 'estudiante') {
+  Object.assign(form, { abierto: true, id: null, ficha: fichaVacia(tipo), original: null, errores: {}, confirmando: false })
+  nuevoCorreo.value = ''
+}
+
+/** Carrera y año de ingreso solo para estudiantes (o si la persona ya los tiene guardados). */
+const pideCarrera = computed(() => form.ficha.tipo === 'estudiante' || !!form.ficha.carrera || !!form.ficha.anio_ingreso)
+const NOMBRE_TIPO: Record<Usuario['tipo'], string> = { estudiante: 'estudiante', docente: 'docente', funcionario: 'funcionario' }
+
+// Correos adicionales: se agregan de a uno y se pueden quitar.
+const nuevoCorreo = ref('')
+function agregarCorreo() {
+  const correo = nuevoCorreo.value.trim().toLowerCase()
+  if (!correo) return
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+    form.errores.correos_adicionales = 'El correo no es válido.'
+    return
+  }
+  if (correo === form.ficha.email.trim().toLowerCase() || form.ficha.correos_adicionales.includes(correo)) {
+    form.errores.correos_adicionales = 'Ese correo ya está en la ficha.'
+    return
+  }
+  form.ficha.correos_adicionales.push(correo)
+  nuevoCorreo.value = ''
+  delete form.errores.correos_adicionales
+}
+function quitarCorreo(correo: string) {
+  form.ficha.correos_adicionales = form.ficha.correos_adicionales.filter((c) => c !== correo)
 }
 
 function abrirEdicion(u: Usuario) {
@@ -131,7 +161,7 @@ function elegirTipoDocumento(tipo: TipoDocumento) {
 
 const ETIQUETAS: Record<keyof Ficha, string> = {
   tipo_documento: 'Tipo de documento', rut: 'RUT / documento', pais: 'País', nombre: 'Nombre', apellido: 'Apellido', email: 'Correo',
-  tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', activo: 'Estado', vigente_hasta: 'Cuenta vigente hasta', password: 'Contraseña del portal',
+  correos_adicionales: 'Correos adicionales', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', activo: 'Estado', vigente_hasta: 'Cuenta vigente hasta', password: 'Contraseña del portal',
 }
 
 function mostrar(campo: keyof Ficha, f: Ficha): string {
@@ -139,6 +169,7 @@ function mostrar(campo: keyof Ficha, f: Ficha): string {
   if (campo === 'tipo') return TIPO_LABEL[f.tipo]
   if (campo === 'activo') return f.activo ? 'Activo' : 'Inactivo'
   if (campo === 'password') return f.password ? 'nueva (asignada)' : '—'
+  if (campo === 'correos_adicionales') return f.correos_adicionales.length ? f.correos_adicionales.join(', ') : '—'
   return String(f[campo] || '—')
 }
 
@@ -164,6 +195,7 @@ function validar(): boolean {
   if (!f.nombre.trim()) errores.nombre = 'Falta el nombre.'
   if (!f.apellido.trim()) errores.apellido = 'Falta el apellido.'
   if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) errores.email = 'El correo no es válido.'
+  if (nuevoCorreo.value.trim()) errores.correos_adicionales = 'Falta agregar el correo que escribiste (botón «Agregar») o borrarlo.'
   if (f.anio_ingreso && !/^\d{4}$/.test(f.anio_ingreso)) errores.anio_ingreso = 'Cuatro dígitos (ej. 2026).'
   if (f.password && f.password.length < 6) errores.password = 'Al menos 6 caracteres.'
   form.errores = errores
@@ -191,9 +223,10 @@ async function guardar() {
     nombre: f.nombre.trim(),
     apellido: f.apellido.trim(),
     email: f.email.trim() || null,
+    correos_adicionales: f.correos_adicionales,
     tipo: f.tipo,
-    carrera: f.carrera.trim() || null,
-    anio_ingreso: f.anio_ingreso ? Number(f.anio_ingreso) : null,
+    carrera: pideCarrera.value ? f.carrera.trim() || null : null,
+    anio_ingreso: pideCarrera.value && f.anio_ingreso ? Number(f.anio_ingreso) : null,
     sexo: f.sexo || null,
     activo: f.activo,
     vigente_hasta: f.vigente_hasta || undefined,
@@ -206,7 +239,7 @@ async function guardar() {
       toast.success(`Datos de ${datos.nombre} ${datos.apellido} actualizados`)
     } else {
       await api.post('/usuarios', datos)
-      toast.success(`${datos.nombre} ${datos.apellido} quedó registrado/a`)
+      toast.success(`${datos.nombre} ${datos.apellido} quedó registrado/a como ${NOMBRE_TIPO[datos.tipo]}`)
     }
     form.confirmando = false
     form.abierto = false
@@ -232,13 +265,13 @@ const clasesInput = (campo: string) =>
   <div class="bg-white rounded-xl shadow-md p-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
       <div>
-        <h3 class="font-semibold text-gray-900 mb-1">Estudiantes y usuarios</h3>
+        <h3 class="font-semibold text-gray-900 mb-1">Usuarios: estudiantes, docentes y funcionarios</h3>
         <p class="text-xs text-gray-500 max-w-xl">
-          Registra estudiantes (con RUT o, si son extranjeros, con pasaporte o DNI), corrige sus datos o cárgalos en forma masiva
+          Registra estudiantes, docentes y funcionarios (con RUT o, si son extranjeros, con pasaporte o DNI), corrige sus datos o cárgalos en forma masiva
           desde una planilla Excel o CSV. Todo cambio pide confirmación y queda en el Registro absoluto.
         </p>
       </div>
-      <div class="flex shrink-0 gap-2">
+      <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
         <button
           type="button"
           class="px-4 py-2.5 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
@@ -246,8 +279,14 @@ const clasesInput = (campo: string) =>
         >
           Carga masiva (Excel/CSV)
         </button>
-        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo">
+        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('estudiante')">
           + Nuevo estudiante
+        </button>
+        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('docente')">
+          + Nuevo docente
+        </button>
+        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('funcionario')">
+          + Nuevo funcionario
         </button>
       </div>
     </div>
@@ -290,7 +329,7 @@ const clasesInput = (campo: string) =>
             </td>
             <td class="px-4 py-2.5">
               <p class="font-medium text-gray-900">{{ u.nombre }} {{ u.apellido }}</p>
-              <p class="text-xs text-gray-500">{{ TIPO_LABEL[u.tipo] }}{{ u.email ? ` · ${u.email}` : '' }}</p>
+              <p class="text-xs text-gray-500">{{ TIPO_LABEL[u.tipo] }}{{ u.email ? ` · ${u.email}` : '' }}<span v-if="u.correos?.length" class="ml-1 rounded bg-indigo-50 px-1 text-indigo-700" :title="u.correos.map((c) => c.email).join(', ')">+{{ u.correos.length }}</span></p>
             </td>
             <td class="px-4 py-2.5 text-gray-600 hidden md:table-cell">
               {{ u.carrera ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
@@ -315,7 +354,7 @@ const clasesInput = (campo: string) =>
 
     <Modal
       :abierto="form.abierto"
-      :titulo="form.id ? 'Editar estudiante' : 'Nuevo estudiante'"
+      :titulo="form.id ? `Editar ${NOMBRE_TIPO[form.ficha.tipo]}` : `Nuevo ${NOMBRE_TIPO[form.ficha.tipo]}`"
       :descripcion="form.id ? 'Los cambios se guardan recién al confirmar.' : 'Quedará habilitado para entradas, préstamos, reservas y el portal.'"
       ancho="lg"
       pie-fijo
@@ -379,20 +418,44 @@ const clasesInput = (campo: string) =>
             <input id="est-email" v-model="form.ficha.email" type="email" maxlength="255" placeholder="nombre.apellido@umag.cl" :class="clasesInput('email')" @input="limpiarError('email')" />
             <p v-if="form.errores.email" class="text-xs text-red-600 mt-1">{{ form.errores.email }}</p>
           </div>
-          <div>
+          <div v-if="form.id">
             <label for="est-tipo" class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
             <select id="est-tipo" v-model="form.ficha.tipo" :class="clasesInput('tipo')">
               <option v-for="t in opciones.tipos" :key="t" :value="t">{{ TIPO_LABEL[t] }}</option>
             </select>
           </div>
           <div class="sm:col-span-2">
+            <p class="block text-xs font-medium text-gray-600 mb-1">Correos adicionales (opcional)</p>
+            <ul v-if="form.ficha.correos_adicionales.length" class="mb-2 flex flex-wrap gap-1.5">
+              <li v-for="c in form.ficha.correos_adicionales" :key="c" class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-900 ring-1 ring-indigo-100">
+                {{ c }}
+                <button type="button" class="text-indigo-500 hover:text-red-600" :aria-label="`Quitar ${c}`" @click="quitarCorreo(c)">×</button>
+              </li>
+            </ul>
+            <div class="flex gap-2">
+              <input
+                v-model="nuevoCorreo"
+                type="email"
+                maxlength="255"
+                placeholder="otro.correo@gmail.com"
+                aria-label="Correo adicional"
+                :class="clasesInput('correos_adicionales')"
+                @keydown.enter.prevent="agregarCorreo"
+                @input="limpiarError('correos_adicionales')"
+              />
+              <button type="button" class="shrink-0 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50" @click="agregarCorreo">Agregar</button>
+            </div>
+            <p v-if="form.errores.correos_adicionales" class="text-xs text-red-600 mt-1">{{ form.errores.correos_adicionales }}</p>
+            <p v-else class="mt-1 text-xs text-gray-500">Sirven para reconocerla al entrar con Google o el directorio. Las notificaciones van al correo principal.</p>
+          </div>
+          <div v-if="pideCarrera" class="sm:col-span-2">
             <label for="est-carrera" class="block text-xs font-medium text-gray-600 mb-1">Carrera (opcional)</label>
             <input id="est-carrera" v-model="form.ficha.carrera" list="est-carreras" maxlength="255" placeholder="Elige una o escribe una nueva" :class="clasesInput('carrera')" />
             <datalist id="est-carreras">
               <option v-for="c in opciones.carreras" :key="c" :value="c" />
             </datalist>
           </div>
-          <div>
+          <div v-if="pideCarrera">
             <label for="est-anio" class="block text-xs font-medium text-gray-600 mb-1">Año de ingreso (opcional)</label>
             <input id="est-anio" v-model="form.ficha.anio_ingreso" inputmode="numeric" maxlength="4" placeholder="2026" :class="clasesInput('anio_ingreso')" @input="limpiarError('anio_ingreso')" />
             <p v-if="form.errores.anio_ingreso" class="text-xs text-red-600 mt-1">{{ form.errores.anio_ingreso }}</p>
@@ -455,7 +518,7 @@ const clasesInput = (campo: string) =>
 
     <DialogoConfirmacion
       :abierto="form.confirmando"
-      :titulo="form.id ? '¿Guardar estos cambios?' : '¿Crear este estudiante?'"
+      :titulo="form.id ? '¿Guardar estos cambios?' : `¿Crear ${form.ficha.tipo === 'funcionario' ? 'este' : 'este'} ${NOMBRE_TIPO[form.ficha.tipo]}?`"
       :confirmar="form.id ? 'Sí, guardar cambios' : 'Sí, crear'"
       :cargando="form.guardando"
       @confirmar="guardar"
@@ -485,6 +548,7 @@ const clasesInput = (campo: string) =>
           <dd class="text-gray-900">{{ TIPO_LABEL[form.ficha.tipo] }}</dd>
           <template v-if="form.ficha.carrera"><dt>Carrera</dt><dd class="text-gray-900">{{ form.ficha.carrera }}<template v-if="form.ficha.anio_ingreso"> · {{ form.ficha.anio_ingreso }}</template></dd></template>
           <template v-if="form.ficha.email"><dt>Correo</dt><dd class="text-gray-900">{{ form.ficha.email }}</dd></template>
+          <template v-if="form.ficha.correos_adicionales.length"><dt>Otros correos</dt><dd class="text-gray-900">{{ form.ficha.correos_adicionales.join(', ') }}</dd></template>
           <dt>Portal</dt>
           <dd class="text-gray-900">{{ form.ficha.password ? 'con contraseña asignada' : 'sin contraseña (login institucional)' }}</dd>
         </dl>

@@ -165,13 +165,14 @@ const tarjetas = computed(() => {
 })
 
 const CAMPOS: Record<string, string> = {
-  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado', vigente_hasta: 'Vigente hasta',
+  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado', vigente_hasta: 'Vigente hasta', correos_adicionales: 'Correo adicional (+1)',
 }
 
 /** Null si no había dato (se muestra «sin dato»). */
 function valorCambio(campo: string, valor: unknown): string | null {
   if (campo === 'activo') return valor ? 'Activo' : 'Inactivo'
   if (campo === 'vigente_hasta') return valor ? fechaVigencia(String(valor)) : null
+  if (campo === 'correos_adicionales') return Array.isArray(valor) && valor.length ? valor.join(', ') : null
   if (valor === null || valor === undefined || valor === '') return null
   const texto = String(valor)
   return campo === 'tipo' ? texto.charAt(0).toUpperCase() + texto.slice(1) : texto

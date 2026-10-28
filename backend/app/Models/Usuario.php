@@ -157,6 +157,27 @@ class Usuario extends Authenticatable
             : 'Tu cuenta se encuentra inactiva. Contacta a biblioteca.';
     }
 
+    /** Correos adicionales (el principal es `email`). */
+    public function correos()
+    {
+        return $this->hasMany(UsuarioCorreo::class);
+    }
+
+    /**
+     * La persona dueña de ese correo, sea el principal o uno adicional, sin importar
+     * mayúsculas. Es lo que usan el ingreso con Google y el directorio institucional.
+     */
+    public static function buscarPorCorreo(?string $correo): ?self
+    {
+        $correo = mb_strtolower(trim((string) $correo));
+        if ($correo === '') {
+            return null;
+        }
+
+        return static::whereRaw('lower(email) = ?', [$correo])->first()
+            ?? UsuarioCorreo::whereRaw('lower(email) = ?', [$correo])->first()?->usuario;
+    }
+
     public function entradas()
     {
         return $this->hasMany(Entrada::class);

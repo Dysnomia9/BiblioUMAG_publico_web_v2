@@ -39,7 +39,7 @@ class LoginUnificadoService
             return $staff->activo ? $staff : null;
         }
 
-        $usuario = Usuario::where('email', $email)->first();
+        $usuario = Usuario::buscarPorCorreo($email);
 
         return $usuario?->activo ? $usuario : null;
     }

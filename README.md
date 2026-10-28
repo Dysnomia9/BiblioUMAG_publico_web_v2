@@ -184,6 +184,12 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   libros y pagar multas. Se renueva desde Usuarios o, en el momento, con el aviso
   **Renovar cuenta** que sale en Préstamos y en Entradas; la carga masiva
   renueva a quienes vienen en la planilla y no toca a los demás (vencen solos).
+- **Altas de docentes y funcionarios**: además de «Nuevo estudiante» hay «Nuevo docente» y
+  «Nuevo funcionario», con un formulario más corto (sin carrera ni año de ingreso).
+- **Más de un correo por usuario**: el correo principal (`usuarios.email`) recibe las
+  notificaciones; los adicionales (`usuario_correos`) sirven para reconocer a la persona al
+  entrar con Google o el directorio. Si la carga masiva trae un correo distinto al que ya tenía,
+  se suma como correo adicional (+1) en vez de reemplazarlo.
 - **Carga masiva de estudiantes** desde Excel o CSV en tres pasos: elegir el
   archivo, revisar qué pasará con cada fila (nueva, a actualizar con antes →
   después, al día, repetida o con errores) y confirmar. Lo vacío no borra nada,

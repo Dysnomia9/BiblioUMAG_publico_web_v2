@@ -28,7 +28,7 @@ const SECCIONES: { clave: Seccion; label: string; permiso: string }[] = [
   { clave: 'institucion', label: 'Configuración institucional', permiso: 'configuracion.editar' },
   { clave: 'catalogos', label: 'Catálogos (estados, ubicaciones, tipos y recursos)', permiso: 'catalogos.gestionar' },
   { clave: 'circulacion', label: 'Reglas de préstamo y días sin atención', permiso: 'catalogos.gestionar' },
-  { clave: 'estudiantes', label: 'Estudiantes', permiso: 'usuarios.gestionar' },
+  { clave: 'estudiantes', label: 'Usuarios', permiso: 'usuarios.gestionar' },
   { clave: 'vigencia', label: 'Vigencia de cuentas', permiso: 'vigencia.gestionar' },
   { clave: 'eliminados', label: 'Eliminados', permiso: 'libros.estado' },
 ]

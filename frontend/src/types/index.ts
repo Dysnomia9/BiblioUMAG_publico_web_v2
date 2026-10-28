@@ -59,6 +59,8 @@ export type Usuario = {
   anio_ingreso: number | null
   sexo: string | null
   /** Sirve hoy: no fue desactivada y su vigencia no pasó. */
+  /** Correos adicionales (el principal es `email`). */
+  correos?: { id: number; email: string }[]
   activo: boolean
   /** Último día en que la cuenta sirve (null: sin vencimiento). */
   vigente_hasta?: string | null
