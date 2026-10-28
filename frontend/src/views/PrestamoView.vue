@@ -326,12 +326,63 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
   clearTimeout(buscarLibroPrestamoTimer)
   if (!codigoCompleto(codigoBarrasPrestamo.value)) return
   buscarLibroPrestamoTimer = setTimeout(async () => {
-    const libro = await buscarLibroApi(codigoBarrasPrestamo.value)
+    const codigo = codigoBarrasPrestamo.value
+    const libro = await buscarLibroApi(codigo)
+    if (codigo !== codigoBarrasPrestamo.value) return
     libroEncontradoPrestamo.value = libro?.titulo ?? ''
     libroDisponiblePrestamo.value = libro?.disponible ?? true
     ubicacionPrestamo.value = libro?.ubicacionId ?? null
-    if (libro) cargarCondiciones()
+    if (libro) {
+      cargarCondiciones()
+      return
+    }
+    // No es una copia de la colección: quizá es un recurso de apoyo (notebook, audífonos, bicicleta…).
+    const recurso = await buscarRecursoApi(codigo)
+    if (recurso && codigo === codigoBarrasPrestamo.value) pasarARecursos(recurso)
   }, 250)
+}
+
+// ---------- Un recurso de apoyo escaneado en el lugar equivocado ----------
+type RecursoEscaneado = Equipo & { categoria?: CategoriaRecurso | null }
+
+async function buscarRecursoApi(codigo: string): Promise<RecursoEscaneado | null> {
+  try {
+    const { data } = await api.get<RecursoEscaneado>(`/equipos/${codigo}`)
+    return data
+  } catch {
+    return null
+  }
+}
+
+const nombreRecurso = (r: RecursoEscaneado) => `${(r.categoria?.nombre ?? r.tipo).toLowerCase()} ${r.codigo_inventario}`
+
+/** Resalta unos segundos el recuadro de la categoría donde quedó el código. */
+const recursoResaltado = ref('')
+let recursoResaltadoTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Escanearon un recurso de apoyo en "Nuevo préstamo" (que es de libros): en vez de decir que el
+ * código no existe, se abre Recursos de apoyo con el código ya puesto en el recuadro de su categoría.
+ * No se presta solo: el mesón confirma con «Prestar».
+ */
+async function pasarARecursos(recurso: RecursoEscaneado) {
+  if (!categoriasActivas.value.some((c) => c.clave === recurso.tipo)) {
+    toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero su categoría está desactivada`)
+    return
+  }
+  codigoBarrasPrestamo.value = ''
+  activeTab.value = 'recursos'
+  codigos[recurso.tipo] = recurso.codigo_barras
+  if (!recurso.activo) toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero está dado de baja`)
+  else if (!recurso.disponible) toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero ya está prestado`)
+  else toast.info(`Es un recurso de apoyo (${nombreRecurso(recurso)}): lo pasé a Recursos de apoyo, solo falta «Prestar»`)
+  await nextTick()
+  recursoResaltado.value = recurso.tipo
+  clearTimeout(recursoResaltadoTimer)
+  recursoResaltadoTimer = setTimeout(() => (recursoResaltado.value = ''), 4000)
+  const entrada = document.getElementById(`recurso-${recurso.tipo}`)
+  entrada?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  entrada?.focus({ preventScroll: true })
 }
 
 // ---------- Regla de préstamo (Administración → Reglas de préstamo) ----------
@@ -552,16 +603,25 @@ async function confirmarPrestamoRecurso() {
 
 // ---------- Reservas ----------
 let buscarLibroTimer: ReturnType<typeof setTimeout> | undefined
+/** Código de un recurso de apoyo escrito en el formulario de reservas (solo se reservan libros). */
+const recursoEnReserva = ref('')
 function buscarLibroPorCodigo(valor: string) {
   codigoBarras.value = valor.replace(/\D/g, '')
   libroEncontrado.value = ''
   libroDisponible.value = true
+  recursoEnReserva.value = ''
   clearTimeout(buscarLibroTimer)
   if (!codigoCompleto(codigoBarras.value)) return
   buscarLibroTimer = setTimeout(async () => {
-    const libro = await buscarLibroApi(codigoBarras.value)
+    const codigo = codigoBarras.value
+    const libro = await buscarLibroApi(codigo)
+    if (codigo !== codigoBarras.value) return
     libroEncontrado.value = libro?.titulo ?? ''
     libroDisponible.value = libro?.disponible ?? true
+    if (!libro) {
+      const recurso = await buscarRecursoApi(codigo)
+      if (recurso && codigo === codigoBarras.value) recursoEnReserva.value = nombreRecurso(recurso)
+    }
   }, 250)
 }
 
@@ -820,6 +880,7 @@ function formatHora(iso: string | null) {
           <p class="mb-3 mt-1 text-xs text-gray-500">
             <template v-if="enSala">Para leer aquí mismo: escanee el libro y confirme; se devuelve hoy antes del cierre. Sirve también para lo que no se presta a domicilio (referencia).</template>
             <template v-else>Escanee el código de barras de la etiqueta del libro (si el lector no funciona, escriba los números) y elija hasta cuándo se lo lleva.</template>
+            Si escanea un recurso de apoyo (notebook, audífonos, bicicleta…), se pasa solo a Recursos de apoyo.
           </p>
           <div class="space-y-3">
             <div class="relative">
@@ -928,6 +989,7 @@ function formatHora(iso: string | null) {
             >
               <span v-if="libroEncontrado && libroDisponible">Libro encontrado: <strong>{{ libroEncontrado }}</strong></span>
               <span v-else-if="libroEncontrado && !libroDisponible"><strong>{{ libroEncontrado }}</strong> ya está reservado/prestado por otra persona — se puede unir a la lista de espera</span>
+              <span v-else-if="recursoEnReserva">Es un recurso de apoyo (<strong>{{ recursoEnReserva }}</strong>): los recursos no se reservan, se prestan desde la pestaña «Recursos de apoyo»</span>
               <span v-else>Código de barras no encontrado en el sistema</span>
             </div>
             <div class="flex flex-wrap items-start gap-3">
@@ -990,8 +1052,8 @@ function formatHora(iso: string | null) {
           <button
             v-for="t in [
               { id: 'prestamos', texto: 'Libros', n: librosEnPrestamo },
-              { id: 'reservas', texto: 'Reservas', n: reservasVigentes.length },
               { id: 'recursos', texto: 'Recursos de apoyo', n: recursosEnUso.length },
+              { id: 'reservas', texto: 'Reservas', n: reservasVigentes.length },
             ] as const"
             :key="t.id"
             type="button"
@@ -1166,66 +1228,8 @@ function formatHora(iso: string | null) {
         </template>
         <!-- Recursos de apoyo: recursos no bibliográficos (notebooks, bicicletas…) -->
         <template v-else>
-          <div class="p-5">
-            <p class="mb-4 text-sm text-gray-500">
-              Préstamo de recursos no bibliográficos: escanee el código de barras del recurso en el recuadro de su categoría.
-              <router-link
-                v-if="puedeAdministrarCategorias"
-                :to="{ name: 'administracion', query: { seccion: 'catalogos' } }"
-                class="font-semibold text-indigo-700 hover:underline"
-              >Administrar categorías</router-link>
-            </p>
-            <div v-for="(grupo, i) in gruposCategorias" :key="i" class="grid grid-cols-1 gap-4 md:grid-cols-3" :class="i ? 'mt-4' : ''">
-              <div v-for="c in grupo" :key="c.clave" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div class="flex items-start gap-3">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(c)">
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                      <path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(c)" />
-                    </svg>
-                  </span>
-                  <div class="min-w-0">
-                    <p class="font-semibold text-gray-900">{{ c.nombre_plural }}</p>
-                    <p class="text-xs text-gray-500">
-                      {{ c.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="c.limite_por_persona"> · máximo {{ c.limite_por_persona }} por persona</template>
-                    </p>
-                  </div>
-                </div>
-                <div class="mt-4 flex gap-2">
-                  <CampoSugerencias
-                    v-model="codigos[c.clave]"
-                    class="min-w-0 flex-1"
-                    :sugerencias="libresDe(c.clave).map((e) => ({ valor: e.codigo_barras, nombre: e.codigo_inventario }))"
-                    :titulo="`${c.nombre_plural} libres`"
-                    :sin-sugerencias="`No quedan ${c.nombre_plural.toLowerCase()} libres`"
-                    :placeholder="usuario ? 'Código de barras' : 'Primero busca un usuario'"
-                    :etiqueta="`Código de barras: ${c.nombre.toLowerCase()}`"
-                    :disabled="!usuario || bloqueadoPorMultas"
-                    clase-campo="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100/70 disabled:font-sans"
-                    @enviar="pedirPrestamoRecurso(c)"
-                  />
-                  <button
-                    type="button"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
-                    :disabled="!usuario || bloqueadoPorMultas || enTope(c)"
-                    :title="bloqueadoPorMultas ? MENSAJE_BLOQUEO : enTope(c) ? mensajeTope(c) : undefined"
-                    @click="pedirPrestamoRecurso(c)"
-                  >
-                    Prestar
-                  </button>
-                </div>
-                <p class="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
-                  <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="puntoCategoria(c)"></span>
-                  {{ lineaRecurso(c) }}
-                </p>
-              </div>
-            </div>
-            <p v-if="!categoriasActivas.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-              No hay categorías de recursos de apoyo activas. Se crean en Administración → Catálogos.
-            </p>
-          </div>
-
           <template v-if="usuario">
-            <p class="border-t border-gray-100 px-5 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            <p class="px-5 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               Recursos de apoyo de {{ usuario.nombre }}
             </p>
             <ul class="divide-y divide-gray-100">
@@ -1275,6 +1279,69 @@ function formatHora(iso: string | null) {
               </button>
             </div>
           </template>
+          <div class="p-5" :class="usuario ? 'border-t border-gray-100' : ''">
+            <p class="mb-4 text-sm text-gray-500">
+              Préstamo de recursos no bibliográficos: escanee el código de barras del recurso en el recuadro de su categoría.
+              <router-link
+                v-if="puedeAdministrarCategorias"
+                :to="{ name: 'administracion', query: { seccion: 'catalogos' } }"
+                class="font-semibold text-indigo-700 hover:underline"
+              >Administrar categorías</router-link>
+            </p>
+            <div v-for="(grupo, i) in gruposCategorias" :key="i" class="grid grid-cols-1 gap-4 md:grid-cols-3" :class="i ? 'mt-4' : ''">
+              <div
+                v-for="c in grupo"
+                :key="c.clave"
+                class="rounded-2xl border bg-white p-5 shadow-sm transition-shadow"
+                :class="recursoResaltado === c.clave ? 'border-indigo-400 ring-2 ring-indigo-300' : 'border-gray-200'"
+              >
+                <div class="flex items-start gap-3">
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(c)">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(c)" />
+                    </svg>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="font-semibold text-gray-900">{{ c.nombre_plural }}</p>
+                    <p class="text-xs text-gray-500">
+                      {{ c.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="c.limite_por_persona"> · máximo {{ c.limite_por_persona }} por persona</template>
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-4 flex gap-2">
+                  <CampoSugerencias
+                    v-model="codigos[c.clave]"
+                    class="min-w-0 flex-1"
+                    :id-campo="`recurso-${c.clave}`"
+                    :sugerencias="libresDe(c.clave).map((e) => ({ valor: e.codigo_barras, nombre: e.codigo_inventario }))"
+                    :titulo="`${c.nombre_plural} libres`"
+                    :sin-sugerencias="`No quedan ${c.nombre_plural.toLowerCase()} libres`"
+                    :placeholder="usuario ? 'Código de barras' : 'Primero busca un usuario'"
+                    :etiqueta="`Código de barras: ${c.nombre.toLowerCase()}`"
+                    :disabled="!usuario || bloqueadoPorMultas"
+                    clase-campo="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100/70 disabled:font-sans"
+                    @enviar="pedirPrestamoRecurso(c)"
+                  />
+                  <button
+                    type="button"
+                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                    :disabled="!usuario || bloqueadoPorMultas || enTope(c)"
+                    :title="bloqueadoPorMultas ? MENSAJE_BLOQUEO : enTope(c) ? mensajeTope(c) : undefined"
+                    @click="pedirPrestamoRecurso(c)"
+                  >
+                    Prestar
+                  </button>
+                </div>
+                <p class="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
+                  <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="puntoCategoria(c)"></span>
+                  {{ lineaRecurso(c) }}
+                </p>
+              </div>
+            </div>
+            <p v-if="!categoriasActivas.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+              No hay categorías de recursos de apoyo activas. Se crean en Administración → Catálogos.
+            </p>
+          </div>
         </template>
       </div>
 

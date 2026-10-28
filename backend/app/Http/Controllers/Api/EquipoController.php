@@ -41,7 +41,8 @@ class EquipoController extends Controller
             return response()->json(['message' => 'Código de barras no encontrado en el sistema'], 404);
         }
 
-        return response()->json($equipo);
+        // Con su categoría, para decir qué es (notebook, bicicleta…) cuando lo escanean en otra pantalla.
+        return response()->json($equipo->load('categoria:id,clave,nombre,nombre_plural'));
     }
 
     public function store(Request $request)
