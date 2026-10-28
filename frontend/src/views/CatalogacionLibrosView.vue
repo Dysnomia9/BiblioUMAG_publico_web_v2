@@ -56,7 +56,7 @@ const CAMPOS_TEXTO = [
   'descripcion_fisica', 'entidad_corporativa', 'reunion', 'entidad_secundaria',
   'materias_personales', 'materias_geograficas', 'url_acceso', 'designacion_volumen',
   'nota_tesis', 'profesor_guia', 'resumen', 'audiencia', 'idioma', 'serie',
-  'nota_interna', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local',
+  'nota_interna', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
 ] as const
 type CampoTexto = (typeof CAMPOS_TEXTO)[number]
 
@@ -106,6 +106,7 @@ const PISTAS: Partial<Record<CampoTexto, string>> = {
   designacion_volumen: 'Ej: Vol. 12, n.º 3 (2024)',
   nota_tesis: 'Ej: Tesis (Ingeniero Civil en Computación e Informática) -- Universidad de Magallanes, 2023',
   resumen: 'De qué trata y cómo se usa',
+  contenido: 'Ej: Cap. 1. Introducción -- Cap. 2. Métodos -- Cap. 3. Resultados',
   audiencia: 'Ej: Niños de 8 a 12 años',
   frecuencia: 'Ej: Semestral',
   nota_local: 'Donación, canje o adquisición (de quién y cuándo)',
@@ -237,7 +238,8 @@ const obligatoriosNuevo = computed<Requisito[]>(() => {
 const libroParaCopia = ref<Libro | null>(null)
 const busquedaCopia = ref('')
 const resultadosCopia = ref<Libro[]>([])
-const formCopia = reactive({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', precio: '' as number | '', forma_adquisicion: '' })
+const copiaVacia = () => ({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', precio: '' as number | '', forma_adquisicion: '', coleccion: '', nota_publica: '', nota_interna: '' })
+const formCopia = reactive(copiaVacia())
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
   { texto: 'Obra elegida', listo: !!libroParaCopia.value, seccion: 'obra' },
@@ -471,7 +473,7 @@ function confirmarEditar() {
   if (!libro) return
   if (modo.value === 'copia') {
     cambiarObra()
-    Object.assign(formCopia, { codigo_barras: '', ubicacion_id: '', volumen: '', precio: '', forma_adquisicion: '' })
+    Object.assign(formCopia, copiaVacia())
   }
   editar(libro)
 }
@@ -563,7 +565,7 @@ const formularioVacio = computed(() => JSON.stringify(form) === JSON.stringify(f
 /** Lo escrito que se perdería al cargar otra ficha o el borrador. */
 const hayTrabajoSinGuardar = computed(() => {
   if (modo.value === 'copia') {
-    return !!libroParaCopia.value || !!formCopia.codigo_barras.trim() || !!formCopia.volumen.trim() || formCopia.precio !== '' || formCopia.ubicacion_id !== '' || formCopia.forma_adquisicion !== ''
+    return JSON.stringify(formCopia) !== JSON.stringify(copiaVacia()) || !!libroParaCopia.value
   }
   return editandoId.value ? JSON.stringify(form) !== fotoEdicion.value : !formularioVacio.value
 })
@@ -670,12 +672,15 @@ async function confirmarAgregarCopia() {
       volumen: formCopia.volumen || null,
       precio: formCopia.precio === '' ? null : Number(formCopia.precio),
       forma_adquisicion: formCopia.forma_adquisicion || null,
+      coleccion: formCopia.coleccion.trim() || null,
+      nota_publica: formCopia.nota_publica.trim() || null,
+      nota_interna: formCopia.nota_interna.trim() || null,
     })
     toast.success('Copia agregada correctamente')
     confirmandoCopia.value = false
     avisarCopiaCreada(titulo, data)
     cambiarObra()
-    Object.assign(formCopia, { codigo_barras: '', ubicacion_id: '', volumen: '', precio: '', forma_adquisicion: '' })
+    Object.assign(formCopia, copiaVacia())
     await cargar()
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'No se pudo agregar la copia')
@@ -947,6 +952,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <MultiSelectCombobox v-model="form.categorias" :buscar="buscarMaterias" placeholder="Agregar materia" :clase-ficha="TONOS_FICHA.pizarra.chip" />
                   <p class="mt-1 text-[11px] text-gray-500">Sugerencias según lo que ya existe en el catálogo.</p>
                 </div>
+                <div v-if="tiene('contenido')" class="sm:col-span-6">
+                  <label for="cat-contenido" :class="ETIQUETA"><Marc :codigo="etiqueta('contenido')" tono="pizarra" /> Nota de contenido</label>
+                  <textarea id="cat-contenido" v-model="form.contenido" rows="3" :placeholder="PISTAS.contenido" :class="CAMPO"></textarea>
+                  <p class="mt-1 text-[11px] text-gray-500">Índice de capítulos o de volúmenes · se muestra en el portal</p>
+                </div>
                 <div v-if="tiene('resumen')" class="sm:col-span-6">
                   <label for="cat-resumen" :class="ETIQUETA"><Marc :codigo="etiqueta('resumen')" tono="pizarra" /> Resumen</label>
                   <textarea id="cat-resumen" v-model="form.resumen" rows="3" :placeholder="PISTAS.resumen" :class="CAMPO"></textarea>
@@ -1117,6 +1127,19 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <option value="">Sin especificar</option>
                     <option v-for="f in FORMAS_ADQUISICION" :key="f.valor" :value="f.valor">{{ f.nombre }}</option>
                   </select>
+                </div>
+                <div class="sm:col-span-3">
+                  <label for="copia-coleccion" :class="ETIQUETA">Colección de la copia</label>
+                  <input id="copia-coleccion" v-model="formCopia.coleccion" :placeholder="libroParaCopia?.coleccion ? `${libroParaCopia.coleccion} (la del libro)` : 'La del libro'" :class="CAMPO" />
+                  <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro.</p>
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="copia-nota-publica" :class="ETIQUETA">Nota pública de la copia</label>
+                  <textarea id="copia-nota-publica" v-model="formCopia.nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="copia-nota-interna" :class="ETIQUETA">Nota interna de la copia</label>
+                  <textarea id="copia-nota-interna" v-model="formCopia.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
                 </div>
               </div>
             </SeccionFicha>

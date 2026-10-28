@@ -23,7 +23,7 @@ class Libro extends Model
         'entidad_corporativa', 'reunion', 'entidad_secundaria', 'materias_personales',
         'materias_geograficas', 'url_acceso', 'issn', 'designacion_volumen',
         'nota_tesis', 'profesor_guia', 'resumen', 'audiencia',
-        'idioma', 'serie', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local',
+        'idioma', 'serie', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
     ];
 
     protected $fillable = [...self::CAMPOS_BIBLIOGRAFICOS, 'catalogado_por_staff_id'];
@@ -65,6 +65,12 @@ class Libro extends Model
     public function carreras(): BelongsToMany
     {
         return $this->belongsToMany(Carrera::class, 'libro_carrera');
+    }
+
+    /** Números recibidos y esperados, si es una revista (plantilla publicacion_seriada). */
+    public function fasciculos(): HasMany
+    {
+        return $this->hasMany(Fasciculo::class);
     }
 
     public function reservas(): HasMany

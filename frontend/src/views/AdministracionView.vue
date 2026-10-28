@@ -5,6 +5,8 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GestionEstudiantes from '@/components/administracion/GestionEstudiantes.vue'
 import CategoriasRecurso from '@/components/administracion/CategoriasRecurso.vue'
+import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
+import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -19,10 +21,11 @@ const cargando = ref(true)
 
 // Cada sección exige su propio permiso: alguien puede administrar los catálogos
 // (ubicaciones, tipos de material…) sin poder cambiar quién firma la constancia.
-type Seccion = 'institucion' | 'catalogos' | 'estudiantes'
+type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'estudiantes'
 const SECCIONES: { clave: Seccion; label: string; permiso: string }[] = [
   { clave: 'institucion', label: 'Configuración institucional', permiso: 'configuracion.editar' },
   { clave: 'catalogos', label: 'Catálogos (estados, ubicaciones, tipos y recursos)', permiso: 'catalogos.gestionar' },
+  { clave: 'circulacion', label: 'Reglas de préstamo y días sin atención', permiso: 'catalogos.gestionar' },
   { clave: 'estudiantes', label: 'Estudiantes', permiso: 'usuarios.gestionar' },
 ]
 const secciones = computed(() => SECCIONES.filter((s) => auth.puede(s.permiso)))
@@ -414,6 +417,11 @@ async function confirmarDesactivar() {
           </div>
 
           <CategoriasRecurso />
+        </template>
+
+        <template v-if="seccion === 'circulacion'">
+          <ReglasPrestamo />
+          <DiasSinAtencion />
         </template>
       </div>
 

@@ -298,6 +298,7 @@ class LibroController extends Controller
             'frecuencia' => ['nullable', 'string', 'max:100'],
             'nota_idioma' => ['nullable', 'string', 'max:255'],
             'nota_local' => ['nullable', 'string'],
+            'contenido' => ['nullable', 'string'],
         ];
     }
 }

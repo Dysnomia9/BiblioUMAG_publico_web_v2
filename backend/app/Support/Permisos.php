@@ -70,7 +70,7 @@ final class Permisos
                 'codigo_qr.ver' => ['Mostrar el código QR de acceso', 'Mostrar en pantalla el QR que los usuarios escanean para marcar su entrada.'],
                 'codigo_qr.regenerar' => ['Regenerar el código QR', 'Crear un QR nuevo — el anterior deja de funcionar de inmediato.'],
                 'configuracion.editar' => ['Configuración institucional', 'Cambiar el nombre y cargo de quien firma la Constancia de No Multa.'],
-                'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas).'],
+                'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas), y administrar las reglas de préstamo y los días sin atención (feriados, vacaciones y cierres).'],
                 'usuarios.gestionar' => ['Crear y editar estudiantes', 'Registrar estudiantes y otros usuarios (con RUT, pasaporte o DNI), editar sus datos y cargarlos en forma masiva desde Excel o CSV.'],
                 'usuarios.desactivar' => ['Desactivar usuarios', 'Dejar inactivo a un usuario: no podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien lo vuelva a habilitar.'],
                 'personal.gestionar' => ['Cuentas y roles del personal', 'Crear cuentas, asignar roles y definir qué puede hacer cada rol.'],

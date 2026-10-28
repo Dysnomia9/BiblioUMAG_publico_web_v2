@@ -14,6 +14,16 @@ class PrestamoMultaTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Estas pruebas miden la tarifa y el tope, no los días sin atención (que no se
+        // cobran; ver DiaSinAtencionTest): con la biblioteca abierta todos los días, los
+        // días de atraso no dependen de en qué día de la semana corre la prueba.
+        config(['biblioteca.horario' => array_fill(1, 7, ['08:45', '20:30'])]);
+    }
+
     private function prestamoLibro(array $atributos = []): Prestamo
     {
         return Prestamo::factory()->create($atributos + [

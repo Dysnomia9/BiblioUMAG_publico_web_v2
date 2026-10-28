@@ -44,6 +44,7 @@ class EjemplarController extends Controller
             'volumen' => ['nullable', 'string', 'max:100'],
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
+            ...self::reglasNotasYColeccion(),
         ]);
 
         $ejemplar = DB::transaction(function () use ($data) {
@@ -57,6 +58,9 @@ class EjemplarController extends Controller
                 'volumen' => $data['volumen'] ?? null,
                 'precio' => $data['precio'] ?? null,
                 'forma_adquisicion' => $data['forma_adquisicion'] ?? null,
+                'nota_publica' => $data['nota_publica'] ?? null,
+                'nota_interna' => $data['nota_interna'] ?? null,
+                'coleccion' => $data['coleccion'] ?? null,
                 'estado_proceso' => 'inventario',
             ]);
         });
@@ -71,6 +75,48 @@ class EjemplarController extends Controller
         );
 
         return response()->json($ejemplar, 201);
+    }
+
+    /**
+     * Edita los datos de una copia ya creada: ubicación, volumen, precio, forma de
+     * adquisición, colección y notas. El estado tiene su propio camino (cambiarEstado),
+     * con historial; los códigos de barras no se cambian.
+     */
+    public function update(Request $request, Ejemplar $ejemplar)
+    {
+        $data = $request->validate([
+            'ubicacion_id' => ['sometimes', 'nullable', 'exists:ubicaciones,id'],
+            'volumen' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'precio' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'forma_adquisicion' => ['sometimes', 'nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
+            ...array_map(fn (array $reglas) => ['sometimes', ...$reglas], self::reglasNotasYColeccion()),
+        ]);
+
+        // Texto en blanco = sin dato: la copia vuelve a mostrar la colección del libro.
+        $data = array_map(fn ($valor) => is_string($valor) && trim($valor) === '' ? null : $valor, $data);
+
+        $antes = $ejemplar->only(array_keys($data));
+        $ejemplar->update($data);
+        $ejemplar->loadMissing('libro:id,titulo,coleccion');
+
+        Bitacora::registrar(
+            'libros.editar_copia',
+            "Editó la copia {$ejemplar->numero_copia} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras})",
+            entidad: $ejemplar,
+            datos: Bitacora::cambios($antes, $ejemplar->only(array_keys($data))),
+        );
+
+        return response()->json($ejemplar->fresh(['libro', 'ubicacion', 'estadoPersonalizado']));
+    }
+
+    /** Colección y notas de la copia (las tres opcionales). */
+    private static function reglasNotasYColeccion(): array
+    {
+        return [
+            'coleccion' => ['nullable', 'string', 'max:255'],
+            'nota_publica' => ['nullable', 'string', 'max:5000'],
+            'nota_interna' => ['nullable', 'string', 'max:5000'],
+        ];
     }
 
     /**

@@ -10,7 +10,9 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EjemplarController;
 use App\Http\Controllers\Api\EntradaController;
 use App\Http\Controllers\Api\EquipoController;
+use App\Http\Controllers\Api\DiaSinAtencionController;
 use App\Http\Controllers\Api\EstadoLibroPersonalizadoController;
+use App\Http\Controllers\Api\FasciculoController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\LdapAuthController;
 use App\Http\Controllers\Api\LoginV2Controller;
@@ -20,6 +22,7 @@ use App\Http\Controllers\Api\PersonalController;
 use App\Http\Controllers\Api\PortalController;
 use App\Http\Controllers\Api\PortalReservaLibroController;
 use App\Http\Controllers\Api\PrestamoController;
+use App\Http\Controllers\Api\ReglaPrestamoController;
 use App\Http\Controllers\Api\RegistroAbsolutoController;
 use App\Http\Controllers\Api\ReporteController;
 use App\Http\Controllers\Api\ReservaLibroController;
@@ -72,6 +75,8 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/categorias-recurso', [CategoriaRecursoController::class, 'index']);
     Route::get('/configuracion', [ConfiguracionInstitucionalController::class, 'show']);
     Route::get('/configuracion/horario', [ConfiguracionInstitucionalController::class, 'horario']);
+    Route::get('/dias-sin-atencion', [DiaSinAtencionController::class, 'index']);
+    Route::get('/libros/{libro}/fasciculos', [FasciculoController::class, 'index'])->whereNumber('libro');
 
     // Rutas literales de /ejemplares/... van ANTES del wildcard /ejemplares/{codigo} —
     // si no, el wildcard las captura a todas como si fueran un código de barras.
@@ -90,6 +95,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
 
     Route::get('/prestamos', [PrestamoController::class, 'index'])->middleware('permiso:prestamos.gestionar,listados.ver');
     Route::middleware('permiso:prestamos.gestionar')->group(function () {
+        Route::get('/prestamos/condiciones', [PrestamoController::class, 'condiciones']);
         Route::post('/prestamos', [PrestamoController::class, 'store']);
         Route::patch('/prestamos/{prestamo}/devolver', [PrestamoController::class, 'devolver']);
         Route::get('/reservas-libro', [ReservaLibroController::class, 'index']);
@@ -138,6 +144,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/libros', [LibroController::class, 'store']);
         Route::patch('/libros/{libro}', [LibroController::class, 'update']);
         Route::post('/ejemplares', [EjemplarController::class, 'store']);
+        Route::patch('/ejemplares/{ejemplar}', [EjemplarController::class, 'update'])->whereNumber('ejemplar');
+        Route::post('/libros/{libro}/fasciculos', [FasciculoController::class, 'store'])->whereNumber('libro');
+        Route::patch('/fasciculos/{fasciculo}', [FasciculoController::class, 'update']);
+        Route::patch('/fasciculos/{fasciculo}/recibir', [FasciculoController::class, 'recibir']);
     });
     Route::patch('/ejemplares/{ejemplar}/estado', [EjemplarController::class, 'cambiarEstado'])->middleware('permiso:libros.estado');
     Route::middleware('permiso:libros.cambio_masivo')->group(function () {
@@ -174,6 +184,13 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::patch('/tipos-material/{tipoMaterial}', [TipoMaterialController::class, 'update']);
         Route::post('/categorias-recurso', [CategoriaRecursoController::class, 'store']);
         Route::patch('/categorias-recurso/{categoriaRecurso}', [CategoriaRecursoController::class, 'update']);
+        Route::get('/reglas-prestamo', [ReglaPrestamoController::class, 'index']);
+        Route::post('/reglas-prestamo', [ReglaPrestamoController::class, 'store']);
+        Route::put('/reglas-prestamo/{reglaPrestamo}', [ReglaPrestamoController::class, 'update']);
+        Route::delete('/reglas-prestamo/{reglaPrestamo}', [ReglaPrestamoController::class, 'destroy']);
+        Route::post('/dias-sin-atencion', [DiaSinAtencionController::class, 'store']);
+        Route::patch('/dias-sin-atencion/{diaSinAtencion}', [DiaSinAtencionController::class, 'update']);
+        Route::delete('/dias-sin-atencion/{diaSinAtencion}', [DiaSinAtencionController::class, 'destroy']);
     });
 
     Route::middleware('permiso:personal.gestionar')->group(function () {

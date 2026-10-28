@@ -210,6 +210,8 @@ export type LibroCatalogo = {
   // Devolución más próxima entre las copias prestadas (null si ninguna lo está).
   proxima_devolucion: string | null
   ficha: FilaFicha[]
+  /** Copias en estante: colección (la de la copia o, si no tiene, la del libro) y nota pública. */
+  copias?: { numero_copia: number; volumen: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
 }
 
 /** Qué etiquetas lleva la ficha de un tipo de material y cuáles ve el usuario. */
@@ -244,6 +246,12 @@ export type Ejemplar = {
   precio: string | null
   forma_adquisicion: 'compra' | 'donacion' | 'canje' | null
   fecha_inventario: string | null
+  /** Se ve en la ficha de la copia y en el portal. */
+  nota_publica?: string | null
+  /** Solo para el personal. */
+  nota_interna?: string | null
+  /** Colección de la copia; si no tiene, vale la del libro. */
+  coleccion?: string | null
   // En /libros: si tiene un préstamo activo o una reserva lista para retirar.
   prestado?: boolean
   reservado?: boolean
@@ -285,6 +293,8 @@ export type Libro = {
   frecuencia?: string | null
   nota_idioma?: string | null
   nota_local?: string | null
+  /** Nota de contenido (MARC 505): índice de capítulos o volúmenes. */
+  contenido?: string | null
   catalogado_por?: { id: number; nombre: string } | null
   ficha?: FilaFicha[]
   autores?: Autor[]
@@ -476,6 +486,63 @@ export type SerieItem = {
   // Solo en el gráfico principal por días: fines de semana en tono claro, días sin atención rayados.
   finDeSemana?: boolean
   cerrado?: boolean
+}
+
+/** Feriado, vacaciones o cierre: de toda la biblioteca (sin ubicación) o de una ubicación. */
+export type DiaSinAtencion = {
+  id: number
+  fecha: string
+  ubicacion_id: number | null
+  ubicacion?: Ubicacion | null
+  motivo: string | null
+}
+
+export type TipoUsuario = 'estudiante' | 'docente' | 'funcionario'
+
+/** Plazo, máximo a la vez y multa; null en tipo de usuario, material o ubicación = vale para todos. */
+export type ReglaPrestamo = {
+  id: number
+  tipo_usuario: TipoUsuario | null
+  tipo_material_id: number | null
+  tipo_material?: Pick<TipoMaterial, 'id' | 'nombre'> | null
+  ubicacion_id: number | null
+  ubicacion?: Ubicacion | null
+  dias_prestamo: number | null
+  max_ejemplares: number | null
+  multa_por_dia: number | null
+  tope_multa: number | null
+  prestable: boolean
+}
+
+/** Lo que el mesón sabe antes de prestar una copia a una persona (GET /prestamos/condiciones). */
+export type CondicionesPrestamo = {
+  regla: (Omit<ReglaPrestamo, 'tipo_material' | 'ubicacion'> & { descripcion: string }) | null
+  prestable: boolean
+  max_ejemplares: number
+  libros_en_prestamo: number
+  dias_prestamo: number | null
+  fecha_devolucion: string | null
+  multa_por_dia: number
+  tope_multa: number | null
+  motivo_rechazo: string | null
+}
+
+export type EstadoFasciculo = 'recibido' | 'esperado' | 'reclamado' | 'faltante'
+
+/** Un número de una revista. */
+export type Fasciculo = {
+  id: number
+  libro_id: number
+  ejemplar_id: number | null
+  ejemplar?: Pick<Ejemplar, 'id' | 'codigo_barras' | 'numero_copia' | 'disponible' | 'estado_proceso'> | null
+  enumeracion: string | null
+  cronologia: string | null
+  fecha_publicacion: string | null
+  fecha_esperada: string | null
+  fecha_recepcion: string | null
+  estado: EstadoFasciculo
+  nota: string | null
+  referencia_externa: string | null
 }
 
 /** Horario de atención por día ISO (1 = lunes ... 7 = domingo): [apertura, cierre] o null si no abre. */

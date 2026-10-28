@@ -57,6 +57,19 @@ PostgreSQL** (backend API), 100% dockerizada.
   la Constancia de No Multa; al pagar o anular se desbloquea al instante. El
   módulo Multas muestra la deuda por usuario y el listado completo con
   filtros.
+- **Reglas de préstamo** (Administración → Reglas de préstamo y días sin
+  atención, tabla `reglas_prestamo`): plazo, cuántos libros a la vez y multa
+  por tipo de usuario, tipo de material y ubicación (vacío = todos). Al prestar
+  se usa la más específica que calce (la que fija más criterios; en empate,
+  manda el material, luego la ubicación y luego el tipo de usuario): propone la
+  fecha de devolución, rechaza lo que no se presta y a quien ya tiene el máximo,
+  y fija la tarifa y el tope de la multa. Sin regla, sigue lo de siempre: un
+  libro a la vez y `config/multas.php` (`App\Services\ReglaPrestamoService`).
+- **Días sin atención** (`dias_sin_atencion`): feriados, vacaciones y cierres,
+  de toda la biblioteca o de una ubicación. Ninguna devolución ni retiro cae en
+  ellos, la fecha propuesta se corre al siguiente día con atención, y no se
+  cobran como atraso (tampoco los días que `config/biblioteca.php` tiene
+  cerrados).
 - Retiro de reservas: cuando un libro reservado queda listo, se le presta a
   quien lo reservó desde la pestaña Reservas ("Entregar"), y la reserva
   queda como retirada. Ni la fecha de devolución de un préstamo ni la de
