@@ -7,6 +7,8 @@ const PALABRAS_MENORES = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e
 export function inicialesPortada(titulo: string) {
   return titulo
     .split(/\s+/)
+    // Sin los signos del comienzo: «¡Hagamos títeres!» es HT, no «¡H».
+    .map((p) => p.replace(/^[^\p{L}\p{N}]+/u, ''))
     .filter((p) => p && !PALABRAS_MENORES.has(p.toLowerCase()))
     .slice(0, 2)
     .map((p) => p.charAt(0).toUpperCase())
