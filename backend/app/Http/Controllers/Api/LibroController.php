@@ -14,6 +14,7 @@ use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
 use App\Support\Bitacora;
 use App\Support\FichaBibliografica;
+use App\Support\OrdenAlfabetico;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -72,14 +73,13 @@ class LibroController extends Controller
 
         // Ordenar "por tipo de recurso" es alfabético por el nombre del catálogo, no por
         // el id de la FK — de ahí el join en vez de un simple orderBy('tipo_material_id').
+        // Los títulos, de la A a la Z con los que empiezan con un número o un signo al final.
         if ($request->query('orden') === 'tipo_material') {
             $query->leftJoin('tipos_material', 'libros.tipo_material_id', '=', 'tipos_material.id')
                 ->select('libros.*')
-                ->orderBy('tipos_material.nombre')
-                ->orderBy('libros.titulo');
-        } else {
-            $query->orderBy('titulo');
+                ->orderBy('tipos_material.nombre');
         }
+        OrdenAlfabetico::porTitulo($query, 'libros.titulo');
 
         // Por páginas: el catálogo real son decenas de miles de títulos, cada uno con su
         // ficha y sus copias. La exportación pide páginas grandes (hasta 500) una tras otra.
@@ -240,7 +240,7 @@ class LibroController extends Controller
         }
 
         return response()->json(
-            $query->orderBy('titulo')->orderBy('id')->paginate(Paginacion::porPagina($request, 30, 200))->through(fn (Libro $libro) => [
+            OrdenAlfabetico::porTitulo($query)->orderBy('id')->paginate(Paginacion::porPagina($request, 30, 200))->through(fn (Libro $libro) => [
                 'libro' => $libro->only(['id', 'titulo', 'isbn', 'clasificacion']),
                 'copias' => $libro->copias,
                 'total_prestamos' => $libro->total_prestamos,

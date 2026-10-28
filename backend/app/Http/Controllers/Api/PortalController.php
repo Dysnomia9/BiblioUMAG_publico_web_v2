@@ -242,12 +242,8 @@ class PortalController extends Controller
             $query->whereIn('libros.id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PORTAL));
         }
 
-        // De la A a la Z (con o sin tilde, mayúscula o minúscula, ver OrdenAlfabetico); después lo
-        // que empieza con un número y al final lo que empieza con un signo («¿Qué es…?», «[Mapa]»):
-        // con el orden de la base, los signos quedaban primero.
-        $query->orderByRaw("case when titulo ~ '^[[:alpha:]]' then 0 when titulo ~ '^[[:digit:]]' then 1 else 2 end")
-            ->orderByRaw(OrdenAlfabetico::de('titulo'))
-            ->orderBy('id');
+        // De la A a la Z, con los títulos que empiezan con un número o un signo al final.
+        OrdenAlfabetico::porTitulo($query)->orderBy('id');
 
         // Solo lo que la biblioteca definió como público para cada tipo de material:
         // los campos de uso interno (notas, catalogador, procedencia...) no salen de acá.

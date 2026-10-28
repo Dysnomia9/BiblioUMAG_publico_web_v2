@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +19,22 @@ final class OrdenAlfabetico
     public static function de(string $columna): string
     {
         return self::hayIcu() ? "{$columna} collate \"es-x-icu\"" : "lower({$columna})";
+    }
+
+    /**
+     * Títulos de la A a la Z; después los que empiezan con un número y al final los que
+     * empiezan con un signo («¿Qué es…?», «[Mapa]», «"Cien años…"»), que si no quedaban primero.
+     *
+     * @template T of Builder
+     *
+     * @param  T  $query
+     * @return T
+     */
+    public static function porTitulo(Builder $query, string $columna = 'titulo'): Builder
+    {
+        return $query
+            ->orderByRaw("case when {$columna} ~ '^[[:alpha:]]' then 0 when {$columna} ~ '^[[:digit:]]' then 1 else 2 end")
+            ->orderByRaw(self::de($columna));
     }
 
     private static function hayIcu(): bool
