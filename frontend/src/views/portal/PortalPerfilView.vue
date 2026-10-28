@@ -17,7 +17,7 @@ const iniciales = computed(() => {
 
 async function cerrarSesion() {
   await auth.logout()
-  router.push({ name: 'portal-login' })
+  router.push({ name: 'login' })
 }
 </script>
 

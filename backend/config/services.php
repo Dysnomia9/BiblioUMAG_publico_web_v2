@@ -35,7 +35,7 @@ return [
         ],
     ],
 
-    // Login con Google (LoginV2View.vue) — ver GoogleAuthController. Sin
+    // Login con Google (LoginView.vue) — ver GoogleAuthController. Sin
     // GOOGLE_CLIENT_ID configurado, redirect() rechaza limpio antes de
     // intentar nada contra Google (ver .env.example).
     'google' => [

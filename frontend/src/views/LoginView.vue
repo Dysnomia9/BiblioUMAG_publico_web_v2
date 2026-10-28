@@ -1,151 +1,413 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import LoginBrandPanel from '@/components/auth/LoginBrandPanel.vue'
-import InterruptorTema from '@/components/ui/InterruptorTema.vue'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import loginFoto from '@/assets/user-umag.webp'
 import logoUmag from '@/assets/logo-umag.png'
+import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useToast } from '@/composables/useToast'
+import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 
-const email = ref('')
+const router = useRouter()
+const route = useRoute()
+const auth = useAuthStore()
+const usuarioAuth = useUsuarioAuthStore()
+const toast = useToast()
+const anio = new Date().getFullYear()
+
+// Un solo formulario para el personal y los usuarios: correo institucional o RUT (también
+// pasaporte o DNI) y contraseña. El servidor busca de quién son (POST /auth/ingresar) y
+// responde a qué sesión corresponden.
+const identificador = ref('')
 const password = ref('')
 const mostrarPassword = ref(false)
-const recordarme = ref(true)
-const auth = useAuthStore()
-const router = useRouter()
-const toast = useToast()
+const enviando = ref(false)
+const error = ref('')
 
-async function onSubmit() {
-  const ok = await auth.login(email.value, password.value)
-  if (ok) router.push({ name: 'dashboard' })
+type Sesion = { tipo: 'staff' | 'usuario'; token: string }
+type Opcion = { tipo: 'staff' | 'usuario'; titulo: string; detalle: string }
+type Respuesta = Sesion | { elegir: Opcion[] }
+
+// Quien tiene cuenta del personal y de usuario con los mismos datos elige con cuál entra;
+// la elección vuelve por el mismo camino por el que entró (clave, Google o LDAP).
+const opciones = ref<Opcion[]>([])
+const pendiente = ref<{ origen: 'clave' | 'ldap' } | { origen: 'google'; codigo: string } | null>(null)
+const eligiendo = ref('')
+
+const ICONOS: Record<Opcion['tipo'], string> = {
+  staff: 'M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0',
+  usuario: 'M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 017.231-4.41 60.53 60.53 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5',
 }
 
 function onOlvidoPassword() {
-  toast.info('Para recuperar tu contraseña, contacta a un administrador del sistema.')
+  toast.info('Para recuperar tu contraseña, contacta a un administrador o acércate al mesón de la biblioteca.')
 }
+
+const mensajeDe = (e: any, porDefecto: string) =>
+  e?.response?.data?.errors?.identificador?.[0] ?? e?.response?.data?.errors?.usuario?.[0] ?? e?.response?.data?.message ?? porDefecto
+
+/** La sesión, o las cuentas para elegir si la persona tiene las dos. */
+function recibir(data: Respuesta, origen: NonNullable<typeof pendiente.value>) {
+  if ('elegir' in data) {
+    opciones.value = data.elegir
+    pendiente.value = origen
+    return
+  }
+  aplicarSesion(data)
+}
+
+async function ingresar() {
+  error.value = ''
+  const valor = identificador.value.trim()
+  if (!valor || !password.value) {
+    error.value = 'Ingresa tu correo institucional o tu RUT, y tu contraseña.'
+    return
+  }
+  if (valor.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) {
+    error.value = 'Revisa el correo (por ejemplo, nombre@umag.cl).'
+    return
+  }
+
+  enviando.value = true
+  try {
+    const { data } = await api.post<Respuesta>('/auth/ingresar', { identificador: valor, password: password.value })
+    recibir(data, { origen: 'clave' })
+  } catch (e) {
+    error.value = mensajeDe(e, 'No se pudo iniciar sesión')
+  } finally {
+    enviando.value = false
+  }
+}
+
+async function elegir(como: Opcion['tipo']) {
+  const p = pendiente.value
+  if (!p) return
+  eligiendo.value = como
+  try {
+    const { data } =
+      p.origen === 'google'
+        ? await api.post<Respuesta>('/auth/google/canjear', { codigo: p.codigo, como })
+        : p.origen === 'ldap'
+          ? await api.post<Respuesta>('/auth/ldap/login', { usuario: ldapUsuario.value.trim(), password: ldapPassword.value, como })
+          : await api.post<Respuesta>('/auth/ingresar', { identificador: identificador.value.trim(), password: password.value, como })
+    recibir(data, p)
+  } catch (e) {
+    cancelarEleccion()
+    error.value = mensajeDe(e, 'No se pudo iniciar sesión')
+  } finally {
+    eligiendo.value = ''
+  }
+}
+
+function cancelarEleccion() {
+  opciones.value = []
+  pendiente.value = null
+}
+
+// Redirige al backend, que a su vez redirige a Google — GoogleAuthController
+// responde con un ?error= de vuelta acá mismo si GOOGLE_CLIENT_ID no está
+// configurado todavía, en vez de intentar contactar a Google (ver .env.example).
+function continuarConGoogle() {
+  const base = (api.defaults.baseURL ?? '').replace(/\/$/, '')
+  window.location.href = `${base}/auth/google/redirect`
+}
+
+// LDAP institucional: a diferencia de Google (redirect) es un bind clásico de
+// usuario/contraseña, así que necesita su propio mini-formulario — se abre
+// plegado por defecto para no competir visualmente con el login de arriba.
+const ldapAbierto = ref(false)
+const ldapUsuario = ref('')
+const ldapPassword = ref('')
+const enviandoLdap = ref(false)
+
+async function ingresarConLdap() {
+  if (!ldapUsuario.value.trim() || !ldapPassword.value) {
+    toast.error('Ingresa tu usuario y contraseña institucional')
+    return
+  }
+
+  enviandoLdap.value = true
+  try {
+    const { data } = await api.post<Respuesta>('/auth/ldap/login', { usuario: ldapUsuario.value.trim(), password: ldapPassword.value })
+    recibir(data, { origen: 'ldap' })
+  } catch (e) {
+    toast.error(mensajeDe(e, 'No se pudo iniciar sesión con LDAP'))
+  } finally {
+    enviandoLdap.value = false
+  }
+}
+
+/**
+ * Guarda la sesión y vuelve a la página que pidió iniciar sesión (por ejemplo, marcar la
+ * entrada desde el QR), si es de esa misma sesión; si no, al inicio de cada una.
+ */
+function aplicarSesion({ tipo, token }: Sesion) {
+  const volver = typeof route.query.volver === 'string' && /^\/(?!\/)/.test(route.query.volver) ? route.query.volver : ''
+  const esDelPortal = volver.startsWith('/portal')
+  if (tipo === 'staff') {
+    auth.establecerToken(token)
+    router.push(volver && !esDelPortal ? volver : { name: 'dashboard' })
+  } else {
+    usuarioAuth.establecerToken(token)
+    router.push(volver && esDelPortal ? volver : { name: 'portal-home' })
+  }
+}
+
+const ERRORES_GOOGLE: Record<string, string> = {
+  google_no_configurado: 'El login con Google todavía no está configurado en este sistema.',
+  google_fallo: 'No se pudo completar el login con Google. Intenta de nuevo.',
+  google_sin_cuenta: 'Tu cuenta de Google es válida, pero no está habilitada en Biblioteca UMAG. Contacta a un administrador.',
+  google_no_permitido: 'Esa cuenta de Google no tiene el correo verificado o no es del dominio institucional.',
+}
+
+// Google vuelve del backend con ?codigo= (éxito) o ?error= (rechazo). El código se canjea
+// por el token con un POST, así el token nunca queda en una URL; si la persona tiene las
+// dos cuentas, el mismo código vuelve con la que eligió. Se limpia la URL antes, para no
+// reprocesar en un refresh.
+onMounted(async () => {
+  const { codigo, error: errorGoogle } = route.query
+
+  if (typeof codigo === 'string') {
+    router.replace({ query: {} })
+    try {
+      const { data } = await api.post<Respuesta>('/auth/google/canjear', { codigo })
+      recibir(data, { origen: 'google', codigo })
+    } catch (e) {
+      toast.error(mensajeDe(e, 'No se pudo completar el login con Google. Intenta de nuevo.'))
+    }
+  } else if (typeof errorGoogle === 'string') {
+    toast.error(ERRORES_GOOGLE[errorGoogle] ?? 'No se pudo iniciar sesión')
+    router.replace({ query: {} })
+  }
+})
+
+const destacados = [
+  { label: 'Préstamos', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+  { label: 'Salas de estudio', icon: 'M4 6h16M4 12h16M4 18h7' },
+  { label: 'Recursos', icon: 'M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z' },
+]
 </script>
 
 <template>
-  <div class="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-slate-50 to-purple-50/60 px-4 py-12">
-    <div class="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
+  <div class="relative min-h-screen flex flex-col overflow-hidden">
+    <img :src="loginFoto" alt="" class="absolute inset-0 h-full w-full object-cover" />
+    <div
+      class="absolute inset-0"
+      style="background: linear-gradient(90deg, rgba(28,16,66,0.93) 0%, rgba(59,40,163,0.85) 28%, rgba(67,56,202,0.55) 52%, rgba(224,221,250,0.55) 75%, rgba(248,247,255,0.85) 100%);"
+    ></div>
+
+    <div class="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
       <InterruptorTema en-pagina />
-      <router-link
-        :to="{ name: 'login-v2' }"
-        class="text-xs font-medium text-gray-500 hover:text-indigo-600 border border-gray-200 hover:border-indigo-300 rounded-full px-3 py-1.5 bg-white/70 backdrop-blur-sm transition-colors"
-      >
-        Versión 2
-      </router-link>
     </div>
 
-    <div class="w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden grid md:grid-cols-2 bg-white">
-      <LoginBrandPanel />
+    <div class="relative flex-1 flex flex-col">
+      <div class="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-6 sm:px-10 py-6">
+        <div class="hidden lg:block max-w-md">
+          <div class="rounded-3xl bg-blanco/10 backdrop-blur-md border border-white/15 px-10 py-10 text-center text-white shadow-xl">
+            <img :src="logoUmag" alt="Universidad de Magallanes" class="mx-auto h-14 w-14 object-contain mb-5" />
+            <h1 class="text-4xl font-serif font-bold mb-4">Biblioteca UMAG</h1>
+            <div class="h-px w-32 bg-blanco/30 mb-6 mx-auto"></div>
 
-      <div class="flex flex-col justify-center px-6 py-10 sm:px-10 sm:py-12">
-        <div class="text-center mb-7">
-          <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-200 bg-white shadow-md overflow-hidden">
-            <img :src="logoUmag" alt="Universidad de Magallanes" class="h-full w-full object-cover" />
-          </div>
-          <h2 class="text-2xl font-serif font-bold text-gray-900">Administración</h2>
-          <p class="mt-1 text-sm text-gray-500">Panel para personal de biblioteca</p>
-        </div>
-
-        <form @submit.prevent="onSubmit" class="space-y-5">
-          <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-1.5">Correo institucional</label>
-            <div class="relative">
-              <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-              </svg>
-              <input
-                id="email"
-                v-model="email"
-                type="email"
-                required
-                autocomplete="username"
-                class="w-full rounded-lg border border-gray-300 bg-gray-50/50 pl-10 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="nombre@umag.cl"
-              />
+            <div class="flex justify-center gap-5">
+              <div v-for="d in destacados" :key="d.label" class="text-center">
+                <div class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blanco/10 border border-white/15">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round" :d="d.icon" />
+                  </svg>
+                </div>
+                <p class="text-xs font-medium text-white/85">{{ d.label }}</p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1.5">Contraseña</label>
-            <div class="relative">
-              <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-              <input
-                id="password"
-                v-model="password"
-                :type="mostrarPassword ? 'text' : 'password'"
-                required
-                autocomplete="current-password"
-                class="w-full rounded-lg border border-gray-300 bg-gray-50/50 pl-10 pr-10 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
+        <div class="w-full max-w-sm">
+          <div class="rounded-3xl bg-white shadow-2xl border-2 border-gray-900 p-7 sm:p-8">
+            <div class="text-center mb-6">
+              <div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+              </div>
+              <h2 class="text-xl font-serif font-bold text-gray-900">Inicio de Sesión</h2>
+              <p class="mt-1 text-sm text-gray-500">Personal de biblioteca, estudiantes, docentes y funcionarios</p>
+            </div>
+
+            <!-- La misma persona con cuenta del personal y de usuario: con cuál entra. -->
+            <div v-if="opciones.length" class="space-y-3">
+              <div class="text-center">
+                <p class="font-semibold text-gray-900">Tienes dos cuentas</p>
+                <p class="mt-0.5 text-sm text-gray-500">¿Con cuál quieres entrar?</p>
+              </div>
+              <button
+                v-for="o in opciones"
+                :key="o.tipo"
+                type="button"
+                :disabled="!!eligiendo"
+                class="flex w-full items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 text-left transition-colors hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-60"
+                @click="elegir(o.tipo)"
+              >
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round" :d="ICONOS[o.tipo]" />
+                  </svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-sm font-semibold text-gray-900">{{ eligiendo === o.tipo ? 'Ingresando…' : o.titulo }}</span>
+                  <span class="block truncate text-xs text-gray-500">{{ o.detalle }}</span>
+                </span>
+              </button>
               <button
                 type="button"
-                @click="mostrarPassword = !mostrarPassword"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                :aria-label="mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                tabindex="-1"
+                class="w-full pt-1 text-center text-sm font-medium text-gray-500 hover:text-indigo-600 hover:underline"
+                :disabled="!!eligiendo"
+                @click="cancelarEleccion"
               >
-                <svg v-if="mostrarPassword" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                </svg>
-                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                ← Usar otros datos
               </button>
             </div>
+
+            <template v-else>
+              <form @submit.prevent="ingresar" class="space-y-4" novalidate>
+                <div>
+                  <label for="identificador" class="block text-sm font-medium text-gray-700 mb-1.5">Correo institucional o RUT</label>
+                  <div class="relative">
+                    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                    <input
+                      id="identificador"
+                      v-model="identificador"
+                      type="text"
+                      autocomplete="username"
+                      autocapitalize="none"
+                      spellcheck="false"
+                      placeholder="nombre@umag.cl o 12.345.678-5"
+                      class="w-full rounded-lg border bg-gray-50/50 pl-10 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
+                      :class="error ? 'border-red-300 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
+                      :aria-invalid="error ? 'true' : 'false'"
+                      @input="error = ''"
+                    />
+                  </div>
+                  <p class="mt-1 text-xs text-gray-400">Con pasaporte o DNI, escribe su número.</p>
+                </div>
+
+                <div>
+                  <label for="password" class="block text-sm font-medium text-gray-700 mb-1.5">Contraseña</label>
+                  <div class="relative">
+                    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <input
+                      id="password"
+                      v-model="password"
+                      :type="mostrarPassword ? 'text' : 'password'"
+                      autocomplete="current-password"
+                      placeholder="Ingresa tu contraseña"
+                      class="w-full rounded-lg border border-gray-300 bg-gray-50/50 pl-10 pr-10 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      @input="error = ''"
+                    />
+                    <button
+                      type="button"
+                      @click="mostrarPassword = !mostrarPassword"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      :aria-label="mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                      tabindex="-1"
+                    >
+                      <svg v-if="mostrarPassword" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                      </svg>
+                      <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <p v-if="error" class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2" role="alert">
+                  {{ error }}
+                </p>
+
+                <button
+                  type="submit"
+                  :disabled="enviando"
+                  class="w-full flex items-center justify-center gap-2 rounded-lg text-white text-sm font-medium py-2.5 transition-opacity disabled:opacity-60"
+                  style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
+                >
+                  {{ enviando ? 'Ingresando…' : 'Ingresar' }}
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </button>
+              </form>
+
+              <button type="button" @click="onOlvidoPassword" class="mt-4 w-full text-center text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline">
+                ¿Olvidaste tu contraseña?
+              </button>
+
+              <div class="my-5 flex items-center gap-3">
+                <div class="flex-1 h-px bg-gray-200" />
+                <span class="text-[11px] text-gray-400 uppercase tracking-wide">o continúa con</span>
+                <div class="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <div class="space-y-2">
+                <button
+                  type="button"
+                  @click="continuarConGoogle"
+                  class="w-full flex items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:shadow-md transition-all"
+                >
+                  <svg width="18" height="18" viewBox="0 0 48 48">
+                    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+                    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+                    <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
+                    <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+                  </svg>
+                  Continuar con Google
+                </button>
+
+                <button
+                  type="button"
+                  @click="ldapAbierto = !ldapAbierto"
+                  :aria-expanded="ldapAbierto"
+                  class="w-full rounded-lg border border-indigo-200 bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                >
+                  Cuenta institucional (LDAP)
+                </button>
+
+                <form v-if="ldapAbierto" @submit.prevent="ingresarConLdap" class="space-y-2 pt-2">
+                  <input
+                    v-model="ldapUsuario"
+                    type="text"
+                    placeholder="Usuario institucional"
+                    aria-label="Usuario institucional"
+                    class="w-full rounded-lg border border-gray-300 bg-gray-50/50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    autocomplete="username"
+                  />
+                  <input
+                    v-model="ldapPassword"
+                    type="password"
+                    placeholder="Contraseña institucional"
+                    aria-label="Contraseña institucional"
+                    class="w-full rounded-lg border border-gray-300 bg-gray-50/50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    autocomplete="current-password"
+                  />
+                  <button
+                    type="submit"
+                    :disabled="enviandoLdap"
+                    class="w-full rounded-lg py-2.5 text-sm font-medium border border-gray-300 text-gray-800 hover:bg-gray-50 transition-all disabled:opacity-60"
+                  >
+                    {{ enviandoLdap ? 'Ingresando…' : 'Ingresar con LDAP' }}
+                  </button>
+                </form>
+              </div>
+            </template>
+
+            <p class="mt-5 pt-5 border-t border-gray-100 text-center text-[11px] leading-relaxed text-gray-400">© {{ anio }} Universidad de Magallanes</p>
           </div>
-
-          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <input v-model="recordarme" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-            Recordarme
-          </label>
-
-          <p v-if="auth.error" class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-            {{ auth.error }}
-          </p>
-
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="w-full flex items-center justify-center gap-2 rounded-lg text-white text-sm font-medium py-2.5 transition-opacity disabled:opacity-60"
-            style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l4-4m0 0l-4-4m4 4H3m7 4v1a3 3 0 003 3h4a3 3 0 003-3V7a3 3 0 00-3-3h-4a3 3 0 00-3 3v1" />
-            </svg>
-            {{ auth.loading ? 'Ingresando…' : 'Iniciar sesión' }}
-          </button>
-        </form>
-
-        <button type="button" @click="onOlvidoPassword" class="mt-4 w-full text-center text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline">
-          ¿Olvidaste tu contraseña?
-        </button>
-
-        <div class="my-6 flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-200"></div>
-          <span class="text-xs text-gray-400 uppercase tracking-wide">Sistema interno</span>
-          <div class="h-px flex-1 bg-gray-200"></div>
         </div>
-
-        <router-link
-          :to="{ name: 'portal-login' }"
-          class="flex items-center justify-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
-        >
-          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 017.231-4.41 60.53 60.53 0 00-.491-6.347M4.26 10.147a48.474 48.474 0 017.44-5.16.75.75 0 01.6 0 48.55 48.55 0 017.44 5.16M4.26 10.147a49.99 49.99 0 00-2.658.813.75.75 0 00-.211 1.319 47.71 47.71 0 019.6 6.36.75.75 0 00.918 0 47.7 47.7 0 019.6-6.36.75.75 0 00-.212-1.318 49.9 49.9 0 00-2.658-.812m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-          </svg>
-          ¿Eres estudiante, docente o funcionario? Ingresa aquí
-        </router-link>
-
-        <p class="mt-6 text-center text-xs text-gray-400">
-          Sistema interno · Universidad de Magallanes
-        </p>
       </div>
     </div>
   </div>

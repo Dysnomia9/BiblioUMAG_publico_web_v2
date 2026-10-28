@@ -14,8 +14,8 @@ use App\Http\Controllers\Api\DiaSinAtencionController;
 use App\Http\Controllers\Api\EstadoLibroPersonalizadoController;
 use App\Http\Controllers\Api\FasciculoController;
 use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\IngresoController;
 use App\Http\Controllers\Api\LdapAuthController;
-use App\Http\Controllers\Api\LoginV2Controller;
 use App\Http\Controllers\Api\LibroController;
 use App\Http\Controllers\Api\MultaController;
 use App\Http\Controllers\Api\PersonalController;
@@ -36,18 +36,20 @@ use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\VigenciaController;
 use Illuminate\Support\Facades\Route;
 
+// El login único (LoginView.vue): correo o RUT y contraseña, para el personal y los
+// usuarios; responde a qué sesión corresponde o, si la persona tiene las dos cuentas,
+// pide elegir (LoginUnificadoService).
+Route::post('/auth/ingresar', [IngresoController::class, 'ingresar'])->middleware('throttle:login');
+// Los ingresos de antes, solo del personal (correo) o solo del portal (RUT): siguen
+// respondiendo para quien los use directamente.
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('/auth/usuario/login', [UsuarioAuthController::class, 'login'])->middleware('throttle:login');
 
-// Login unificado de LoginV2View.vue (staff o usuario, según a quién pertenezca
-// el email/identidad que confirme el proveedor externo) — ver GoogleAuthController/
-// LdapAuthController y su nota de "no configurado todavía" en .env.example.
+// Google y LDAP en el mismo login (ver la nota de "no configurado todavía" en .env.example).
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 Route::post('/auth/google/canjear', [GoogleAuthController::class, 'canjear'])->middleware('throttle:login');
 Route::post('/auth/ldap/login', [LdapAuthController::class, 'login'])->middleware('throttle:login');
-// Correo y clave simulados del login v2 (config/login_v2.php): solo en desarrollo.
-Route::post('/auth/v2/login', [LoginV2Controller::class, 'login'])->middleware('throttle:login');
 
 // Panel del personal. Cada grupo exige un permiso del catálogo App\Support\Permisos;
 // qué permisos tiene cada rol se administra en la pantalla "Personal y roles".

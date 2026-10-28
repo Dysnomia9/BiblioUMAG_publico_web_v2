@@ -6,8 +6,6 @@ import type { Staff } from '@/types'
 export const useAuthStore = defineStore('auth', () => {
   const staff = ref<Staff | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
-  const error = ref<string | null>(null)
-  const loading = ref(false)
   // Evita repetir la validación contra /auth/me en cada navegación dentro de
   // la misma sesión del SPA (se resetea solo con una recarga completa).
   const validated = ref(false)
@@ -28,29 +26,9 @@ export const useAuthStore = defineStore('auth', () => {
     return (Array.isArray(requeridos) ? requeridos : [requeridos]).some(puede)
   }
 
-  async function login(email: string, password: string) {
-    loading.value = true
-    error.value = null
-    try {
-      const { data } = await api.post('/auth/login', { email, password })
-      token.value = data.token
-      staff.value = data.staff
-      validated.value = true
-      localStorage.setItem('token', data.token)
-      return true
-    } catch (e: any) {
-      error.value = e?.response?.data?.message ?? 'No se pudo iniciar sesión. Verifica tus credenciales.'
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
   /**
-   * Para logins que ya emitieron un token por fuera del flujo de auth.login()
-   * (Google/LDAP en LoginV2View.vue, ver GoogleAuthController/LdapAuthController) —
-   * evita repetir el POST /auth/login cuando el token ya viene emitido. staff se
-   * completa recién en la próxima validar()/GET /auth/me.
+   * Guarda la sesión que emitió el login (LoginView.vue: correo o RUT, Google o LDAP).
+   * staff se completa en la próxima validar()/GET /auth/me.
    */
   function establecerToken(nuevoToken: string) {
     token.value = nuevoToken
@@ -101,5 +79,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { staff, token, error, loading, permisos, puede, puedeAlguno, login, establecerToken, logout, validar }
+  return { staff, token, permisos, puede, puedeAlguno, establecerToken, logout, validar }
 })

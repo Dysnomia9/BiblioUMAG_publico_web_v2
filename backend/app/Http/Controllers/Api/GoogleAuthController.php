@@ -7,11 +7,12 @@ use App\Services\LoginUnificadoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
 /**
- * Login con Google para LoginV2View.vue. Sin GOOGLE_CLIENT_ID configurado (ver
+ * Login con Google, en el login único (LoginView.vue). Sin GOOGLE_CLIENT_ID configurado (ver
  * .env.example), redirect()/callback() mandan de vuelta al frontend con un error
  * en vez de intentar contactar a Google — así el botón puede mostrarse siempre,
  * sin necesitar un endpoint aparte para consultar "¿está configurado?".
@@ -74,33 +75,39 @@ class GoogleAuthController extends Controller
             return $this->volverConError('google_no_permitido');
         }
 
-        $cuenta = $this->loginUnificado->cuentaPorEmail((string) $googleUser->getEmail());
+        $cuentas = $this->loginUnificado->cuentasPorEmail((string) $googleUser->getEmail());
 
-        if (! $cuenta) {
+        if (! $cuentas) {
             return $this->volverConError('google_sin_cuenta');
         }
 
         $frontend = rtrim(config('services.frontend.url'), '/');
-        $codigo = $this->loginUnificado->codigoDeCanje($cuenta);
+        $codigo = $this->loginUnificado->codigoDeCanje($cuentas);
 
-        return redirect("{$frontend}/login/v2?codigo={$codigo}")->withCookie(cookie()->forget(self::COOKIE_STATE));
+        return redirect("{$frontend}/login?codigo={$codigo}")->withCookie(cookie()->forget(self::COOKIE_STATE));
     }
 
-    /** El frontend cambia el código que trajo de Google por el token de sesión (sirve una sola vez). */
+    /**
+     * El frontend cambia el código que trajo de Google por el token de sesión (sirve una sola
+     * vez). Si la persona tiene cuenta del personal y de usuario, responde las opciones y el
+     * mismo código vuelve con `como`.
+     */
     public function canjear(Request $request)
     {
-        $data = $request->validate(['codigo' => ['required', 'string', 'size:64']]);
+        $data = $request->validate([
+            'codigo' => ['required', 'string', 'size:64'],
+            'como' => ['nullable', Rule::in(['staff', 'usuario'])],
+        ]);
 
-        $resultado = $this->loginUnificado->canjear($data['codigo']);
+        $resultado = $this->loginUnificado->canjear($data['codigo'], $data['como'] ?? null);
 
         if (! $resultado) {
             return response()->json(['message' => 'El inicio de sesión con Google venció o ya se usó. Vuelve a intentarlo.'], 422);
         }
 
-        return response()->json([
-            'tipo' => $resultado['tipo'],
-            'token' => $resultado['token'],
-        ]);
+        return response()->json(isset($resultado['token'])
+            ? ['tipo' => $resultado['tipo'], 'token' => $resultado['token']]
+            : $resultado);
     }
 
     private function dominioPermitido(?string $dominio): bool
@@ -119,6 +126,6 @@ class GoogleAuthController extends Controller
     {
         $frontend = rtrim(config('services.frontend.url'), '/');
 
-        return "{$frontend}/login/v2?error={$error}";
+        return "{$frontend}/login?error={$error}";
     }
 }

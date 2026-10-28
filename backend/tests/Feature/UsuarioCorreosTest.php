@@ -105,9 +105,9 @@ class UsuarioCorreosTest extends TestCase
         UsuarioCorreo::create(['usuario_id' => $usuario->id, 'email' => 'personal@gmail.com']);
 
         $servicio = app(LoginUnificadoService::class);
-        $this->assertSame($usuario->id, $servicio->cuentaPorEmail('principal@umag.cl')?->id);
-        $this->assertSame($usuario->id, $servicio->cuentaPorEmail('Personal@GMAIL.com')?->id);
-        $this->assertNull($servicio->cuentaPorEmail('desconocido@gmail.com'));
+        $this->assertSame($usuario->id, $servicio->cuentasPorEmail('principal@umag.cl')[0]->id);
+        $this->assertSame($usuario->id, $servicio->cuentasPorEmail('Personal@GMAIL.com')[0]->id);
+        $this->assertSame([], $servicio->cuentasPorEmail('desconocido@gmail.com'));
     }
 
     public function test_el_listado_busca_tambien_por_correos_adicionales_y_los_trae(): void

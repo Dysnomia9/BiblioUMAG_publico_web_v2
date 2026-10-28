@@ -80,7 +80,7 @@ class LoginExternoTest extends TestCase
         Staff::factory()->create(['email' => 'bibliotecaria@umag.cl']);
         $this->googleDevuelve('bibliotecaria@umag.cl');
 
-        $location = $this->volverDeGoogle()->assertRedirectContains('/login/v2?codigo=')->headers->get('Location');
+        $location = $this->volverDeGoogle()->assertRedirectContains('/login?codigo=')->headers->get('Location');
 
         $this->assertStringNotContainsString('token', $location);
         $this->assertDatabaseCount('personal_access_tokens', 0);
@@ -118,7 +118,7 @@ class LoginExternoTest extends TestCase
         Usuario::factory()->create(['email' => 'alumno@umag.cl']);
         $this->googleDevuelve('alumno@umag.cl', ['email_verified' => true, 'hd' => 'umag.cl']);
 
-        $this->volverDeGoogle()->assertRedirectContains('/login/v2?codigo=');
+        $this->volverDeGoogle()->assertRedirectContains('/login?codigo=');
     }
 
     public function test_ldap_login_devuelve_503_sin_ldap_host_configurado(): void
@@ -150,49 +150,53 @@ class LoginExternoTest extends TestCase
         $response->assertRedirectContains('error=google_no_configurado');
     }
 
-    public function test_login_unificado_mapea_a_staff_por_email(): void
+    public function test_google_pide_elegir_si_el_correo_es_del_personal_y_de_un_usuario(): void
     {
+        $this->configurarGoogle();
+        Staff::factory()->create(['email' => 'carla@umag.cl']);
+        Usuario::factory()->create(['email' => 'carla@umag.cl', 'tipo' => 'estudiante', 'carrera' => 'Enfermería']);
+        $this->googleDevuelve('carla@umag.cl');
+
+        $location = $this->volverDeGoogle()->assertRedirectContains('/login?codigo=')->headers->get('Location');
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+
+        $this->postJson('/api/auth/google/canjear', ['codigo' => $query['codigo']])
+            ->assertOk()
+            ->assertJsonPath('elegir.0.tipo', 'staff')
+            ->assertJsonPath('elegir.1.detalle', 'Estudiante · Enfermería')
+            ->assertJsonMissingPath('token');
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        // El mismo código sirve para elegir, y después ya no.
+        $this->postJson('/api/auth/google/canjear', ['codigo' => $query['codigo'], 'como' => 'usuario'])
+            ->assertOk()->assertJsonPath('tipo', 'usuario');
+        $this->postJson('/api/auth/google/canjear', ['codigo' => $query['codigo'], 'como' => 'staff'])->assertStatus(422);
+    }
+
+    public function test_login_unificado_encuentra_las_cuentas_activas_de_un_correo(): void
+    {
+        $servicio = app(LoginUnificadoService::class);
         $staff = Staff::factory()->create(['email' => 'bibliotecaria@umag.cl']);
-
-        $resultado = app(LoginUnificadoService::class)->porEmail('bibliotecaria@umag.cl');
-
-        $this->assertSame('staff', $resultado['tipo']);
-        $this->assertNotEmpty($resultado['token']);
-        $this->assertTrue($staff->is($resultado['entidad']));
-    }
-
-    public function test_login_unificado_mapea_a_usuario_por_email_si_no_hay_staff_con_ese_email(): void
-    {
         $usuario = Usuario::factory()->create(['email' => 'alumno@umag.cl']);
-
-        $resultado = app(LoginUnificadoService::class)->porEmail('alumno@umag.cl');
-
-        $this->assertSame('usuario', $resultado['tipo']);
-        $this->assertTrue($usuario->is($resultado['entidad']));
-    }
-
-    public function test_login_unificado_devuelve_null_si_ningun_email_coincide(): void
-    {
-        $resultado = app(LoginUnificadoService::class)->porEmail('nadie@umag.cl');
-
-        $this->assertNull($resultado);
-    }
-
-    public function test_login_unificado_devuelve_null_si_el_staff_esta_inactivo(): void
-    {
         Staff::factory()->create(['email' => 'exempleado@umag.cl', 'activo' => false]);
-
-        $resultado = app(LoginUnificadoService::class)->porEmail('exempleado@umag.cl');
-
-        $this->assertNull($resultado);
-    }
-
-    public function test_login_unificado_devuelve_null_si_el_usuario_esta_inactivo(): void
-    {
         Usuario::factory()->create(['email' => 'exalumno@umag.cl', 'activo' => false]);
 
-        $resultado = app(LoginUnificadoService::class)->porEmail('exalumno@umag.cl');
+        $this->assertTrue($staff->is($servicio->cuentasPorEmail('Bibliotecaria@umag.cl')[0]));
+        $this->assertTrue($usuario->is($servicio->cuentasPorEmail('alumno@umag.cl')[0]));
+        $this->assertSame([], $servicio->cuentasPorEmail('nadie@umag.cl'));
+        $this->assertSame([], $servicio->cuentasPorEmail('exempleado@umag.cl'));
+        $this->assertSame([], $servicio->cuentasPorEmail('exalumno@umag.cl'));
+    }
 
-        $this->assertNull($resultado);
+    public function test_login_unificado_entra_directo_con_una_cuenta_y_pregunta_con_dos(): void
+    {
+        $servicio = app(LoginUnificadoService::class);
+        $staff = Staff::factory()->create(['email' => 'carla@umag.cl']);
+        $usuario = Usuario::factory()->create(['email' => 'carla@umag.cl']);
+
+        $this->assertSame('staff', $servicio->resolver([$staff], null, 'LDAP')['tipo']);
+        $this->assertSame(['staff', 'usuario'], array_column($servicio->resolver([$staff, $usuario], null, 'LDAP')['elegir'], 'tipo'));
+        $this->assertTrue($usuario->is($servicio->resolver([$staff, $usuario], 'usuario', 'LDAP')['entidad']));
+        $this->assertNull($servicio->resolver([$usuario], 'staff', 'LDAP'));
     }
 }

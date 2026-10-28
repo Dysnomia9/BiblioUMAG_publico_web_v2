@@ -65,8 +65,8 @@ Una por cada rol de fábrica:
 | Bibliotecario/a | `bibliotecaria@umag.cl` | `biblio123` |
 | Atención de público | `meson@umag.cl` | `meson123` |
 
-Los usuarios de ejemplo entran al portal (`/portal/login`) con su RUT y la
-contraseña `umag123`.
+Todos entran por el mismo login (`/login`). Los usuarios de ejemplo, con su RUT y
+la contraseña `umag123`, llegan al portal.
 
 Estos datos se cargan **solo la primera vez** (si la tabla `staff` está vacía);
 después tus datos persisten entre arranques. En una base que ya existía, la
@@ -243,8 +243,8 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
 
 ### Portal de autoservicio
 
-Para estudiantes y funcionarios, con login propio y separado del panel del
-personal:
+Para estudiantes, docentes y funcionarios, que entran por el mismo login que el
+personal (con su correo o RUT) y llegan a su propia sesión, separada del panel:
 
 - Marcar entrada y salida por RUT o escaneando el QR con la cámara.
 - Consultar el catálogo (por título, autor, área o ISBN), ver cuándo vuelve un
@@ -294,9 +294,14 @@ Bibliomag_publico_web_v2/
 - **Notificaciones por correo** (reserva lista para retirar, multa generada) ya
   implementadas; sin SMTP configurado quedan en `storage/logs/laravel.log`.
   Activarlas es configurar `MAIL_MAILER`/`MAIL_HOST` en `.env`.
-- **Login unificado** (`/login/v2`) con Google y LDAP institucional, inactivo
-  hasta configurar `GOOGLE_CLIENT_ID` o `LDAP_HOST` (ver
-  `docs/login-externo-pendientes.md` y `config/login_v2.php`).
+- **Un solo login** (`/login`) para el personal y los usuarios: correo
+  institucional o RUT (también pasaporte o DNI) y contraseña, y el sistema lleva a
+  cada uno al panel o al portal (`IngresoController`). Si la misma persona tiene
+  cuenta del personal y de usuario con esos datos (una bibliotecaria que también
+  estudia), elige con cuál entra. Google y LDAP institucional están en el mismo
+  login, inactivos hasta configurar `GOOGLE_CLIENT_ID` o `LDAP_HOST` (ver
+  `docs/login-externo-pendientes.md`). Las direcciones de antes (`/login/v2`,
+  `/portal/login`) llevan a este.
 - Compatibilidad con los lectores de código de barras de Horizon para logias y
   puestos de trabajo, y mensajes de validación en español (`lang/es/`).
 
@@ -417,7 +422,7 @@ horizon:codigos-logia`. Lo que falta para publicar está en
 docker compose exec backend php artisan test
 ```
 
-La suite de Feature tests (`backend/tests/Feature/`, 655 tests al 2026-10-28)
+La suite de Feature tests (`backend/tests/Feature/`, 658 tests al 2026-10-28)
 cubre autenticación y permisos por rol, entradas, préstamos y reservas (incluida
 la protección contra condiciones de carrera con `lockForUpdate()`), salas,
 multas y bloqueos, catalogación y estados de ejemplares, fichas bibliográficas,

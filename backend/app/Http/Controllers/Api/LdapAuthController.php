@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\LoginUnificadoService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use LdapRecord\Auth\BindException;
 use LdapRecord\Connection;
 use LdapRecord\LdapRecordException;
 
 /**
- * Login LDAP institucional para LoginV2View.vue. Patrón "search + bind": conecta
+ * Login LDAP institucional, en el login único (LoginView.vue). Patrón "search + bind": conecta
  * con la cuenta de servicio (LDAP_BIND_USERNAME/PASSWORD), busca al usuario por
  * LDAP_USER_ATTRIBUTE, y recién ahí intenta el bind con la contraseña que
  * ingresó — no asume un formato de DN fijo para el usuario final, porque no se
@@ -29,6 +30,8 @@ class LdapAuthController extends Controller
         $data = $request->validate([
             'usuario' => ['required', 'string'],
             'password' => ['required', 'string'],
+            // Con cuenta del personal y de usuario, la que eligió (ver LoginUnificadoService).
+            'como' => ['nullable', Rule::in(['staff', 'usuario'])],
         ]);
 
         $config = config('ldap.connections.'.config('ldap.default'));
@@ -80,7 +83,7 @@ class LdapAuthController extends Controller
             ]);
         }
 
-        $resultado = $this->loginUnificado->porEmail($email);
+        $resultado = $this->loginUnificado->resolver($this->loginUnificado->cuentasPorEmail($email), $data['como'] ?? null, 'LDAP');
 
         if (! $resultado) {
             throw ValidationException::withMessages([
@@ -88,9 +91,8 @@ class LdapAuthController extends Controller
             ]);
         }
 
-        return response()->json([
-            'tipo' => $resultado['tipo'],
-            'token' => $resultado['token'],
-        ]);
+        return response()->json(isset($resultado['token'])
+            ? ['tipo' => $resultado['tipo'], 'token' => $resultado['token']]
+            : $resultado);
     }
 }

@@ -79,7 +79,7 @@ watch(() => route.fullPath, () => (menuAbierto.value = false))
 async function onLogout() {
   menuAbierto.value = false
   await auth.logout()
-  router.push({ name: 'portal-login' })
+  router.push({ name: 'login' })
 }
 </script>
 

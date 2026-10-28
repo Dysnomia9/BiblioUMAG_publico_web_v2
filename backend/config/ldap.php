@@ -2,7 +2,7 @@
 
 /**
  * Config de directorytree/ldaprecord-laravel para el login institucional (LDAP/AD
- * de la UMAG) desde LoginV2View.vue — ver LdapAuthController. Sin LDAP_HOST
+ * de la UMAG) desde el login (LoginView.vue) — ver LdapAuthController. Sin LDAP_HOST
  * configurado, el controller rechaza limpio antes de intentar conectar (ver
  * .env.example) — por eso 'hosts' cae a un array vacío por default, a diferencia
  * del stub del paquete que trae '127.0.0.1' hardcodeado (con eso, el chequeo de

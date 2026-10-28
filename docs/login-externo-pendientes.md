@@ -1,6 +1,6 @@
 # Login con Google y LDAP: qué falta para activarlos
 
-`LoginV2View.vue` (`/login/v2`) ya tiene el código completo y probado para
+El login (`/login`, `LoginView.vue`) ya tiene el código completo y probado para
 login con Google y con LDAP institucional. Los dos están **inactivos** porque
 no hay credenciales/servidor reales todavía: no falta programar nada, falta
 completar configuración. Este documento es la lista de lo que hay que hacer
@@ -33,7 +33,7 @@ el 2026-08-20 (ver "Backend / integraciones" en el `README.md`).
 6. `docker compose up --build backend` (el `.env` se hornea en la imagen al
    build, así que un simple restart no alcanza; ver "Cómo se arma la imagen del
    backend" en el `README.md`).
-7. Probar: entrar a `/login/v2`, click en "Continuar con Google", debería
+7. Probar: entrar a `/login`, click en "Continuar con Google", debería
    redirigir de verdad a la pantalla de consentimiento de Google.
 
 **Cómo queda protegido**: la API no tiene sesión, así que el `state` de OAuth
@@ -88,7 +88,7 @@ LDAP_EMAIL_ATTRIBUTE=mail            # o el que corresponda
 ```
 
 `docker compose up --build backend` y probar con una cuenta real desde
-`/login/v2` → "Cuenta institucional (LDAP)".
+`/login` → "Cuenta institucional (LDAP)".
 
 **Cómo se probó sin acceso al servidor real**: se levantó un servidor
 OpenLDAP de prueba (`osixia/openldap`, Docker, descartable) y se verificó el
@@ -100,14 +100,14 @@ pero no hay garantía absoluta sin probarlo contra el servidor real de la
 UMAG, que puede tener particularidades (ACLs, atributos custom, etc.) no
 anticipables sin acceso a él.
 
-## Correos simulados (solo para probar el login v2)
+## Correos simulados (solo en desarrollo)
 
-Mientras no haya Google ni LDAP reales, `/login/v2` entra con **correo y clave
-simulados**: cada cuenta del personal y cada usuario tiene uno con sus iniciales
+Mientras no haya Google ni LDAP reales, en desarrollo `/login` también entra con
+**correo y clave simulados**: cada cuenta del personal y cada usuario tiene uno con sus iniciales
 (dos letras del nombre y seis del primer apellido: Ignacio Contreras →
 `igcontre@umag.cl`; si se repite, `camunoz2@umag.cl`) y la clave de prueba
 `demo1234`. Se guardan aparte, en la tabla `credenciales_simuladas`: no cambian el
-correo, el RUT ni la clave reales, así que `/login` y el portal funcionan igual.
+correo, el RUT ni la clave reales, que siguen entrando igual.
 También se entra con el correo real de la cuenta y su propia contraseña (por ejemplo
 `admin@umag.cl` con la clave que da `sistema:iniciar`, que no tiene correo simulado).
 

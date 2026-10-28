@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useToast } from '@/composables/useToast'
@@ -8,24 +8,16 @@ const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
+    // Un solo login para el personal y los usuarios (correo o RUT). Las direcciones de los
+    // logins de antes llevan a este: enlaces guardados, el QR de la entrada y la vuelta de Google.
     {
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true },
     },
-    {
-      path: '/login/v2',
-      name: 'login-v2',
-      component: () => import('@/views/LoginV2View.vue'),
-      meta: { public: true },
-    },
-    {
-      path: '/portal/login',
-      name: 'portal-login',
-      component: () => import('@/views/portal/PortalLoginView.vue'),
-      meta: { public: true, portal: true },
-    },
+    { path: '/login/v2', redirect: (to) => ({ name: 'login', query: to.query }) },
+    { path: '/portal/login', redirect: (to) => ({ name: 'login', query: to.query }) },
     {
       path: '/portal',
       name: 'portal-home',
@@ -97,40 +89,41 @@ const router = createRouter({
   ],
 })
 
+/** Al login, recordando a dónde iba (al entrar vuelve ahí, por ejemplo a marcar su entrada). */
+const alLogin = (to: RouteLocationNormalized) => ({ name: 'login', query: to.fullPath === '/dashboard' ? {} : { volver: to.fullPath } })
+
 router.beforeEach(async (to) => {
   if (to.meta.portal) {
     const usuarioAuth = useUsuarioAuthStore()
-    if (!to.meta.public && !usuarioAuth.token) {
-      return { name: 'portal-login' }
+    if (!usuarioAuth.token) {
+      return alLogin(to)
     }
     // El token existe en localStorage, pero eso no garantiza que el backend
     // lo siga reconociendo (pudo vencer o haberse revocado) — se confirma
     // contra la API antes de dejar pasar a una ruta protegida del portal.
-    if (!to.meta.public && usuarioAuth.token) {
-      const sesionValida = await usuarioAuth.validar()
-      if (!sesionValida) {
-        return { name: 'portal-login' }
-      }
-    }
-    if (to.name === 'portal-login' && usuarioAuth.token) {
-      return { name: 'portal-home' }
+    const sesionValida = await usuarioAuth.validar()
+    if (!sesionValida) {
+      return alLogin(to)
     }
     return
   }
 
   const auth = useAuthStore()
+  if (to.name === 'login') {
+    // Con una sesión abierta, el login lleva a su inicio (si ya no sirve, el inicio lo detecta y vuelve acá).
+    if (auth.token) return { name: 'dashboard' }
+    if (useUsuarioAuthStore().token) return { name: 'portal-home' }
+    return
+  }
   if (!to.meta.public && !auth.token) {
-    return { name: 'login' }
+    return alLogin(to)
   }
   // Misma verificación que en el portal, para el panel de personal.
   if (!to.meta.public && auth.token) {
     const sesionValida = await auth.validar()
     if (!sesionValida) {
-      return { name: 'login' }
+      return alLogin(to)
     }
-  }
-  if (to.name === 'login' && auth.token) {
-    return { name: 'dashboard' }
   }
 
   // Cada módulo exige el mismo permiso que su entrada en el menú (navegacion.ts).

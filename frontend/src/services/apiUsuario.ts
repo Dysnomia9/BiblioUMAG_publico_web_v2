@@ -20,9 +20,9 @@ apiUsuario.interceptors.request.use((config) => {
 apiUsuario.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.startsWith('/portal/login')) {
+    if (error.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem('usuario_token')
-      window.location.href = '/portal/login'
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   },
