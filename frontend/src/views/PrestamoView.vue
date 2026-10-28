@@ -95,6 +95,13 @@ const avisoRetiro = computed(() => avisoDiaSinAtencion(fechaRetiro.value, 'para 
 // cada categoría activa.
 const { categorias, cargar: cargarCategorias } = useCategoriasRecurso()
 const categoriasActivas = computed(() => categorias.value.filter((c) => c.activo))
+// Los recursos que se devuelven al término de la estadía (audífonos, notebooks, cargadores…) van
+// juntos en una fila, en el orden en que se crearon; los que tienen tope por persona (bicicletas:
+// una a la vez) van debajo.
+const gruposCategorias = computed(() => {
+  const porCreacion = [...categoriasActivas.value].sort((a, b) => a.id - b.id)
+  return [porCreacion.filter((c) => !c.limite_por_persona), porCreacion.filter((c) => c.limite_por_persona)].filter((g) => g.length)
+})
 const puedeAdministrarCategorias = computed(() => auth.puede('catalogos.gestionar'))
 
 const codigos = reactive<Record<string, string>>({})
@@ -1118,8 +1125,8 @@ function formatHora(iso: string | null) {
                 class="font-semibold text-indigo-700 hover:underline"
               >Administrar categorías</router-link>
             </p>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div v-for="c in categoriasActivas" :key="c.clave" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div v-for="(grupo, i) in gruposCategorias" :key="i" class="grid grid-cols-1 gap-4 md:grid-cols-3" :class="i ? 'mt-4' : ''">
+              <div v-for="c in grupo" :key="c.clave" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div class="flex items-start gap-3">
                   <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(c)">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -1158,10 +1165,10 @@ function formatHora(iso: string | null) {
                   {{ lineaRecurso(c) }}
                 </p>
               </div>
-              <p v-if="!categoriasActivas.length" class="col-span-full rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                No hay categorías de recursos de apoyo activas. Se crean en Administración → Catálogos.
-              </p>
             </div>
+            <p v-if="!categoriasActivas.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+              No hay categorías de recursos de apoyo activas. Se crean en Administración → Catálogos.
+            </p>
           </div>
 
           <template v-if="usuario">
