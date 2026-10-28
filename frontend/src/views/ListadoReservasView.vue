@@ -28,7 +28,8 @@ const busqueda = ref('')
 const salaId = ref<number | ''>('')
 const desde = ref('')
 const hasta = ref('')
-const vista = ref<VistaReservas>('activas')
+// Se abre en Todas: la reserva que se busca puede estar en cualquier estado.
+const vista = ref<VistaReservas>('todas')
 const pagina = ref(1)
 
 const seleccionada = ref<ReservaListado | null>(null)
@@ -90,11 +91,11 @@ function limpiarFechas() {
 }
 
 const VISTAS = [
+  { id: 'todas' as const, texto: 'Todas' },
   { id: 'activas' as const, texto: 'Activas' },
   { id: 'finalizadas' as const, texto: 'Finalizadas' },
   { id: 'no_show' as const, texto: 'No se presentaron' },
   { id: 'canceladas' as const, texto: 'Canceladas' },
-  { id: 'todas' as const, texto: 'Todas' },
 ]
 
 const ICONO_SALA = 'M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21'
