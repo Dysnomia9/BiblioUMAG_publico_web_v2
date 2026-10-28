@@ -133,8 +133,9 @@ const actualizadoEn = ref<Date | null>(null)
 // la consulta tarda unos 45 ms y son 20 por minuto, lejos del límite de 240.
 const REFRESCO_SEGUNDOS = 3
 
-const codigoLogiaScan = ref('')
-const escaneando = ref(false)
+// El atajo del mesón: el código de la sala (L04, SEM…) o el número de la logia.
+const codigoSala = ref('')
+const registrandoLlave = ref(false)
 
 watch(cantidadPersonas, (nueva) => {
   const actuales = rutsReserva.value.length
@@ -173,34 +174,34 @@ onUnmounted(() => clearInterval(relojTimer))
 useRefrescoPeriodico(cargar, REFRESCO_SEGUNDOS * 1000)
 watch(selectedDate, cargar)
 
-async function escanearLogia() {
-  if (!codigoLogiaScan.value.trim()) {
-    toast.error('Ingrese el código de barras')
+/** La primera vez entrega la llave de la reserva vigente; la segunda, la recibe. */
+async function registrarLlave() {
+  if (!codigoSala.value.trim()) {
+    toast.error('Escriba el código de la sala (por ejemplo, L04) o el número de la logia')
     return
   }
-  escaneando.value = true
+  registrandoLlave.value = true
   try {
-    const { data } = await api.post('/salas/scan-logia', {
-      codigo_barras: codigoLogiaScan.value.trim(),
-    })
+    const { data } = await api.post('/salas/llave', { codigo: codigoSala.value.trim() })
+    const sala = data.sala?.nombre ?? 'la sala'
     if (data.hora_devolucion_real) {
-      toast.success('Devolución de logia registrada')
+      toast.success(`Llave de ${sala} recibida`)
       atrasoDevolucion.value = data.atraso_devolucion ?? null
       tiempoSinUsar.value = data.tiempo_sin_usar ?? null
-    } else toast.success(`Entrega de logia registrada. ${textoAsistencia(data.asistencia)}`)
-    codigoLogiaScan.value = ''
+    } else toast.success(`Llave de ${sala} entregada. ${textoAsistencia(data.asistencia)}`)
+    codigoSala.value = ''
     await cargar()
   } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'No se pudo procesar el escaneo')
+    toast.error(e?.response?.data?.message ?? 'No se pudo registrar la llave')
   } finally {
-    escaneando.value = false
+    registrandoLlave.value = false
   }
 }
 
 const filteredSalas = computed(() => {
   if (!busqueda.value.trim()) return salas.value
   const q = sinTildes(busqueda.value.trim())
-  return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || String(s.capacidad).includes(q))
+  return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q) || String(s.capacidad).includes(q))
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredSalas.value.length / salasPerPage)))
@@ -609,7 +610,7 @@ const proximaConfirmacion = computed(() => {
           'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren, o use <strong>Reservar ahora</strong>.',
           'Ingrese el <strong>RUT de cada integrante</strong> del grupo (de 2 a 5 personas, todas registradas en la biblioteca). Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.',
           'Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>15 minutos</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.',
-          'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Al recibir la llave, escanee su código o pulse la reserva y <strong>Confirmar devolución</strong>.',
+          'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
       />
@@ -723,24 +724,32 @@ const proximaConfirmacion = computed(() => {
       </Modal>
 
       <div class="bg-white rounded-xl shadow-md p-5 mb-6">
-        <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Escanear código de barras (Horizon)</h3>
+        <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide">Entregar o recibir una llave</h3>
+        <p class="mt-1 mb-3 text-xs text-gray-500">
+          Escriba el código de la sala (L01 a L15, SEM, POS, AGA) o solo el número de la logia: la primera vez entrega la llave de la
+          reserva que está en curso y la segunda la recibe.
+        </p>
         <div class="flex gap-3 flex-wrap items-end">
           <div class="flex-1 min-w-[200px]">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Código de barras de la logia</label>
+            <label for="codigo-sala" class="block text-xs font-medium text-gray-600 mb-1">Código de la sala</label>
             <input
-              v-model="codigoLogiaScan"
+              id="codigo-sala"
+              v-model="codigoSala"
               type="text"
-              placeholder="Escanear o ingresar código"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-              @keydown.enter="escanearLogia"
+              autocomplete="off"
+              autocapitalize="characters"
+              maxlength="20"
+              placeholder="Ej: L04 o 4"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono uppercase placeholder:normal-case placeholder:font-sans"
+              @keydown.enter="registrarLlave"
             />
           </div>
           <button
-            @click="escanearLogia"
-            :disabled="escaneando"
+            @click="registrarLlave"
+            :disabled="registrandoLlave"
             class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-60"
           >
-            {{ escaneando ? 'Procesando…' : 'Registrar' }}
+            {{ registrandoLlave ? 'Registrando…' : 'Registrar' }}
           </button>
         </div>
       </div>
@@ -836,7 +845,9 @@ const proximaConfirmacion = computed(() => {
           <div v-for="sala in salasPage" :key="sala.id" class="flex items-center gap-3">
             <div class="w-[120px] shrink-0">
               <div class="font-medium text-sm text-gray-900 truncate">{{ sala.nombre }}</div>
-              <div class="text-xs text-gray-400">{{ sala.capacidad }} personas</div>
+              <div class="text-xs text-gray-400">
+                <span class="font-mono font-semibold text-gray-500">{{ sala.codigo }}</span> · {{ sala.capacidad }} personas
+              </div>
             </div>
             <div
               class="group relative h-12 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"

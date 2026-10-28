@@ -262,7 +262,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
             <dd class="text-gray-900">
               <template v-if="actual.hora_prestamo_real">
                 {{ horaDe(actual.hora_prestamo_real) }}<template v-if="actual.prestado_por"> · {{ actual.prestado_por }}</template>
-                <span class="block text-xs text-gray-500">{{ actual.via === 'BC' ? 'Con código de barras' : 'Confirmada a mano' }}</span>
+                <span class="block text-xs text-gray-500">{{ actual.via === 'codigo' ? 'Con el código de la sala' : actual.via === 'BC' ? 'Con código de barras' : 'Confirmada desde la reserva' }}</span>
               </template>
               <template v-else-if="actual.situacion === 'pendiente'">Aún no llegan · tienen hasta las {{ horaDe(actual.plazo_confirmacion) }}</template>
               <template v-else>—</template>

@@ -11,11 +11,14 @@ class SalaFactory extends Factory
 
     public function definition(): array
     {
+        $numero = fake()->unique()->numberBetween(100, 999);
+
+        // Números de tres cifras: no chocan con las 15 logias que crea la migración.
         return [
-            'nombre' => 'Logia '.fake()->unique()->numberBetween(1, 999),
+            'nombre' => "Logia {$numero}",
+            'codigo' => "L{$numero}",
             'capacidad' => fake()->numberBetween(2, 6),
             'tipo' => 'logia',
-            'codigo_barras' => null,
         ];
     }
 }

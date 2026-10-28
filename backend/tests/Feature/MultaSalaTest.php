@@ -133,11 +133,11 @@ class MultaSalaTest extends TestCase
 
     public function test_el_escaneo_tardio_de_la_logia_registra_la_devolucion_y_avisa(): void
     {
-        $logia = Sala::factory()->create(['nombre' => 'Logia 07', 'tipo' => 'logia', 'codigo_barras' => 'LOGIA-07']);
+        $logia = Sala::factory()->create(['nombre' => 'Logia 07', 'tipo' => 'logia', 'codigo' => 'X07']);
         $reserva = $this->reservaEnUso($logia);
         Carbon::setTestNow('2026-08-14 12:40:00');
 
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-07'])->assertOk()
+        $this->postJson('/api/salas/llave', ['codigo' => 'X07'])->assertOk()
             ->assertJsonPath('id', $reserva->id)
             ->assertJsonPath('atraso_devolucion.minutos', 40)
             ->assertJsonPath('atraso_devolucion.sala', 'Logia 07');
@@ -147,15 +147,15 @@ class MultaSalaTest extends TestCase
 
     public function test_si_la_llave_sigue_afuera_el_escaneo_la_devuelve_antes_de_entregar_al_grupo_siguiente(): void
     {
-        $logia = Sala::factory()->create(['tipo' => 'logia', 'codigo_barras' => 'LOGIA-08']);
+        $logia = Sala::factory()->create(['tipo' => 'logia', 'codigo' => 'X08']);
         $anterior = $this->reservaEnUso($logia);
         $siguiente = Reserva::factory()->conParticipantes([Usuario::factory()->create()])->create([
             'sala_id' => $logia->id, 'fecha' => '2026-08-14', 'hora_inicio' => '12:00:00', 'hora_fin' => '13:00:00',
         ]);
         Carbon::setTestNow('2026-08-14 12:15:00');
 
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-08'])->assertOk()->assertJsonPath('id', $anterior->id);
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-08'])->assertOk()->assertJsonPath('id', $siguiente->id);
+        $this->postJson('/api/salas/llave', ['codigo' => 'X08'])->assertOk()->assertJsonPath('id', $anterior->id);
+        $this->postJson('/api/salas/llave', ['codigo' => 'X08'])->assertOk()->assertJsonPath('id', $siguiente->id);
 
         $this->assertNotNull($anterior->fresh()->hora_devolucion_real);
         $this->assertNotNull($siguiente->fresh()->hora_prestamo_real);

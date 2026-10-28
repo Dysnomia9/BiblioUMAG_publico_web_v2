@@ -9,8 +9,7 @@ use Illuminate\Support\Facades\DB;
  * instalación nueva partiría sin salas que reservar. Solo se crean si la tabla está
  * vacía: una base que ya tiene sus salas no se toca.
  *
- * Las logias quedan sin código de barras: los reales de Horizon se cargan en
- * config/horizon_barcodes.php y se aplican con `php artisan horizon:codigos-logia`.
+ * Su código propio (L01, SEM…) lo pone la migración reemplazar_codigo_de_barras_por_codigo_en_salas.
  * mockup:datos (SeedMockupData::seedSalas()) reutiliza estas mismas salas por nombre.
  */
 return new class extends Migration

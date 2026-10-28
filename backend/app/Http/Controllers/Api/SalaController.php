@@ -77,7 +77,7 @@ class SalaController extends Controller
             ...$pagina->toArray(),
             'data' => collect($pagina->items())->map(fn (Reserva $r) => ReservaSalaService::paraListado($r))->all(),
             'conteos' => collect(self::VISTAS_LISTADO)->map(fn ($estado, $v) => $filtro($v)(clone $base)->count()),
-            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'tipo']),
+            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo']),
         ]);
     }
 
@@ -399,9 +399,9 @@ class SalaController extends Controller
     }
 
     /**
-     * Confirmación manual de devolución de llave (sin escaneo de código de barras) —
-     * a diferencia de destroyReserva(), no borra la reserva: deja registrado quién y
-     * cuándo se devolvió, igual que hace escanearLogia() por la vía del código de barras.
+     * Confirmación manual de devolución de llave desde el detalle de la reserva — a
+     * diferencia de destroyReserva(), no borra la reserva: deja registrado quién y cuándo se
+     * devolvió, igual que llavePorCodigo() con el código de la sala.
      */
     public function devolverReserva(Request $request, Reserva $reserva, MultaService $multas)
     {
@@ -474,9 +474,8 @@ class SalaController extends Controller
     }
 
     /**
-     * Confirmación manual de llegada (sin escaneo de código de barras) — sirve para
-     * cualquier sala, incluidas las que no tienen codigo_barras (Seminarios, Postgrado,
-     * AGACI). Es el "menú de confirmación": el staff ve el listado de reservas del día
+     * Confirmación manual de llegada desde el detalle de la reserva — sirve para cualquier
+     * sala. Es el "menú de confirmación": el staff ve el listado de reservas del día
      * y marca aquí quién sí se presentó dentro del plazo de 15 minutos.
      *
      * Con la llegada, cada integrante queda presente en la biblioteca: a quien no
@@ -523,25 +522,30 @@ class SalaController extends Controller
         return response()->json($reserva);
     }
 
-    /** El primer escaneo es la entrega (la llegada del grupo, con su asistencia); el segundo, la devolución. */
-    public function scanLogia(Request $request, EntradaService $entradas, MultaService $multas)
+    /**
+     * El atajo del mesón con el código de la sala (L04, SEM o el número de la logia): la
+     * primera vez es la entrega (la llegada del grupo, con su asistencia); la segunda, la devolución.
+     */
+    public function llave(Request $request, EntradaService $entradas, MultaService $multas)
     {
         $data = $request->validate([
-            'codigo_barras' => ['required', 'string'],
+            'codigo' => ['required', 'string', 'max:20'],
+        ], [
+            'codigo.required' => 'Escribe el código de la sala (por ejemplo, L04) o el número de la logia.',
         ]);
 
         try {
-            $reserva = $this->reservaSalaService->escanearLogia($data['codigo_barras'], $request->user());
+            $reserva = $this->reservaSalaService->llavePorCodigo($data['codigo'], $request->user());
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
         }
 
         if ($reserva->hora_devolucion_real) {
-            Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()} (código de barras)", entidad: $reserva, afectado: $reserva->usuario);
+            Bitacora::registrar('salas.devolucion', "Recibió la llave de {$reserva->descripcion()} (con el código de la sala)", entidad: $reserva, afectado: $reserva->usuario);
             $reserva->setAttribute('atraso_devolucion', $multas->atrasoDeSala($reserva))
                 ->setAttribute('tiempo_sin_usar', ReservaSalaService::tiempoSinUsar($reserva));
         } else {
-            $reserva = $this->conAsistencia($reserva, $request, $entradas, 'Entregó con código de barras');
+            $reserva = $this->conAsistencia($reserva, $request, $entradas, 'Entregó con el código de la sala');
         }
 
         return response()->json($reserva->load('sala'));

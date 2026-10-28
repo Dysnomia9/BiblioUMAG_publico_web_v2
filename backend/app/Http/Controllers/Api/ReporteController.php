@@ -194,16 +194,47 @@ class ReporteController extends Controller
             end
             SQL));
 
+        // Cada sala con su código («L04 · Logia 04»), el mismo que se usa en el mesón.
+        $salaConCodigo = "coalesce(salas.codigo || ' · ' || salas.nombre, 'Sin dato')";
+
         $porHoraPorSala = [];
+        $porSalaDetalle = [];
         if ($tab === 'logias') {
             $porSalaYHora = (clone $base)
-                ->selectRaw("coalesce(salas.nombre, 'Sin dato') as sala, extract(hour from {$momento})::int as hora, count(*) as cantidad")
+                ->selectRaw("{$salaConCodigo} as sala, extract(hour from {$momento})::int as hora, count(*) as cantidad")
                 ->groupByRaw('1, 2')
                 ->get()
                 ->groupBy('sala');
             $porHoraPorSala = $porSalaYHora
                 ->map(fn ($filas, $sala) => ['sala' => $sala, 'horas' => $contarHoras($filas->pluck('cantidad', 'hora')->all())])
                 ->sortBy('sala')
+                ->values();
+
+            // El seguimiento de cada sala: cuántas reservas tuvo, a cuántas llegó el grupo, a
+            // cuántas no, las horas que de verdad se usó (si devolvieron antes y se liberó el
+            // resto, cuenta solo lo usado) y cuántos bloques se liberaron antes.
+            $porSalaDetalle = (clone $base)
+                ->whereNotNull('salas.id')
+                ->selectRaw(<<<'SQL'
+                    salas.codigo, salas.nombre,
+                    count(*) as reservas,
+                    count(reservas.hora_prestamo_real) as presentes,
+                    count(*) filter (where reservas.estado = 'no_show') as no_llegaron,
+                    coalesce(sum(extract(epoch from (reservas.hora_fin - reservas.hora_inicio)) / 60) filter (where reservas.hora_prestamo_real is not null), 0) as minutos_uso,
+                    count(reservas.hora_fin_reservada) as liberadas
+                    SQL)
+                ->groupBy('salas.codigo', 'salas.nombre')
+                ->orderBy('salas.codigo')
+                ->get()
+                ->map(fn ($fila) => [
+                    'codigo' => $fila->codigo,
+                    'nombre' => $fila->nombre,
+                    'reservas' => (int) $fila->reservas,
+                    'presentes' => (int) $fila->presentes,
+                    'no_llegaron' => (int) $fila->no_llegaron,
+                    'minutos_uso' => (int) round((float) $fila->minutos_uso),
+                    'liberadas' => (int) $fila->liberadas,
+                ])
                 ->values();
         }
 
@@ -229,7 +260,8 @@ class ReporteController extends Controller
             // recursos de apoyo, por la clave de su categoría.
             'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],
             'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial($tipoDeMaterial) : [],
-            'porSala' => $tab === 'logias' ? $agrupar("coalesce(salas.nombre, 'Sin dato')") : [],
+            'porSala' => $tab === 'logias' ? $agrupar($salaConCodigo) : [],
+            'porSalaDetalle' => $porSalaDetalle,
             // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
             // correcto aunque la copia ya no exista o el libro haya cambiado de título.
             'porLibro' => $tab === 'libros' ? $agrupar("coalesce(prestamos.libro_titulo, '')") : [],

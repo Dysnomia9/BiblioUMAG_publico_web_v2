@@ -44,16 +44,14 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
    tiene SSL y con `require` el backend no se conectaría.
 3. **Dominio/URL reales**: `APP_URL` (backend), `FRONTEND_URL`,
    `SANCTUM_STATEFUL_DOMAINS` (dominio del frontend, sin protocolo).
-4. **Códigos de barra reales de Horizon**: hoy el sistema convive
-   físicamente con los lectores de código de barras de Horizon usando
-   valores **inventados como placeholder** (`config/horizon_barcodes.php`,
-   código de puesto de trabajo genérico `'62572'`, sin los códigos reales de
-   cada logia). Con los códigos reales, se cargan con el comando
-   `php artisan horizon:codigos-logia`; no requiere tocar código, es un
-   comando que ya existe. Las salas mismas no hay que crearlas: al migrar
-   una base nueva se crean solas las 15 logias (Logia 01 a Logia 15) y la
-   Sala de Seminarios, la de Postgrado y la AGACI (migración
-   `crear_salas_iniciales`), sin códigos de barras hasta correr ese comando.
+4. **Código de puesto de trabajo de Horizon** (opcional): las entradas llevan
+   el código de puesto genérico de Horizon, hoy un valor **inventado como
+   placeholder** (`'62572'` en `config/horizon_barcodes.php`); si se quiere el
+   real, se cambia ahí. Las salas no usan códigos de barras: cada una tiene su
+   código propio (L01 a L15, SEM, POS, AGA), que se escribe en el mesón para
+   entregar o recibir la llave. Las salas no hay que crearlas: al migrar una
+   base nueva se crean solas las 15 logias (Logia 01 a Logia 15) y la Sala de
+   Seminarios, la de Postgrado y la AGACI, cada una con su código.
 5. **Quién será el primer administrador**: en producción el sistema
    arranca sin cuentas: los datos de prueba (que traen `admin@umag.cl` /
    `admin123` con acceso total) solo se cargan en desarrollo (`APP_ENV=local`,

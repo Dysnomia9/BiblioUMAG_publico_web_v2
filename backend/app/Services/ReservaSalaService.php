@@ -16,20 +16,20 @@ use Illuminate\Validation\ValidationException;
 class ReservaSalaService
 {
     /**
-     * Registra el escaneo de un código de barras de logia (Horizon): la primera vez marca
-     * la entrega de la reserva vigente para ese bloque horario, la segunda marca la
-     * devolución. No crea reservas  solo cierra el ciclo de una reserva ya existente.
+     * El atajo del mesón con el código de la sala (L04, SEM…; ver Sala::porCodigo()): la
+     * primera vez marca la entrega de la reserva vigente para ese bloque horario, la segunda
+     * marca la devolución. No crea reservas: solo cierra el ciclo de una reserva ya existente.
      *
-     * Si la llave de un grupo de hoy sigue afuera, el escaneo es su devolución aunque su
+     * Si la llave de un grupo de hoy sigue afuera, el código es su devolución aunque su
      * horario ya haya terminado: es el grupo que vuelve tarde (y el mesón ve el aviso de
      * atraso), y la llave tiene que volver antes de entregársela al grupo siguiente.
      */
-    public function escanearLogia(string $codigoBarras, Staff $staff): Reserva
+    public function llavePorCodigo(string $codigo, Staff $staff): Reserva
     {
-        $sala = Sala::where('codigo_barras', $codigoBarras)->where('tipo', 'logia')->first();
+        $sala = Sala::porCodigo($codigo);
 
         if (! $sala) {
-            throw new \RuntimeException('Código de barras no corresponde a ninguna logia');
+            throw new \RuntimeException("No hay ninguna sala con el código «{$codigo}». Las logias van de L01 a L15; también sirve solo el número.");
         }
 
         $ahora = now();
@@ -55,7 +55,7 @@ class ReservaSalaService
             ->first();
 
         if (! $reserva) {
-            throw new \RuntimeException('Esta logia no tiene una reserva vigente en este momento');
+            throw new \RuntimeException("{$sala->nombre} no tiene una reserva vigente en este momento");
         }
 
         if ($reserva->hora_prestamo_real) {
@@ -66,17 +66,16 @@ class ReservaSalaService
             'prestado_por' => $staff->nombre,
             'prestado_por_staff_id' => $staff->id,
             'hora_prestamo_real' => $ahora,
-            'via' => 'BC',
+            'via' => 'codigo',
         ]);
 
         return $reserva->fresh();
     }
 
     /**
-     * Confirma manualmente (desde el panel de personal, sin escaneo de código de barras)
-     * que la llave de una logia fue devuelta — equivalente a la segunda mitad de
-     * escanearLogia(), pero identificando la reserva directamente por id en vez de por
-     * código de barras + bloque horario vigente. A diferencia de cancelar (que elimina la
+     * Confirma manualmente (desde el detalle de la reserva) que la llave de una sala fue
+     * devuelta — equivalente a la segunda mitad de llavePorCodigo(), pero identificando la
+     * reserva directamente por id en vez de por el código de la sala + bloque horario vigente. A diferencia de cancelar (que elimina la
      * reserva), esto conserva el registro con quién y cuándo se devolvió la llave.
      */
     public function registrarDevolucion(Reserva $reserva, Staff $staff): Reserva
@@ -166,9 +165,8 @@ class ReservaSalaService
     }
 
     /**
-     * Confirma que el grupo se presentó a retirar la sala (check-in manual, sin código de
-     * barras — sirve tanto para logias como para las salas con nombre propio que no
-     * tienen codigo_barras). Rechaza la confirmación si ya pasó el plazo de 15 minutos
+     * Confirma que el grupo se presentó a retirar la sala (desde el detalle de la reserva o
+     * el menú de confirmación; sirve para cualquier sala). Rechaza la confirmación si ya pasó el plazo de 15 minutos
      * (ver Reserva::plazoConfirmacion()) y en ese caso libera la reserva de una vez
      * (mismo efecto que liberarPorNoPresentacion()) para que quede disponible de inmediato.
      */
@@ -187,7 +185,7 @@ class ReservaSalaService
             throw new \RuntimeException('El plazo de 15 minutos para confirmar esta reserva ya venció — la sala quedó liberada');
         }
 
-        // Como en escanearLogia(), que solo encuentra la reserva vigente de hoy: desde el
+        // Como en llavePorCodigo(), que solo encuentra la reserva vigente de hoy: desde el
         // detalle de otro día no se puede dar por llegado a un grupo que viene mañana.
         if (! $reserva->fecha->isToday()) {
             throw new \RuntimeException('Esta reserva es para el '.$reserva->fecha->format('d/m/Y').': su llegada se confirma ese día');
@@ -587,7 +585,7 @@ class ReservaSalaService
                 'nombre' => $sala->nombre,
                 'capacidad' => $sala->capacidad,
                 'tipo' => $sala->tipo,
-                'codigo_barras' => $sala->codigo_barras,
+                'codigo' => $sala->codigo,
                 'libre_ahora' => $esHoy ? $disponibleHastaMin > 0 : null,
                 'disponible_hasta_min' => $disponibleHastaMin,
                 'tramos' => $tramosPorSala->get($sala->id, collect())->values(),
@@ -619,7 +617,7 @@ class ReservaSalaService
 
         return [
             'id' => $reserva->id,
-            'sala' => $reserva->sala?->only(['id', 'nombre', 'tipo']),
+            'sala' => $reserva->sala?->only(['id', 'nombre', 'codigo', 'tipo']),
             'fecha' => $reserva->fecha->toDateString(),
             'hora_inicio' => substr($reserva->hora_inicio, 0, 5),
             'hora_fin' => substr($reserva->hora_fin, 0, 5),

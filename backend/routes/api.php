@@ -109,7 +109,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
 
     Route::middleware('permiso:salas.gestionar')->group(function () {
         Route::get('/salas', [SalaController::class, 'index']);
-        Route::post('/salas/scan-logia', [SalaController::class, 'scanLogia']);
+        Route::post('/salas/llave', [SalaController::class, 'llave']);
         Route::post('/reservas', [SalaController::class, 'storeReserva']);
         Route::patch('/reservas/{reserva}/llegada', [SalaController::class, 'confirmarLlegada']);
         Route::patch('/reservas/{reserva}/liberar', [SalaController::class, 'liberarReserva']);

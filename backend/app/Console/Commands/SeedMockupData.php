@@ -723,33 +723,28 @@ class SeedMockupData extends Command
         $salas = collect();
 
         // Por nombre: en una base nueva las salas ya las creó la migración
-        // crear_salas_iniciales (sin códigos de barras); acá solo se completan.
+        // crear_salas_iniciales, con su código (Logia 04 → L04); acá solo se completan.
         for ($i = 0; $i < 15; $i++) {
-            $salas->push(Sala::updateOrCreate(['nombre' => 'Logia '.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)], [
+            $numero = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+            $salas->push(Sala::updateOrCreate(['nombre' => "Logia {$numero}"], [
+                'codigo' => "L{$numero}",
                 'capacidad' => $capacidades[$i],
                 'tipo' => 'logia',
-                // Código de barras hardcodeado por logia (Horizon aún no entrega los
-                // reales) — cada logia tiene el suyo, a diferencia del puesto de
-                // trabajo que reutiliza uno genérico.
-                'codigo_barras' => (string) (90001 + $i),
             ]));
         }
 
-        // Salas especiales: no son logias de estudio individuales, no tienen
-        // código de barras Horizon asignado (tipo 'sala', quedan fuera del
-        // escaneo de logias en ReservaSalaService::escanearLogia()) pero se
-        // reservan con el mismo flujo de bloques horarios.
+        // Salas con nombre propio: se reservan con el mismo flujo de bloques horarios.
         $salasEspeciales = [
-            ['nombre' => 'Sala de Seminarios', 'capacidad' => 30],
-            ['nombre' => 'Sala de Postgrado', 'capacidad' => 20],
-            ['nombre' => 'Sala AGACI', 'capacidad' => 10],
+            ['nombre' => 'Sala de Seminarios', 'codigo' => 'SEM', 'capacidad' => 30],
+            ['nombre' => 'Sala de Postgrado', 'codigo' => 'POS', 'capacidad' => 20],
+            ['nombre' => 'Sala AGACI', 'codigo' => 'AGA', 'capacidad' => 10],
         ];
 
         foreach ($salasEspeciales as $especial) {
             $salas->push(Sala::updateOrCreate(['nombre' => $especial['nombre']], [
+                'codigo' => $especial['codigo'],
                 'capacidad' => $especial['capacidad'],
                 'tipo' => 'sala',
-                'codigo_barras' => null,
             ]));
         }
 
@@ -916,7 +911,7 @@ class SeedMockupData extends Command
                     'devuelto_por' => 'Sistema (mockup)',
                     'hora_devolucion_real' => $horaLlegada->copy()->addMinutes($duracionMin)->subMinutes(random_int(0, 15)),
                     'estado' => 'finalizada',
-                    'via' => random_int(0, 1) ? 'manual' : 'BC',
+                    'via' => random_int(0, 1) ? 'manual' : 'codigo',
                 ]);
             } else {
                 $reserva->update(['estado' => 'no_show']);
@@ -936,7 +931,7 @@ class SeedMockupData extends Command
                 $reserva->update([
                     'prestado_por' => 'Sistema (mockup)',
                     'hora_prestamo_real' => $horaLlegada,
-                    'via' => random_int(0, 1) ? 'manual' : 'BC',
+                    'via' => random_int(0, 1) ? 'manual' : 'codigo',
                 ]);
             } elseif ($minutosDesdeInicio > $plazo) {
                 $reserva->update(['estado' => 'no_show']);

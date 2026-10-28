@@ -302,8 +302,12 @@ Bibliomag_publico_web_v2/
   login, inactivos hasta configurar `GOOGLE_CLIENT_ID` o `LDAP_HOST` (ver
   `docs/login-externo-pendientes.md`). Las direcciones de antes (`/login/v2`,
   `/portal/login`) llevan a este.
-- Compatibilidad con los lectores de código de barras de Horizon para logias y
-  puestos de trabajo, y mensajes de validación en español (`lang/es/`).
+- **Código propio de cada sala** (`salas.codigo`: L01 a L15 para las logias, SEM,
+  POS y AGA para las salas con nombre propio): en el mesón se escribe el código o el
+  número de la logia para entregar o recibir la llave, y Reportes sigue cada sala
+  por su código (reservas, asistencia, horas de uso y bloques liberados).
+- Compatibilidad con el código de puesto de trabajo de Horizon en las entradas, y
+  mensajes de validación en español (`lang/es/`).
 
 ### Imagen Docker
 
@@ -409,9 +413,8 @@ credenciales de Postgres en el propio archivo). Para producción está
 nginx con cabeceras de protección (`frontend/nginx-cabeceras.conf`), y el backend
 corre con PHP-FPM. Las variables van en `backend/.env.production.example`.
 
-La primera cuenta con acceso total se crea con `php artisan sistema:iniciar`, y
-los códigos de barras reales de las logias se aplican con `php artisan
-horizon:codigos-logia`. Lo que falta para publicar está en
+La primera cuenta con acceso total se crea con `php artisan sistema:iniciar`. Lo que
+falta para publicar está en
 [`docs/handoff-informatica.md`](docs/handoff-informatica.md).
 
 ---

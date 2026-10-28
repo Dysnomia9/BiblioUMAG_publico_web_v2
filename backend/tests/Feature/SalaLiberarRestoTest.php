@@ -39,7 +39,7 @@ class SalaLiberarRestoTest extends TestCase
     private function reservaEnUso(): Reserva
     {
         return Reserva::factory()->conParticipantes([$this->titular])->create([
-            'sala_id' => Sala::factory()->create(['nombre' => 'Logia 04', 'tipo' => 'logia', 'codigo_barras' => 'LOGIA-04'])->id,
+            'sala_id' => Sala::factory()->create(['nombre' => 'Logia 04', 'tipo' => 'logia', 'codigo' => 'X04'])->id,
             'usuario_id' => $this->titular->id,
             'rut_usuario' => $this->titular->rut,
             'fecha' => '2026-08-14',
@@ -152,7 +152,7 @@ class SalaLiberarRestoTest extends TestCase
         $this->reservaEnUso();
         Carbon::setTestNow('2026-08-14 11:00:00');
 
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-04'])->assertOk()
+        $this->postJson('/api/salas/llave', ['codigo' => 'X04'])->assertOk()
             ->assertJsonPath('tiempo_sin_usar.minutos', 60);
     }
 

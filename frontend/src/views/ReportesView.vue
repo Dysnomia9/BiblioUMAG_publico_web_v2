@@ -57,6 +57,7 @@ const resumenVacio: ReporteResumen = {
   porRecurso: [],
   porTipoMaterial: [],
   porSala: [],
+  porSalaDetalle: [],
   porLibro: [],
   porHoraPorSala: [],
 }
@@ -383,6 +384,11 @@ const menuExportar = ref(false)
 const formatoExportar = ref<'excel' | 'csv' | null>(null)
 const exportando = ref(false)
 
+/** «12,5 h» de los minutos de uso de una sala. */
+const horasDeUso = (minutos: number) => `${(minutos / 60).toLocaleString('es-CL', { maximumFractionDigits: 1 })} h`
+/** Qué parte de las reservas de la sala terminaron con el grupo presente. */
+const asistencia = (s: { reservas: number; presentes: number }) => (s.reservas ? Math.round((s.presentes / s.reservas) * 100) : 0)
+
 const descripcionFiltros = computed(() => {
   const partes: string[] = []
   if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${FILTROS_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
@@ -430,6 +436,11 @@ async function confirmarExportar() {
     ...agrupaciones.value.map((a) => tabla(`Por ${a.label.toLowerCase()}`, a.columna, a.datos)),
   ]
   if (tab.value === 'logias') {
+    secciones.push({
+      titulo: 'Detalle por sala',
+      columnas: ['Código', 'Sala', 'Reservas', 'Llegaron', 'No llegaron', 'Horas de uso', 'Liberadas antes'],
+      filas: r.porSalaDetalle.map((s) => [s.codigo, s.nombre, s.reservas, s.presentes, s.no_llegaron, horasDeUso(s.minutos_uso), s.liberadas]),
+    })
     secciones.push({
       titulo: 'Horas por sala',
       columnas: ['Sala y hora', 'Cantidad', '%'],
@@ -750,6 +761,43 @@ async function confirmarExportar() {
             <h3 class="font-sans text-base font-bold text-gray-900">Salas más usadas</h3>
             <p class="mt-0.5 mb-4 text-xs text-gray-500">Ordenado de mayor a menor</p>
             <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :limite="10" />
+          </section>
+          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Detalle por sala</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">
+              Cada sala por su código: cuántas reservas tuvo, a cuántas llegó el grupo, las horas que de verdad se usó y cuántos bloques
+              se liberaron porque devolvieron la llave antes
+            </p>
+            <div v-if="resumen.porSalaDetalle.length" class="-mx-5 overflow-x-auto px-5">
+              <table class="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <th class="py-2 pr-3">Sala</th>
+                    <th class="py-2 px-3 text-right">Reservas</th>
+                    <th class="py-2 px-3 text-right">Llegaron</th>
+                    <th class="py-2 px-3 text-right">No llegaron</th>
+                    <th class="py-2 px-3 text-right">Horas de uso</th>
+                    <th class="py-2 pl-3 text-right">Liberadas antes</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr v-for="s in resumen.porSalaDetalle" :key="s.codigo">
+                    <td class="py-2 pr-3">
+                      <span class="mr-2 inline-block min-w-[2.75rem] rounded-md bg-amber-50 px-1.5 py-0.5 text-center font-mono text-xs font-bold text-amber-800">{{ s.codigo }}</span>
+                      <span class="text-gray-900">{{ s.nombre }}</span>
+                    </td>
+                    <td class="py-2 px-3 text-right tabular-nums text-gray-900">{{ s.reservas }}</td>
+                    <td class="py-2 px-3 text-right tabular-nums text-gray-700">
+                      {{ s.presentes }} <span class="text-xs text-gray-400">({{ asistencia(s) }}%)</span>
+                    </td>
+                    <td class="py-2 px-3 text-right tabular-nums" :class="s.no_llegaron ? 'text-red-700' : 'text-gray-400'">{{ s.no_llegaron }}</td>
+                    <td class="py-2 px-3 text-right tabular-nums text-gray-700">{{ horasDeUso(s.minutos_uso) }}</td>
+                    <td class="py-2 pl-3 text-right tabular-nums" :class="s.liberadas ? 'text-emerald-700' : 'text-gray-400'">{{ s.liberadas }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-else class="py-6 text-center text-sm text-gray-400">Sin reservas en este período.</p>
           </section>
           <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Horas más solicitadas por sala</h3>

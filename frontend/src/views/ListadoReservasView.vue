@@ -159,7 +159,7 @@ function iniciales(r: ReservaListado) {
           class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 lg:w-56"
         >
           <option value="">Todas las salas</option>
-          <option v-for="s in salas" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+          <option v-for="s in salas" :key="s.id" :value="s.id">{{ s.codigo }} · {{ s.nombre }}</option>
         </select>
         <div class="flex items-center gap-2">
           <label class="flex h-11 flex-1 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm shadow-sm lg:flex-none">
@@ -209,7 +209,7 @@ function iniciales(r: ReservaListado) {
               </span>
               <span class="min-w-0">
                 <span class="block truncate font-semibold text-gray-900">{{ r.sala?.nombre ?? '—' }}</span>
-                <span class="block text-xs text-gray-500">{{ r.sala?.tipo === 'logia' ? 'Logia' : 'Sala' }} · #{{ r.id }}</span>
+                <span class="block text-xs text-gray-500"><span class="font-mono font-semibold">{{ r.sala?.codigo ?? '—' }}</span> · reserva #{{ r.id }}</span>
               </span>
             </div>
             <div class="text-sm text-gray-700">

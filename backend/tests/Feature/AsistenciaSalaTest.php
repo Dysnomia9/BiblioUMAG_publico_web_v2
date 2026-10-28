@@ -74,17 +74,17 @@ class AsistenciaSalaTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create());
         Carbon::setTestNow('2026-08-14 14:05:00');
-        $sala = Sala::factory()->create(['codigo_barras' => 'LOGIA-77']);
+        $sala = Sala::factory()->create(['codigo' => 'X77']);
         $ana = Usuario::factory()->create();
         $beto = Usuario::factory()->create();
         Reserva::factory()->conParticipantes([$ana, $beto])->create([
             'sala_id' => $sala->id, 'fecha' => '2026-08-14', 'hora_inicio' => '14:00', 'hora_fin' => '16:00',
         ]);
 
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-77'])
+        $this->postJson('/api/salas/llave', ['codigo' => 'X77'])
             ->assertOk()
             ->assertJsonCount(2, 'asistencia.registradas');
-        $this->postJson('/api/salas/scan-logia', ['codigo_barras' => 'LOGIA-77'])
+        $this->postJson('/api/salas/llave', ['codigo' => 'X77'])
             ->assertOk()
             ->assertJsonMissingPath('asistencia');
 

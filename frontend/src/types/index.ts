@@ -487,7 +487,8 @@ export type Sala = {
   nombre: string
   capacidad: number
   tipo: 'logia' | 'puesto' | 'sala'
-  codigo_barras: string | null
+  /** Código propio de la sala (L04, SEM…): el del mesón y los reportes. */
+  codigo: string
   // Solo si la fecha consultada es hoy — null para otras fechas.
   libre_ahora: boolean | null
   disponible_hasta_min: number | null
@@ -607,8 +608,23 @@ export type ReporteResumen = {
   // Préstamos del catálogo por su tipo de material (Libro, Tesis, Juego educativo…).
   porTipoMaterial: SerieItem[]
   porSala: SerieItem[]
+  /** Uso de salas: el seguimiento de cada sala, por su código. */
+  porSalaDetalle: SalaDetalle[]
   porLibro: SerieItem[]
   porHoraPorSala: HoraPorSala[]
+}
+
+export type SalaDetalle = {
+  codigo: string
+  nombre: string
+  reservas: number
+  /** A cuántas llegó el grupo (se entregó la llave). */
+  presentes: number
+  no_llegaron: number
+  /** Minutos que de verdad se usó (si devolvieron antes y se liberó el resto, solo lo usado). */
+  minutos_uso: number
+  /** Bloques que se liberaron porque devolvieron la llave antes. */
+  liberadas: number
 }
 
 export type ModoVigencia = 'fecha_fija' | 'duracion' | 'sin_vencimiento'
@@ -798,7 +814,7 @@ export type SituacionReserva = 'pendiente' | 'en_uso' | 'sin_devolver' | 'finali
 /** Una reserva de sala en el Listado de reservas (ReservaSalaService::paraListado()). */
 export type ReservaListado = {
   id: number
-  sala: Pick<Sala, 'id' | 'nombre' | 'tipo'> | null
+  sala: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo'> | null
   fecha: string
   hora_inicio: string
   hora_fin: string
@@ -814,7 +830,7 @@ export type ReservaListado = {
   devuelto_por: string | null
   hora_prestamo_real: string | null
   hora_devolucion_real: string | null
-  /** Cómo se entregó la llave: 'BC' (código de barras) o 'manual'. */
+  /** Cómo se entregó la llave: 'codigo' (código de la sala en el mesón), 'manual' (desde la reserva) o 'BC' (código de barras, antes). */
   via: string | null
   plazo_confirmacion: string
   /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
@@ -825,6 +841,6 @@ export type ReservaListado = {
 /** Listado de reservas: la página de la pestaña elegida, cuántas hay en cada pestaña y las salas para filtrar. */
 export type ListadoReservas = Paginado<ReservaListado> & {
   conteos: Record<VistaReservas, number>
-  salas: Pick<Sala, 'id' | 'nombre' | 'tipo'>[]
+  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo'>[]
 }
 

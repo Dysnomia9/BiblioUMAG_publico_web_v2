@@ -161,8 +161,8 @@ class ReporteResumenLibrosSalasTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $salaPopular = Sala::factory()->create(['nombre' => 'Logia Popular']);
-        $salaTranquila = Sala::factory()->create(['nombre' => 'Logia Tranquila']);
+        $salaPopular = Sala::factory()->create(['nombre' => 'Logia Popular', 'codigo' => 'LPO']);
+        $salaTranquila = Sala::factory()->create(['nombre' => 'Logia Tranquila', 'codigo' => 'LTR']);
 
         Reserva::factory()->count(2)->create(['sala_id' => $salaPopular->id, 'usuario_id' => Usuario::factory()]);
         Reserva::factory()->create(['sala_id' => $salaTranquila->id, 'usuario_id' => Usuario::factory()]);
@@ -171,7 +171,7 @@ class ReporteResumenLibrosSalasTest extends TestCase
 
         $response->assertStatus(200);
         $porSala = $response->json('porSala');
-        $this->assertSame('Logia Popular', $porSala[0]['label']);
+        $this->assertSame('LPO · Logia Popular', $porSala[0]['label']);
         $this->assertSame(2, $porSala[0]['value']);
     }
 
@@ -179,8 +179,8 @@ class ReporteResumenLibrosSalasTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $logiaA = Sala::factory()->create(['nombre' => 'Logia A']);
-        $logiaB = Sala::factory()->create(['nombre' => 'Logia B']);
+        $logiaA = Sala::factory()->create(['nombre' => 'Logia A', 'codigo' => 'LA']);
+        $logiaB = Sala::factory()->create(['nombre' => 'Logia B', 'codigo' => 'LB']);
 
         Reserva::factory()->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
         Reserva::factory()->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
@@ -191,11 +191,11 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $response->assertStatus(200);
         $porHoraPorSala = collect($response->json('porHoraPorSala'))->keyBy('sala');
 
-        $horasA = collect($porHoraPorSala['Logia A']['horas'])->keyBy('label');
+        $horasA = collect($porHoraPorSala['LA · Logia A']['horas'])->keyBy('label');
         $this->assertSame(2, $horasA['10h']['value']);
         $this->assertSame(0, $horasA['16h']['value']);
 
-        $horasB = collect($porHoraPorSala['Logia B']['horas'])->keyBy('label');
+        $horasB = collect($porHoraPorSala['LB · Logia B']['horas'])->keyBy('label');
         $this->assertSame(1, $horasB['16h']['value']);
         $this->assertSame(0, $horasB['10h']['value']);
     }

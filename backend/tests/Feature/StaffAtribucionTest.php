@@ -76,7 +76,7 @@ class StaffAtribucionTest extends TestCase
         $staff = Staff::factory()->create(['nombre' => 'Carla Soto']);
         Sanctum::actingAs($staff);
 
-        $sala = Sala::factory()->create(['codigo_barras' => '90099', 'tipo' => 'logia']);
+        $sala = Sala::factory()->create(['codigo' => 'X99', 'tipo' => 'logia']);
         $reserva = Reserva::factory()->create([
             'sala_id' => $sala->id,
             'fecha' => now()->toDateString(),
@@ -85,8 +85,8 @@ class StaffAtribucionTest extends TestCase
             'estado' => 'activa',
         ]);
 
-        $response = $this->postJson('/api/salas/scan-logia', [
-            'codigo_barras' => '90099',
+        $response = $this->postJson('/api/salas/llave', [
+            'codigo' => 'X99',
             // Un intento de suplantar a otro staff vía el body no debe tener efecto.
             'registrado_por' => 'Alguien Más',
         ]);

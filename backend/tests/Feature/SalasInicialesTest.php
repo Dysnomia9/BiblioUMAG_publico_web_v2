@@ -25,8 +25,11 @@ class SalasInicialesTest extends TestCase
         $this->assertSame(['Sala de Seminarios', 'Sala de Postgrado', 'Sala AGACI'], Sala::where('tipo', 'sala')->orderBy('id')->pluck('nombre')->all());
         $this->assertSame('Logia 01', Sala::orderBy('id')->value('nombre'));
         $this->assertSame('Logia 15', Sala::where('tipo', 'logia')->orderByDesc('id')->value('nombre'));
-        // Los códigos de barras reales los pone `php artisan horizon:codigos-logia`.
-        $this->assertSame(0, Sala::whereNotNull('codigo_barras')->count());
+        // Cada una con su código: el de la puerta y el mesón.
+        $this->assertSame(
+            ['L01', 'L02', 'L03', 'L04', 'L05', 'L06', 'L07', 'L08', 'L09', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'SEM', 'POS', 'AGA'],
+            Sala::orderBy('id')->pluck('codigo')->all(),
+        );
     }
 
     public function test_si_ya_hay_salas_no_crea_otras(): void
@@ -37,14 +40,5 @@ class SalasInicialesTest extends TestCase
         $this->migracion()->up();
 
         $this->assertSame(['Logia propia'], Sala::pluck('nombre')->all());
-    }
-
-    public function test_los_codigos_de_horizon_se_aplican_a_las_logias_creadas(): void
-    {
-        config(['horizon_barcodes.logias' => ['59340' => 'Logia 04']]);
-
-        $this->artisan('horizon:codigos-logia')->assertSuccessful();
-
-        $this->assertSame('59340', Sala::where('nombre', 'Logia 04')->value('codigo_barras'));
     }
 }
