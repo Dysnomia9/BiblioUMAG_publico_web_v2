@@ -12,12 +12,14 @@ use App\Models\Usuario;
 use App\Notifications\MultaGeneradaNotification;
 use App\Rules\DiaConAtencion;
 use App\Services\MultaService;
+use App\Services\ReglaPrestamoService;
 use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use App\Support\Busqueda;
 use App\Support\Notificar;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +28,32 @@ class PrestamoController extends Controller
     public function __construct(
         private MultaService $multaService,
         private ReservaLibroService $reservaLibroService,
+        private ReglaPrestamoService $reglas,
     ) {
+    }
+
+    /**
+     * Antes de prestar una copia a una persona: la regla de préstamo que se aplica, si
+     * se presta, cuántos libros tiene y puede tener, y la fecha de devolución que
+     * propone la regla (ya corrida al siguiente día con atención). No escribe nada.
+     */
+    public function condiciones(Request $request)
+    {
+        $data = $request->validate([
+            'usuario_id' => ['required', 'exists:usuarios,id'],
+            'codigo_barras' => ['required', 'string'],
+            'fecha_prestamo' => ['nullable', 'date'],
+        ]);
+
+        $ejemplar = Ejemplar::porCodigo($data['codigo_barras'])->first();
+        if (! $ejemplar) {
+            return response()->json(['message' => 'Código de barras no encontrado en el sistema'], 404);
+        }
+
+        $usuario = Usuario::findOrFail($data['usuario_id']);
+        $condiciones = $this->reglas->condiciones($usuario, $ejemplar, Carbon::parse($data['fecha_prestamo'] ?? now()));
+
+        return response()->json([...$condiciones, 'motivo_rechazo' => $this->reglas->motivoRechazo($usuario, $ejemplar)]);
     }
 
     /**
@@ -107,12 +134,17 @@ class PrestamoController extends Controller
         // tienen fecha de vencimiento fija.
         $request->merge(['tipo_item' => $request->input('tipo_item', 'libro')]);
 
+        // La devolución tampoco puede caer en un día sin atención de la ubicación de la copia.
+        $ubicacionCopia = $request->input('tipo_item') === 'libro' && is_string($request->input('codigo_barras'))
+            ? Ejemplar::porCodigo($request->input('codigo_barras'))->value('ubicacion_id')
+            : null;
+
         $data = $request->validate([
             'usuario_id' => ['required', 'exists:usuarios,id'],
             'tipo_item' => ['required', Rule::in(['libro', ...CategoriaRecurso::where('activo', true)->pluck('clave')])],
             'codigo_barras' => ['required', 'string'],
             'fecha_prestamo' => ['required_if:tipo_item,libro', 'nullable', 'date'],
-            'fecha_devolucion' => ['required_if:tipo_item,libro', 'nullable', 'date', 'after_or_equal:fecha_prestamo', new DiaConAtencion('para la devolución')],
+            'fecha_devolucion' => ['required_if:tipo_item,libro', 'nullable', 'date', 'after_or_equal:fecha_prestamo', new DiaConAtencion('para la devolución', $ubicacionCopia)],
         ], [
             'tipo_item.in' => 'Esa categoría de recurso no existe o está desactivada.',
         ]);
@@ -134,23 +166,20 @@ class PrestamoController extends Controller
             $reservaPropia = null;
 
             if ($esLibro) {
-                // Un usuario no puede tener dos libros prestados a la vez — debe devolver
-                // el que tiene antes de llevarse otro. Solo aplica a libros: los equipos
-                // (audífonos/notebook/cargador) no tienen este límite.
-                $yaTieneLibro = Prestamo::where('usuario_id', $data['usuario_id'])
-                    ->where('tipo_item', 'libro')
-                    ->where('estado', '!=', 'devuelto')
-                    ->exists();
-
-                if ($yaTieneLibro) {
-                    return [['message' => 'Este usuario ya tiene un libro prestado sin devolver — debe devolverlo antes de llevarse otro.'], 409];
-                }
-
                 // El de 14 dígitos o el de 8 de la etiqueta de lomo.
                 $ejemplar = Ejemplar::porCodigo($data['codigo_barras'])->lockForUpdate()->first();
 
                 if (! $ejemplar) {
                     return [['message' => 'Código de barras no encontrado en el sistema'], 404];
+                }
+
+                // La regla de préstamo que se aplica (ReglaPrestamoService) dice si este
+                // material se presta y cuántos libros puede tener la persona a la vez; sin
+                // regla, uno. Se bloquea la fila del usuario para que dos préstamos
+                // simultáneos no pasen ambos el máximo. Los recursos de apoyo no cuentan.
+                $usuario = Usuario::whereKey($data['usuario_id'])->lockForUpdate()->first();
+                if ($rechazo = $this->reglas->motivoRechazo($usuario, $ejemplar)) {
+                    return [['message' => $rechazo], 409];
                 }
 
                 // Una copia apartada para esta misma persona (reserva lista para

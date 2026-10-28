@@ -205,7 +205,13 @@ class PortalController extends Controller
         // Solo obras con al menos un ejemplar en estante (aunque esté prestado ahora
         // mismo — el usuario puede reservarlo/unirse a la cola desde el portal).
         $query = Libro::whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
-            ->with(['autores', 'categorias', 'tipoMaterial'])
+            ->with([
+                'autores', 'categorias', 'tipoMaterial',
+                // Las copias que ve el usuario: las que están en estante.
+                'ejemplares' => fn ($q) => $q->where('estado_proceso', 'en_estante')->orderBy('numero_copia')
+                    ->select(['id', 'libro_id', 'numero_copia', 'volumen', 'disponible', 'ubicacion_id', 'coleccion', 'nota_publica']),
+                'ejemplares.ubicacion:id,nombre',
+            ])
             ->withCount([
                 'ejemplares as ejemplares_total' => fn ($q) => $q->where('estado_proceso', 'en_estante'),
                 'ejemplares as ejemplares_disponibles' => fn ($q) => $q->where('estado_proceso', 'en_estante')->where('disponible', true),
@@ -247,6 +253,15 @@ class PortalController extends Controller
             'ejemplares_disponibles' => $libro->ejemplares_disponibles,
             'proxima_devolucion' => $libro->proxima_devolucion ? Carbon::parse($libro->proxima_devolucion)->toDateString() : null,
             'ficha' => FichaBibliografica::ficha($libro),
+            // Colección de cada copia (si no tiene, la del libro) y su nota pública.
+            'copias' => $libro->ejemplares->map(fn ($e) => [
+                'numero_copia' => $e->numero_copia,
+                'volumen' => $e->volumen,
+                'disponible' => $e->disponible,
+                'ubicacion' => $e->ubicacion?->nombre,
+                'coleccion' => $e->coleccion ?: $libro->coleccion,
+                'nota_publica' => $e->nota_publica,
+            ])->values(),
         ]));
     }
 

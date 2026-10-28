@@ -7,15 +7,23 @@ use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\Staff;
 use App\Models\Usuario;
+use App\Support\HorarioBiblioteca;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class MultaService
 {
+    public function __construct(private ReglaPrestamoService $reglas)
+    {
+    }
+
     /**
      * Días de atraso cobrables (ya descontado el período de gracia), o 0 si no
-     * corresponde cobrar: devuelto a tiempo o ítem sin fecha límite (equipos).
+     * corresponde cobrar: devuelto a tiempo o ítem sin fecha límite (equipos). Los
+     * días en que la biblioteca no atiende (cerrada según config/biblioteca.php o
+     * registrados en dias_sin_atencion, de toda la biblioteca o de la ubicación de la
+     * copia) no cuentan: nadie podía devolver ese día.
      */
     public function diasAtraso(Prestamo $prestamo, Carbon $fechaDevolucionReal): int
     {
@@ -27,14 +35,19 @@ class MultaService
             return 0;
         }
 
-        // Carbon 3 devuelve diffInDays() con fracción de día: se trunca para no
-        // cobrar "4,09 días" por 4 días y 2 horas.
-        $dias = (int) floor($prestamo->fecha_devolucion->diffInDays($fechaDevolucionReal)) - config('multas.dias_gracia', 0);
+        // Se cuentan días calendario completos: los que van del día siguiente al
+        // vencimiento hasta el día en que se devuelve, sin los días sin atención.
+        $ubicacionId = $prestamo->ejemplar_id ? $prestamo->ejemplar()->value('ubicacion_id') : null;
+        $dias = HorarioBiblioteca::diasConAtencionEntre($prestamo->fecha_devolucion, $fechaDevolucionReal, $ubicacionId) - config('multas.dias_gracia', 0);
 
         return max(0, $dias);
     }
 
-    /** Monto de la multa por atraso (config/multas.php), o null si no corresponde. */
+    /**
+     * Monto de la multa por atraso, o null si no corresponde. Tarifa y tope son los de
+     * la regla de préstamo que se aplica (ReglaPrestamoService); sin regla, o si la
+     * regla no los fija, los de config/multas.php.
+     */
     public function calcular(Prestamo $prestamo, Carbon $fechaDevolucionReal): ?int
     {
         $dias = $this->diasAtraso($prestamo, $fechaDevolucionReal);
@@ -43,8 +56,8 @@ class MultaService
             return null;
         }
 
-        $monto = $dias * config('multas.monto_dia');
-        $tope = config('multas.tope_maximo');
+        ['monto_dia' => $montoDia, 'tope' => $tope] = $this->reglas->tarifaMulta($this->reglas->reglaDelPrestamo($prestamo));
+        $monto = $dias * $montoDia;
 
         return $tope ? min($monto, $tope) : $monto;
     }

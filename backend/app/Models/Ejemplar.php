@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Ejemplar extends Model
 {
@@ -29,6 +30,9 @@ class Ejemplar extends Model
         'precio',
         'forma_adquisicion',
         'fecha_inventario',
+        'nota_publica',
+        'nota_interna',
+        'coleccion',
     ];
 
     protected function casts(): array
@@ -65,6 +69,12 @@ class Ejemplar extends Model
         return $this->hasMany(ReservaLibro::class);
     }
 
+    /** El número de revista que es esta copia, si es un fascículo prestable. */
+    public function fasciculo(): HasOne
+    {
+        return $this->hasOne(Fasciculo::class);
+    }
+
     public function historialEstado(): HasMany
     {
         return $this->hasMany(EjemplarEstadoHistorial::class);
@@ -79,6 +89,12 @@ class Ejemplar extends Model
         $codigo = trim($codigo);
 
         return $query->where(fn ($q) => $q->where('codigo_barras', $codigo)->orWhere('codigo_lomo', $codigo));
+    }
+
+    /** La colección de la copia; si no tiene, la del libro. */
+    public function coleccionEfectiva(): ?string
+    {
+        return $this->coleccion ?: $this->libro?->coleccion;
     }
 
     /** "Título (Copia N)" para copias 2+, o el título tal cual para la copia 1. */
