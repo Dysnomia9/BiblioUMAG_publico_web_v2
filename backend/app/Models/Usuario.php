@@ -30,6 +30,8 @@ class Usuario extends Authenticatable
         'carrera',
         'anio_ingreso',
         'sexo',
+        'unidad',
+        'cargo',
         'activo',
         'vigente_hasta',
         'qr_code',

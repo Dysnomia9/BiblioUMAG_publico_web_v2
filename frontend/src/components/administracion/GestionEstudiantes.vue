@@ -73,6 +73,9 @@ type Ficha = {
   carrera: string
   anio_ingreso: string
   sexo: string
+  /** Docentes y funcionarios. */
+  unidad: string
+  cargo: string
   activo: boolean
   /** Último día en que la cuenta sirve (AAAA-MM-DD); vacío: sin vencimiento. */
   vigente_hasta: string
@@ -82,7 +85,7 @@ type Ficha = {
 // Los docentes y funcionarios no tienen carrera ni año de ingreso: para ellos el formulario no los pide.
 const fichaVacia = (tipo: Usuario['tipo'] = 'estudiante'): Ficha => ({
   tipo_documento: 'rut', rut: '', pais: '', nombre: '', apellido: '', email: '', correos_adicionales: [], tipo,
-  carrera: '', anio_ingreso: tipo === 'estudiante' ? String(new Date().getFullYear()) : '', sexo: '', activo: true, vigente_hasta: '', password: '',
+  carrera: '', anio_ingreso: tipo === 'estudiante' ? String(new Date().getFullYear()) : '', sexo: '', unidad: '', cargo: '', activo: true, vigente_hasta: '', password: '',
 })
 
 const form = reactive({
@@ -108,6 +111,8 @@ function fichaDe(u: Usuario): Ficha {
     carrera: u.carrera ?? '',
     anio_ingreso: u.anio_ingreso ? String(u.anio_ingreso) : '',
     sexo: u.sexo ?? '',
+    unidad: u.unidad ?? '',
+    cargo: u.cargo ?? '',
     activo: u.activo,
     vigente_hasta: u.vigente_hasta ? u.vigente_hasta.slice(0, 10) : '',
     password: '',
@@ -120,6 +125,8 @@ function abrirNuevo(tipo: Usuario['tipo'] = 'estudiante') {
 }
 
 /** Carrera y año de ingreso solo para estudiantes (o si la persona ya los tiene guardados). */
+/** Unidad y cargo para docentes y funcionarios (o si la persona ya los tiene). */
+const pideUnidad = computed(() => form.ficha.tipo !== 'estudiante' || !!form.ficha.unidad || !!form.ficha.cargo)
 const pideCarrera = computed(() => form.ficha.tipo === 'estudiante' || !!form.ficha.carrera || !!form.ficha.anio_ingreso)
 const NOMBRE_TIPO: Record<Usuario['tipo'], string> = { estudiante: 'estudiante', docente: 'docente', funcionario: 'funcionario' }
 
@@ -161,7 +168,7 @@ function elegirTipoDocumento(tipo: TipoDocumento) {
 
 const ETIQUETAS: Record<keyof Ficha, string> = {
   tipo_documento: 'Tipo de documento', rut: 'RUT / documento', pais: 'País', nombre: 'Nombre', apellido: 'Apellido', email: 'Correo',
-  correos_adicionales: 'Correos adicionales', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', activo: 'Estado', vigente_hasta: 'Cuenta vigente hasta', password: 'Contraseña del portal',
+  correos_adicionales: 'Correos adicionales', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', unidad: 'Unidad', cargo: 'Cargo', activo: 'Estado', vigente_hasta: 'Cuenta vigente hasta', password: 'Contraseña del portal',
 }
 
 function mostrar(campo: keyof Ficha, f: Ficha): string {
@@ -228,6 +235,8 @@ async function guardar() {
     carrera: pideCarrera.value ? f.carrera.trim() || null : null,
     anio_ingreso: pideCarrera.value && f.anio_ingreso ? Number(f.anio_ingreso) : null,
     sexo: f.sexo || null,
+    unidad: pideUnidad.value ? f.unidad.trim() || null : null,
+    cargo: pideUnidad.value ? f.cargo.trim() || null : null,
     activo: f.activo,
     vigente_hasta: f.vigente_hasta || undefined,
     password: f.password || undefined,
@@ -332,7 +341,7 @@ const clasesInput = (campo: string) =>
               <p class="text-xs text-gray-500">{{ TIPO_LABEL[u.tipo] }}{{ u.email ? ` · ${u.email}` : '' }}<span v-if="u.correos?.length" class="ml-1 rounded bg-indigo-50 px-1 text-indigo-700" :title="u.correos.map((c) => c.email).join(', ')">+{{ u.correos.length }}</span></p>
             </td>
             <td class="px-4 py-2.5 text-gray-600 hidden md:table-cell">
-              {{ u.carrera ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
+              {{ u.carrera ?? u.unidad ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
             </td>
             <td class="px-4 py-2.5 hidden sm:table-cell">
               <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : u.inactividad === 'vencida' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
@@ -448,6 +457,16 @@ const clasesInput = (campo: string) =>
             <p v-if="form.errores.correos_adicionales" class="text-xs text-red-600 mt-1">{{ form.errores.correos_adicionales }}</p>
             <p v-else class="mt-1 text-xs text-gray-500">Sirven para reconocerla al entrar con Google o el directorio. Las notificaciones van al correo principal.</p>
           </div>
+          <template v-if="pideUnidad">
+            <div>
+              <label for="est-unidad" class="block text-xs font-medium text-gray-600 mb-1">Unidad o departamento (opcional)</label>
+              <input id="est-unidad" v-model="form.ficha.unidad" maxlength="255" placeholder="Ej: Departamento de Ciencias" :class="clasesInput('unidad')" />
+            </div>
+            <div>
+              <label for="est-cargo" class="block text-xs font-medium text-gray-600 mb-1">Cargo (opcional)</label>
+              <input id="est-cargo" v-model="form.ficha.cargo" maxlength="255" placeholder="Ej: Profesor adjunto" :class="clasesInput('cargo')" />
+            </div>
+          </template>
           <div v-if="pideCarrera" class="sm:col-span-2">
             <label for="est-carrera" class="block text-xs font-medium text-gray-600 mb-1">Carrera (opcional)</label>
             <input id="est-carrera" v-model="form.ficha.carrera" list="est-carreras" maxlength="255" placeholder="Elige una o escribe una nueva" :class="clasesInput('carrera')" />
@@ -546,6 +565,7 @@ const clasesInput = (campo: string) =>
           <dd class="font-medium text-gray-900">{{ form.ficha.nombre }} {{ form.ficha.apellido }}</dd>
           <dt>Tipo</dt>
           <dd class="text-gray-900">{{ TIPO_LABEL[form.ficha.tipo] }}</dd>
+          <template v-if="form.ficha.unidad || form.ficha.cargo"><dt>Unidad y cargo</dt><dd class="text-gray-900">{{ [form.ficha.unidad, form.ficha.cargo].filter(Boolean).join(' · ') }}</dd></template>
           <template v-if="form.ficha.carrera"><dt>Carrera</dt><dd class="text-gray-900">{{ form.ficha.carrera }}<template v-if="form.ficha.anio_ingreso"> · {{ form.ficha.anio_ingreso }}</template></dd></template>
           <template v-if="form.ficha.email"><dt>Correo</dt><dd class="text-gray-900">{{ form.ficha.email }}</dd></template>
           <template v-if="form.ficha.correos_adicionales.length"><dt>Otros correos</dt><dd class="text-gray-900">{{ form.ficha.correos_adicionales.join(', ') }}</dd></template>

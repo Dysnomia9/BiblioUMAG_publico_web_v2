@@ -185,7 +185,9 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   **Renovar cuenta** que sale en Préstamos y en Entradas; la carga masiva
   renueva a quienes vienen en la planilla y no toca a los demás (vencen solos).
 - **Altas de docentes y funcionarios**: además de «Nuevo estudiante» hay «Nuevo docente» y
-  «Nuevo funcionario», con un formulario más corto (sin carrera ni año de ingreso).
+  «Nuevo funcionario», con un formulario más corto: sin carrera ni año de ingreso, pero con
+  unidad o departamento y cargo (columnas `usuarios.unidad` y `usuarios.cargo`, también en la
+  carga masiva); en los reportes, «Por carrera» los agrupa por su unidad.
 - **Más de un correo por usuario**: el correo principal (`usuarios.email`) recibe las
   notificaciones; los adicionales (`usuario_correos`) sirven para reconocer a la persona al
   entrar con Google o el directorio. Si la carga masiva trae un correo distinto al que ya tenía,

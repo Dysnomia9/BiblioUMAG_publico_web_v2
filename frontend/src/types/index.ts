@@ -58,9 +58,12 @@ export type Usuario = {
   carrera: string | null
   anio_ingreso: number | null
   sexo: string | null
-  /** Sirve hoy: no fue desactivada y su vigencia no pasó. */
+  /** Docentes y funcionarios: unidad o departamento y cargo (no tienen carrera). */
+  unidad?: string | null
+  cargo?: string | null
   /** Correos adicionales (el principal es `email`). */
   correos?: { id: number; email: string }[]
+  /** Sirve hoy: no fue desactivada y su vigencia no pasó. */
   activo: boolean
   /** Último día en que la cuenta sirve (null: sin vencimiento). */
   vigente_hasta?: string | null

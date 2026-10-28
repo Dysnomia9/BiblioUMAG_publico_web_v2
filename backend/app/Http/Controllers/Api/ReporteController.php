@@ -171,14 +171,14 @@ class ReporteController extends Controller
             ->values();
         $tipoDeMaterial = "coalesce(tm.nombre, 'Sin tipo de material')";
 
-        // Quien no tiene carrera no es «Sin dato»: los docentes y funcionarios nunca la tienen, y
-        // «Sin dato» queda solo para quien no está registrado (un visitante externo).
+        // Quien no tiene carrera no es «Sin dato»: los docentes y funcionarios nunca la tienen (se los
+        // agrupa por su unidad si está registrada), y «Sin dato» queda solo para quien no está registrado.
         $porCarrera = $this->unirVariantes($agrupar(<<<'SQL'
             case
                 when usuarios.id is null then 'Sin dato (visitante externo)'
                 when usuarios.carrera is not null then usuarios.carrera
-                when usuarios.tipo = 'docente' then 'Docentes (sin carrera)'
-                when usuarios.tipo = 'funcionario' then 'Funcionarios (sin carrera)'
+                when usuarios.tipo = 'docente' then coalesce('Docentes · ' || nullif(usuarios.unidad, ''), 'Docentes (sin carrera)')
+                when usuarios.tipo = 'funcionario' then coalesce('Funcionarios · ' || nullif(usuarios.unidad, ''), 'Funcionarios (sin carrera)')
                 else 'Estudiantes sin carrera registrada'
             end
             SQL));

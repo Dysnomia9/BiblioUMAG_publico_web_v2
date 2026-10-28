@@ -165,7 +165,7 @@ const tarjetas = computed(() => {
 })
 
 const CAMPOS: Record<string, string> = {
-  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado', vigente_hasta: 'Vigente hasta', correos_adicionales: 'Correo adicional (+1)',
+  nombre: 'Nombre', apellido: 'Apellido', email: 'Correo', tipo: 'Tipo', carrera: 'Carrera', anio_ingreso: 'Año de ingreso', sexo: 'Sexo', pais: 'País', activo: 'Estado', vigente_hasta: 'Vigente hasta', correos_adicionales: 'Correo adicional (+1)', unidad: 'Unidad', cargo: 'Cargo',
 }
 
 /** Null si no había dato (se muestra «sin dato»). */

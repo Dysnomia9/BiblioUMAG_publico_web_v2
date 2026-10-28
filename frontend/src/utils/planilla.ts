@@ -19,6 +19,8 @@ export type CampoEstudiante =
   | 'sexo'
   | 'tipo'
   | 'vigente_hasta'
+  | 'unidad'
+  | 'cargo'
   // Columnas del reporte de matrícula de la universidad: el servidor las combina
   // (apellidos en uno, especialidad junto a la carrera, nacionalidad para el documento).
   | 'apellido_paterno'
@@ -49,6 +51,8 @@ export const COLUMNAS_PLANTILLA: { encabezado: string; campo: CampoEstudiante; n
   { encabezado: 'Sexo', campo: 'sexo', nota: 'Opcional. Femenino, Masculino u Otro (también F o M).' },
   { encabezado: 'Tipo', campo: 'tipo', nota: 'Opcional. Estudiante, Docente o Funcionario. Si se deja vacío, Estudiante para quien es nuevo; a quien ya está se le deja el suyo.' },
   { encabezado: 'Vigente hasta', campo: 'vigente_hasta', nota: 'Opcional. Último día en que la cuenta sirve, como dd/mm/aaaa (ej. 31/03/2027). Si se deja vacío, la cuenta queda vigente hasta el próximo 31 de marzo.' },
+  { encabezado: 'Unidad', campo: 'unidad', nota: 'Opcional, para docentes y funcionarios: unidad, departamento o facultad donde trabajan.' },
+  { encabezado: 'Cargo', campo: 'cargo', nota: 'Opcional, para docentes y funcionarios (ej. Bibliotecaria, Profesor adjunto).' },
 ]
 
 /** Encabezados que se aceptan para cada campo, ya sin tildes, en minúscula y sin signos. */
@@ -63,6 +67,8 @@ const SINONIMOS: Record<CampoEstudiante, string[]> = {
   anio_ingreso: ['anio ingreso', 'ano ingreso', 'anio de ingreso', 'ano de ingreso', 'ingreso', 'cohorte'],
   sexo: ['sexo', 'genero'],
   tipo: ['tipo', 'tipo usuario', 'tipo de usuario'],
+  unidad: ['unidad', 'departamento', 'depto', 'facultad', 'unidad o departamento', 'unidad academica', 'unidad de trabajo'],
+  cargo: ['cargo', 'funcion', 'puesto'],
   vigente_hasta: ['vigente hasta', 'vigencia', 'vencimiento', 'fecha vencimiento', 'fecha de vencimiento', 'expiracion', 'fecha expiracion', 'fecha de expiracion', 'expira', 'valido hasta'],
   apellido_paterno: ['paterno', 'apellido paterno', 'primer apellido', 'ap paterno'],
   apellido_materno: ['materno', 'apellido materno', 'segundo apellido', 'ap materno'],
@@ -210,9 +216,9 @@ export function leerCsv(texto: string): LecturaPlanilla {
 }
 
 const EJEMPLOS_PLANTILLA: string[][] = [
-  ['15.003.151-6', 'RUT', '', 'Sebastián', 'Sánchez Mella', 'sebastian.sanchez@umag.cl', 'Pedagogía en Educación Básica', '2026', 'Masculino', 'Estudiante', ''],
-  ['38456123', 'DNI', 'Argentina', 'Martina', 'Gómez', 'martina.gomez@umag.cl', 'Enfermería', '2026', 'Femenino', 'Estudiante', ''],
-  ['FT482913', 'Pasaporte', 'Brasil', 'Lucas', 'Silva', 'lucas.silva@umag.cl', 'Ingeniería Comercial', '2026', 'Masculino', 'Estudiante', '31/03/2027'],
+  ['15.003.151-6', 'RUT', '', 'Sebastián', 'Sánchez Mella', 'sebastian.sanchez@umag.cl', 'Pedagogía en Educación Básica', '2026', 'Masculino', 'Estudiante', '', '', ''],
+  ['38456123', 'DNI', 'Argentina', 'Martina', 'Gómez', 'martina.gomez@umag.cl', 'Enfermería', '2026', 'Femenino', 'Estudiante', '', '', ''],
+  ['FT482913', 'Pasaporte', 'Brasil', 'Lucas', 'Silva', 'lucas.silva@umag.cl', 'Ingeniería Comercial', '2026', 'Masculino', 'Estudiante', '31/03/2027', '', ''],
 ]
 
 function descargar(nombre: string, blob: Blob) {

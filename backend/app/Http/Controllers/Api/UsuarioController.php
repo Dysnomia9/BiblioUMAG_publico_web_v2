@@ -26,7 +26,7 @@ class UsuarioController extends Controller
     private const TIPOS = ['estudiante', 'docente', 'funcionario'];
 
     /** Campos que se pueden escribir desde Administración (el resto —qr_code— no se toca). */
-    private const CAMPOS = ['rut', 'tipo_documento', 'pais', 'nombre', 'apellido', 'email', 'tipo', 'carrera', 'anio_ingreso', 'sexo', 'activo'];
+    private const CAMPOS = ['rut', 'tipo_documento', 'pais', 'nombre', 'apellido', 'email', 'tipo', 'carrera', 'anio_ingreso', 'sexo', 'unidad', 'cargo', 'activo'];
 
     public function index(Request $request)
     {
@@ -419,6 +419,9 @@ class UsuarioController extends Controller
             'carrera' => $this->carreraConEspecialidad($texto('carrera'), $texto('especialidad')),
             'anio_ingreso' => $anio === null ? null : (ctype_digit($anio) ? (int) $anio : $anio),
             'sexo' => $sexo,
+            // Docentes y funcionarios no tienen carrera: se los ubica por su unidad o departamento y su cargo.
+            'unidad' => $texto('unidad'),
+            'cargo' => $texto('cargo'),
         ];
 
         // «Vigente hasta»: opcional. Si viene, manda; si no, la cuenta se renueva con la fecha de siempre.
@@ -542,6 +545,8 @@ class UsuarioController extends Controller
             'carrera' => ['nullable', 'string', 'max:255'],
             'anio_ingreso' => ['nullable', 'integer', 'min:1950', 'max:'.(now()->year + 1)],
             'sexo' => ['nullable', 'string', 'max:30'],
+            'unidad' => ['nullable', 'string', 'max:255'],
+            'cargo' => ['nullable', 'string', 'max:255'],
             'activo' => ['sometimes', 'boolean'],
             'vigente_hasta' => ['nullable', 'date_format:Y-m-d'],
             'password' => ['nullable', 'string', 'min:6', 'max:100'],
@@ -605,6 +610,8 @@ class UsuarioController extends Controller
     {
         $datos['nombre'] = Texto::nombrePropio($datos['nombre']);
         $datos['apellido'] = Texto::nombrePropio($datos['apellido']);
+        $datos['unidad'] = Texto::nombrePropio($datos['unidad']);
+        $datos['cargo'] = Texto::nombrePropio($datos['cargo']);
 
         if ($datos['carrera'] !== null) {
             // Escrita como corresponde (tildes, mayúsculas, abreviaturas) y, si el sistema ya la conoce, tal como está allí.
@@ -775,7 +782,7 @@ class UsuarioController extends Controller
             return ['invalido', [...$errores, "No se actualizará a {$quien}."], []];
         }
 
-        $campos = ['nombre', 'apellido', 'carrera', 'anio_ingreso', 'sexo', 'pais'];
+        $campos = ['nombre', 'apellido', 'carrera', 'anio_ingreso', 'sexo', 'pais', 'unidad', 'cargo'];
         if (trim((string) ($fila['tipo'] ?? '')) !== '') {
             $campos[] = 'tipo';
         }
