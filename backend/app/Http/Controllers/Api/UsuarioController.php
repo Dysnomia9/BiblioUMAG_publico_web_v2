@@ -8,6 +8,7 @@ use App\Models\Usuario;
 use App\Models\UsuarioCorreo;
 use App\Services\MultaService;
 use App\Support\Bitacora;
+use App\Support\Carreras;
 use App\Support\Documento;
 use App\Support\Permisos;
 use App\Support\Texto;
@@ -606,7 +607,9 @@ class UsuarioController extends Controller
         $datos['apellido'] = Texto::nombrePropio($datos['apellido']);
 
         if ($datos['carrera'] !== null) {
-            $datos['carrera'] = $carreras[Texto::clave($datos['carrera'])] ?? Texto::nombrePropio($datos['carrera']);
+            // Escrita como corresponde (tildes, mayúsculas, abreviaturas) y, si el sistema ya la conoce, tal como está allí.
+            $escrita = Carreras::normalizar($datos['carrera']);
+            $datos['carrera'] = $carreras[Texto::clave($escrita)] ?? $escrita;
         }
 
         return $datos;
