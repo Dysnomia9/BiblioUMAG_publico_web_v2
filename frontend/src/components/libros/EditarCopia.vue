@@ -76,11 +76,11 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro<template v-if="coleccionLibro"> («{{ coleccionLibro }}»)</template>.</p>
       </div>
       <div class="sm:col-span-2">
-        <label for="copia-editar-publica" class="mb-1 block text-xs font-medium text-gray-600">Nota pública</label>
+        <label for="copia-editar-publica" class="mb-1 block text-xs font-medium text-gray-600">Nota pública (la ve el usuario en el portal)</label>
         <textarea id="copia-editar-publica" v-model="form.nota_publica" rows="2" placeholder="Se ve en el portal. Ej: Incluye CD" :class="CAMPO"></textarea>
       </div>
       <div class="sm:col-span-2">
-        <label for="copia-editar-interna" class="mb-1 block text-xs font-medium text-gray-600">Nota interna</label>
+        <label for="copia-editar-interna" class="mb-1 block text-xs font-medium text-gray-600">Nota interna (solo la ve el personal)</label>
         <textarea id="copia-editar-interna" v-model="form.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
       </div>
     </div>

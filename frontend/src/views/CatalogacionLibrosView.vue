@@ -56,7 +56,7 @@ const CAMPOS_TEXTO = [
   'descripcion_fisica', 'entidad_corporativa', 'reunion', 'entidad_secundaria',
   'materias_personales', 'materias_geograficas', 'url_acceso', 'designacion_volumen',
   'nota_tesis', 'profesor_guia', 'resumen', 'audiencia', 'idioma', 'serie',
-  'nota_interna', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
+  'nota_interna', 'nota_publica', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
 ] as const
 type CampoTexto = (typeof CAMPOS_TEXTO)[number]
 
@@ -110,6 +110,7 @@ const PISTAS: Partial<Record<CampoTexto, string>> = {
   audiencia: 'Ej: Niños de 8 a 12 años',
   frecuencia: 'Ej: Semestral',
   nota_local: 'Donación, canje o adquisición (de quién y cuándo)',
+  nota_publica: 'Ej: Edición ilustrada · se ve en el portal',
 }
 
 const NOMBRES: Partial<Record<CampoTexto, string>> = {
@@ -120,10 +121,11 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'Materia de persona',
   materias_geograficas: 'Materia de lugar',
   url_acceso: 'Enlace (acceso electrónico)',
-  nota_interna: 'Notas generales',
-  nota_bibliografia: 'Nota de bibliografía',
-  nota_idioma: 'Nota de idioma',
-  nota_local: 'Nota local',
+  nota_interna: 'Notas generales (nota interna, solo la ve el personal)',
+  nota_publica: 'Nota pública (la ve el usuario en el portal)',
+  nota_bibliografia: 'Nota de bibliografía (interna)',
+  nota_idioma: 'Nota de idioma (interna)',
+  nota_local: 'Nota local (interna)',
 }
 
 // Campos opcionales que quedan tras un botón «+ …» para no alargar el formulario.
@@ -142,6 +144,7 @@ const EN_EL_BOTON: Partial<Record<CampoTexto, string>> = {
 
 const extrasTitulo = computed(() => EXTRAS_TITULO.filter((c) => tiene(c)))
 const extrasMaterias = computed(() => EXTRAS_MATERIAS.filter((c) => tiene(c)))
+const notaPublica = computed(() => tiene('nota_publica'))
 const notasInternas = computed(() => NOTAS_INTERNAS.filter((c) => tiene(c)))
 const verMasTitulo = ref(false)
 const verMasMaterias = ref(false)
@@ -1026,6 +1029,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <p v-if="editandoId" class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:col-span-6">
                   La ubicación, el volumen, el precio y la forma de adquisición son de cada copia y se registran al crearla.
                 </p>
+                <div v-if="notaPublica" class="sm:col-span-6">
+                  <label for="cat-nota_publica" :class="ETIQUETA"><Marc :codigo="etiqueta('nota_publica')" tono="dorado" /> {{ NOMBRES.nota_publica }}</label>
+                  <textarea id="cat-nota_publica" v-model="form.nota_publica" rows="2" :placeholder="PISTAS.nota_publica" :class="CAMPO"></textarea>
+                </div>
                 <div v-for="c in notasInternas" :key="c" class="sm:col-span-6">
                   <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="violeta" /> {{ NOMBRES[c] }}</label>
                   <textarea :id="`cat-${c}`" v-model="form[c]" rows="2" :placeholder="PISTAS[c] ?? 'Opcional'" :class="CAMPO"></textarea>
@@ -1134,11 +1141,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro.</p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-nota-publica" :class="ETIQUETA">Nota pública de la copia</label>
+                  <label for="copia-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
                   <textarea id="copia-nota-publica" v-model="formCopia.nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-nota-interna" :class="ETIQUETA">Nota interna de la copia</label>
+                  <label for="copia-nota-interna" :class="ETIQUETA">Nota interna de la copia (solo la ve el personal)</label>
                   <textarea id="copia-nota-interna" v-model="formCopia.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
                 </div>
               </div>

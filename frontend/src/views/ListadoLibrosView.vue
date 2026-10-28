@@ -425,8 +425,8 @@ function copiaGuardada(actualizada: Ejemplar) {
                           {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
-                        <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota: {{ e.nota_publica }}</p>
-                        <p v-if="e.nota_interna" class="text-xs text-violet-700">Interna: {{ e.nota_interna }}</p>
+                        <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota pública: {{ e.nota_publica }}</p>
+                        <p v-if="e.nota_interna" class="text-xs text-violet-700">Nota interna: {{ e.nota_interna }}</p>
                       </div>
                       <div class="flex shrink-0 items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="situacionCopia(e).badge">{{ situacionCopia(e).texto }}</span>
