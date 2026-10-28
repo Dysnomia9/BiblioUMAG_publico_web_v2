@@ -5,6 +5,7 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
@@ -172,7 +173,8 @@ function elegir(estado: EstadoProcesoEjemplar) {
   objetivo.value = objetivo.value === estado ? null : estado
 }
 
-const bloqueaBaja = computed(() => !!seleccionada.value && !seleccionada.value.disponible)
+// Una copia prestada sí se da de baja (a veces no vuelve); la apartada para retirar, no.
+const bloqueaBaja = computed(() => !!seleccionada.value?.reservado && !seleccionada.value.prestado)
 const textoObjetivo = computed(() => {
   if (!objetivo.value) return ''
   if (objetivo.value === 'personalizado') return estadosPersonalizados.value.find((e) => e.id === personalizadoId.value)?.nombre ?? 'Personalizado'
@@ -199,6 +201,7 @@ async function confirmarCambio() {
       estado_proceso: objetivo.value,
       estado_personalizado_id: objetivo.value === 'personalizado' ? personalizadoId.value : null,
       motivo: nota.value.trim() || null,
+      confirmacion: objetivo.value === 'de_baja' ? 'CONFIRMAR' : undefined,
     })
     const { apartada_para: apartadaPara, ...actualizada } = data
     const libro = libros.value.find((l) => l.id === copia.libro_id)
@@ -406,8 +409,9 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                   <p class="text-sm font-semibold text-red-800">Dar de baja</p>
                   <p class="text-xs text-red-700/90">
                     <template v-if="seleccionada.estado_proceso === 'de_baja'">Esta copia ya está dada de baja; para reincorporarla, elige otro estado.</template>
-                    <template v-else-if="bloqueaBaja">No se puede ahora: la copia está prestada o reservada.</template>
-                    <template v-else>Retira la copia de la colección. Pide un motivo y queda registrado.</template>
+                    <template v-else-if="bloqueaBaja">No se puede ahora: la copia está apartada para una reserva lista para retirar. Cancela esa reserva primero.</template>
+                    <template v-else-if="seleccionada.prestado">Está prestada. Si se perdió, la baja la saca de circulación y cierra el préstamo (sin multa automática: se cursa en Multas). Pide un motivo y escribir CONFIRMAR.</template>
+                    <template v-else>Retira la copia de la colección. Pide un motivo y escribir CONFIRMAR; queda registrado y se puede reincorporar desde Administración › Eliminados.</template>
                   </p>
                 </div>
                 <button
@@ -468,11 +472,29 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
       </div>
     </div>
 
+    <DialogoConfirmacionEscrita
+      :abierto="confirmando && !!seleccionada && objetivo === 'de_baja'"
+      titulo="¿Dar de baja esta copia?"
+      confirmar="Dar de baja"
+      :cargando="guardando"
+      @confirmar="confirmarCambio"
+      @cancelar="confirmando = false"
+    >
+      <p>
+        <strong class="text-gray-900">{{ seleccionada?.libro.titulo }}</strong> (copia {{ seleccionada?.numero_copia }} ·
+        <span class="font-mono">{{ seleccionada?.codigo_barras }}</span>) saldrá de circulación y dejará de verse en el catálogo y el portal.
+      </p>
+      <p v-if="seleccionada?.prestado" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+        Está prestada: su préstamo quedará cerrado por la baja. No se genera multa automática.
+      </p>
+      <p>Motivo: «{{ nota.trim() }}»</p>
+    </DialogoConfirmacionEscrita>
+
     <DialogoConfirmacion
-      :abierto="confirmando && !!seleccionada"
-      :titulo="objetivo === 'de_baja' ? '¿Dar de baja esta copia?' : '¿Cambiar el estado de esta copia?'"
-      :confirmar="objetivo === 'de_baja' ? 'Sí, dar de baja' : 'Sí, cambiar'"
-      :tono="objetivo === 'de_baja' ? 'peligro' : 'primario'"
+      :abierto="confirmando && !!seleccionada && objetivo !== 'de_baja'"
+      titulo="¿Cambiar el estado de esta copia?"
+      confirmar="Sí, cambiar"
+      tono="primario"
       :cargando="guardando"
       @confirmar="confirmarCambio"
       @cancelar="confirmando = false"

@@ -8,6 +8,8 @@ use App\Models\Carrera;
 use App\Models\Categoria;
 use App\Models\Ejemplar;
 use App\Models\Libro;
+use App\Models\ReservaLibro;
+use App\Services\BajaEjemplarService;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
 use App\Support\Bitacora;
@@ -97,6 +99,62 @@ class LibroController extends Controller
     public function plantillas()
     {
         return response()->json(FichaBibliografica::plantillas());
+    }
+
+    /**
+     * Da de baja un título: todas sus copias salen de circulación, las prestadas incluidas
+     * (se perdieron), y las personas en su lista de espera quedan sin reserva. Pide el
+     * motivo y que se escriba CONFIRMAR. Si una copia está apartada para quien va a
+     * retirarla, no se hace nada hasta cancelar esa reserva.
+     */
+    public function darDeBaja(Request $request, Libro $libro, BajaEjemplarService $bajas)
+    {
+        $data = $request->validate(
+            ['motivo' => ['required', 'string', 'max:500'], 'confirmacion' => ['required', Rule::in(['CONFIRMAR'])]],
+            ['motivo.required' => 'Indica el motivo de la baja: queda registrado en el historial.', 'confirmacion.required' => 'Escribe CONFIRMAR para dar de baja el título.', 'confirmacion.in' => 'Escribe CONFIRMAR para dar de baja el título.'],
+        );
+
+        $resultado = DB::transaction(function () use ($libro, $data, $request, $bajas) {
+            $copias = Ejemplar::where('libro_id', $libro->id)->where('estado_proceso', '!=', 'de_baja')->orderBy('id')->lockForUpdate()->get();
+
+            if ($copias->isEmpty()) {
+                return ['error' => 'Este título no tiene copias en circulación: ya está dado de baja.'];
+            }
+
+            foreach ($copias as $copia) {
+                if ($bloqueo = $bajas->bloqueo($copia)) {
+                    return ['error' => "La copia {$copia->numero_copia} ({$copia->codigo_barras}): {$bloqueo}"];
+                }
+            }
+
+            $loteId = (string) \Illuminate\Support\Str::uuid();
+            $prestadas = 0;
+            foreach ($copias as $copia) {
+                if ($bajas->darDeBaja($copia, $data['motivo'], $request->user(), $loteId)) {
+                    $prestadas++;
+                }
+            }
+
+            $enCola = ReservaLibro::where('libro_id', $libro->id)->where('estado', 'en_cola')->update(['estado' => 'cancelado']);
+
+            return ['copias' => $copias->count(), 'prestadas' => $prestadas, 'en_cola' => $enCola, 'lote_id' => $loteId];
+        });
+
+        if (isset($resultado['error'])) {
+            return response()->json(['message' => $resultado['error']], 409);
+        }
+
+        Bitacora::registrar(
+            'libros.dar_de_baja',
+            "Dio de baja el título «{$libro->titulo}» ({$resultado['copias']} ".($resultado['copias'] === 1 ? 'copia' : 'copias').')'
+                .($resultado['prestadas'] ? ", {$resultado['prestadas']} estaban prestadas y sus préstamos quedaron cerrados" : '')
+                .($resultado['en_cola'] ? ", {$resultado['en_cola']} reservas en espera canceladas" : '')
+                .". Motivo: {$data['motivo']}",
+            entidad: $libro,
+            datos: [...$resultado, 'motivo' => $data['motivo']],
+        );
+
+        return response()->json($resultado);
     }
 
     public function store(Request $request)

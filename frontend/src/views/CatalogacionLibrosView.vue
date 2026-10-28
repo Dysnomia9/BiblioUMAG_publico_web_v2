@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
@@ -11,7 +12,7 @@ import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
 import { TONOS_FICHA, type TonoFicha } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
-import { useToast } from '@/composables/useToast'
+import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { inicialesPortada, tonoPortada } from '@/utils/portada'
 import type { Autor, Carrera, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion } from '@/types'
@@ -504,6 +505,35 @@ function pedirConfirmacionGuardar() {
 // paso siguiente (Estado de ejemplares, con esa copia ya elegida).
 const copiaCreada = ref<{ titulo: string; numeroCopia: number; codigoBarras: string; codigoLomo: string | null } | null>(null)
 const puedeCambiarEstado = computed(() => auth.puede('libros.estado'))
+
+// ---------- Dar de baja el título ----------
+// Saca todas las copias de circulación (también las prestadas, que se perdieron). Pide el
+// motivo y escribir CONFIRMAR; se reincorporan copia por copia desde Administración › Eliminados.
+const bajaTituloAbierta = ref(false)
+const bajaMotivo = ref('')
+const dandoDeBaja = ref(false)
+
+function pedirBajaTitulo() {
+  bajaMotivo.value = ''
+  bajaTituloAbierta.value = true
+}
+
+async function darDeBajaTitulo() {
+  const id = editandoId.value
+  if (!id || !bajaMotivo.value.trim()) return
+  dandoDeBaja.value = true
+  try {
+    const { data } = await api.post<{ copias: number; prestadas: number }>(`/libros/${id}/baja`, { motivo: bajaMotivo.value.trim(), confirmacion: 'CONFIRMAR' })
+    toast.success(`Título dado de baja (${data.copias} ${data.copias === 1 ? 'copia' : 'copias'})`)
+    bajaTituloAbierta.value = false
+    resetForm()
+    cargar()
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo dar de baja el título'))
+  } finally {
+    dandoDeBaja.value = false
+  }
+}
 
 function avisarCopiaCreada(titulo: string, copia: Ejemplar | undefined) {
   if (!copia || !puedeCambiarEstado.value) return
@@ -1247,6 +1277,14 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             >
               Cancelar edición
             </button>
+            <button
+              v-if="modo === 'nuevo' && editandoId && puedeCambiarEstado"
+              type="button"
+              class="w-full rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+              @click="pedirBajaTitulo"
+            >
+              Dar de baja el título
+            </button>
             <p class="px-2 text-center text-[11px] leading-relaxed text-gray-500">{{ notaCatalogador }}</p>
             <p v-if="modo === 'nuevo' && !editandoId && borrador && desdeBorrador" class="px-2 text-center text-[11px] text-gray-400">
               Borrador guardado en este computador el {{ fechaBorrador }}.
@@ -1338,6 +1376,33 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         <option value="Hemeroteca" />
       </datalist>
     </div>
+
+    <DialogoConfirmacionEscrita
+      :abierto="bajaTituloAbierta"
+      titulo="¿Dar de baja este título?"
+      confirmar="Dar de baja el título"
+      :cargando="dandoDeBaja"
+      :deshabilitado="!bajaMotivo.trim()"
+      @confirmar="darDeBajaTitulo"
+      @cancelar="bajaTituloAbierta = false"
+    >
+      <p>
+        <strong class="text-gray-900">{{ libroEditado?.titulo }}</strong> y <strong class="text-gray-900">todas sus copias</strong> saldrán de circulación y dejarán de
+        verse en el catálogo y el portal. Si alguna está prestada porque se perdió, su préstamo queda cerrado (sin multa automática) y la lista de espera se cancela.
+        Nada se borra: se puede reincorporar copia por copia desde Administración › Eliminados.
+      </p>
+      <div>
+        <label for="baja-motivo" class="mb-1.5 block text-xs font-semibold text-gray-700">Motivo de la baja (obligatorio)</label>
+        <input
+          id="baja-motivo"
+          v-model="bajaMotivo"
+          type="text"
+          maxlength="500"
+          placeholder="Ej: edición obsoleta, o todas las copias perdidas"
+          class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+        />
+      </div>
+    </DialogoConfirmacionEscrita>
 
     <DialogoConfirmacion
       :abierto="confirmandoGuardar"

@@ -6,6 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
 use App\Models\ReservaLibro;
+use App\Support\Busqueda;
+use App\Support\BusquedaLibros;
+use App\Support\Paginacion;
+use App\Services\BajaEjemplarService;
 use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,7 +22,7 @@ class EjemplarController extends Controller
 {
     private const ESTADOS = 'inventario,procesos_tecnicos,por_colocar,en_estante,estanteria_auxiliar,de_baja,coleccion_movil,personalizado';
 
-    public function __construct(private ReservaLibroService $reservaLibroService)
+    public function __construct(private ReservaLibroService $reservaLibroService, private BajaEjemplarService $bajas)
     {
     }
 
@@ -142,27 +146,49 @@ class EjemplarController extends Controller
     public function cambiarEstado(Request $request, Ejemplar $ejemplar)
     {
         $data = $request->validate(
-            [...$this->reglasEstado(), 'motivo' => ['required_if:estado_proceso,de_baja', 'nullable', 'string', 'max:500']],
-            ['motivo.required_if' => 'Indica el motivo de la baja: queda registrado en el historial.'],
+            [
+                ...$this->reglasEstado(),
+                'motivo' => ['required_if:estado_proceso,de_baja', 'nullable', 'string', 'max:500'],
+                // Dar de baja saca la copia de circulación (y cierra su préstamo si estaba prestada): se pide escribir CONFIRMAR.
+                'confirmacion' => ['required_if:estado_proceso,de_baja', 'nullable', Rule::in(['CONFIRMAR'])],
+            ],
+            [
+                'motivo.required_if' => 'Indica el motivo de la baja: queda registrado en el historial.',
+                'confirmacion.required_if' => 'Escribe CONFIRMAR para dar de baja la copia.',
+                'confirmacion.in' => 'Escribe CONFIRMAR para dar de baja la copia.',
+            ],
         );
 
         // La copia queda bloqueada mientras cambia: un préstamo o una reserva que llega al
         // mismo tiempo espera, y la decisión se toma con su disponibilidad al día.
-        [$estadoAnterior, $apartada] = DB::transaction(function () use ($ejemplar, $data, $request) {
+        [$estadoAnterior, $apartada, $bloqueo, $prestamoCerrado] = DB::transaction(function () use ($ejemplar, $data, $request) {
             $ejemplar = Ejemplar::whereKey($ejemplar->id)->lockForUpdate()->first();
 
-            if ($data['estado_proceso'] === 'de_baja' && ! $ejemplar->disponible) {
-                return [null, null];
+            if ($data['estado_proceso'] === 'de_baja') {
+                if ($bloqueo = $this->bajas->bloqueo($ejemplar)) {
+                    return [null, null, $bloqueo, null];
+                }
+
+                $anterior = $ejemplar->estado_proceso;
+
+                return [$anterior, null, null, $this->bajas->darDeBaja($ejemplar, $data['motivo'], $request->user())];
+            }
+
+            $anterior = $ejemplar->estado_proceso;
+            if ($anterior === 'de_baja') {
+                $this->bajas->reincorporar($ejemplar);
             }
 
             return [
-                $ejemplar->estado_proceso,
-                $this->aplicarCambioDeEstado($ejemplar, $data['estado_proceso'], $data['estado_personalizado_id'] ?? null, $request->user()->id, null, $data['motivo'] ?? null),
+                $anterior,
+                $this->aplicarCambioDeEstado($ejemplar->refresh(), $data['estado_proceso'], $data['estado_personalizado_id'] ?? null, $request->user()->id, null, $data['motivo'] ?? null),
+                null,
+                null,
             ];
         });
 
-        if ($estadoAnterior === null) {
-            return response()->json(['message' => 'No se puede dar de baja un ejemplar actualmente prestado o reservado'], 409);
+        if ($bloqueo) {
+            return response()->json(['message' => $bloqueo], 409);
         }
 
         $ejemplar->refresh()->loadMissing('libro:id,titulo');
@@ -170,10 +196,11 @@ class EjemplarController extends Controller
             $data['estado_proceso'] === 'de_baja' ? 'libros.dar_de_baja' : 'libros.cambiar_estado',
             "Cambió el estado de «{$ejemplar->libro?->titulo}» copia {$ejemplar->numero_copia} ({$ejemplar->codigo_barras}): ".self::nombreEstado($estadoAnterior).' → '.self::nombreEstado($data['estado_proceso'])
                 .(! empty($data['motivo']) ? ". Motivo: {$data['motivo']}" : '')
+                .($prestamoCerrado ? ". Estaba prestada a {$prestamoCerrado->usuario?->descripcion()}: el préstamo quedó cerrado por la baja" : '')
                 .($apartada ? ". Quedó apartada para {$apartada->usuario?->descripcion()}, primera en la lista de espera" : ''),
             entidad: $ejemplar,
             datos: ['estado' => [$estadoAnterior, $data['estado_proceso']], 'motivo' => $data['motivo'] ?? null],
-            afectado: $apartada?->usuario,
+            afectado: $prestamoCerrado?->usuario ?? $apartada?->usuario,
         );
 
         return response()->json($ejemplar->fresh(['libro', 'estadoPersonalizado', 'ubicacion'])
@@ -290,6 +317,38 @@ class EjemplarController extends Controller
         );
 
         return response()->json(['lote_id' => $loteId, 'total_actualizados' => $totalActualizados, 'apartadas' => $apartadas]);
+    }
+
+    /**
+     * Las copias dadas de baja (pestaña «Eliminados» de Administración), de la baja más
+     * reciente a la más antigua, con el motivo, quién la hizo y cuándo. Se reincorporan
+     * cambiándoles el estado (PATCH /ejemplares/{id}/estado).
+     */
+    public function dadasDeBaja(Request $request)
+    {
+        $ultimaBaja = fn () => DB::table('ejemplar_estado_historial as h')
+            ->whereColumn('h.ejemplar_id', 'ejemplares.id')
+            ->where('h.estado_nuevo', 'de_baja')
+            ->orderByDesc('h.id')
+            ->limit(1);
+
+        $query = Ejemplar::where('estado_proceso', 'de_baja')
+            ->with(['libro:id,titulo,tipo_material_id', 'libro.tipoMaterial:id,nombre', 'ubicacion:id,nombre'])
+            ->addSelect([
+                'ejemplares.*',
+                'baja_motivo' => $ultimaBaja()->select('h.motivo'),
+                'baja_en' => $ultimaBaja()->select('h.created_at'),
+                'baja_por' => $ultimaBaja()->join('staff as s', 's.id', '=', 'h.staff_id')->select('s.nombre'),
+            ]);
+
+        foreach (Busqueda::palabras((string) $request->query('q')) as $palabra) {
+            $query->where(fn ($q) => $q
+                ->whereIn('ejemplares.libro_id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PERSONAL))
+                ->orWhere('ejemplares.codigo_barras', 'ilike', "%{$palabra}%")
+                ->orWhere('ejemplares.codigo_lomo', 'ilike', "%{$palabra}%"));
+        }
+
+        return response()->json($query->orderByDesc('baja_en')->orderByDesc('ejemplares.id')->paginate(Paginacion::porPagina($request, 20, 100)));
     }
 
     public function historialEstado(Request $request)

@@ -30,7 +30,7 @@ const MODULOS: ModuloStaff[] = [
   { name: 'historial-prestamos-libro', label: 'Historial de material', permiso: 'historiales.ver' },
   { name: 'registro-absoluto', label: 'Registro Absoluto', permiso: 'registro_absoluto.ver' },
   { name: 'codigo-qr', label: 'Código QR', permiso: ['codigo_qr.ver', 'codigo_qr.regenerar'] },
-  { name: 'administracion', label: 'Administración', permiso: ['configuracion.editar', 'catalogos.gestionar', 'usuarios.gestionar'] },
+  { name: 'administracion', label: 'Administración', permiso: ['configuracion.editar', 'catalogos.gestionar', 'usuarios.gestionar', 'libros.estado'] },
   { name: 'personal', label: 'Personal y Roles', permiso: 'personal.gestionar' },
 ]
 

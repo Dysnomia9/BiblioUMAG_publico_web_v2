@@ -80,6 +80,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
 
     // Rutas literales de /ejemplares/... van ANTES del wildcard /ejemplares/{codigo} —
     // si no, el wildcard las captura a todas como si fueran un código de barras.
+    Route::get('/ejemplares/dadas-de-baja', [EjemplarController::class, 'dadasDeBaja'])->middleware('permiso:libros.estado');
     Route::get('/ejemplares/historial-estado', [EjemplarController::class, 'historialEstado'])->middleware('permiso:historiales.ver');
     Route::get('/ejemplares/siguiente-codigo-barras', [EjemplarController::class, 'siguienteCodigoBarras'])->middleware('permiso:libros.catalogar');
     Route::post('/ejemplares/etiquetas-lomo', [EjemplarController::class, 'etiquetasLomo'])->middleware('permiso:libros.catalogar');
@@ -150,6 +151,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::patch('/fasciculos/{fasciculo}/recibir', [FasciculoController::class, 'recibir']);
     });
     Route::patch('/ejemplares/{ejemplar}/estado', [EjemplarController::class, 'cambiarEstado'])->middleware('permiso:libros.estado');
+    Route::post('/libros/{libro}/baja', [LibroController::class, 'darDeBaja'])->whereNumber('libro')->middleware('permiso:libros.estado');
     Route::middleware('permiso:libros.cambio_masivo')->group(function () {
         Route::post('/ejemplares/cambio-masivo/preview', [EjemplarController::class, 'cambioMasivoPreview']);
         Route::post('/ejemplares/cambio-masivo/ejecutar', [EjemplarController::class, 'cambioMasivoEjecutar']);
