@@ -119,6 +119,8 @@ class LibroController extends Controller
                 'volumen' => $data['volumen'] ?? null,
                 'precio' => $data['precio'] ?? null,
                 'forma_adquisicion' => $data['forma_adquisicion'] ?? null,
+                'nota_publica' => $data['copia_nota_publica'] ?? null,
+                'nota_interna' => $data['copia_nota_interna'] ?? null,
                 'estado_proceso' => 'inventario',
             ]);
 
@@ -274,6 +276,9 @@ class LibroController extends Controller
             'volumen' => ['nullable', 'string', 'max:100'],
             'nota_interna' => ['nullable', 'string'],
             'nota_publica' => ['nullable', 'string'],
+            // Notas de la primera copia, que se crea junto con el libro.
+            'copia_nota_publica' => ['nullable', 'string', 'max:5000'],
+            'copia_nota_interna' => ['nullable', 'string', 'max:5000'],
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
             'titulo_alternativo' => ['nullable', 'string', 'max:255'],

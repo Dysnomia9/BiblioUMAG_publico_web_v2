@@ -32,6 +32,30 @@ class EjemplarNotasColeccionTest extends TestCase
             ->assertJsonPath('nota_interna', 'Lomo reparado en 2019');
     }
 
+    public function test_al_catalogar_un_libro_nuevo_se_guardan_las_notas_de_la_primera_copia_aparte_de_las_del_libro(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $this->postJson('/api/libros', [
+            'codigo_barras' => '30000000000002',
+            'titulo' => 'Cálculo diferencial',
+            'nota_publica' => 'Nota del libro',
+            'nota_interna' => 'Interna del libro',
+            'copia_nota_publica' => 'Incluye CD',
+            'copia_nota_interna' => 'Donada en 2024',
+        ])->assertCreated();
+
+        $libro = Libro::where('titulo', 'Cálculo diferencial')->firstOrFail();
+        $this->assertSame('Nota del libro', $libro->nota_publica);
+        $this->assertSame('Interna del libro', $libro->nota_interna);
+        $this->assertDatabaseHas('ejemplares', [
+            'libro_id' => $libro->id,
+            'numero_copia' => 1,
+            'nota_publica' => 'Incluye CD',
+            'nota_interna' => 'Donada en 2024',
+        ]);
+    }
+
     public function test_se_editan_las_notas_y_la_coleccion_de_una_copia_y_queda_en_la_bitacora(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

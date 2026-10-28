@@ -81,6 +81,9 @@ const formVacio = {
   volumen: '',
   precio: '' as number | '',
   forma_adquisicion: '',
+  // Notas de la primera copia (las del libro son nota_publica y nota_interna).
+  copia_nota_publica: '',
+  copia_nota_interna: '',
   ...(Object.fromEntries(CAMPOS_TEXTO.map((c) => [c, ''])) as Record<CampoTexto, string>),
 }
 const form = reactive({ ...formVacio })
@@ -459,6 +462,8 @@ function editar(libro: Libro) {
     volumen: '',
     precio: '',
     forma_adquisicion: '',
+    copia_nota_publica: '',
+    copia_nota_interna: '',
   })
   fotoEdicion.value = JSON.stringify(form)
   desdeBorrador.value = false
@@ -1026,6 +1031,16 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <option v-for="f in FORMAS_ADQUISICION" :key="f.valor" :value="f.valor">{{ f.nombre }}</option>
                   </select>
                 </div>
+                <template v-if="!editandoId">
+                  <div class="sm:col-span-6">
+                    <label for="cat-copia-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
+                    <textarea id="cat-copia-nota-publica" v-model="form.copia_nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
+                  </div>
+                  <div class="sm:col-span-6">
+                    <label for="cat-copia-nota-interna" :class="ETIQUETA">Nota interna de la copia (solo la ve el personal)</label>
+                    <textarea id="cat-copia-nota-interna" v-model="form.copia_nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
+                  </div>
+                </template>
                 <p v-if="editandoId" class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:col-span-6">
                   La ubicación, el volumen, el precio y la forma de adquisición son de cada copia y se registran al crearla.
                 </p>
