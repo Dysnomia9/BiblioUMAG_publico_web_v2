@@ -94,8 +94,10 @@ npm run dev
   de convenio y visitas. Cada persona queda presente **una sola vez por día**,
   marque donde marque (mesón, QR, portal o al llegar a una sala reservada), con
   bloqueo por persona para que dos escaneos simultáneos no pasen ambos
-  (`EntradaService`). El historial se consulta por día o en modo búsqueda, por
-  rango de fechas y RUT/nombre.
+  (`EntradaService`). Los externos y las visitas también se registran **sin
+  documento**, de a uno o un grupo completo indicando cuántos son: cada uno cuenta
+  como una persona del día, aunque no se reconoce si vuelve a entrar. El historial
+  se consulta por día o en modo búsqueda, por rango de fechas y RUT/nombre.
 - **Código QR de acceso** compartido y regenerable, para que los usuarios marquen
   su entrada por su cuenta.
 - **Documentos extranjeros**: estudiantes y visitantes de otros países se
@@ -112,7 +114,15 @@ npm run dev
   y de **recursos de apoyo** (notebooks, audífonos, cargadores, bicicletas…) desde
   un inventario con control de disponibilidad. Las categorías de recursos se
   administran en Administración → Catálogos (`categorias_recurso`), con ícono,
-  color, indicaciones y un máximo opcional por persona.
+  color, indicaciones y un máximo opcional por persona. En Recursos de apoyo se
+  registran **varios a la vez** (una fila por recurso, pensado para el lector de
+  códigos) y se dan de baja **con su motivo**, que queda en el inventario y en la
+  bitácora. Al prestar, cada recuadro sugiere los recursos libres de su categoría,
+  y un recurso escaneado por error en «Nuevo préstamo» pasa solo a su recuadro.
+- **Uso en sala**: un libro se presta para leerlo en la biblioteca y se devuelve
+  el mismo día antes del cierre (`prestamos.en_sala`). No pide fechas, no cuenta
+  para el máximo de libros a domicilio y sirve para el material que no se presta
+  a domicilio (referencia); si no vuelve ese día, queda atrasado y se multa.
 - **Reglas de préstamo** (`reglas_prestamo`): plazo, cantidad máxima de libros y
   multa por tipo de usuario, tipo de material y ubicación. Se aplica la regla más
   específica que calce (en empate manda el material, luego la ubicación y luego
@@ -128,7 +138,9 @@ npm run dev
   $5.000, montos provisionales). Las multas se pagan o se anulan con motivo,
   nunca se borran. Con una multa pendiente la persona no puede llevarse libros ni
   recursos, reservar, ni obtener la Constancia de No Multa; al pagar o anular se
-  desbloquea al instante.
+  desbloquea al instante. En «Deuda por usuario», **Ver detalle** muestra cada
+  multa de la persona (fecha, motivo, el préstamo que la originó y si se importó
+  de Horizon) y permite pagarla o anularla ahí mismo.
 - **Reservas de libros**: retiro desde la pestaña Reservas («Entregar»); la que no
   se retira a tiempo se cancela sola esa noche y la copia pasa al siguiente en la
   fila.
@@ -137,9 +149,12 @@ npm run dev
   de 30 minutos, hasta 2 horas por reserva, 15 minutos para presentarse antes de
   que la sala se libere, cuota diaria de 4 horas por persona y **una sola reserva
   pendiente por persona**, con bloqueo para que dos reservas simultáneas no tomen
-  el mismo tramo.
-- **Listado de reservas** de salas por estado (activas, finalizadas, no se
-  presentaron, canceladas) con búsqueda y filtros. Con `reservas.editar` se puede
+  el mismo tramo. Devolver la llave antes no tiene castigo: si quedan 5 minutos o
+  más, el mesón puede **liberar el resto del bloque** para otro grupo, al
+  registrar la devolución o después desde el detalle (`reservas.hora_fin_reservada`
+  guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó.
+- **Listado de reservas** de salas por estado (todas, activas, finalizadas, no se
+  presentaron, canceladas; abre en «Todas») con búsqueda y filtros. Con `reservas.editar` se puede
   cambiar sala, día u horario, corregir integrantes o registrar una llave
   pendiente; todo queda en la bitácora con el antes y el después.
 
@@ -213,8 +228,11 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   que no se edita ni se borra (`App\Support\Bitacora::registrar()`).
 - **Reportes** por día, semana, mes, semestre o año, comparados con el período
   anterior: préstamos, ingresos, uso de salas y libros más prestados, con
-  gráficos o tablas, filtros por carrera, año de ingreso, sexo y tipo de usuario,
-  y exportación a Excel o CSV.
+  gráficos o tablas, filtros por carrera, año de ingreso y sexo, y exportación a
+  Excel o CSV. El filtro **«Quiénes»** separa estudiantes, docentes, funcionarios,
+  docentes y funcionarios juntos y, en Ingresos, externos y visitas, como se piden
+  para la acreditación. Los préstamos de la colección se separan en a domicilio y
+  en sala.
 - **Panel de Administración**: firmante de la Constancia de No Multa, estados
   personalizados, ubicaciones, tipos de material, categorías de recursos y
   estudiantes.
@@ -399,7 +417,7 @@ horizon:codigos-logia`. Lo que falta para publicar está en
 docker compose exec backend php artisan test
 ```
 
-La suite de Feature tests (`backend/tests/Feature/`, 519 tests al 2026-10-27)
+La suite de Feature tests (`backend/tests/Feature/`, 655 tests al 2026-10-28)
 cubre autenticación y permisos por rol, entradas, préstamos y reservas (incluida
 la protección contra condiciones de carrera con `lockForUpdate()`), salas,
 multas y bloqueos, catalogación y estados de ejemplares, fichas bibliográficas,
@@ -428,9 +446,6 @@ en CI contra la rama `main` de este repositorio.
 - **Identificadores estilo Horizon**: las copias ya están separadas de la obra
   (`Ejemplar` / `Libro`), pero no se usan «Bib No.» / «Item No.» como
   identificadores formales; hoy es `libro_id` + `numero_copia`.
-- **Multas institucionales por importar**: `multas` ya distingue `origen`
-  (`sistema`, `manual`, `importada`) y guarda `referencia_externa`; la
-  importación irá en `MultaService`.
 - **Credenciales de Postgres en `docker-compose.yml`**: aceptable en desarrollo;
   en producción usar `docker-compose.prod.yml` y `.env.production.example`.
 - **`PortalController` concentra varias responsabilidades**: si crece, conviene
