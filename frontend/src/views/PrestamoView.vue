@@ -5,6 +5,7 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import CampoSugerencias from '@/components/ui/CampoSugerencias.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { formatearSegunModo, largoSegunModo, modoSegunValor, placeholderSegunModo } from '@/utils/documento'
@@ -1141,14 +1142,17 @@ function formatHora(iso: string | null) {
                   </div>
                 </div>
                 <div class="mt-4 flex gap-2">
-                  <input
+                  <CampoSugerencias
                     v-model="codigos[c.clave]"
-                    :list="`recursos-${c.clave}`"
+                    class="min-w-0 flex-1"
+                    :sugerencias="libresDe(c.clave).map((e) => ({ valor: e.codigo_barras, nombre: e.codigo_inventario }))"
+                    :titulo="`${c.nombre_plural} libres`"
+                    :sin-sugerencias="`No quedan ${c.nombre_plural.toLowerCase()} libres`"
                     :placeholder="usuario ? 'Código de barras' : 'Primero busca un usuario'"
-                    :aria-label="`Código de barras: ${c.nombre.toLowerCase()}`"
+                    :etiqueta="`Código de barras: ${c.nombre.toLowerCase()}`"
                     :disabled="!usuario || bloqueadoPorMultas"
-                    class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100/70 disabled:font-sans"
-                    @keydown.enter="pedirPrestamoRecurso(c)"
+                    clase-campo="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100/70 disabled:font-sans"
+                    @enviar="pedirPrestamoRecurso(c)"
                   />
                   <button
                     type="button"
@@ -1431,9 +1435,6 @@ function formatHora(iso: string | null) {
         </div>
       </div>
 
-      <datalist v-for="c in categoriasActivas" :id="`recursos-${c.clave}`" :key="c.clave">
-        <option v-for="e in libresDe(c.clave)" :key="e.id" :value="e.codigo_barras">{{ e.codigo_inventario }}</option>
-      </datalist>
     </div>
   </StaffLayout>
 </template>
