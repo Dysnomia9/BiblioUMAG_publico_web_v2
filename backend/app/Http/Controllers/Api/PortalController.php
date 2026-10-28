@@ -23,6 +23,7 @@ use App\Support\Documento;
 use App\Support\FichaBibliografica;
 use App\Support\HorarioBiblioteca;
 use App\Support\OpcionesCatalogo;
+use App\Support\OrdenAlfabetico;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -241,10 +242,17 @@ class PortalController extends Controller
             $query->whereIn('libros.id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PORTAL));
         }
 
+        // De la A a la Z (con o sin tilde, mayúscula o minúscula, ver OrdenAlfabetico); después lo
+        // que empieza con un número y al final lo que empieza con un signo («¿Qué es…?», «[Mapa]»):
+        // con el orden de la base, los signos quedaban primero.
+        $query->orderByRaw("case when titulo ~ '^[[:alpha:]]' then 0 when titulo ~ '^[[:digit:]]' then 1 else 2 end")
+            ->orderByRaw(OrdenAlfabetico::de('titulo'))
+            ->orderBy('id');
+
         // Solo lo que la biblioteca definió como público para cada tipo de material:
         // los campos de uso interno (notas, catalogador, procedencia...) no salen de acá.
         // Por páginas: el teléfono pide más al llegar al final de la lista.
-        return response()->json($query->orderBy('titulo')->orderBy('id')->paginate(Paginacion::porPagina($request, 24, 100))->through(fn (Libro $libro) => [
+        return response()->json($query->paginate(Paginacion::porPagina($request, 24, 100))->through(fn (Libro $libro) => [
             'id' => $libro->id,
             'titulo' => $libro->titulo,
             'tipo_material' => $libro->tipoMaterial?->nombre,

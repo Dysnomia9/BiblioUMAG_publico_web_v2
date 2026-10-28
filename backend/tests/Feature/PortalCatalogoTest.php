@@ -14,6 +14,19 @@ class PortalCatalogoTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_el_catalogo_va_de_la_a_a_la_z_y_deja_los_signos_al_final(): void
+    {
+        foreach (['¿Qué es la vida?', 'zoología marina', '[Mapa de Magallanes]', 'Álgebra lineal', '1984', 'Biología', '¡Socorro!'] as $titulo) {
+            Ejemplar::factory()->for(Libro::factory()->create(['titulo' => $titulo]))->create();
+        }
+        Sanctum::actingAs(Usuario::factory()->create());
+
+        $titulos = array_column($this->getJson('/api/mi/catalogo')->assertOk()->json('data'), 'titulo');
+
+        $this->assertSame(['Álgebra lineal', 'Biología', 'zoología marina', '1984'], array_slice($titulos, 0, 4));
+        $this->assertEqualsCanonicalizing(['¿Qué es la vida?', '[Mapa de Magallanes]', '¡Socorro!'], array_slice($titulos, 4));
+    }
+
     public function test_el_catalogo_del_portal_busca_por_isbn_con_o_sin_guiones(): void
     {
         $libro = Libro::factory()->create(['titulo' => 'Flora de la Patagonia austral', 'isbn' => '978-956-7189-50-1']);
