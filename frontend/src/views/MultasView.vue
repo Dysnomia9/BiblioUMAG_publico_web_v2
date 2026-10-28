@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import Paginacion from '@/components/ui/Paginacion.vue'
+import DetalleDeuda from '@/components/multas/DetalleDeuda.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
@@ -16,7 +17,8 @@ import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
-import type { EstadoMulta, Multa, MultasResumen, Paginado, TipoMulta, Usuario } from '@/types'
+import { ESTADOS_MULTA as ESTADOS, TIPOS_MULTA as TIPOS, fechaMulta as formatFecha, formatMonto } from '@/utils/multas'
+import type { DeudaUsuario, EstadoMulta, Multa, MultasResumen, Paginado, TipoMulta, Usuario } from '@/types'
 
 const auth = useAuthStore()
 const toast = useToast()
@@ -28,27 +30,6 @@ const errorResumen = ref(false)
 const resumen = ref<MultasResumen | null>(null)
 const busquedaDeudas = ref('')
 const filtros = reactive({ q: '', estado: 'pendiente' as EstadoMulta | '', tipo: '' as TipoMulta | '' })
-
-const TIPOS: Record<TipoMulta, string> = {
-  atraso: 'Atraso',
-  deterioro: 'Deterioro',
-  perdida: 'Pérdida',
-  otro: 'Otro motivo',
-}
-
-const ESTADOS: Record<EstadoMulta, { label: string; cls: string }> = {
-  pendiente: { label: 'Pendiente', cls: 'bg-red-100 text-red-700' },
-  pagada: { label: 'Pagada', cls: 'bg-emerald-100 text-emerald-700' },
-  anulada: { label: 'Anulada', cls: 'bg-gray-100 text-gray-600' },
-}
-
-function formatMonto(monto: number) {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(monto)
-}
-
-function formatFecha(iso: string | null) {
-  return iso ? new Date(iso).toLocaleDateString('es-CL') : '—'
-}
 
 const deudasFiltradas = computed(() => {
   if (!resumen.value) return []
@@ -106,7 +87,14 @@ watch(
   },
 )
 
-function verDetalle(rut: string) {
+// «Ver detalle» de la deuda: un popup con cada multa, para pagarla o anularla ahí mismo.
+const deudaAbierta = ref<DeudaUsuario | null>(null)
+// Sube tras pagar o anular, para que el detalle abierto se recargue.
+const versionDeuda = ref(0)
+
+/** Todas las multas de la persona (también pagadas y anuladas) en la pestaña del listado. */
+function verEnListado(rut: string) {
+  deudaAbierta.value = null
   filtros.q = rut
   filtros.estado = ''
   pestana.value = 'listado'
@@ -114,11 +102,7 @@ function verDetalle(rut: string) {
 
 onMounted(async () => {
   const rut = typeof route.query.rut === 'string' ? route.query.rut : ''
-  if (rut) {
-    filtros.q = rut
-    filtros.estado = ''
-    pestana.value = 'listado'
-  }
+  if (rut) verEnListado(rut)
   await Promise.all([cargarResumen(), cargarListado()])
 })
 
@@ -137,6 +121,7 @@ async function confirmarPago() {
     await api.patch(`/multas/${multaAPagar.value.id}/pagar`)
     toast.success(`Pago de ${formatMonto(multaAPagar.value.monto)} registrado`)
     multaAPagar.value = null
+    versionDeuda.value++
     await recargar()
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo registrar el pago'))
@@ -166,6 +151,7 @@ async function confirmarAnulacion() {
     await api.patch(`/multas/${multaAAnular.value.id}/anular`, { motivo: motivoAnulacion.value.trim() })
     toast.success('Multa anulada. Queda en el historial con el motivo.')
     multaAAnular.value = null
+    versionDeuda.value++
     await recargar()
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo anular la multa'))
@@ -266,7 +252,7 @@ async function guardarNueva() {
       <GuiaUso
         :pasos="[
           'Las multas por <strong>atraso</strong> se generan solas al registrar una devolución fuera de plazo.',
-          'Busque por <strong>RUT o nombre</strong> en «Todas las multas» para ver la deuda de una persona.',
+          'En «Deuda por usuario», <strong>Ver detalle</strong> muestra cada multa de la persona (fecha, motivo y si se importó de Horizon) y permite pagarla o anularla ahí mismo.',
           'Cuando el usuario paga, pulse <strong>Marcar pagada</strong>: queda registrado quién lo hizo y cuándo.',
           'Si una multa se cursó por error, <strong>anúlela</strong> indicando el motivo: no se borra, queda en el historial.',
           'Mientras tenga multas <strong>pendientes</strong>, la persona no puede llevarse ni reservar material. Al pagar o anular, se desbloquea al instante.',
@@ -342,7 +328,7 @@ async function guardarNueva() {
                   <td class="px-6 py-3 text-sm text-gray-600">{{ u.cantidad_multas }}</td>
                   <td class="px-6 py-3 text-sm font-semibold text-red-700 whitespace-nowrap">{{ formatMonto(u.monto_total) }}</td>
                   <td class="px-6 py-3">
-                    <button @click="verDetalle(u.rut)" class="text-sm text-indigo-700 hover:text-indigo-800 font-medium whitespace-nowrap">Ver detalle</button>
+                    <button @click="deudaAbierta = u" class="text-sm text-indigo-700 hover:text-indigo-800 font-medium whitespace-nowrap">Ver detalle</button>
                   </td>
                 </tr>
                 <tr v-if="!deudasFiltradas.length">
@@ -438,6 +424,16 @@ async function guardarNueva() {
         <Paginacion v-model="paginaMultas" class="mt-4" :total="totalMultas" :por-pagina="multasPorPagina" singular="multa" plural="multas" />
       </template>
     </div>
+
+    <!-- Antes que los diálogos de pagar y anular, para que se abran encima del detalle. -->
+    <DetalleDeuda
+      :deuda="deudaAbierta"
+      :version="versionDeuda"
+      @cerrar="deudaAbierta = null"
+      @pagar="multaAPagar = $event"
+      @anular="pedirAnulacion"
+      @ver-todas="verEnListado"
+    />
 
     <DialogoConfirmacion
       :abierto="!!multaAPagar"
