@@ -9,3 +9,6 @@ dist
 docs/manual-usuario/*.aux
 docs/manual-usuario/*.out
 docs/manual-usuario/*.toc
+
+# Respaldos de la base de datos (datos reales: no se suben)
+respaldos/

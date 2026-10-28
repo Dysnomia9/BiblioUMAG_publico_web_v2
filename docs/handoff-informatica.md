@@ -133,10 +133,11 @@ Para que no se lean como carencias en la revisión:
   `backend/routes/console.php`: hoy, la limpieza de sesiones vencidas, el
   vencimiento de las reservas de libros no retiradas y el cierre de las reservas
   de sala a las que nadie llegó).
-- **Sin backups automatizados**: la integridad de datos (transacciones,
-  bloqueos, restricciones a nivel de base de datos) ya está resuelta; los
-  backups periódicos son responsabilidad operativa de quien administre el
-  servidor de producción, no algo que la aplicación gestione por sí sola.
+- **Respaldos automáticos de la base**: el servicio `respaldo` de Docker Compose
+  hace un volcado diario con verificación y rotación (14 diarios, 8 semanales; ver
+  `respaldo/respaldar.sh`). Lo que sigue siendo responsabilidad de quien administre
+  el servidor: poner `RESPALDOS_DIR` en otro disco o copiar esa carpeta a otra
+  máquina, y probar una restauración de vez en cuando.
 - **La integración con Horizon es de compatibilidad de código de barras,
   no una integración de datos real**: no hay sincronización ni llamadas a
   una base de datos o API de Horizon. Es intencional: no se contó con

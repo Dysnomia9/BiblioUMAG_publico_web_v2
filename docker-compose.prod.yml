@@ -128,5 +128,29 @@ services:
     ports:
       - "5173:80"
 
+  # Respaldo automático de la base: un volcado nocturno con verificación y rotación
+  # (ver respaldo/respaldar.sh). RESPALDOS_DIR es una carpeta del servidor FUERA del
+  # contenedor; lo ideal es que esté en otro disco o se copie a otra máquina, porque un
+  # respaldo en el mismo disco no sirve si el disco falla.
+  respaldo:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${DB_USERNAME}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_DATABASE}
+      RESPALDO_HORA: ${RESPALDO_HORA:-05}
+      RESPALDO_DIAS: ${RESPALDO_DIAS:-14}
+      RESPALDO_SEMANAS: ${RESPALDO_SEMANAS:-8}
+    volumes:
+      - ./respaldo/respaldar.sh:/respaldar.sh:ro
+      - ./respaldo/restaurar.sh:/restaurar.sh:ro
+      - ${RESPALDOS_DIR:?Indica la carpeta de respaldos del servidor}:/respaldos
+    command: ["sh", "/respaldar.sh"]
+
 volumes:
   db_data:

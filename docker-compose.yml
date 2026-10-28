@@ -84,5 +84,25 @@ services:
     ports:
       - "${ESCUCHAR_EN:-127.0.0.1}:5173:5173"
 
+  # Respaldo automático de la base: un volcado nocturno con verificación y rotación
+  # (ver respaldo/respaldar.sh). Quedan en ./respaldos, junto al proyecto.
+  respaldo:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: biblioteca
+      PGPASSWORD: biblioteca
+      PGDATABASE: biblioteca
+      RESPALDAR_AL_INICIAR: "1"
+    volumes:
+      - ./respaldo/respaldar.sh:/respaldar.sh:ro
+      - ./respaldo/restaurar.sh:/restaurar.sh:ro
+      - ./respaldos:/respaldos
+    command: ["sh", "/respaldar.sh"]
+
 volumes:
   db_data:

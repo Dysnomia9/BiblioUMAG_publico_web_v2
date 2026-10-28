@@ -418,9 +418,13 @@ en CI contra la rama `main` de este repositorio.
   `routes/console.php`; fuera de alcance por ahora.
 - **Notificaciones sin SMTP real**: funcionan, pero quedan en el log hasta
   configurar un servidor de correo.
-- **Sin respaldos automatizados**: decisión de alcance deliberada; la integridad
-  de datos (transacciones, bloqueos, CHECK, `RESTRICT`, baja lógica) ya está
-  resuelta.
+- **Respaldos**: el servicio `respaldo` de Docker Compose saca todos los días
+  (02:00 hora de Punta Arenas) un volcado de la base, comprueba que se pueda leer
+  y guarda 14 diarios y 8 semanales (ver `respaldo/`). En desarrollo quedan en
+  `./respaldos`; en producción, en la carpeta `RESPALDOS_DIR` del servidor, que
+  debería estar en otro disco o copiarse a otra máquina. Se restauran con
+  `docker compose run --rm respaldo /restaurar.sh diarios/<archivo>.dump <base_nueva>`.
+  Incluye la bitácora de cambios, porque vive en la misma base.
 - Los contadores históricos de préstamo no se guardan como columnas: se calculan
   desde `prestamos` (ver Historial de libros).
 
