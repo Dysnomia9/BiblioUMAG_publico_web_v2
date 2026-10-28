@@ -98,6 +98,9 @@ const DIA = 86_400_000
 const hoy = () => new Date()
 const dias = (desde: string, hasta: Date) => Math.max(0, Math.round((hasta.getTime() - new Date(desde).getTime()) / DIA))
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+/** Días calendario de `vence` a `referencia` (0 si se devolvió ese mismo día o antes), igual que el cálculo de multas. */
+const diasDeAtraso = (vence: Date, referencia: Date) =>
+  Math.max(0, Math.round((new Date(referencia.toDateString()).getTime() - new Date(vence.toDateString()).getTime()) / DIA))
 
 /** Cada préstamo del libro elegido, con su resultado: a tiempo, con atraso o en curso. */
 const prestamos = computed(() => {
@@ -108,10 +111,10 @@ const prestamos = computed(() => {
         const devuelto = p.fecha_devolucion_real ? new Date(p.fecha_devolucion_real) : null
         const vence = p.fecha_devolucion ? new Date(p.fecha_devolucion) : null
         const referencia = devuelto ?? hoy()
-        const atraso = vence && referencia > vence ? Math.ceil((referencia.getTime() - vence.getTime()) / DIA) : 0
+        const atraso = vence ? diasDeAtraso(vence, referencia) : 0
         let resultado: { texto: string; clase: string }
-        if (devuelto) resultado = atraso ? { texto: `Atraso ${atraso} d`, clase: 'bg-red-50 text-red-700' } : { texto: 'A tiempo', clase: 'bg-emerald-50 text-emerald-700' }
-        else resultado = atraso ? { texto: `Vencido ${atraso} d`, clase: 'bg-red-50 text-red-700' } : { texto: 'En curso', clase: 'bg-indigo-50 text-indigo-700' }
+        if (devuelto) resultado = atraso ? { texto: `Atraso ${atraso} d`, clase: 'bg-red-50 text-red-700' } : p.en_sala ? { texto: 'En sala', clase: 'bg-sky-50 text-sky-700' } : { texto: 'A tiempo', clase: 'bg-emerald-50 text-emerald-700' }
+        else resultado = atraso ? { texto: `Vencido ${atraso} d`, clase: 'bg-red-50 text-red-700' } : { texto: p.en_sala ? 'En sala' : 'En curso', clase: 'bg-indigo-50 text-indigo-700' }
         return {
           id: p.id,
           copia: ej.numero_copia,

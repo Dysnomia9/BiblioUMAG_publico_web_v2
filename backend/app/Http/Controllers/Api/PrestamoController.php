@@ -53,7 +53,14 @@ class PrestamoController extends Controller
         $usuario = Usuario::findOrFail($data['usuario_id']);
         $condiciones = $this->reglas->condiciones($usuario, $ejemplar, Carbon::parse($data['fecha_prestamo'] ?? now()));
 
-        return response()->json([...$condiciones, 'motivo_rechazo' => $usuario->mensajeInactivo() ?? $this->multaService->mensajeBloqueo($usuario) ?? $this->reglas->motivoRechazo($usuario, $ejemplar)]);
+        $bloqueo = $usuario->mensajeInactivo() ?? $this->multaService->mensajeBloqueo($usuario);
+
+        return response()->json([
+            ...$condiciones,
+            'motivo_rechazo' => $bloqueo ?? $this->reglas->motivoRechazo($usuario, $ejemplar),
+            // Uso en sala: la regla (no se presta a domicilio, máximo de libros) no se aplica.
+            'motivo_rechazo_en_sala' => $bloqueo,
+        ]);
     }
 
     /**
@@ -134,6 +141,14 @@ class PrestamoController extends Controller
         // tienen fecha de vencimiento fija.
         $request->merge(['tipo_item' => $request->input('tipo_item', 'libro')]);
 
+        // Uso en sala: el material se lee en la biblioteca y se devuelve hoy, así que las fechas
+        // las pone el sistema. La regla de préstamo no se aplica: sirve justo para lo que no se
+        // presta a domicilio (referencia) y no cuenta para el máximo de libros a domicilio.
+        $enSala = $request->input('tipo_item') === 'libro' && $request->boolean('en_sala');
+        if ($enSala) {
+            $request->merge(['fecha_prestamo' => now()->toDateTimeString(), 'fecha_devolucion' => now()->toDateString()]);
+        }
+
         // La devolución tampoco puede caer en un día sin atención de la ubicación de la copia.
         $ubicacionCopia = $request->input('tipo_item') === 'libro' && is_string($request->input('codigo_barras'))
             ? Ejemplar::porCodigo($request->input('codigo_barras'))->value('ubicacion_id')
@@ -144,7 +159,7 @@ class PrestamoController extends Controller
             'tipo_item' => ['required', Rule::in(['libro', ...CategoriaRecurso::where('activo', true)->pluck('clave')])],
             'codigo_barras' => ['required', 'string'],
             'fecha_prestamo' => ['required_if:tipo_item,libro', 'nullable', 'date'],
-            'fecha_devolucion' => ['required_if:tipo_item,libro', 'nullable', 'date', 'after_or_equal:fecha_prestamo', new DiaConAtencion('para la devolución', $ubicacionCopia)],
+            'fecha_devolucion' => ['required_if:tipo_item,libro', 'nullable', 'date', ...($enSala ? [] : ['after_or_equal:fecha_prestamo', new DiaConAtencion('para la devolución', $ubicacionCopia)])],
         ], [
             'tipo_item.in' => 'Esa categoría de recurso no existe o está desactivada.',
         ]);
@@ -164,7 +179,7 @@ class PrestamoController extends Controller
         // lockForUpdate(): sin esto, dos requests concurrentes sobre el mismo
         // codigo_barras pueden pasar ambas el chequeo "disponible" antes de que
         // la primera escriba, resultando en doble préstamo del mismo ejemplar/equipo.
-        [$response, $status] = DB::transaction(function () use ($data, $esLibro, $staff) {
+        [$response, $status] = DB::transaction(function () use ($data, $esLibro, $enSala, $staff) {
             $ejemplar = null;
             $equipo = null;
             $reservaPropia = null;
@@ -182,8 +197,18 @@ class PrestamoController extends Controller
                 // regla, uno. Se bloquea la fila del usuario para que dos préstamos
                 // simultáneos no pasen ambos el máximo. Los recursos de apoyo no cuentan.
                 $usuario = Usuario::whereKey($data['usuario_id'])->lockForUpdate()->first();
-                if ($rechazo = $this->reglas->motivoRechazo($usuario, $ejemplar)) {
+                if (! $enSala && ($rechazo = $this->reglas->motivoRechazo($usuario, $ejemplar))) {
                     return [['message' => $rechazo], 409];
+                }
+
+                // En sala no se entrega una copia apartada: la reserva es para llevársela y,
+                // al devolverla en la tarde, ya no quedaría apartada para nadie.
+                if (! $ejemplar->disponible && $enSala) {
+                    $apartadaParaElla = ReservaLibro::where('ejemplar_id', $ejemplar->id)->where('usuario_id', $data['usuario_id'])->where('estado', 'pendiente')->exists();
+
+                    return [['message' => $apartadaParaElla
+                        ? 'Esta copia está apartada para esta persona: para entregársela use «Para llevar» (retira su reserva).'
+                        : 'Este libro ya está reservado/prestado por otra persona'], 409];
                 }
 
                 // Una copia apartada para esta misma persona (reserva lista para
@@ -248,8 +273,9 @@ class PrestamoController extends Controller
                 'equipo_id' => $equipo?->id,
                 'libro_titulo' => $esLibro ? $ejemplar->tituloConCopia() : $equipo->codigo_inventario,
                 'tipo_item' => $data['tipo_item'],
+                'en_sala' => $enSala,
                 'codigo_barras' => $esLibro ? $ejemplar->codigo_barras : $equipo->codigo_barras,
-                'fecha_prestamo' => $esLibro ? $data['fecha_prestamo'] : now(),
+                'fecha_prestamo' => $esLibro && ! $enSala ? $data['fecha_prestamo'] : now(),
                 'fecha_devolucion' => $esLibro ? $data['fecha_devolucion'] : null,
                 'estado' => 'activo',
                 'prestado_por' => $staff->nombre,
@@ -259,18 +285,19 @@ class PrestamoController extends Controller
             $ejemplar?->update(['disponible' => false]);
             $equipo?->update(['disponible' => false]);
             $reservaPropia?->update(['estado' => 'retirado']);
-            $otraReservaCerrada = $ejemplar && $this->reservaLibroService->cerrarAlPrestarOtraCopia($data['usuario_id'], $ejemplar) > 0;
+            // Leerlo en sala no cierra la reserva que tenga del título: puede seguir queriendo llevárselo.
+            $otraReservaCerrada = $ejemplar && ! $enSala && $this->reservaLibroService->cerrarAlPrestarOtraCopia($data['usuario_id'], $ejemplar) > 0;
 
             $prestamo->load('usuario:id,nombre,apellido,rut,tipo_documento,pais');
 
             Bitacora::registrar(
                 'prestamos.prestar',
-                ($esLibro ? "Prestó «{$prestamo->libro_titulo}»" : "Prestó el recurso {$prestamo->libro_titulo}")
-                    .($prestamo->fecha_devolucion ? ', devolución el '.$prestamo->fecha_devolucion->format('d/m/Y') : '')
+                ($enSala ? "Prestó para uso en sala «{$prestamo->libro_titulo}»" : ($esLibro ? "Prestó «{$prestamo->libro_titulo}»" : "Prestó el recurso {$prestamo->libro_titulo}"))
+                    .($prestamo->fecha_devolucion && ! $enSala ? ', devolución el '.$prestamo->fecha_devolucion->format('d/m/Y') : '')
                     .($reservaPropia ? ' (retiro de su reserva)' : '')
                     .($otraReservaCerrada ? ' (cierra la reserva que tenía de este título)' : ''),
                 entidad: $prestamo,
-                datos: ['codigo_barras' => $prestamo->codigo_barras, 'tipo_item' => $prestamo->tipo_item],
+                datos: ['codigo_barras' => $prestamo->codigo_barras, 'tipo_item' => $prestamo->tipo_item, 'en_sala' => $enSala],
                 afectado: $prestamo->usuario,
             );
 

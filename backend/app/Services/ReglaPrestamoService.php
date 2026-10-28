@@ -117,9 +117,10 @@ class ReglaPrestamoService
         ];
     }
 
+    /** Libros a domicilio sin devolver: los de uso en sala no cuentan para el máximo. */
     public function librosEnPrestamo(int $usuarioId): int
     {
-        return Prestamo::where('usuario_id', $usuarioId)->where('tipo_item', 'libro')->where('estado', '!=', 'devuelto')->count();
+        return Prestamo::where('usuario_id', $usuarioId)->where('tipo_item', 'libro')->where('en_sala', false)->where('estado', '!=', 'devuelto')->count();
     }
 
     /** Por qué no se le puede prestar esta copia a la persona según la regla, o null si se puede. */

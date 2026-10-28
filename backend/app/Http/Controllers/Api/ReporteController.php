@@ -94,6 +94,8 @@ class ReporteController extends Controller
             // Préstamos de recurso bibliográfico (libros) o de recursos de apoyo (notebooks, bicicletas…).
             if ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'bibliografico') {
                 $query->where('prestamos.tipo_item', 'libro');
+            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'en_sala') {
+                $query->where('prestamos.tipo_item', 'libro')->where('prestamos.en_sala', true);
             } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'recursos_apoyo') {
                 $query->where('prestamos.tipo_item', '!=', 'libro');
             }
@@ -220,8 +222,9 @@ class ReporteController extends Controller
             'porTipoUsuario' => $agrupar("coalesce(usuarios.tipo, 'Sin dato')"),
             'porHora' => $contarHoras($porHoraTotal),
             // Solo tienen sentido en su pestaña; en el resto van vacíos.
-            // bibliografico (libro) o recursos_apoyo (notebook, bicicleta…), y el recurso.
-            'porTipoPrestamo' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then 'bibliografico' else 'recursos_apoyo' end") : [],
+            // bibliografico (de la colección, a domicilio), en_sala (de la colección, leído en la
+            // biblioteca) o recursos_apoyo (notebook, bicicleta…), y el recurso.
+            'porTipoPrestamo' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item <> 'libro' then 'recursos_apoyo' when prestamos.en_sala then 'en_sala' else 'bibliografico' end") : [],
             // Lo del catálogo va por su tipo de material (Libro, Tesis, Juego educativo…); los
             // recursos de apoyo, por la clave de su categoría.
             'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],

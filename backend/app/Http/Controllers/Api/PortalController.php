@@ -77,6 +77,7 @@ class PortalController extends Controller
                 'id' => $prestamo->id,
                 'titulo' => $prestamo->libro_titulo,
                 'tipo_item' => $prestamo->tipo_item,
+                'en_sala' => $prestamo->en_sala,
                 'fecha_devolucion' => $prestamo->fecha_devolucion?->toDateString(),
             ]);
 

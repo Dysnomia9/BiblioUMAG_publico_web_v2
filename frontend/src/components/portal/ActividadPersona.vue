@@ -47,7 +47,8 @@ function vencimiento(fecha: string | null) {
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold text-gray-900">{{ prestamo.titulo }}</p>
           <p class="text-xs text-gray-500">
-            {{ prestamo.tipo_item === 'libro' ? 'Préstamo' : 'Recurso de apoyo' }}<template v-if="prestamo.fecha_devolucion"> · vence el {{ fechaLarga(prestamo.fecha_devolucion) }}</template>
+            <template v-if="prestamo.en_sala">Uso en sala · se devuelve en el mesón antes del cierre</template>
+            <template v-else>{{ prestamo.tipo_item === 'libro' ? 'Préstamo' : 'Recurso de apoyo' }}<template v-if="prestamo.fecha_devolucion"> · vence el {{ fechaLarga(prestamo.fecha_devolucion) }}</template></template>
           </p>
         </div>
         <span

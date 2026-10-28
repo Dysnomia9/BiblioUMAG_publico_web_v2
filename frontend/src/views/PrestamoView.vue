@@ -46,6 +46,10 @@ const libroDisponiblePrestamo = ref(true)
 const ubicacionPrestamo = ref<number | null>(null)
 const fechaPrestamo = ref(today)
 const fechaDevolucion = ref('')
+// Para llevar (a domicilio, con fecha de devolución) o uso en sala: se lee en la biblioteca y se
+// devuelve hoy. Queda elegido mientras el formulario siga abierto, para prestar varios seguidos.
+const modoPrestamo = ref<'domicilio' | 'sala'>('domicilio')
+const enSala = computed(() => modoPrestamo.value === 'sala')
 
 const codigoBarras = ref('')
 const libroEncontrado = ref('')
@@ -175,6 +179,7 @@ function buscarOtroUsuario() {
   reservas.value = []
   showForm.value = false
   showReservaForm.value = false
+  modoPrestamo.value = 'domicilio'
   mostrarDevueltos.value = false
   mostrarTerminadas.value = false
   activeTab.value = 'prestamos'
@@ -359,11 +364,14 @@ function cambiarFechaPrestamo() {
   if (condiciones.value) cargarCondiciones()
 }
 
-const rechazoRegla = computed(() => condiciones.value?.motivo_rechazo ?? '')
+const rechazoRegla = computed(() => (enSala.value ? condiciones.value?.motivo_rechazo_en_sala : condiciones.value?.motivo_rechazo) ?? '')
+/** Para llevar no se puede (no se presta a domicilio o ya tiene el máximo), pero en sala sí. */
+const sePuedeEnSala = computed(() => !enSala.value && !!condiciones.value?.motivo_rechazo && !condiciones.value.motivo_rechazo_en_sala)
 
 /** «Regla Docentes · todo material · toda ubicación: 14 días · hasta 3 a la vez». */
 const textoRegla = computed(() => {
   const c = condiciones.value
+  if (enSala.value) return 'Uso en sala: se lee en la biblioteca y se devuelve hoy antes del cierre. No cuenta para el máximo de libros a domicilio; si no lo devuelve hoy, queda atrasado.'
   if (!c || !c.prestable) return ''
   const plazo = c.dias_prestamo !== null ? `${c.dias_prestamo} ${c.dias_prestamo === 1 ? 'día' : 'días'}` : 'plazo a elección del mesón'
   return `${c.regla ? `Regla ${c.regla.descripcion}` : 'Regla general'}: ${plazo} · hasta ${c.max_ejemplares} ${c.max_ejemplares === 1 ? 'libro' : 'libros'} a la vez · multa ${formatMonto(c.multa_por_dia)} por día`
@@ -375,18 +383,19 @@ const reservaPropiaPrestamo = computed(() =>
     (r) => r.estado === 'pendiente' && !!r.ejemplar && [r.ejemplar.codigo_barras, r.ejemplar.codigo_lomo].includes(codigoBarrasPrestamo.value),
   ),
 )
-const puedePrestarLibro = computed(() => libroDisponiblePrestamo.value || !!reservaPropiaPrestamo.value)
+const puedePrestarLibro = computed(() => libroDisponiblePrestamo.value || (!enSala.value && !!reservaPropiaPrestamo.value))
 
 /** Abre "Nuevo préstamo" con la copia que estaba reservada para esta persona. */
 function entregarReserva(reserva: ReservaLibro) {
   if (!reserva.ejemplar?.codigo_barras) return
   showReservaForm.value = false
   showForm.value = true
+  modoPrestamo.value = 'domicilio'
   buscarLibroPorCodigoPrestamo(reserva.ejemplar.codigo_barras)
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const prestamoPendiente = ref<{ codigoBarras: string; titulo: string; fechaPrestamo: string; fechaDevolucion: string } | null>(null)
+const prestamoPendiente = ref<{ codigoBarras: string; titulo: string; fechaPrestamo: string; fechaDevolucion: string; enSala: boolean } | null>(null)
 const creandoPrestamo = ref(false)
 
 function pedirConfirmacionPrestamo() {
@@ -399,26 +408,27 @@ function pedirConfirmacionPrestamo() {
     return
   }
   if (!puedePrestarLibro.value) {
-    toast.error('Este libro ya está reservado/prestado por otra persona')
+    toast.error(enSala.value && reservaPropiaPrestamo.value ? 'Esta copia está apartada para esta persona: para entregársela use «Para llevar».' : 'Este libro ya está reservado/prestado por otra persona')
     return
   }
   if (rechazoRegla.value) {
     toast.error(rechazoRegla.value)
     return
   }
-  if (!fechaPrestamo.value || !fechaDevolucion.value) {
+  if (!enSala.value && (!fechaPrestamo.value || !fechaDevolucion.value)) {
     toast.error('Seleccione la fecha de préstamo y de devolución')
     return
   }
-  if (avisoDevolucion.value) {
+  if (!enSala.value && avisoDevolucion.value) {
     toast.error(avisoDevolucion.value)
     return
   }
   prestamoPendiente.value = {
     codigoBarras: codigoBarrasPrestamo.value,
     titulo: libroEncontradoPrestamo.value,
-    fechaPrestamo: fechaPrestamo.value,
-    fechaDevolucion: fechaDevolucion.value,
+    fechaPrestamo: enSala.value ? today : fechaPrestamo.value,
+    fechaDevolucion: enSala.value ? today : fechaDevolucion.value,
+    enSala: enSala.value,
   }
 }
 
@@ -429,17 +439,17 @@ async function confirmarPrestamo() {
     await api.post('/prestamos', {
       usuario_id: usuario.value!.id,
       codigo_barras: prestamoPendiente.value.codigoBarras,
-      fecha_prestamo: prestamoPendiente.value.fechaPrestamo,
-      fecha_devolucion: prestamoPendiente.value.fechaDevolucion,
+      ...(prestamoPendiente.value.enSala
+        ? { en_sala: true }
+        : { fecha_prestamo: prestamoPendiente.value.fechaPrestamo, fecha_devolucion: prestamoPendiente.value.fechaDevolucion }),
     })
-    toast.success(`Préstamo registrado: "${prestamoPendiente.value.titulo}"`)
+    toast.success(`${prestamoPendiente.value.enSala ? 'Uso en sala registrado' : 'Préstamo registrado'}: "${prestamoPendiente.value.titulo}"`)
     codigoBarrasPrestamo.value = ''
     libroEncontradoPrestamo.value = ''
     fechaPrestamo.value = today
     fechaDevolucion.value = ''
     fechaPropuesta = ''
     condiciones.value = null
-    showForm.value = false
     prestamoPendiente.value = null
     await cargarPrestamosYReservas()
   } catch (e) {
@@ -597,7 +607,6 @@ async function crearReserva() {
     libroEncontrado.value = ''
     fechaReserva.value = today
     fechaRetiro.value = ''
-    showReservaForm.value = false
     await cargarPrestamosYReservas()
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo registrar la reserva'))
@@ -788,8 +797,30 @@ function formatHora(iso: string | null) {
         <RenovarCuenta v-if="usuario.activo === false" class="mt-4" :usuario="usuario" @renovada="usuario = $event" />
 
         <div v-if="showForm && !bloqueadoPorMultas" class="mt-5 border-t border-indigo-100 pt-4">
-          <h4 class="text-sm font-semibold text-gray-800">Nuevo préstamo por código de barras</h4>
-          <p class="mb-3 mt-0.5 text-xs text-gray-500">Escanee el código de barras de la etiqueta del libro (si el lector no funciona, escriba los números) y elija hasta cuándo se lo lleva.</p>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h4 class="text-sm font-semibold text-gray-800">Nuevo préstamo por código de barras</h4>
+            <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de préstamo">
+              <button
+                v-for="m in ([
+                  { id: 'domicilio', texto: 'Para llevar' },
+                  { id: 'sala', texto: 'Uso en sala' },
+                ] as const)"
+                :key="m.id"
+                type="button"
+                role="radio"
+                :aria-checked="modoPrestamo === m.id"
+                class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+                :class="modoPrestamo === m.id ? (m.id === 'sala' ? 'bg-sky-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm') : 'text-gray-500 hover:text-gray-800'"
+                @click="modoPrestamo = m.id"
+              >
+                {{ m.texto }}
+              </button>
+            </div>
+          </div>
+          <p class="mb-3 mt-1 text-xs text-gray-500">
+            <template v-if="enSala">Para leer aquí mismo: escanee el libro y confirme; se devuelve hoy antes del cierre. Sirve también para lo que no se presta a domicilio (referencia).</template>
+            <template v-else>Escanee el código de barras de la etiqueta del libro (si el lector no funciona, escriba los números) y elija hasta cuándo se lo lleva.</template>
+          </p>
           <div class="space-y-3">
             <div class="relative">
               <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -808,18 +839,36 @@ function formatHora(iso: string | null) {
               class="rounded-lg px-3 py-2 text-sm"
               :class="libroEncontradoPrestamo && puedePrestarLibro ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'"
             >
-              <span v-if="libroEncontradoPrestamo && reservaPropiaPrestamo">
+              <span v-if="libroEncontradoPrestamo && reservaPropiaPrestamo && enSala">
+                <strong>{{ libroEncontradoPrestamo }}</strong> está apartado para esta persona: para entregárselo use «Para llevar»
+              </span>
+              <span v-else-if="libroEncontradoPrestamo && reservaPropiaPrestamo">
                 <strong>{{ libroEncontradoPrestamo }}</strong> estaba reservado para esta persona: al confirmar se entrega su reserva
               </span>
               <span v-else-if="libroEncontradoPrestamo && libroDisponiblePrestamo">Libro encontrado: <strong>{{ libroEncontradoPrestamo }}</strong></span>
               <span v-else-if="libroEncontradoPrestamo && !libroDisponiblePrestamo"><strong>{{ libroEncontradoPrestamo }}</strong> ya está reservado/prestado por otra persona</span>
               <span v-else>Código de barras no encontrado en el sistema</span>
             </div>
-            <p v-if="libroEncontradoPrestamo && rechazoRegla" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{{ rechazoRegla }}</p>
-            <p v-else-if="libroEncontradoPrestamo && textoRegla" class="text-xs text-gray-500">
-              {{ textoRegla }}<template v-if="condiciones?.fecha_devolucion"> · devolución propuesta el {{ formatFecha(`${condiciones.fecha_devolucion}T12:00:00`) }}</template>
+            <div v-if="libroEncontradoPrestamo && rechazoRegla" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {{ rechazoRegla }}
+              <button v-if="sePuedeEnSala" type="button" class="ml-1 font-semibold text-sky-700 underline hover:text-sky-800" @click="modoPrestamo = 'sala'">
+                Prestarlo para uso en sala
+              </button>
+            </div>
+            <p v-else-if="libroEncontradoPrestamo && textoRegla" class="text-xs" :class="enSala ? 'text-sky-700' : 'text-gray-500'">
+              {{ textoRegla }}<template v-if="!enSala && condiciones?.fecha_devolucion"> · devolución propuesta el {{ formatFecha(`${condiciones.fecha_devolucion}T12:00:00`) }}</template>
             </p>
-            <div class="flex flex-wrap items-start gap-3">
+            <div v-if="enSala" class="flex justify-end">
+              <button
+                type="button"
+                class="rounded-lg bg-sky-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!libroEncontradoPrestamo || !puedePrestarLibro || !!rechazoRegla"
+                @click="pedirConfirmacionPrestamo"
+              >
+                Confirmar uso en sala
+              </button>
+            </div>
+            <div v-else class="flex flex-wrap items-start gap-3">
               <div class="min-w-[160px] flex-1">
                 <label for="fecha-prestamo" class="mb-1 block text-xs font-medium text-gray-600">Fecha de préstamo</label>
                 <input
@@ -1235,8 +1284,12 @@ function formatHora(iso: string | null) {
         @click.self="prestamoPendiente = null"
       >
         <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-          <h3 class="mb-1 text-lg font-bold text-gray-900">¿Confirmar préstamo?</h3>
-          <p class="mb-6 text-sm text-gray-500">
+          <h3 class="mb-1 text-lg font-bold text-gray-900">{{ prestamoPendiente.enSala ? '¿Confirmar uso en sala?' : '¿Confirmar préstamo?' }}</h3>
+          <p v-if="prestamoPendiente.enSala" class="mb-6 text-sm text-gray-500">
+            <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong> leerá <strong class="font-mono">{{ prestamoPendiente.titulo }}</strong> en la
+            biblioteca y lo devuelve <strong>hoy, antes del cierre</strong>.
+          </p>
+          <p v-else class="mb-6 text-sm text-gray-500">
             Se prestará <strong class="font-mono">{{ prestamoPendiente.titulo }}</strong> a
             <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong>, con devolución acordada para el
             {{ formatFecha(`${prestamoPendiente.fechaDevolucion}T12:00:00`) }}.
@@ -1434,7 +1487,6 @@ function formatHora(iso: string | null) {
           </div>
         </div>
       </div>
-
     </div>
   </StaffLayout>
 </template>

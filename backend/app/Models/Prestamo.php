@@ -19,6 +19,8 @@ class Prestamo extends Model
         'equipo_id',
         'libro_titulo',
         'tipo_item',
+        // Uso en sala: se lee en la biblioteca y se devuelve el mismo día.
+        'en_sala',
         'codigo_barras',
         'fecha_prestamo',
         'fecha_devolucion',
@@ -36,6 +38,7 @@ class Prestamo extends Model
     protected function casts(): array
     {
         return [
+            'en_sala' => 'boolean',
             'fecha_prestamo' => 'datetime',
             'fecha_devolucion' => 'datetime',
             'fecha_devolucion_real' => 'datetime',

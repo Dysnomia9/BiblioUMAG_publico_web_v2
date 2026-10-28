@@ -140,6 +140,8 @@ export type Prestamo = {
   libro_titulo: string
   /** 'libro' o la clave de una categoría de recurso de apoyo. */
   tipo_item: string
+  /** Uso en sala: se lee en la biblioteca y se devuelve el mismo día. */
+  en_sala?: boolean
   codigo_barras: string | null
   fecha_prestamo: string
   fecha_devolucion: string | null
@@ -365,6 +367,7 @@ export type LibroHistorialEjemplar = {
     fecha_devolucion: string | null
     fecha_devolucion_real: string | null
     estado: string
+    en_sala?: boolean
   }[]
 }
 
@@ -394,7 +397,7 @@ export type IngresosPortal = {
 
 export type ActividadPortal = {
   entrada_hoy: string | null
-  prestamos: { id: number; titulo: string; tipo_item: string; fecha_devolucion: string | null }[]
+  prestamos: { id: number; titulo: string; tipo_item: string; en_sala?: boolean; fecha_devolucion: string | null }[]
   reservas_libro: { id: number; titulo: string | null; estado: 'pendiente' | 'en_cola'; fecha_retiro: string | null; posicion: number | null }[]
   reservas_sala: { id: number; sala: string | null; hora_inicio: string; hora_fin: string }[]
   multas: { cantidad: number; monto_total: number }
@@ -552,6 +555,8 @@ export type CondicionesPrestamo = {
   multa_por_dia: number
   tope_multa: number | null
   motivo_rechazo: string | null
+  /** Por qué no se puede prestar para uso en sala (cuenta vencida, multas, libros atrasados); la regla no se aplica. */
+  motivo_rechazo_en_sala: string | null
 }
 
 export type EstadoFasciculo = 'recibido' | 'esperado' | 'reclamado' | 'faltante'

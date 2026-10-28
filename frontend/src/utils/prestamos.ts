@@ -19,6 +19,11 @@ export function devolucionDe(p: Prestamo) {
   if (p.estado === 'devuelto') {
     return { linea1: p.fecha_devolucion_real ? fechaCorta(p.fecha_devolucion_real) : '—', linea2: 'Devuelto', clase: 'text-gray-500' }
   }
+  if (p.en_sala) {
+    return estaVencido(p)
+      ? { linea1: fechaCorta(p.fecha_devolucion!), linea2: 'Uso en sala: no se devolvió el mismo día', clase: 'text-red-700' }
+      : { linea1: 'Hoy, antes del cierre', linea2: 'Uso en sala', clase: 'text-indigo-700' }
+  }
   if (!p.fecha_devolucion) {
     return new Date(p.fecha_prestamo).toDateString() === new Date().toDateString()
       ? { linea1: 'Pendiente', linea2: 'Uso en sala', clase: 'text-indigo-700' }
@@ -34,6 +39,7 @@ export function devolucionDe(p: Prestamo) {
 export function estadoDe(p: Prestamo) {
   if (p.estado === 'devuelto') return { texto: 'Devuelto', clase: 'bg-gray-100 text-gray-700' }
   if (estaVencido(p)) return { texto: 'Vencido', clase: 'bg-red-50 text-red-700' }
+  if (p.en_sala) return { texto: 'En sala', clase: 'bg-indigo-50 text-indigo-700' }
   if (!p.fecha_devolucion) return { texto: 'En uso', clase: 'bg-indigo-50 text-indigo-700' }
   if (diasParaDevolver(p.fecha_devolucion) === 0) return { texto: 'Vence hoy', clase: 'bg-amber-50 text-amber-700' }
   return { texto: 'Vigente', clase: 'bg-emerald-50 text-emerald-700' }

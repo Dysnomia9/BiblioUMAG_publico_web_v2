@@ -106,8 +106,11 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios' }
 const COLORES_TIPO: Record<string, string> = { estudiante: INDIGO, funcionario: DORADO, docente: VERDE_AZULADO }
 const COLORES_SEXO: Record<string, string> = { Femenino: INDIGO, Masculino: DORADO }
-const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', recursos_apoyo: 'Recursos de apoyo' }
-const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, recursos_apoyo: DORADO }
+// En el gráfico la colección va partida en lo que se llevan y lo que leen en la biblioteca.
+const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección a domicilio', en_sala: 'Colección en sala', recursos_apoyo: 'Recursos de apoyo' }
+const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, en_sala: PIZARRA, recursos_apoyo: DORADO }
+// En el filtro, «Colección» es toda (a domicilio y en sala) y «Uso en sala» solo lo leído aquí.
+const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo' }
 // Cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo; el material
 // de la colección ya llega con el nombre de su tipo (Libro, Tesis, Juego educativo…).
 const NOMBRES_RECURSO = computed(() => opciones.value.recursos)
@@ -124,7 +127,7 @@ const VISTAS = [
 
 const filtrosPildora = computed(() => [
   ...(tab.value === 'prestamos'
-    ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(NOMBRES_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
+    ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(FILTROS_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
     : []),
   { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
   { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
@@ -382,7 +385,7 @@ const exportando = ref(false)
 
 const descripcionFiltros = computed(() => {
   const partes: string[] = []
-  if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${NOMBRES_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
+  if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${FILTROS_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
   if ((tab.value === 'prestamos' || tab.value === 'libros') && filtros.tipo_material) {
     const tipo = opciones.value.tiposMaterial.find((t) => String(t.id) === filtros.tipo_material)
     if (tipo) partes.push(`material "${tipo.nombre}"`)
@@ -687,7 +690,7 @@ async function confirmarExportar() {
 
           <section v-if="tab === 'prestamos'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Por tipo de préstamo</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Material de la colección (libros, tesis, revistas, juegos…) o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Material de la colección (libros, tesis, revistas, juegos…) que se llevan o leen en la sala, o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
               <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />

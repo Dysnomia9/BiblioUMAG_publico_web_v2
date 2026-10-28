@@ -270,6 +270,7 @@ class LibroController extends Controller
                     'fecha_devolucion' => $p->fecha_devolucion,
                     'fecha_devolucion_real' => $p->fecha_devolucion_real,
                     'estado' => $p->estado,
+                    'en_sala' => $p->en_sala,
                 ]),
             ]),
             'total_prestamos' => $libro->ejemplares->sum(fn ($e) => $e->prestamos->count()),
