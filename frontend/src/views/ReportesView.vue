@@ -129,8 +129,34 @@ const filtrosPildora = computed(() => [
   { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
   { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
   { campo: 'sexo' as const, nombre: 'Sexo', todos: 'Todos', valores: opciones.value.sexos.map((x) => ({ valor: x, texto: x })) },
-  { campo: 'tipo_usuario' as const, nombre: 'Usuario', todos: 'Todos', valores: opciones.value.tiposUsuario.map((t) => ({ valor: t, texto: capital(t) })) },
-])
+].filter((f) => !soloSinCarrera.value || (f.campo !== 'carrera' && f.campo !== 'anio_ingreso')))
+
+// «Quiénes»: para acreditación se piden los números de estudiantes, docentes y funcionarios por
+// separado. Los externos y visitas solo están en Ingresos (para prestar o reservar hay que estar registrado).
+const QUIENES: Record<string, string> = {
+  '': 'Todos',
+  estudiante: 'Estudiantes',
+  docente: 'Docentes',
+  funcionario: 'Funcionarios',
+  docente_funcionario: 'Docentes y funcionarios',
+  externo: 'Externos y visitas',
+}
+const opcionesQuienes = computed(() =>
+  Object.entries(QUIENES)
+    .filter(([valor]) => valor !== 'externo' || tab.value === 'ingresos')
+    .map(([valor, texto]) => ({ valor, texto })),
+)
+// Docentes, funcionarios y externos no tienen carrera ni año de ingreso: esos filtros no aplican.
+const soloSinCarrera = computed(() => ['docente', 'funcionario', 'docente_funcionario', 'externo'].includes(filtros.tipo_usuario))
+watch(soloSinCarrera, (sinCarrera) => {
+  if (!sinCarrera) return
+  filtros.carrera = ''
+  filtros.anio_ingreso = ''
+})
+// «Externos y visitas» no existe fuera de Ingresos: al cambiar de pestaña vuelve a «Todos».
+watch(tab, (t) => {
+  if (t !== 'ingresos' && filtros.tipo_usuario === 'externo') filtros.tipo_usuario = ''
+})
 
 // Botones de tipo de material: «Todo» y cada tipo, con Libro y Juego educativo primero (los más consultados).
 const mostrarMaterial = computed(() => tab.value === 'prestamos' || tab.value === 'libros')
@@ -364,7 +390,7 @@ const descripcionFiltros = computed(() => {
   if (filtros.carrera) partes.push(`carrera "${filtros.carrera}"`)
   if (filtros.anio_ingreso) partes.push(`año de ingreso ${filtros.anio_ingreso}`)
   if (filtros.sexo) partes.push(`sexo ${filtros.sexo}`)
-  if (filtros.tipo_usuario) partes.push(`tipo de usuario "${filtros.tipo_usuario}"`)
+  if (filtros.tipo_usuario) partes.push(`solo ${(QUIENES[filtros.tipo_usuario] ?? filtros.tipo_usuario).toLowerCase()}`)
   return partes.length ? partes.join(', ') : 'sin filtros'
 })
 
@@ -493,6 +519,21 @@ async function confirmarExportar() {
           @click="tab = t.id"
         >
           {{ t.label }}
+        </button>
+      </div>
+
+      <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Quiénes">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Quiénes</span>
+        <button
+          v-for="q in opcionesQuienes"
+          :key="q.valor"
+          type="button"
+          class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors"
+          :class="filtros.tipo_usuario === q.valor ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
+          :aria-pressed="filtros.tipo_usuario === q.valor"
+          @click="filtros.tipo_usuario = q.valor"
+        >
+          {{ q.texto }}
         </button>
       </div>
 

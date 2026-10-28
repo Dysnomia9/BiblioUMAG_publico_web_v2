@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Entrada;
 use App\Models\Prestamo;
 use App\Models\Staff;
 use App\Models\Usuario;
@@ -58,5 +59,35 @@ class UsuarioUnidadCargoTest extends TestCase
         $this->assertSame(2, $porCarrera['Docentes · Departamento de Ciencias']);
         $this->assertSame(1, $porCarrera['Docentes (sin carrera)']);
         $this->assertSame(1, $porCarrera['Funcionarios · Biblioteca']);
+    }
+
+    public function test_los_reportes_se_filtran_por_quienes_para_acreditacion(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
+        $docente = Usuario::factory()->create(['tipo' => 'docente', 'carrera' => null]);
+        $funcionario = Usuario::factory()->create(['tipo' => 'funcionario', 'carrera' => null]);
+
+        foreach ([$estudiante, $estudiante, $estudiante, $docente, $docente, $funcionario] as $usuario) {
+            Prestamo::factory()->create(['usuario_id' => $usuario->id, 'tipo_item' => 'libro']);
+        }
+
+        $total = fn (string $quienes) => $this->getJson("/api/reportes/resumen?tab=prestamos&tipo_usuario={$quienes}")->assertOk()->json('total');
+
+        $this->assertSame(3, $total('estudiante'));
+        $this->assertSame(2, $total('docente'));
+        $this->assertSame(1, $total('funcionario'));
+        $this->assertSame(3, $total('docente_funcionario'));
+        $this->assertSame(6, $total(''));
+    }
+
+    public function test_los_ingresos_se_filtran_por_externos_y_visitas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Entrada::factory()->create(['usuario_id' => Usuario::factory()->create(['tipo' => 'docente'])->id]);
+        Entrada::factory()->count(2)->create(['usuario_id' => null, 'rut_externo' => null, 'es_visita' => true]);
+
+        $this->getJson('/api/reportes/resumen?tab=ingresos&tipo_usuario=externo')->assertOk()->assertJsonPath('total', 2);
+        $this->getJson('/api/reportes/resumen?tab=ingresos&tipo_usuario=docente')->assertOk()->assertJsonPath('total', 1);
     }
 }

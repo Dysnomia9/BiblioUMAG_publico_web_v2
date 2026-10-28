@@ -98,11 +98,20 @@ class ReporteController extends Controller
                 $query->where('prestamos.tipo_item', '!=', 'libro');
             }
 
-            foreach (['carrera' => 'carrera', 'anio_ingreso' => 'anio_ingreso', 'sexo' => 'sexo', 'tipo_usuario' => 'tipo'] as $parametro => $columna) {
+            foreach (['carrera' => 'carrera', 'anio_ingreso' => 'anio_ingreso', 'sexo' => 'sexo'] as $parametro => $columna) {
                 if ($valor = $request->query($parametro)) {
                     $query->where("usuarios.{$columna}", $valor);
                 }
             }
+
+            // Quiénes (para acreditación se piden por separado): un tipo de usuario, docentes y
+            // funcionarios juntos, o los que no están en el sistema (externos y visitas, en Ingresos).
+            match ($request->query('tipo_usuario')) {
+                'docente_funcionario' => $query->whereIn('usuarios.tipo', ['docente', 'funcionario']),
+                'externo' => $query->whereNull('usuarios.id'),
+                'estudiante', 'docente', 'funcionario' => $query->where('usuarios.tipo', $request->query('tipo_usuario')),
+                default => null,
+            };
 
             return $query;
         };
