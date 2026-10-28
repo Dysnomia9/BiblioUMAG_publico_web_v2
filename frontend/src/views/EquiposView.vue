@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -7,6 +7,7 @@ import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { categoriaDe, COLORES_RECURSO, ICONOS_RECURSO, useCategoriasRecurso } from '@/utils/recursos'
+import { fechaCorta } from '@/utils/prestamos'
 import type { Equipo } from '@/types'
 
 const toast = useToast()
@@ -91,12 +92,30 @@ async function crearEquipo() {
 const equipoACambiar = ref<Equipo | null>(null)
 const cambiandoActivo = ref(false)
 
+// Dar de baja pide el motivo: se ve en el inventario y queda en la bitácora.
+const MOTIVOS_FRECUENTES = ['Dañado, sin reparación', 'Extraviado', 'Robado', 'Obsoleto o fuera de uso']
+const motivoBaja = ref('')
+const campoMotivo = ref<HTMLTextAreaElement | null>(null)
+
+function pedirCambioActivo(equipo: Equipo) {
+  motivoBaja.value = ''
+  equipoACambiar.value = equipo
+}
+
+/** Un motivo frecuente queda escrito y el cursor al final, por si se quiere agregar el detalle. */
+async function elegirMotivo(motivo: string) {
+  motivoBaja.value = motivo
+  await nextTick()
+  campoMotivo.value?.focus()
+  campoMotivo.value?.setSelectionRange(motivo.length, motivo.length)
+}
+
 async function cambiarActivo() {
   const equipo = equipoACambiar.value
   if (!equipo) return
   cambiandoActivo.value = true
   try {
-    await api.patch(`/equipos/${equipo.id}/activo`, { activo: !equipo.activo })
+    await api.patch(`/equipos/${equipo.id}/activo`, equipo.activo ? { activo: false, motivo: motivoBaja.value.trim() } : { activo: true })
     toast.success(equipo.activo ? 'Recurso dado de baja' : 'Recurso reactivado')
     await cargar()
   } catch (e: any) {
@@ -231,15 +250,19 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                 </td>
                 <td class="px-6 py-3">
                   <span
-                    class="text-xs px-2.5 py-1 rounded-full font-medium"
+                    class="text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap"
                     :class="e.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'"
                   >
                     {{ e.activo ? 'Activo' : 'De baja' }}
                   </span>
+                  <template v-if="!e.activo && (e.motivo_baja || e.dado_de_baja_el)">
+                    <p v-if="e.motivo_baja" class="mt-1.5 max-w-[16rem] text-xs text-gray-600 line-clamp-2" :title="e.motivo_baja">{{ e.motivo_baja }}</p>
+                    <p v-if="e.dado_de_baja_el" class="mt-0.5 text-[11px] text-gray-400">Desde el {{ fechaCorta(e.dado_de_baja_el) }}</p>
+                  </template>
                 </td>
                 <td class="px-6 py-3">
                   <button
-                    @click="equipoACambiar = e"
+                    @click="pedirCambioActivo(e)"
                     :disabled="e.activo && !e.disponible"
                     :title="e.activo && !e.disponible ? 'No se puede dar de baja un recurso que está prestado' : ''"
                     class="text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
@@ -278,13 +301,46 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
       :confirmar="equipoACambiar?.activo ? 'Sí, dar de baja' : 'Sí, reactivar'"
       :tono="equipoACambiar?.activo ? 'peligro' : 'exito'"
       :cargando="cambiandoActivo"
+      :deshabilitado="!!equipoACambiar?.activo && !motivoBaja.trim()"
       @confirmar="cambiarActivo"
       @cancelar="equipoACambiar = null"
     >
-      <p v-if="equipoACambiar?.activo">
-        <strong class="text-gray-900">{{ equipoACambiar.codigo_inventario }}</strong> dejará de ofrecerse para préstamo. Su historial se conserva y puedes reactivarlo cuando quieras.
-      </p>
-      <p v-else><strong class="text-gray-900">{{ equipoACambiar?.codigo_inventario }}</strong> volverá a estar disponible para préstamo.</p>
+      <template v-if="equipoACambiar?.activo">
+        <p>
+          <strong class="text-gray-900">{{ equipoACambiar.codigo_inventario }}</strong> ({{ nombreCategoria(equipoACambiar.tipo).toLowerCase() }})
+          dejará de ofrecerse para préstamo. Su historial se conserva y puedes reactivarlo cuando quieras.
+        </p>
+        <p class="mt-2">
+          Estado: <span class="line-through">Activo</span> → <strong class="text-gray-900">De baja</strong>
+        </p>
+        <label for="motivo-baja" class="mt-4 mb-1.5 block font-medium text-gray-700">Motivo de la baja</label>
+        <div class="mb-2 flex flex-wrap gap-1.5">
+          <button
+            v-for="m in MOTIVOS_FRECUENTES"
+            :key="m"
+            type="button"
+            class="rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition"
+            :class="motivoBaja === m ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'"
+            @click="elegirMotivo(m)"
+          >
+            {{ m }}
+          </button>
+        </div>
+        <textarea
+          id="motivo-baja"
+          ref="campoMotivo"
+          v-model="motivoBaja"
+          rows="3"
+          maxlength="500"
+          placeholder="Ej: la pantalla se trizó y el servicio técnico dijo que no tiene arreglo"
+          class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-900"
+        />
+        <p class="mt-1 text-xs text-gray-400">Se verá en el inventario y queda en la bitácora con tu nombre.</p>
+      </template>
+      <template v-else-if="equipoACambiar">
+        <p><strong class="text-gray-900">{{ equipoACambiar.codigo_inventario }}</strong> volverá a estar disponible para préstamo.</p>
+        <p v-if="equipoACambiar.motivo_baja" class="mt-2">Se había dado de baja por: «{{ equipoACambiar.motivo_baja }}».</p>
+      </template>
     </DialogoConfirmacion>
   </StaffLayout>
 </template>

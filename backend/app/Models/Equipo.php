@@ -17,6 +17,8 @@ class Equipo extends Model
         'tipo',
         'disponible',
         'activo',
+        'motivo_baja',
+        'dado_de_baja_el',
     ];
 
     protected function casts(): array
@@ -24,6 +26,7 @@ class Equipo extends Model
         return [
             'disponible' => 'boolean',
             'activo' => 'boolean',
+            'dado_de_baja_el' => 'datetime',
         ];
     }
 

@@ -136,7 +136,7 @@ class EquipoPrestamoTest extends TestCase
 
         $equipo = Equipo::factory()->create(['disponible' => false]);
 
-        $response = $this->patchJson("/api/equipos/{$equipo->id}/activo", ['activo' => false]);
+        $response = $this->patchJson("/api/equipos/{$equipo->id}/activo", ['activo' => false, 'motivo' => 'Se rompió']);
 
         $response->assertStatus(409);
 

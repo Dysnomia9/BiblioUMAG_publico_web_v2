@@ -81,6 +81,9 @@ export type Equipo = {
   tipo: string
   disponible: boolean
   activo: boolean
+  /** Por qué se dio de baja y desde cuándo; null mientras está activo. */
+  motivo_baja: string | null
+  dado_de_baja_el: string | null
 }
 
 /** Categoría de recurso de apoyo (Administración → Catálogos): audífonos, notebook, bicicleta… */
