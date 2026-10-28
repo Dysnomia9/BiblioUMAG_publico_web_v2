@@ -8,6 +8,8 @@ use App\Models\TipoMaterial;
 use App\Models\Usuario;
 use App\Support\HorarioBiblioteca;
 use App\Support\Reportes;
+use App\Support\Texto;
+use Illuminate\Support\Collection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -169,7 +171,17 @@ class ReporteController extends Controller
             ->values();
         $tipoDeMaterial = "coalesce(tm.nombre, 'Sin tipo de material')";
 
-        $porCarrera = $agrupar("coalesce(usuarios.carrera, 'Sin dato')");
+        // Quien no tiene carrera no es «Sin dato»: los docentes y funcionarios nunca la tienen, y
+        // «Sin dato» queda solo para quien no está registrado (un visitante externo).
+        $porCarrera = $this->unirVariantes($agrupar(<<<'SQL'
+            case
+                when usuarios.id is null then 'Sin dato (visitante externo)'
+                when usuarios.carrera is not null then usuarios.carrera
+                when usuarios.tipo = 'docente' then 'Docentes (sin carrera)'
+                when usuarios.tipo = 'funcionario' then 'Funcionarios (sin carrera)'
+                else 'Estudiantes sin carrera registrada'
+            end
+            SQL));
 
         $porHoraPorSala = [];
         if ($tab === 'logias') {
@@ -211,5 +223,30 @@ class ReporteController extends Controller
             'porLibro' => $tab === 'libros' ? $agrupar("coalesce(prestamos.libro_titulo, '')") : [],
             'porHoraPorSala' => $porHoraPorSala,
         ]);
+    }
+
+    /**
+     * Junta las carreras que solo se escriben distinto («DERECHO» y «Derecho», con o sin
+     * tilde) y las muestra con un solo nombre: la variante que ya viene bien escrita o, si
+     * todas vienen en mayúsculas, ese nombre en minúsculas con la inicial en mayúscula.
+     *
+     * @param  Collection<int, array{label: string, value: int}>  $filas
+     * @return Collection<int, array{label: string, value: int}>
+     */
+    private function unirVariantes(Collection $filas): Collection
+    {
+        return $filas
+            ->groupBy(fn (array $fila) => Texto::clave($fila['label']))
+            ->map(function (Collection $variantes) {
+                $mejor = $variantes->sortByDesc('value')->first();
+                $conMinusculas = $variantes->first(fn (array $v) => preg_match('/\p{Ll}/u', $v['label']));
+
+                return [
+                    'label' => $conMinusculas['label'] ?? Texto::nombrePropio($mejor['label']),
+                    'value' => (int) $variantes->sum('value'),
+                ];
+            })
+            ->sortBy([['value', 'desc'], ['label', 'asc']])
+            ->values();
     }
 }

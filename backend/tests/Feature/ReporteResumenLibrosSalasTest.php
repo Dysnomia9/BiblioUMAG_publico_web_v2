@@ -130,6 +130,33 @@ class ReporteResumenLibrosSalasTest extends TestCase
             ->assertJsonFragment(['id' => $juegoTipo->id, 'nombre' => 'Juego educativo']);
     }
 
+    public function test_por_carrera_junta_las_variantes_y_no_llama_sin_dato_a_docentes_ni_funcionarios(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $derecho = Usuario::factory()->create(['tipo' => 'estudiante', 'carrera' => 'Derecho']);
+        $derechoMayusculas = Usuario::factory()->create(['tipo' => 'estudiante', 'carrera' => 'DERECHO']);
+        $psicologia = Usuario::factory()->create(['tipo' => 'estudiante', 'carrera' => 'PSICOLOGIA']);
+        $docente = Usuario::factory()->create(['tipo' => 'docente', 'carrera' => null]);
+        $funcionario = Usuario::factory()->create(['tipo' => 'funcionario', 'carrera' => null]);
+        $sinCarrera = Usuario::factory()->create(['tipo' => 'estudiante', 'carrera' => null]);
+
+        foreach ([$derecho, $derecho, $derechoMayusculas, $psicologia, $docente, $docente, $docente, $funcionario, $sinCarrera] as $usuario) {
+            Prestamo::factory()->create(['usuario_id' => $usuario->id, 'tipo_item' => 'libro']);
+        }
+
+        $porCarrera = collect($this->getJson('/api/reportes/resumen?tab=prestamos')->assertOk()->json('porCarrera'))->pluck('value', 'label');
+
+        // «Derecho» y «DERECHO» son la misma carrera; «PSICOLOGIA» se muestra con nombre propio.
+        $this->assertSame(3, $porCarrera['Derecho']);
+        $this->assertArrayNotHasKey('DERECHO', $porCarrera->all());
+        $this->assertSame(1, $porCarrera['Psicologia']);
+        $this->assertSame(3, $porCarrera['Docentes (sin carrera)']);
+        $this->assertSame(1, $porCarrera['Funcionarios (sin carrera)']);
+        $this->assertSame(1, $porCarrera['Estudiantes sin carrera registrada']);
+        $this->assertArrayNotHasKey('Sin dato', $porCarrera->all());
+    }
+
     public function test_tab_logias_rankea_por_sala(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

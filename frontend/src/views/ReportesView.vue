@@ -126,14 +126,20 @@ const filtrosPildora = computed(() => [
   ...(tab.value === 'prestamos'
     ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(NOMBRES_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
     : []),
-  ...(tab.value === 'prestamos' || tab.value === 'libros'
-    ? [{ campo: 'tipo_material' as const, nombre: 'Material', todos: 'Todos', valores: opciones.value.tiposMaterial.map((t) => ({ valor: String(t.id), texto: t.nombre })) }]
-    : []),
   { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
   { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
   { campo: 'sexo' as const, nombre: 'Sexo', todos: 'Todos', valores: opciones.value.sexos.map((x) => ({ valor: x, texto: x })) },
   { campo: 'tipo_usuario' as const, nombre: 'Usuario', todos: 'Todos', valores: opciones.value.tiposUsuario.map((t) => ({ valor: t, texto: capital(t) })) },
 ])
+
+// Botones de tipo de material: «Todo» y cada tipo, con Libro y Juego educativo primero (los más consultados).
+const mostrarMaterial = computed(() => tab.value === 'prestamos' || tab.value === 'libros')
+const opcionesMaterial = computed(() => {
+  const primeros = ['Libro', 'Juego educativo']
+  const peso = (nombre: string) => (primeros.includes(nombre) ? primeros.indexOf(nombre) : primeros.length)
+  const tipos = [...opciones.value.tiposMaterial].sort((a, b) => peso(a.nombre) - peso(b.nombre) || a.nombre.localeCompare(b.nombre, 'es'))
+  return [{ valor: '', texto: 'Todo' }, ...tipos.map((t) => ({ valor: String(t.id), texto: t.nombre }))]
+})
 
 const etiquetaPeriodo = computed(() => {
   const desde = fechaLocal(resumen.value.rango.desde)
@@ -525,6 +531,23 @@ async function confirmarExportar() {
         </div>
 
         <span class="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden="true"></span>
+
+        <div v-if="mostrarMaterial" class="flex flex-wrap items-center gap-1" role="group" aria-label="Tipo de material">
+          <span class="mr-1 text-xs text-gray-500">Material:</span>
+          <button
+            v-for="m in opcionesMaterial"
+            :key="m.valor"
+            type="button"
+            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
+            :class="filtros.tipo_material === m.valor ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
+            :aria-pressed="filtros.tipo_material === m.valor"
+            @click="filtros.tipo_material = m.valor"
+          >
+            {{ m.texto }}
+          </button>
+        </div>
+
+        <span v-if="mostrarMaterial" class="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden="true"></span>
 
         <label
           v-for="f in filtrosPildora"
