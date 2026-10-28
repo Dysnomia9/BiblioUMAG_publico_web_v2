@@ -33,9 +33,11 @@ const filtros = reactive({
   tipo_usuario: '',
   // Solo en la pestaña Préstamos: bibliografico | recursos_apoyo.
   tipo_prestamo: '',
+  // Préstamos y material más prestado: id del tipo de material (libro, tesis, juego…).
+  tipo_material: '',
 })
 
-const opciones = ref<ReporteOpciones>({ carreras: [], aniosIngreso: [], sexos: [], tiposUsuario: ['estudiante', 'docente', 'funcionario'], recursos: { libro: 'Libros' } })
+const opciones = ref<ReporteOpciones>({ carreras: [], aniosIngreso: [], sexos: [], tiposUsuario: ['estudiante', 'docente', 'funcionario'], recursos: { libro: 'Material de la colección' }, tiposMaterial: [] })
 
 const resumenVacio: ReporteResumen = {
   rango: { desde: hoy, hasta: hoy },
@@ -53,6 +55,7 @@ const resumenVacio: ReporteResumen = {
   porHora: [],
   porTipoPrestamo: [],
   porRecurso: [],
+  porTipoMaterial: [],
   porSala: [],
   porLibro: [],
   porHoraPorSala: [],
@@ -65,7 +68,7 @@ const TABS: { id: ReporteTab; label: string }[] = [
   { id: 'prestamos', label: 'Préstamos' },
   { id: 'ingresos', label: 'Ingresos' },
   { id: 'logias', label: 'Uso de salas' },
-  { id: 'libros', label: 'Libros más prestados' },
+  { id: 'libros', label: 'Material más prestado' },
 ]
 
 const PERIODOS: { id: Periodo; label: string }[] = [
@@ -93,7 +96,7 @@ const UNIDAD: Record<ReporteTab, { plural: string; titulo: string; quien: string
   prestamos: { plural: 'préstamos', titulo: 'Préstamos', quien: 'pidió el préstamo' },
   ingresos: { plural: 'ingresos', titulo: 'Ingresos', quien: 'ingresó' },
   logias: { plural: 'reservas', titulo: 'Reservas', quien: 'reservó la sala' },
-  libros: { plural: 'préstamos', titulo: 'Préstamos de libros', quien: 'pidió el libro' },
+  libros: { plural: 'préstamos', titulo: 'Préstamos de material', quien: 'pidió el material' },
 }
 const unidad = computed(() => UNIDAD[tab.value])
 
@@ -103,9 +106,10 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios' }
 const COLORES_TIPO: Record<string, string> = { estudiante: INDIGO, funcionario: DORADO, docente: VERDE_AZULADO }
 const COLORES_SEXO: Record<string, string> = { Femenino: INDIGO, Masculino: DORADO }
-const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Bibliográfico', recursos_apoyo: 'Recursos de apoyo' }
+const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', recursos_apoyo: 'Recursos de apoyo' }
 const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, recursos_apoyo: DORADO }
-// Libros y cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo.
+// Cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo; el material
+// de la colección ya llega con el nombre de su tipo (Libro, Tesis, Juego educativo…).
 const NOMBRES_RECURSO = computed(() => opciones.value.recursos)
 const conNombres = (datos: SerieItem[], nombres: Record<string, string>) => datos.map((d) => ({ ...d, label: nombres[d.label] ?? d.label }))
 
@@ -121,6 +125,9 @@ const VISTAS = [
 const filtrosPildora = computed(() => [
   ...(tab.value === 'prestamos'
     ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(NOMBRES_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
+    : []),
+  ...(tab.value === 'prestamos' || tab.value === 'libros'
+    ? [{ campo: 'tipo_material' as const, nombre: 'Material', todos: 'Todos', valores: opciones.value.tiposMaterial.map((t) => ({ valor: String(t.id), texto: t.nombre })) }]
     : []),
   { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
   { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
@@ -195,6 +202,7 @@ async function cargarResumen() {
         sexo: filtros.sexo || undefined,
         tipo_usuario: filtros.tipo_usuario || undefined,
         tipo_prestamo: (tab.value === 'prestamos' && filtros.tipo_prestamo) || undefined,
+        tipo_material: ((tab.value === 'prestamos' || tab.value === 'libros') && filtros.tipo_material) || undefined,
       },
     })
     resumen.value = data
@@ -220,7 +228,7 @@ const diferencia = computed(() => resumen.value.total - resumen.value.totalAnter
 const destacado = computed(() => {
   const r = resumen.value
   if (tab.value === 'logias') return { titulo: 'Sala más usada', item: r.porSala[0] ?? null }
-  if (tab.value === 'libros') return { titulo: 'Libro más prestado', item: r.porLibro[0] ?? null }
+  if (tab.value === 'libros') return { titulo: 'Material más prestado', item: r.porLibro[0] ?? null }
   return { titulo: `Carrera con más ${unidad.value.plural}`, item: r.porCarrera[0] ?? null }
 })
 
@@ -290,11 +298,17 @@ const agrupaciones = computed<Agrupacion[]>(() => {
   if (tab.value === 'prestamos') {
     lista.unshift(
       { id: 'tipoPrestamo', label: 'Tipo de préstamo', color: PIZARRA, datos: conNombres(r.porTipoPrestamo, NOMBRES_TIPO_PRESTAMO), columna: 'Tipo de préstamo' },
+      { id: 'tipoMaterial', label: 'Tipo de material', color: INDIGO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
       { id: 'recurso', label: 'Recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Recurso' },
     )
   }
   if (tab.value === 'logias') lista.push({ id: 'sala', label: 'Sala', color: DORADO, datos: r.porSala, columna: 'Sala' })
-  if (tab.value === 'libros') lista.push({ id: 'libro', label: 'Libro', color: INDIGO, datos: r.porLibro, columna: 'Libro' })
+  if (tab.value === 'libros') {
+    lista.push(
+      { id: 'tipoMaterial', label: 'Tipo de material', color: DORADO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
+      { id: 'libro', label: 'Título', color: INDIGO, datos: r.porLibro, columna: 'Título' },
+    )
+  }
   return lista
 })
 
@@ -337,6 +351,10 @@ const exportando = ref(false)
 const descripcionFiltros = computed(() => {
   const partes: string[] = []
   if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${NOMBRES_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
+  if ((tab.value === 'prestamos' || tab.value === 'libros') && filtros.tipo_material) {
+    const tipo = opciones.value.tiposMaterial.find((t) => String(t.id) === filtros.tipo_material)
+    if (tipo) partes.push(`material "${tipo.nombre}"`)
+  }
   if (filtros.carrera) partes.push(`carrera "${filtros.carrera}"`)
   if (filtros.anio_ingreso) partes.push(`año de ingreso ${filtros.anio_ingreso}`)
   if (filtros.sexo) partes.push(`sexo ${filtros.sexo}`)
@@ -605,7 +623,7 @@ async function confirmarExportar() {
 
           <section v-if="tab === 'prestamos'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Por tipo de préstamo</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Recurso bibliográfico (libros) o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Material de la colección (libros, tesis, revistas, juegos…) o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
               <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />
@@ -672,9 +690,12 @@ async function confirmarExportar() {
             <Heatmap :data="resumen.porHoraPorSala" />
           </section>
           <section v-if="tab === 'libros'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Libros más prestados</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Ranking por cantidad de préstamos (cada copia cuenta por separado)</p>
+            <h3 class="font-sans text-base font-bold text-gray-900">Material más prestado</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Libros, tesis, revistas, juegos y demás: ranking por cantidad de préstamos (cada copia cuenta por separado)</p>
             <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
+            <h3 class="mt-6 font-sans text-base font-bold text-gray-900">Por tipo de material</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Cuántos préstamos fueron de cada tipo de material</p>
+            <BarrasRanking :datos="resumen.porTipoMaterial" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />
           </section>
         </template>
 

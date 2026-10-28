@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CategoriaRecurso;
+use App\Models\TipoMaterial;
 use App\Models\Usuario;
 use App\Support\HorarioBiblioteca;
 use App\Support\Reportes;
@@ -23,7 +24,9 @@ class ReporteController extends Controller
             'tiposUsuario' => ['estudiante', 'docente', 'funcionario'],
             // Nombre de cada recurso que se presta, para el gráfico «Recurso»: los libros y
             // las categorías de recursos de apoyo (también las desactivadas, que tienen historia).
-            'recursos' => ['libro' => 'Libros', ...CategoriaRecurso::orderBy('nombre')->pluck('nombre_plural', 'clave')->all()],
+            'recursos' => ['libro' => 'Material de la colección', ...CategoriaRecurso::orderBy('nombre')->pluck('nombre_plural', 'clave')->all()],
+            // Tipos de material del catálogo (libro, tesis, revista, juego…), para filtrar los préstamos.
+            'tiposMaterial' => TipoMaterial::orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }
 
@@ -63,6 +66,18 @@ class ReporteController extends Controller
             };
             // leftJoin: un externo (sin usuario) cuenta igual, como «Sin dato».
             $query = DB::table($tabla)->leftJoin('usuarios', 'usuarios.id', '=', "{$tabla}.usuario_id");
+
+            // De qué tipo de material es lo prestado (libro, tesis, juego educativo…): todo lo del
+            // catálogo se guarda como tipo_item «libro», así que el tipo sale del título de la copia.
+            if (in_array($tab, ['prestamos', 'libros'], true)) {
+                $query->leftJoin('ejemplares as ej', 'ej.id', '=', 'prestamos.ejemplar_id')
+                    ->leftJoin('libros as lib', 'lib.id', '=', 'ej.libro_id')
+                    ->leftJoin('tipos_material as tm', 'tm.id', '=', 'lib.tipo_material_id');
+
+                if ($tipoMaterial = $request->query('tipo_material')) {
+                    $query->where('prestamos.tipo_item', 'libro')->where('tm.id', (int) $tipoMaterial);
+                }
+            }
 
             match ($tab) {
                 'ingresos' => $query->whereBetween('entradas.fecha_hora_entrada', [$desde, $hasta]),
@@ -142,6 +157,18 @@ class ReporteController extends Controller
             }
         }
 
+        /** Lo mismo, solo con los préstamos del catálogo (no los recursos de apoyo). */
+        $agruparMaterial = fn (string $expresion) => (clone $base)
+            ->where('prestamos.tipo_item', 'libro')
+            ->selectRaw("{$expresion} as label, count(*) as value")
+            ->groupByRaw($expresion)
+            ->orderByDesc('value')
+            ->orderBy('label')
+            ->get()
+            ->map(fn ($fila) => ['label' => (string) $fila->label, 'value' => (int) $fila->value])
+            ->values();
+        $tipoDeMaterial = "coalesce(tm.nombre, 'Sin tipo de material')";
+
         $porCarrera = $agrupar("coalesce(usuarios.carrera, 'Sin dato')");
 
         $porHoraPorSala = [];
@@ -174,7 +201,10 @@ class ReporteController extends Controller
             // Solo tienen sentido en su pestaña; en el resto van vacíos.
             // bibliografico (libro) o recursos_apoyo (notebook, bicicleta…), y el recurso.
             'porTipoPrestamo' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then 'bibliografico' else 'recursos_apoyo' end") : [],
-            'porRecurso' => $tab === 'prestamos' ? $agrupar('prestamos.tipo_item') : [],
+            // Lo del catálogo va por su tipo de material (Libro, Tesis, Juego educativo…); los
+            // recursos de apoyo, por la clave de su categoría.
+            'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],
+            'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial($tipoDeMaterial) : [],
             'porSala' => $tab === 'logias' ? $agrupar("coalesce(salas.nombre, 'Sin dato')") : [],
             // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
             // correcto aunque la copia ya no exista o el libro haya cambiado de título.

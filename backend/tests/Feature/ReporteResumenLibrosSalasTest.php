@@ -8,6 +8,7 @@ use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Staff;
+use App\Models\TipoMaterial;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -68,7 +69,7 @@ class ReporteResumenLibrosSalasTest extends TestCase
                 ['label' => 'recursos_apoyo', 'value' => 3],
             ])
             ->assertJsonPath('porRecurso', [
-                ['label' => 'libro', 'value' => 4],
+                ['label' => 'Sin tipo de material', 'value' => 4],
                 ['label' => 'notebook', 'value' => 2],
                 ['label' => 'audifonos', 'value' => 1],
             ]);
@@ -87,6 +88,46 @@ class ReporteResumenLibrosSalasTest extends TestCase
             ->assertOk()
             ->assertJsonPath('porTipoPrestamo', [])
             ->assertJsonPath('porRecurso', []);
+    }
+
+    public function test_los_reportes_separan_los_juegos_de_los_libros_por_tipo_de_material(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $libro = Ejemplar::factory()->for(Libro::factory()->create(['titulo' => 'Cálculo', 'tipo_material_id' => TipoMaterial::where('nombre', 'Libro')->value('id')]))->create();
+        $juegoTipo = TipoMaterial::firstOrCreate(['nombre' => 'Juego educativo'], ['plantilla' => 'juego_educativo']);
+        $juego = Ejemplar::factory()->for(Libro::factory()->create(['titulo' => 'Dominó de fracciones', 'tipo_material_id' => $juegoTipo->id]))->create();
+
+        Prestamo::factory()->count(3)->create(['ejemplar_id' => $libro->id, 'tipo_item' => 'libro', 'libro_titulo' => 'Cálculo']);
+        Prestamo::factory()->count(2)->create(['ejemplar_id' => $juego->id, 'tipo_item' => 'libro', 'libro_titulo' => 'Dominó de fracciones']);
+        Prestamo::factory()->create(['tipo_item' => 'notebook']);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos')
+            ->assertOk()
+            ->assertJsonPath('total', 6)
+            ->assertJsonPath('porRecurso', [
+                ['label' => 'Libro', 'value' => 3],
+                ['label' => 'Juego educativo', 'value' => 2],
+                ['label' => 'notebook', 'value' => 1],
+            ])
+            ->assertJsonPath('porTipoMaterial', [
+                ['label' => 'Libro', 'value' => 3],
+                ['label' => 'Juego educativo', 'value' => 2],
+            ]);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos&tipo_material='.$juegoTipo->id)
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('porTipoMaterial', [['label' => 'Juego educativo', 'value' => 2]]);
+
+        $this->getJson('/api/reportes/resumen?tab=libros&tipo_material='.$juegoTipo->id)
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('porLibro', [['label' => 'Dominó de fracciones', 'value' => 2]]);
+
+        $this->getJson('/api/reportes/opciones')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $juegoTipo->id, 'nombre' => 'Juego educativo']);
     }
 
     public function test_tab_logias_rankea_por_sala(): void

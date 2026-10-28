@@ -136,7 +136,7 @@ class RecursosApoyoTest extends TestCase
         Sanctum::actingAs(Staff::factory()->admin()->create());
 
         $this->getJson('/api/reportes/opciones')->assertOk()
-            ->assertJsonPath('recursos.libro', 'Libros')
+            ->assertJsonPath('recursos.libro', 'Material de la colección')
             ->assertJsonPath('recursos.bicicleta', 'Bicicletas');
     }
 

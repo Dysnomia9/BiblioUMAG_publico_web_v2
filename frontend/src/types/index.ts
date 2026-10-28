@@ -569,9 +569,11 @@ export type ReporteResumen = {
   porTipoUsuario: SerieItem[]
   porHora: SerieItem[]
   // Solo con contenido en su pestaña: préstamos (tipo y recurso), logias (sala) y libros.
-  // Tipo: bibliografico | recursos_apoyo. Recurso: libro o la clave de una categoría de recurso de apoyo.
+  // Tipo: bibliografico | recursos_apoyo. Recurso: el tipo de material del catálogo o la clave de una categoría de recurso de apoyo.
   porTipoPrestamo: SerieItem[]
   porRecurso: SerieItem[]
+  // Préstamos del catálogo por su tipo de material (Libro, Tesis, Juego educativo…).
+  porTipoMaterial: SerieItem[]
   porSala: SerieItem[]
   porLibro: SerieItem[]
   porHoraPorSala: HoraPorSala[]
@@ -584,6 +586,8 @@ export type ReporteOpciones = {
   tiposUsuario: string[]
   /** Nombre de cada recurso que se presta: «libro» y las claves de las categorías de recursos de apoyo. */
   recursos: Record<string, string>
+  /** Tipos de material del catálogo, para filtrar los préstamos. */
+  tiposMaterial: { id: number; nombre: string }[]
 }
 
 export type Periodo = 'dia' | 'semana' | 'mes' | 'semestre' | 'anio'
