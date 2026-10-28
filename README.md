@@ -180,6 +180,9 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   Excel o CSV.
 - Búsquedas sin distinguir tildes, ñ ni mayúsculas («calculo» encuentra
   «Cálculo I»).
+- **Portada según el tipo de material** en las listas del catálogo: el libro con
+  sus iniciales y el lomo del color de su área; la tesis, la revista, el juego
+  educativo, el DVD y lo demás, con su propio ícono (`PortadaMaterial.vue`).
 
 ### Usuarios y estudiantes
 
@@ -247,9 +250,10 @@ Para estudiantes, docentes y funcionarios, que entran por el mismo login que el
 personal (con su correo o RUT) y llegan a su propia sesión, separada del panel:
 
 - Marcar entrada y salida por RUT o escaneando el QR con la cámara.
-- Consultar el catálogo (por título, autor, área o ISBN), ver cuándo vuelve un
-  libro prestado, reservarlo o unirse a la cola de espera; al liberarse, la
-  reserva pasa sola al primero de la fila.
+- Consultar el catálogo (por título, autor, área o ISBN), ordenado de la A a la Z
+  con los títulos que empiezan con un signo al final (`OrdenAlfabetico`), ver
+  cuándo vuelve un libro prestado, reservarlo o unirse a la cola de espera; al
+  liberarse, la reserva pasa sola al primero de la fila.
 - Reservar salas para el mismo día, salir de una reserva grupal o cancelarla.
 - Inicio con el resumen de la persona (ingreso de hoy, préstamos y vencimientos,
   reservas, multas), «Mi perfil», «Mis ingresos» y descarga de la Constancia de
@@ -425,7 +429,7 @@ falta para publicar está en
 docker compose exec backend php artisan test
 ```
 
-La suite de Feature tests (`backend/tests/Feature/`, 658 tests al 2026-10-28)
+La suite de Feature tests (`backend/tests/Feature/`, 662 tests al 2026-10-28)
 cubre autenticación y permisos por rol, entradas, préstamos y reservas (incluida
 la protección contra condiciones de carrera con `lockForUpdate()`), salas,
 multas y bloqueos, catalogación y estados de ejemplares, fichas bibliográficas,
