@@ -290,7 +290,7 @@ const destacados = [
                       @input="error = ''"
                     />
                   </div>
-                  <p class="mt-1 text-xs text-gray-400">Con pasaporte o DNI, escribe su número.</p>
+                  <p class="mt-1 text-xs text-gray-500">Con pasaporte o DNI, escribe su número.</p>
                 </div>
 
                 <div>
@@ -349,7 +349,7 @@ const destacados = [
 
               <div class="my-5 flex items-center gap-3">
                 <div class="flex-1 h-px bg-gray-200" />
-                <span class="text-[11px] text-gray-400 uppercase tracking-wide">o continúa con</span>
+                <span class="text-[11px] text-gray-500 uppercase tracking-wide">o continúa con</span>
                 <div class="flex-1 h-px bg-gray-200" />
               </div>
 
@@ -405,7 +405,7 @@ const destacados = [
               </div>
             </template>
 
-            <p class="mt-5 pt-5 border-t border-gray-100 text-center text-[11px] leading-relaxed text-gray-400">© {{ anio }} Universidad de Magallanes</p>
+            <p class="mt-5 pt-5 border-t border-gray-100 text-center text-[11px] leading-relaxed text-gray-500">© {{ anio }} Universidad de Magallanes</p>
           </div>
         </div>
       </div>
