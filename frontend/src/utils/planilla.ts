@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs'
 import { sinTildes } from '@/utils/texto'
 
 /**
@@ -149,6 +148,8 @@ function desdeTabla(tabla: { numero: number; celdas: string[] }[]): LecturaPlani
 }
 
 async function leerExcel(buffer: ArrayBuffer): Promise<LecturaPlanilla> {
+  // exceljs pesa unos 900 KB: se baja recién al leer o armar una planilla.
+  const { default: ExcelJS } = await import('exceljs')
   const libro = new ExcelJS.Workbook()
   await libro.xlsx.load(buffer)
   // La hoja «Estudiantes» de la plantilla o, si no está, la primera.
@@ -241,6 +242,7 @@ export async function descargarPlantilla(formato: 'excel' | 'csv') {
     return
   }
 
+  const { default: ExcelJS } = await import('exceljs')
   const libro = new ExcelJS.Workbook()
   libro.creator = 'Biblioteca UMAG'
   const hoja = libro.addWorksheet('Estudiantes', { views: [{ state: 'frozen', ySplit: 1 }] })

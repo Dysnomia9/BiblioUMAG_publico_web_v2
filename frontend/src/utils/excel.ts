@@ -1,4 +1,5 @@
-import ExcelJS from 'exceljs'
+// exceljs pesa unos 900 KB: solo los tipos van arriba; la librería se baja al exportar.
+import type ExcelJS from 'exceljs'
 
 export type SeccionExcel = {
   titulo: string
@@ -35,7 +36,8 @@ function nombreHojaUnico(titulo: string, usados: Set<string>): string {
 
 /** Genera un libro .xlsx con diseño (título, encabezado y filas con color) — una hoja por sección. */
 export async function descargarExcel(nombreArchivo: string, secciones: SeccionExcel[]) {
-  const workbook = new ExcelJS.Workbook()
+  const { default: Excel } = await import('exceljs')
+  const workbook = new Excel.Workbook()
   workbook.creator = 'Biblioteca UMAG'
   workbook.created = new Date()
   const nombresUsados = new Set<string>()

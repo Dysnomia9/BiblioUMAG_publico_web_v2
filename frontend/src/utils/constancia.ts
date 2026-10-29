@@ -1,4 +1,5 @@
-import { jsPDF } from 'jspdf'
+// jsPDF pesa unos 400 KB: solo los tipos van arriba; la librería se baja al generar la constancia.
+import type { jsPDF } from 'jspdf'
 import selloBiblioteca from '@/assets/sello-biblioteca.png'
 import type { ConfiguracionInstitucional, Usuario } from '@/types'
 
@@ -76,7 +77,8 @@ function cargarImagenComoBase64(url: string): Promise<string> {
  * (`assets/sello-biblioteca.png`, recortada al círculo visible).
  */
 export async function generarConstanciaNoMulta(usuario: Usuario, configuracion: ConfiguracionInstitucional): Promise<void> {
-  const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+  const { jsPDF: PDF } = await import('jspdf')
+  const doc = new PDF({ unit: 'mm', format: 'letter' })
   const anchoPagina = doc.internal.pageSize.getWidth()
   const margen = 25
 
