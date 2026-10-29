@@ -14,7 +14,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
-      meta: { public: true },
+      meta: { public: true, titulo: 'Inicio de sesión', indexable: true },
     },
     { path: '/login/v2', redirect: (to) => ({ name: 'login', query: to.query }) },
     { path: '/portal/login', redirect: (to) => ({ name: 'login', query: to.query }) },
@@ -22,40 +22,40 @@ const router = createRouter({
       path: '/portal',
       name: 'portal-home',
       component: () => import('@/views/portal/PortalHomeView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Mi biblioteca' },
     },
     {
       path: '/portal/entrada',
       name: 'portal-entrada',
       component: () => import('@/views/portal/PortalEntradaView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Marcar entrada' },
     },
     {
       path: '/portal/catalogo',
       name: 'portal-catalogo',
       component: () => import('@/views/portal/PortalCatalogoView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Catálogo' },
     },
     {
       path: '/portal/salas',
       name: 'portal-salas',
       component: () => import('@/views/portal/PortalSalasView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Salas de estudio' },
     },
     {
       path: '/portal/perfil',
       name: 'portal-perfil',
       component: () => import('@/views/portal/PortalPerfilView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Mi perfil' },
     },
     {
       path: '/portal/ingresos',
       name: 'portal-ingresos',
       component: () => import('@/views/portal/PortalIngresosView.vue'),
-      meta: { portal: true },
+      meta: { portal: true, titulo: 'Mis ingresos' },
     },
     { path: '/', redirect: '/dashboard' },
-    { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+    { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { titulo: 'Inicio' } },
     { path: '/entrada', name: 'entrada', component: () => import('@/views/EntradaView.vue') },
     { path: '/prestamo', name: 'prestamo', component: () => import('@/views/PrestamoView.vue') },
     { path: '/usuarios', name: 'usuarios', component: () => import('@/views/UsuariosView.vue') },
@@ -132,6 +132,16 @@ router.beforeEach(async (to) => {
     useToast().error(`Tu rol no tiene acceso a «${modulo.label}». Si lo necesitas, pídeselo a un administrador.`)
     return { name: 'dashboard' }
   }
+})
+
+/**
+ * El título de la pestaña dice en qué pantalla se está («Préstamos · Biblioteca UMAG»), y
+ * solo el login se deja indexar: el resto pide sesión y en un buscador solo mostraría el login.
+ */
+router.afterEach((to) => {
+  const titulo = (to.meta.titulo as string | undefined) ?? itemPorRuta(to.name)?.label
+  document.title = titulo ? `${titulo} · Biblioteca UMAG` : 'Biblioteca UMAG'
+  document.querySelector('meta[name="robots"]')?.setAttribute('content', to.meta.indexable ? 'index, follow' : 'noindex, nofollow')
 })
 
 export default router

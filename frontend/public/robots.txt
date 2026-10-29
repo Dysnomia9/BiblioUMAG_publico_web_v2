@@ -1,0 +1,9 @@
+# Biblioteca UMAG es un sistema interno: lo único que tiene sentido en un buscador es la
+# página de inicio de sesión. Los archivos de /assets quedan permitidos para que el buscador
+# pueda dibujar esa página (es una aplicación de JavaScript); el resto pide sesión.
+User-agent: *
+Allow: /login
+Allow: /assets/
+Allow: /favicon.png
+Allow: /tema.js
+Disallow: /
