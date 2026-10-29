@@ -38,10 +38,10 @@ export function devolucionDe(p: Prestamo) {
 /**
  * La etiqueta de estado de un préstamo y su color en las tablas: `barra` es la franja de la
  * izquierda de la fila y `fila` el tinte de fondo. Los activos van en verde (los que vencen hoy,
- * en ámbar), los vencidos en rojo y los devueltos en celeste, con un ✓.
+ * en ámbar), los vencidos en rojo y los devueltos en celeste.
  */
 export function estadoDe(p: Prestamo) {
-  if (p.estado === 'devuelto') return { texto: '✓ Devuelto', clase: 'bg-sky-100 text-sky-800', barra: 'bg-sky-400', fila: '' }
+  if (p.estado === 'devuelto') return { texto: 'Devuelto', clase: 'bg-sky-100 text-sky-800', barra: 'bg-sky-400', fila: '' }
   if (estaVencido(p)) return { texto: 'Vencido', clase: 'bg-red-100 text-red-800', barra: 'bg-red-500', fila: 'bg-red-50/50' }
   if (p.en_sala) return { texto: 'En sala', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
   if (!p.fecha_devolucion) return { texto: 'En uso', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
