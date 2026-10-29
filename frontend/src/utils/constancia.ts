@@ -153,7 +153,8 @@ export async function generarConstanciaNoMulta(usuario: Usuario, configuracion: 
   const propiedadesSello = doc.getImageProperties(selloBase64)
   const selloAncho = 26
   const selloAlto = selloAncho * (propiedadesSello.height / propiedadesSello.width)
-  doc.addImage(selloBase64, 'PNG', anchoPagina / 2 - selloAncho / 2, yLineaFirma - selloAlto - 4, selloAncho, selloAlto)
+  // Comprimido (sin pérdida): sin esto el sello quedaba crudo y la constancia pesaba 1 MB.
+  doc.addImage(selloBase64, 'PNG', anchoPagina / 2 - selloAncho / 2, yLineaFirma - selloAlto - 4, selloAncho, selloAlto, 'sello', 'FAST')
 
   doc.line(margen + 40, yLineaFirma, anchoPagina - margen - 40, yLineaFirma)
   doc.setFont('helvetica', 'bold')
