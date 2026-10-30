@@ -70,13 +70,30 @@ class CatalogoLibroTest extends TestCase
         $this->assertSame(['Biología marina'], $this->nombres('/api/categorias?q=biologia'));
     }
 
-    public function test_lista_carreras_incluye_las_sembradas_por_la_migracion(): void
+    public function test_el_catalogo_de_carreras_no_trae_las_de_ejemplo(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
 
-        $response = $this->getJson('/api/carreras');
+        $this->assertSame([], $this->nombres('/api/carreras'));
+    }
 
-        $response->assertStatus(200)->assertJsonFragment(['nombre' => 'Derecho']);
+    public function test_al_catalogar_se_sugieren_tambien_las_carreras_de_los_usuarios(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $derecho = Carrera::create(['nombre' => 'Derecho']);
+        Usuario::factory()->create(['carrera' => 'Derecho']);
+        Usuario::factory()->create(['carrera' => 'DERECHO']);
+        Usuario::factory()->create(['carrera' => 'KINESIOLOGIA']);
+        Usuario::factory()->create(['carrera' => 'Kinesiología']);
+        Usuario::factory()->create(['carrera' => 'Enfermería']);
+
+        $this->getJson('/api/carreras?con_usuarios=1')->assertOk()->assertExactJson([
+            ['id' => $derecho->id, 'nombre' => 'Derecho'],
+            ['id' => null, 'nombre' => 'Enfermería'],
+            ['id' => null, 'nombre' => 'Kinesiología'],
+        ]);
+        // Los filtros del listado siguen con las del catálogo, que tienen id
+        $this->assertSame(['Derecho'], $this->nombres('/api/carreras'));
     }
 
     public function test_el_filtro_de_areas_del_portal_busca_solo_entre_las_que_tienen_libros_en_estante(): void

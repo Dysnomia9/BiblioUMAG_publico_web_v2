@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Autor;
 use App\Models\Categoria;
 use App\Models\Ejemplar;
+use App\Models\Equipo;
 use App\Models\Libro;
 use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -198,6 +199,32 @@ class LibroCatalogacionTest extends TestCase
         $response = $this->getJson('/api/ejemplares/siguiente-codigo-barras');
 
         $response->assertStatus(200)->assertJsonPath('codigo_barras', '30000003227566');
+    }
+
+    public function test_siguiente_codigo_de_barras_no_es_el_de_un_equipo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '30000003227565']);
+        Equipo::factory()->create(['codigo_barras' => '30000003227600']);
+
+        $this->getJson('/api/ejemplares/siguiente-codigo-barras')
+            ->assertStatus(200)
+            ->assertJsonPath('codigo_barras', '30000003227601');
+    }
+
+    public function test_una_copia_no_puede_tener_el_codigo_de_un_equipo_ni_al_reves(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $libro = Libro::factory()->create();
+        $equipo = Equipo::factory()->create(['codigo_barras' => '30000003227600']);
+        $copia = Ejemplar::factory()->for($libro)->create(['codigo_barras' => '30000003227565']);
+
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => $equipo->codigo_barras])
+            ->assertStatus(422)->assertJsonValidationErrors('codigo_barras');
+        $this->postJson('/api/equipos', ['codigo_inventario' => 'Bicicleta 09', 'codigo_barras' => $copia->codigo_barras, 'tipo' => 'bicicleta'])
+            ->assertStatus(422)->assertJsonValidationErrors('codigo_barras');
+        $this->postJson('/api/equipos', ['codigo_inventario' => 'Bicicleta 10', 'codigo_barras' => $copia->codigo_lomo, 'tipo' => 'bicicleta'])
+            ->assertStatus(422)->assertJsonValidationErrors('codigo_barras');
     }
 
     public function test_siguiente_codigo_de_barras_con_ceros_a_la_izquierda(): void

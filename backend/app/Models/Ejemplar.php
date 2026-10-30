@@ -41,6 +41,8 @@ class Ejemplar extends Model
             'disponible' => 'boolean',
             'precio' => 'decimal:2',
             'fecha_inventario' => 'date',
+            // Solo la escribe la migración desde Horizon: no está en $fillable.
+            'fecha_ingreso_horizon' => 'date:Y-m-d',
         ];
     }
 

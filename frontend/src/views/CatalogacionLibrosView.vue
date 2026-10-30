@@ -15,7 +15,7 @@ import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
-import type { Autor, Carrera, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion } from '@/types'
+import type { Autor, CarreraSugerida, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -40,7 +40,8 @@ async function buscarMaterias(texto: string) {
   const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
   return data
 }
-const carrerasOpciones = ref<Carrera[]>([])
+// Las del catálogo y las que tienen los usuarios: una nueva se escribe y se agrega con Enter.
+const carrerasOpciones = ref<CarreraSugerida[]>([])
 const ubicacionesOpciones = ref<Ubicacion[]>([])
 const tiposMaterialOpciones = ref<TipoMaterial[]>([])
 
@@ -366,7 +367,7 @@ async function cargar() {
 async function cargarCatalogos() {
   try {
     const [carrerasRes, ubicacionesRes, tiposMaterialRes, plantillasRes] = await Promise.all([
-      api.get<Carrera[]>('/carreras'),
+      api.get<CarreraSugerida[]>('/carreras', { params: { con_usuarios: 1 } }),
       api.get<Ubicacion[]>('/ubicaciones'),
       api.get<TipoMaterial[]>('/tipos-material'),
       api.get<PlantillaFicha[]>('/libros/plantillas'),
@@ -1052,7 +1053,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-4">
                   <p :class="ETIQUETA">Carreras asociadas</p>
                   <MultiSelectCombobox v-model="form.carreras" :opciones="carrerasOpciones" placeholder="Buscar carrera" :clase-ficha="TONOS_FICHA.violeta.chip" />
-                  <p class="mt-1 text-[11px] text-gray-500">A qué carreras sirve este título · uso interno</p>
+                  <p class="mt-1 text-[11px] text-gray-500">A qué carreras sirve este título · uso interno. Si no está, escríbela y presiona Enter.</p>
                 </div>
                 <div v-if="!editandoId" class="sm:col-span-2">
                   <label for="cat-precio" :class="ETIQUETA">Precio (CLP)</label>

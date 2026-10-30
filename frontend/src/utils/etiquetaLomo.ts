@@ -31,8 +31,26 @@ export const OPCIONES_LOMO: OpcionesLomo = { anchoMm: 50, altoMm: 25, conCopia: 
 /** «998 E56 2026» → ['998', 'E56', '2026'], más «v.2» y «c.2» si se pide. */
 export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_copia' | 'volumen'>, conCopia: boolean): string[] {
   const lineas = (e.clasificacion ?? '').trim().split(/\s+/).filter(Boolean)
-  if (conCopia && e.volumen?.trim()) lineas.push(/^v/i.test(e.volumen.trim()) ? e.volumen.trim() : `v.${e.volumen.trim()}`)
-  if (conCopia && e.numero_copia > 1) lineas.push(`c.${e.numero_copia}`)
+  const volumen = e.volumen?.trim() ?? ''
+  if (conCopia && volumen) lineas.push(...lineasDeVolumen(volumen))
+  // «v.2-c.1» (como venía de Horizon) ya dice la copia
+  if (conCopia && e.numero_copia > 1 && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(`c.${e.numero_copia}`)
+  return lineas
+}
+
+/**
+ * El tomo o el número de la revista: «4» → «v.4»; «v.2» o «t.1-c.3», tal cual; uno largo
+ * («Año IV No. 4 (Jul.-Aug., 1985)») en renglones cortos y sin paréntesis («Año IV»,
+ * «No. 4», «Jul.-Aug.», «1985»), para que la letra no se achique en todo el lomo.
+ */
+function lineasDeVolumen(volumen: string): string[] {
+  if (/^\d+$/.test(volumen)) return [`v.${volumen}`]
+  const lineas: string[] = []
+  for (const palabra of volumen.replace(/[()]/g, ' ').split(/\s+/).map((p) => p.replace(/,$/, '')).filter(Boolean)) {
+    const ultima = lineas.length - 1
+    if (ultima >= 0 && `${lineas[ultima]} ${palabra}`.length <= 8) lineas[ultima] += ` ${palabra}`
+    else lineas.push(palabra)
+  }
   return lineas
 }
 

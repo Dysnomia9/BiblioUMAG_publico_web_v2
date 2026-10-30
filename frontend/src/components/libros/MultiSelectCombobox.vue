@@ -11,7 +11,8 @@ import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
  * El catálogo llega en `opciones` si es corto (carreras), o se pide al servidor con
  * `buscar` a medida que se escribe si son miles (autores y materias del catálogo real).
  */
-type Opcion = { id: number; nombre: string }
+// Solo se usa el nombre: las carreras que sugieren los usuarios todavía no tienen id.
+type Opcion = { id: number | null; nombre: string }
 
 const props = withDefaults(
   defineProps<{

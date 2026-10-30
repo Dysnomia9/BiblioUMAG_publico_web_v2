@@ -41,6 +41,23 @@ class LibroListadoTest extends TestCase
         $this->assertFalse($copias[3]['reservado']);
     }
 
+    public function test_titulo_y_copias_traen_su_ingreso_a_horizon_y_a_biblioumag(): void
+    {
+        $libro = Libro::factory()->create();
+        $libro->forceFill(['fecha_ingreso_horizon' => '1995-07-06'])->save();
+        $copia = Ejemplar::factory()->for($libro)->create();
+        $copia->forceFill(['fecha_ingreso_horizon' => '1995-08-23'])->save();
+        // Lo catalogado en BiblioUMAG no tiene fecha de Horizon
+        Ejemplar::factory()->for($libro)->create(['numero_copia' => 2]);
+
+        $respuesta = $this->getJson('/api/libros')->assertOk()
+            ->assertJsonPath('data.0.fecha_ingreso_horizon', '1995-07-06')
+            ->assertJsonPath('data.0.ejemplares.0.fecha_ingreso_horizon', '1995-08-23')
+            ->assertJsonPath('data.0.ejemplares.1.fecha_ingreso_horizon', null);
+        $this->assertNotNull($respuesta->json('data.0.created_at'));
+        $this->assertNotNull($respuesta->json('data.0.ejemplares.0.created_at'));
+    }
+
     public function test_se_busca_por_clasificacion_dewey(): void
     {
         $libro = Libro::factory()->create(['titulo' => 'Bases de Datos', 'clasificacion' => '005.98 A664b 2012']);

@@ -15,6 +15,7 @@ import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
+import { textoIngreso } from '@/utils/ingreso'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
@@ -414,6 +415,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                   <div class="px-4">
                     <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas />
                   </div>
+                  <p v-if="textoIngreso(f.libro)" class="border-t border-indigo-100 px-4 py-2.5 text-xs text-gray-500">{{ textoIngreso(f.libro) }}</p>
                 </div>
                 <div class="overflow-hidden rounded-xl border border-emerald-100 bg-white">
                   <p class="flex items-center justify-between bg-emerald-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">
@@ -423,12 +425,15 @@ function copiaGuardada(actualizada: Ejemplar) {
                     <li v-for="e in f.libro.ejemplares" :key="e.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
                       <div class="min-w-0">
                         <p class="font-mono text-sm font-semibold text-gray-900">{{ e.codigo_barras }}</p>
+                        <!-- El tomo («v.2») o el número de la revista («Año IV No. 4 (Jul.-Aug., 1985)») -->
+                        <p v-if="e.volumen" class="text-sm text-gray-800">{{ e.volumen }}</p>
                         <p class="text-xs text-gray-500">
                           {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
                         <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota pública: {{ e.nota_publica }}</p>
                         <p v-if="e.nota_interna" class="text-xs text-violet-700">Nota interna: {{ e.nota_interna }}</p>
+                        <p v-if="textoIngreso(e)" class="text-xs text-gray-400">{{ textoIngreso(e) }}</p>
                       </div>
                       <div class="flex shrink-0 items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="situacionCopia(e).badge">{{ situacionCopia(e).texto }}</span>

@@ -317,7 +317,7 @@ class LibroController extends Controller
         return [
             'codigo_barras' => $ignorarLibroId
                 ? ['sometimes']
-                : ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo'],
+                : ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
             'titulo' => ['required', 'string', 'max:255'],
             'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn,' . ($ignorarLibroId ?? 'NULL') . ',id'],
             'autores' => ['nullable', 'array'],

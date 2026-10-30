@@ -7,6 +7,7 @@ import { mensajeDeError, useToast } from '@/composables/useToast'
 import { construirCsv, descargarCsv, type SeccionCsv } from '@/utils/csv'
 import { descargarExcel } from '@/utils/excel'
 import { ESTADOS_EJEMPLAR, nombreEstado, situacionCopia } from '@/utils/estadosEjemplar'
+import { fechasDeIngreso } from '@/utils/ingreso'
 import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial } from '@/types'
 
 /**
@@ -162,6 +163,7 @@ function secciones(): SeccionCsv[] {
       columnas: [
         'Título', 'Autor(es)', 'ISBN', 'ISSN', 'Clasificación (Dewey)', 'Editorial', 'Año', 'Edición', 'Lugar de publicación',
         'Tipo de material', 'Categorías', 'Carreras', 'Colección', 'Idioma', 'Copias', 'Disponibles', 'Prestadas', 'Reservadas', 'Ubicaciones', 'Catalogado por',
+        'Ingreso a Horizon', 'Ingreso a BiblioUMAG',
       ],
       filas: seleccion.value.map(({ libro: l, copias }) => [
         l.titulo,
@@ -184,6 +186,8 @@ function secciones(): SeccionCsv[] {
         copias.filter((e) => e.reservado).length,
         [...new Set(copias.map((e) => e.ubicacion?.nombre).filter(Boolean))].join('; '),
         l.catalogado_por?.nombre ?? '',
+        fechasDeIngreso(l).horizon,
+        fechasDeIngreso(l).biblioumag,
       ]),
     })
   }
@@ -193,7 +197,7 @@ function secciones(): SeccionCsv[] {
       titulo: 'Ejemplares',
       columnas: [
         'Código de barras', 'Código de lomo', 'Título', 'Copia', 'Volumen', 'Estado', 'Situación', 'Ubicación', 'Forma de adquisición', 'Precio',
-        'Fecha de inventario', 'Tipo de material', 'Clasificación (Dewey)', 'Carreras', 'Categorías',
+        'Fecha de inventario', 'Ingreso a Horizon', 'Ingreso a BiblioUMAG', 'Tipo de material', 'Clasificación (Dewey)', 'Carreras', 'Categorías',
       ],
       filas: seleccion.value.flatMap(({ libro: l, copias }) =>
         copias.map((e) => [
@@ -208,6 +212,8 @@ function secciones(): SeccionCsv[] {
           e.forma_adquisicion ? FORMAS[e.forma_adquisicion] : '',
           e.precio ? Number(e.precio) : '',
           e.fecha_inventario ? new Date(e.fecha_inventario).toLocaleDateString('es-CL') : '',
+          fechasDeIngreso(e).horizon,
+          fechasDeIngreso(e).biblioumag,
           l.tipo_material?.nombre ?? '',
           l.clasificacion ?? '',
           lista(l.carreras),

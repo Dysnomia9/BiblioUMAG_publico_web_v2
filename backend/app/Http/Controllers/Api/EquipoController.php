@@ -73,7 +73,7 @@ class EquipoController extends Controller
             'recursos.*.codigo_inventario.unique' => 'Fila :position: ya hay un recurso con ese nombre.',
             'recursos.*.codigo_inventario.distinct' => 'Fila :position: ese nombre está repetido en la lista.',
             'recursos.*.codigo_barras.required' => 'Fila :position: falta el código de barras.',
-            'recursos.*.codigo_barras.unique' => 'Fila :position: ese código de barras ya es de otro recurso.',
+            'recursos.*.codigo_barras.unique' => 'Fila :position: ese código de barras ya es de otro recurso o de una copia de un libro.',
             'recursos.*.codigo_barras.distinct' => 'Fila :position: ese código de barras está repetido en la lista.',
             'recursos.*.tipo.required' => 'Fila :position: elige la categoría.',
             'recursos.*.tipo.exists' => 'Fila :position: esa categoría no existe o está desactivada.',
@@ -88,7 +88,8 @@ class EquipoController extends Controller
     {
         return [
             'codigo_inventario' => ['required', 'string', 'max:255', 'unique:equipos,codigo_inventario'],
-            'codigo_barras' => ['required', 'string', 'max:255', 'unique:equipos,codigo_barras'],
+            // Ni de otro recurso ni de una copia de un libro (su código o el de lomo): al escanear, sale uno solo
+            'codigo_barras' => ['required', 'string', 'max:255', 'unique:equipos,codigo_barras', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo'],
             // La categoría de recurso de apoyo (Administración → Catálogos), solo si está activa.
             'tipo' => ['required', Rule::exists('categorias_recurso', 'clave')->where('activo', true)],
         ];

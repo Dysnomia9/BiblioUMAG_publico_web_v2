@@ -205,6 +205,8 @@ export type EstadoProcesoEjemplar =
 export type Autor = { id: number; nombre: string }
 export type Categoria = { id: number; nombre: string }
 export type Carrera = { id: number; nombre: string }
+/** Al catalogar: las carreras del catálogo (con id) y las de los usuarios que aún no tiene ningún libro (sin id). */
+export type CarreraSugerida = { id: number | null; nombre: string }
 export type Ubicacion = { id: number; nombre: string }
 export type PlantillaFichaClave = 'libro' | 'trabajo_titulacion' | 'juego_educativo' | 'publicacion_seriada'
 
@@ -261,6 +263,10 @@ export type Ejemplar = {
   precio: string | null
   forma_adquisicion: 'compra' | 'donacion' | 'canje' | null
   fecha_inventario: string | null
+  /** «1997-04-08»: cuándo entró a Horizon; null si se catalogó en BiblioUMAG. */
+  fecha_ingreso_horizon?: string | null
+  /** Ingreso a BiblioUMAG (para lo migrado, el día de la migración). */
+  created_at?: string
   /** Se ve en la ficha de la copia y en el portal. */
   nota_publica?: string | null
   /** Solo para el personal. */
@@ -311,6 +317,10 @@ export type Libro = {
   /** Nota de contenido (MARC 505): índice de capítulos o volúmenes. */
   contenido?: string | null
   catalogado_por?: { id: number; nombre: string } | null
+  /** «1995-07-06»: cuándo entró a Horizon; null si se catalogó en BiblioUMAG. */
+  fecha_ingreso_horizon?: string | null
+  /** Ingreso a BiblioUMAG (para lo migrado, el día de la migración). */
+  created_at?: string
   ficha?: FilaFicha[]
   autores?: Autor[]
   categorias?: Categoria[]

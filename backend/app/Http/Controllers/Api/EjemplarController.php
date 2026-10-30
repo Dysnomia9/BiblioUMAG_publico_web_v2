@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
+use App\Models\Equipo;
 use App\Models\ReservaLibro;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
@@ -43,7 +44,8 @@ class EjemplarController extends Controller
     {
         $data = $request->validate([
             'libro_id' => ['required', 'exists:libros,id'],
-            'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo'],
+            // Ni de otra copia (su código o el de lomo) ni de un equipo: al escanear, sale uno solo
+            'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
             'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
             'volumen' => ['nullable', 'string', 'max:100'],
             'precio' => ['nullable', 'numeric', 'min:0'],
@@ -126,9 +128,11 @@ class EjemplarController extends Controller
     /**
      * Sugiere el próximo código de barras interno secuencial. Los códigos reales de la
      * biblioteca son numéricos de 14 dígitos (ej. 30000003227565, formato heredado de
-     * Horizon) — se busca el mayor código de 14 dígitos existente y se suma 1. El staff
-     * puede editarlo antes de guardar. Si todavía no hay ningún código de 14 dígitos en
-     * la base (instalación nueva, sin códigos reales importados aún), arranca en
+     * Horizon) — se busca el mayor código de 14 dígitos existente y se suma 1, contando
+     * también los equipos (notebooks, audífonos…), que se escanean igual al prestar: así
+     * el sugerido no es de nadie. El staff puede editarlo antes de guardar. Si todavía no
+     * hay ningún código de 14 dígitos en la base (instalación nueva, sin códigos reales
+     * importados aún), arranca en
      * '00000000000001' — es solo un punto de partida neutro, no un prefijo institucional
      * real, que nadie confirmó todavía.
      */
@@ -136,7 +140,10 @@ class EjemplarController extends Controller
     {
         // El mayor se calcula en la base, sin traer los miles de códigos: todos tienen 14
         // dígitos, así que el mayor como texto es también el mayor como número.
-        $ultimo = Ejemplar::whereRaw("codigo_barras ~ '^[0-9]{14}$'")->max('codigo_barras');
+        $ultimo = collect([
+            Ejemplar::whereRaw("codigo_barras ~ '^[0-9]{14}$'")->max('codigo_barras'),
+            Equipo::whereRaw("codigo_barras ~ '^[0-9]{14}$'")->max('codigo_barras'),
+        ])->filter()->max();
 
         $codigo = str_pad((string) ((int) ($ultimo ?? 0) + 1), 14, '0', STR_PAD_LEFT);
 

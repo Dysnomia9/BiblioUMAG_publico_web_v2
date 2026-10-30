@@ -201,7 +201,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <label for="fasciculo-copia" class="mb-1 block text-xs font-medium text-gray-600">Copia prestable (opcional)</label>
           <select id="fasciculo-copia" v-model="nuevo.datos.ejemplar_id" :class="CAMPO">
             <option value="">Ninguna</option>
-            <option v-for="c in copias" :key="c.id" :value="c.id">Copia {{ c.numero_copia }} · {{ c.codigo_barras }}</option>
+            <option v-for="c in copias" :key="c.id" :value="c.id">Copia {{ c.numero_copia }}{{ c.volumen ? ` · ${c.volumen}` : '' }} · {{ c.codigo_barras }}</option>
           </select>
         </div>
         <div>

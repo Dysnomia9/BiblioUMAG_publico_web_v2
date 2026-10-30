@@ -147,8 +147,8 @@ class SeedMockupData extends Command
             // que deben borrarse antes que sus padres, no después. autores/categorias/
             // carreras/estados_libro_personalizados NO se borran a propósito: son
             // catálogos que se reutilizan entre corridas (firstOrCreate por nombre), no
-            // datos de prueba transaccionales — carreras además solo se siembra una vez
-            // desde su migración, borrarla aquí la dejaría vacía para siempre.
+            // datos de prueba transaccionales — carreras además guarda también las que
+            // la biblioteca asignó a sus libros.
             // La bitácora va primero: apunta (RESTRICT) a las cuentas del personal y a los
             // usuarios, y en cuanto alguien usó el sistema ya tiene filas.
             DB::table('bitacora')->delete();
@@ -989,10 +989,11 @@ class SeedMockupData extends Command
             $categoria = Categoria::firstOrCreate(['nombre' => $item['categoria']]);
             $libro->categorias()->attach($categoria->id);
 
-            // 1-2 carreras al azar del catálogo, para poblar el multi-select de
-            // "carrera(s) asignadas" con datos reales desde el primer arranque.
-            $carreras = Carrera::inRandomOrder()->limit(random_int(1, 2))->get();
-            $libro->carreras()->attach($carreras->pluck('id'));
+            // 1-2 de las carreras de los usuarios de prueba, para poblar el multi-select de
+            // "carrera(s) asignadas" (el catálogo de carreras parte vacío).
+            $carreras = collect($this->carreras)->random(random_int(1, 2))
+                ->map(fn ($nombre) => Carrera::firstOrCreate(['nombre' => $nombre])->id);
+            $libro->carreras()->attach($carreras->all());
 
             $numeroCopias = $i < 5 ? 2 : ($i === 5 ? 3 : 1);
 

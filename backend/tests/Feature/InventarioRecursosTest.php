@@ -76,7 +76,7 @@ class InventarioRecursosTest extends TestCase
         ]])
             ->assertStatus(422)
             ->assertJsonValidationErrors([
-                'recursos.1.codigo_barras' => 'Fila 2: ese código de barras ya es de otro recurso.',
+                'recursos.1.codigo_barras' => 'Fila 2: ese código de barras ya es de otro recurso o de una copia de un libro.',
                 'recursos.2.codigo_barras' => 'Fila 3: ese código de barras está repetido en la lista.',
                 'recursos.3.tipo' => 'Fila 4: esa categoría no existe o está desactivada.',
             ]);
