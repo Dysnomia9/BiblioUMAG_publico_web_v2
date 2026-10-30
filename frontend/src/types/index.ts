@@ -611,7 +611,7 @@ export type ReporteResumen = {
   total: number
   /** Uso de salas: personas (todos los integrantes) en esas reservas; en las demás pestañas, igual a total. */
   personas?: number
-  /** Uso de salas: cuántos de esos usos son de logias y puestos registrados en Horizon, antes de BiblioUMAG. */
+  /** Cuántos son de Horizon, antes de BiblioUMAG: logias (Uso de salas) o puestos de estudio (Ingresos). */
   usosHorizon?: number
   totalAnterior: number
   promedioPorPeriodo: number

@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\DB;
 
 class ReporteController extends Controller
 {
-    /** Cómo se llaman en Uso de salas los usos de Horizon, que no dicen qué logia fue. */
-    private const SALAS_HORIZON = ['logia' => 'Logias (Horizon, sin sala)', 'puesto' => 'Puestos de estudio (Horizon)'];
+    /** Cómo se llaman en Uso de salas las logias de Horizon, que no dicen cuál fue. */
+    private const LOGIAS_HORIZON = 'Logias (Horizon, sin sala)';
 
     public function opciones()
     {
@@ -142,13 +142,15 @@ class ReporteController extends Controller
         $total = (clone $registros)->count();
         $totalAnterior = $porReserva($consulta($inicioAnterior, $finAnterior))->count();
 
-        // Uso de salas antes de BiblioUMAG: los usos de logias y puestos de estudio de Horizon
-        // (usosHorizon()), con los mismos filtros. Cada uno cuenta como una reserva de una persona.
-        $usosHorizon = $tab === 'logias' ? $this->usosHorizon($request, $inicio, $fin) : null;
+        // Antes de BiblioUMAG, lo que registró Horizon (usosHorizon()), con los mismos filtros: en
+        // Uso de salas, cada logia es una reserva de una persona; en Ingresos, cada uso de un
+        // puesto de estudio es una entrada a la biblioteca.
+        $servicioHorizon = ['logias' => 'logia', 'ingresos' => 'puesto'][$tab] ?? null;
+        $usosHorizon = $servicioHorizon ? $this->usosHorizon($request, $servicioHorizon, $inicio, $fin) : null;
         $cantidadHorizon = $usosHorizon ? (clone $usosHorizon)->count() : 0;
         if ($usosHorizon) {
             $total += $cantidadHorizon;
-            $totalAnterior += $this->usosHorizon($request, $inicioAnterior, $finAnterior)->count();
+            $totalAnterior += $this->usosHorizon($request, $servicioHorizon, $inicioAnterior, $finAnterior)->count();
         }
 
         // Cada sala con su código («L04 · Logia 04»), el mismo que se usa en el mesón.
@@ -159,6 +161,12 @@ class ReporteController extends Controller
             ->selectRaw("({$momento})::date as dia, extract(hour from {$momento})::int as hora, count(*) as cantidad")
             ->groupByRaw('1, 2')
             ->get();
+        if ($tab === 'ingresos') {
+            $porDiaHora = $porDiaHora->concat((clone $usosHorizon)
+                ->selectRaw('fecha::text as dia, extract(hour from hora_inicio)::int as hora, count(*) as cantidad')
+                ->groupByRaw('1, 2')
+                ->get());
+        }
 
         $tramos = Reportes::tramos($inicio, $fin, $periodo);
         $porTramo = [];
@@ -179,10 +187,10 @@ class ReporteController extends Controller
                 ->selectRaw("{$salaConCodigo} as sala, reservas.hora_inicio, reservas.hora_fin")
                 ->get()
                 ->map(fn ($r) => ['sala' => $r->sala, 'desde' => self::minutos($r->hora_inicio), 'hasta' => self::minutos($r->hora_fin)])
-                ->concat((clone $usosHorizon)->get(['servicio', 'hora_inicio', 'hora_fin'])->map(fn ($u) => [
-                    'sala' => self::SALAS_HORIZON[$u->servicio], 'desde' => self::minutos($u->hora_inicio), 'hasta' => self::minutos($u->hora_fin),
+                ->concat((clone $usosHorizon)->get(['hora_inicio', 'hora_fin'])->map(fn ($u) => [
+                    'sala' => self::LOGIAS_HORIZON, 'desde' => self::minutos($u->hora_inicio), 'hasta' => self::minutos($u->hora_fin),
                 ]));
-            // Fuera del reporte de un día, la serie va por día: cada uso de Horizon cuenta una vez.
+            // Fuera del reporte de un día, la serie va por día: cada logia de Horizon cuenta una vez.
             if ($periodo !== 'dia') {
                 foreach ((clone $usosHorizon)->selectRaw('fecha::text as dia, count(*) as cantidad')->groupBy('fecha')->get() as $fila) {
                     $clave = Reportes::claveTramo(Carbon::parse($fila->dia), $periodo);
@@ -304,14 +312,14 @@ class ReporteController extends Controller
                     'minutos_uso' => (int) round((float) $fila->minutos_uso),
                     'liberadas' => (int) $fila->liberadas,
                 ])
-                // Los de Horizon: todos con la llave entregada. Los puestos se registraban sin duración.
+                // Las logias de Horizon: todas con la llave entregada.
                 ->concat((clone $usosHorizon)
-                    ->selectRaw("servicio, count(*) as usos, coalesce(sum(extract(epoch from (hora_fin - hora_inicio)) / 60) filter (where servicio = 'logia'), 0) as minutos")
-                    ->groupBy('servicio')
+                    ->selectRaw('count(*) as usos, coalesce(sum(extract(epoch from (hora_fin - hora_inicio)) / 60), 0) as minutos')
+                    ->havingRaw('count(*) > 0')
                     ->get()
                     ->map(fn ($fila) => [
                         'codigo' => 'HZ',
-                        'nombre' => self::SALAS_HORIZON[$fila->servicio],
+                        'nombre' => self::LOGIAS_HORIZON,
                         'reservas' => (int) $fila->usos,
                         'presentes' => (int) $fila->usos,
                         'no_llegaron' => 0,
@@ -327,7 +335,7 @@ class ReporteController extends Controller
             // Uso de salas: cuántas personas (integrantes) hubo en esas reservas; los desgloses por
             // carrera, tipo, sexo y año de ingreso suman esto. En las demás pestañas, igual al total.
             'personas' => $tab === 'logias' ? (clone $base)->count() + $cantidadHorizon : $total,
-            // Uso de salas: cuántos de esos usos son de Horizon, de antes de BiblioUMAG.
+            // Cuántos son de Horizon, de antes de BiblioUMAG: logias en Uso de salas, puestos de estudio en Ingresos.
             'usosHorizon' => $cantidadHorizon,
             'totalAnterior' => $totalAnterior,
             'promedioPorPeriodo' => (int) round($total / max(1, count($tramos))),
@@ -337,8 +345,7 @@ class ReporteController extends Controller
             'serie' => $serie,
             'porCarrera' => $porCarrera,
             'porSexo' => self::sumar($agrupar("coalesce(usuarios.sexo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(sexo, 'Sin dato')")),
-            // Horizon no tiene el año de ingreso.
-            'porAnioIngreso' => self::sumar($agrupar("coalesce(usuarios.anio_ingreso::text, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "'Sin dato'"))->sortBy('label')->values(),
+            'porAnioIngreso' => self::sumar($agrupar("coalesce(usuarios.anio_ingreso::text, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(anio_ingreso::text, 'Sin dato')"))->sortBy('label')->values(),
             'porTipoUsuario' => self::sumar($agrupar("coalesce(usuarios.tipo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(tipo_usuario, 'Sin dato')")),
             'porHora' => $contarHoras($porHoraTotal),
             // Solo tienen sentido en su pestaña; en el resto van vacíos.
@@ -349,8 +356,7 @@ class ReporteController extends Controller
             // recursos de apoyo, por la clave de su categoría.
             'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],
             'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial($tipoDeMaterial) : [],
-            'porSala' => $tab === 'logias' ? self::sumar($agrupar($salaConCodigo, $registros), $this->agruparHorizon($usosHorizon, 'servicio')
-                ->map(fn ($fila) => ['label' => self::SALAS_HORIZON[$fila['label']], 'value' => $fila['value']])) : [],
+            'porSala' => $tab === 'logias' ? self::sumar($agrupar($salaConCodigo, $registros), $this->agruparHorizon($usosHorizon, "'".self::LOGIAS_HORIZON."'")) : [],
             'porSalaDetalle' => $porSalaDetalle,
             // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
             // correcto aunque la copia ya no exista o el libro haya cambiado de título. En
@@ -361,13 +367,13 @@ class ReporteController extends Controller
     }
 
     /**
-     * Los usos de logias y puestos de estudio que registró Horizon antes de BiblioUMAG
-     * (usos_sala_horizon, los carga el ETL) del período, con los filtros del reporte. No traen
-     * año de ingreso ni visitantes externos: con esos filtros no hay ninguno.
+     * Los usos de logias o de puestos de estudio ($servicio) que registró Horizon antes de
+     * BiblioUMAG (usos_horizon, los carga el ETL) del período, con los filtros del reporte. No hay
+     * visitantes externos: con ese filtro no hay ninguno.
      */
-    private function usosHorizon(Request $request, Carbon $desde, Carbon $hasta): QueryBuilder
+    private function usosHorizon(Request $request, string $servicio, Carbon $desde, Carbon $hasta): QueryBuilder
     {
-        $query = DB::table('usos_sala_horizon')->whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()]);
+        $query = DB::table('usos_horizon')->where('servicio', $servicio)->whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()]);
 
         // La carrera viene de Horizon como allá («ENFERMERÍA»): se compara sin mayúsculas ni tildes.
         if ($carrera = $request->query('carrera')) {
@@ -376,7 +382,10 @@ class ReporteController extends Controller
         if ($sexo = $request->query('sexo')) {
             $query->where('sexo', $sexo);
         }
-        if ($request->query('anio_ingreso') || $request->query('tipo_usuario') === 'externo') {
+        if ($anio = $request->query('anio_ingreso')) {
+            $query->where('anio_ingreso', (int) $anio);
+        }
+        if ($request->query('tipo_usuario') === 'externo') {
             $query->whereRaw('false');
         }
         match ($request->query('tipo_usuario')) {

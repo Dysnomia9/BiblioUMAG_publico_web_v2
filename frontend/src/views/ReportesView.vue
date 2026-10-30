@@ -443,7 +443,8 @@ async function confirmarExportar() {
         ['Período', etiquetaPeriodo.value],
         ['Filtros aplicados', descripcionFiltros.value],
         ['Total', r.total],
-        ...(tab.value === 'logias' ? [['Personas (todos los integrantes)', r.personas ?? r.total], ['De Horizon (logias sin sala y puestos de estudio)', r.usosHorizon ?? 0]] : []),
+        ...(tab.value === 'logias' ? [['Personas (todos los integrantes)', r.personas ?? r.total]] : []),
+        ...(r.usosHorizon ? [[`De Horizon (${tab.value === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala'})`, r.usosHorizon]] : []),
         [`Total ${etiquetaAnterior.value}`, r.totalAnterior],
         ['Horario de mayor uso', r.horarioPico ? `${r.horarioPico.desde}–${r.horarioPico.hasta} (${r.horarioPico.value})` : '—'],
         ['Horario de atención', textoHorario.value || '—'],
@@ -652,8 +653,8 @@ async function confirmarExportar() {
             </div>
             <p class="mt-1 text-3xl font-serif font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
             <p v-if="tab === 'logias'" class="text-xs text-gray-500">{{ totalPersonas }} {{ totalPersonas === 1 ? 'persona' : 'personas' }}, contando a los integrantes</p>
-            <p v-if="tab === 'logias' && resumen.usosHorizon" class="text-xs text-gray-500">
-              {{ resumen.usosHorizon.toLocaleString('es-CL') }} de Horizon, antes de BiblioUMAG (logias sin sala y puestos de estudio)
+            <p v-if="resumen.usosHorizon" class="text-xs text-gray-500">
+              {{ resumen.usosHorizon.toLocaleString('es-CL') }} de Horizon, antes de BiblioUMAG ({{ tab === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala' }})
             </p>
             <p class="mt-1 text-xs text-gray-500">
               <span class="font-semibold" :class="diferencia > 0 ? 'text-emerald-600' : diferencia < 0 ? 'text-red-600' : 'text-gray-500'">
