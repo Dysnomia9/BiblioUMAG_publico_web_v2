@@ -28,6 +28,34 @@ class LibroEstadoProcesoTest extends TestCase
         $response->assertStatus(200)->assertJsonPath('estado_proceso', 'en_estante');
     }
 
+    public function test_una_copia_marcada_no_disponible_sin_prestamo_queda_libre_al_pasar_a_estante_y_se_presta(): void
+    {
+        // Así llegaban de Horizon las copias que no estaban en estante.
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['estado_proceso' => 'inventario', 'disponible' => false, 'codigo_barras' => '35606100110950']);
+
+        $this->patchJson("/api/ejemplares/{$ejemplar->id}/estado", ['estado_proceso' => 'en_estante'])->assertOk();
+
+        $this->assertTrue($ejemplar->refresh()->disponible);
+        $this->postJson('/api/prestamos', [
+            'usuario_id' => \App\Models\Usuario::factory()->create()->id,
+            'codigo_barras' => '35606100110950',
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ])->assertCreated();
+    }
+
+    public function test_una_copia_prestada_sigue_no_disponible_al_pasar_a_estante(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['estado_proceso' => 'estanteria_auxiliar', 'disponible' => false]);
+        Prestamo::factory()->create(['ejemplar_id' => $ejemplar->id, 'estado' => 'activo']);
+
+        $this->patchJson("/api/ejemplares/{$ejemplar->id}/estado", ['estado_proceso' => 'en_estante'])->assertOk();
+
+        $this->assertFalse($ejemplar->refresh()->disponible);
+    }
+
     public function test_cambiar_estado_a_inventario_estampa_fecha_inventario(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

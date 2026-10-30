@@ -54,7 +54,7 @@ const guardando = ref(false)
 // Campos de la ficha que se escriben tal cual (texto libre); el resto tiene su
 // propio control en el template (autores, materias, pie de imprenta...).
 const CAMPOS_TEXTO = [
-  'isbn', 'issn', 'clasificacion', 'titulo_alternativo', 'edicion', 'lugar_publicacion',
+  'isbn', 'otros_isbn', 'issn', 'clasificacion', 'titulo_alternativo', 'edicion', 'lugar_publicacion',
   'descripcion_fisica', 'entidad_corporativa', 'reunion', 'entidad_secundaria',
   'materias_personales', 'materias_geograficas', 'url_acceso', 'designacion_volumen',
   'nota_tesis', 'profesor_guia', 'resumen', 'audiencia', 'idioma', 'serie',
@@ -892,6 +892,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <label for="cat-idioma" :class="ETIQUETA"><Marc :codigo="etiqueta('idioma')" tono="indigo" /> Idioma</label>
                   <input id="cat-idioma" v-model="form.idioma" placeholder="Español" :class="CAMPO" />
                 </div>
+                <div v-if="tiene('otros_isbn')" class="sm:col-span-6">
+                  <label for="cat-otros-isbn" :class="ETIQUETA"><Marc :codigo="etiqueta('otros_isbn')" tono="indigo" /> Otros ISBN</label>
+                  <input id="cat-otros-isbn" v-model="form.otros_isbn" placeholder="978...; 978..." :class="[CAMPO, 'font-mono']" />
+                  <p class="mt-1 text-[11px] text-gray-500">El de la colección o la obra completa, o el que comparte con otros tomos, separados por «;». Al buscar cualquiera de ellos aparece este título.</p>
+                </div>
               </div>
             </SeccionFicha>
 
@@ -1053,7 +1058,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-4">
                   <p :class="ETIQUETA">Carreras asociadas</p>
                   <MultiSelectCombobox v-model="form.carreras" :opciones="carrerasOpciones" placeholder="Buscar carrera" :clase-ficha="TONOS_FICHA.violeta.chip" />
-                  <p class="mt-1 text-[11px] text-gray-500">A qué carreras sirve este título · uso interno. Si no está, escríbela y presiona Enter.</p>
+                  <p class="mt-1 text-[11px] text-gray-500">A qué carreras sirve este título. Los estudiantes las ven en la ficha, en el portal. Si no está, escríbela y presiona Enter.</p>
                 </div>
                 <div v-if="!editandoId" class="sm:col-span-2">
                   <label for="cat-precio" :class="ETIQUETA">Precio (CLP)</label>

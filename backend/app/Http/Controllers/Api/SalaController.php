@@ -14,6 +14,7 @@ use App\Support\Bitacora;
 use App\Support\Documento;
 use App\Support\Notificar;
 use App\Support\Paginacion;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -77,7 +78,7 @@ class SalaController extends Controller
             ...$pagina->toArray(),
             'data' => collect($pagina->items())->map(fn (Reserva $r) => ReservaSalaService::paraListado($r))->all(),
             'conteos' => collect(self::VISTAS_LISTADO)->map(fn ($estado, $v) => $filtro($v)(clone $base)->count()),
-            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo']),
+            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion']),
         ]);
     }
 
@@ -100,6 +101,13 @@ class SalaController extends Controller
 
         if ($reserva->estado !== 'activa') {
             return response()->json(['message' => 'Solo se editan las reservas activas: las finalizadas, canceladas o en que no se presentaron quedan como registro.'], 409);
+        }
+
+        // Sacarla de una sala de la administración o pasarla a una también lo hace solo la administración.
+        foreach (array_unique([$reserva->sala_id, (int) $data['sala_id']]) as $salaId) {
+            if ($rechazo = $this->rechazoSoloAdministracion($request, $salaId, $reserva->rut_usuario)) {
+                return $rechazo;
+            }
         }
 
         if ($this->reservaSalaService->liberarSiVencida($reserva)) {
@@ -181,6 +189,7 @@ class SalaController extends Controller
             'duracion_minima' => config('salas.duracion_minima'),
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
+            'personas_minimas' => config('salas.personas_minimas'),
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
         ]);
@@ -193,10 +202,12 @@ class SalaController extends Controller
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
-            'cantidad_personas' => ['required', 'integer', 'min:2', 'max:5'],
+            'cantidad_personas' => ['required', 'integer', 'min:'.config('salas.personas_minimas'), 'max:5'],
             'inmediata' => ['sometimes', 'boolean'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
+        ], [
+            'cantidad_personas.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
         ]);
 
         // Los RUT (o pasaportes/DNI de estudiantes extranjeros) deben pertenecer a
@@ -206,6 +217,11 @@ class SalaController extends Controller
 
         if (count($data['ruts']) !== $data['cantidad_personas']) {
             return response()->json(['message' => 'Debe ingresar un RUT por cada persona indicada'], 422);
+        }
+
+        // El primer RUT queda a cargo de la reserva.
+        if ($rechazo = $this->rechazoSoloAdministracion($request, (int) $data['sala_id'], $data['ruts'][0] ?? null)) {
+            return $rechazo;
         }
 
         $inmediata = $data['inmediata'] ?? false;
@@ -286,17 +302,17 @@ class SalaController extends Controller
     /**
      * Corrige quiénes vienen en una reserva activa, típicamente al confirmar la llegada:
      * alguien no vino, se sumó otra persona o un RUT quedó mal escrito. Mismas reglas que
-     * al reservar: de 2 a 5 usuarios registrados, sin otra sala a esa hora y dentro de la
+     * al reservar: de personas_minimas (config/salas.php) a 5 usuarios registrados, sin otra sala a esa hora y dentro de la
      * cuota diaria. Si la llegada ya estaba confirmada, quien se suma queda presente en
      * la biblioteca, igual que el resto del grupo.
      */
     public function actualizarIntegrantes(Request $request, Reserva $reserva, EntradaService $entradas)
     {
         $data = $request->validate([
-            'ruts' => ['required', 'array', 'min:2', 'max:5'],
+            'ruts' => ['required', 'array', 'min:'.config('salas.personas_minimas'), 'max:5'],
             'ruts.*' => ['required', 'string'],
         ], [
-            'ruts.min' => 'La reserva necesita al menos 2 personas.',
+            'ruts.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
             'ruts.max' => 'La reserva admite como máximo 5 personas.',
             'ruts.*.required' => 'Complete el RUT (o pasaporte/DNI) de cada persona.',
         ]);
@@ -520,6 +536,30 @@ class SalaController extends Controller
         Bitacora::registrar('salas.liberar', "Liberó por no presentación {$reserva->descripcion()}", entidad: $reserva, afectado: $reserva->usuario);
 
         return response()->json($reserva);
+    }
+
+    /**
+     * Las salas que gestiona solo la administración (Sala de Seminarios): las reserva y
+     * edita quien tiene el permiso salas.administracion, y no quedan a cargo de un
+     * estudiante. Null si la sala no es de esas o si se puede.
+     */
+    private function rechazoSoloAdministracion(Request $request, int $salaId, ?string $rutACargo): ?JsonResponse
+    {
+        $sala = Sala::find($salaId);
+
+        if (! $sala?->solo_administracion) {
+            return null;
+        }
+
+        if (! $request->user()->puede('salas.administracion')) {
+            return response()->json(['message' => "{$sala->nombre} la gestiona solo la administración: pide a un administrador que haga o cambie la reserva."], 403);
+        }
+
+        if ($rutACargo && Usuario::where('rut', $rutACargo)->value('tipo') === 'estudiante') {
+            return response()->json(['message' => "{$sala->nombre} no se presta a estudiantes: quien queda a cargo (el primer RUT) debe ser docente o funcionario."], 422);
+        }
+
+        return null;
     }
 
     /**

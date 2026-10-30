@@ -44,14 +44,17 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $this->assertSame(3, $porLibro[0]['value']);
     }
 
-    public function test_tab_prestamos_no_incluye_porlibro(): void
+    public function test_tab_prestamos_trae_el_material_mas_prestado_sin_los_recursos_de_apoyo(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Prestamo::factory()->create(['tipo_item' => 'audifonos']);
+        Prestamo::factory()->count(2)->create(['tipo_item' => 'libro', 'libro_titulo' => 'Cálculo']);
+        Prestamo::factory()->create(['tipo_item' => 'libro', 'libro_titulo' => 'Álgebra']);
+        Prestamo::factory()->create(['tipo_item' => 'audifonos', 'libro_titulo' => 'Audífonos 01']);
 
-        $response = $this->getJson('/api/reportes/resumen?tab=prestamos');
-
-        $response->assertStatus(200)->assertJsonPath('porLibro', []);
+        $this->getJson('/api/reportes/resumen?tab=prestamos')
+            ->assertOk()
+            ->assertJsonPath('total', 4)
+            ->assertJsonPath('porLibro', [['label' => 'Cálculo', 'value' => 2], ['label' => 'Álgebra', 'value' => 1]]);
     }
 
     public function test_tab_prestamos_separa_recurso_bibliografico_y_recursos_de_apoyo(): void
@@ -173,6 +176,49 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $porSala = $response->json('porSala');
         $this->assertSame('LPO · Logia Popular', $porSala[0]['label']);
         $this->assertSame(2, $porSala[0]['value']);
+    }
+
+    public function test_tab_logias_cuenta_a_los_integrantes_no_solo_a_quien_reservo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
+        $funcionario = Usuario::factory()->create(['tipo' => 'funcionario']);
+        $otro = Usuario::factory()->create(['tipo' => 'estudiante']);
+        // La hizo el estudiante; el funcionario va de invitado.
+        Reserva::factory()->conParticipantes([$estudiante, $funcionario, $otro])->create(['usuario_id' => $estudiante->id, 'cantidad_personas' => 3]);
+
+        $todos = $this->getJson('/api/reportes/resumen?tab=logias')->assertOk();
+        $this->assertSame(1, $todos->json('total'));
+        $this->assertSame(3, $todos->json('personas'));
+        $this->assertEqualsCanonicalizing([['label' => 'estudiante', 'value' => 2], ['label' => 'funcionario', 'value' => 1]], $todos->json('porTipoUsuario'));
+        $this->assertSame(1, $todos->json('porSala.0.value'));
+
+        $funcionarios = $this->getJson('/api/reportes/resumen?tab=logias&tipo_usuario=funcionario')->assertOk();
+        $this->assertSame(1, $funcionarios->json('total'));
+        $this->assertSame(1, $funcionarios->json('personas'));
+        $this->assertSame([['label' => 'funcionario', 'value' => 1]], $funcionarios->json('porTipoUsuario'));
+
+        $this->assertSame(0, $this->getJson('/api/reportes/resumen?tab=logias&tipo_usuario=docente')->assertOk()->json('total'));
+    }
+
+    public function test_tab_logias_cuenta_cada_hora_ocupada_y_el_horario_de_mayor_uso_es_el_de_mas_salas_a_la_vez(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $dia = ['fecha' => '2026-10-30', 'usuario_id' => Usuario::factory()];
+        Reserva::factory()->create($dia + ['hora_inicio' => '16:30', 'hora_fin' => '18:30']);
+
+        $uno = $this->getJson('/api/reportes/resumen?tab=logias&periodo=dia&fecha=2026-10-30')->assertOk();
+        $porHora = collect($uno->json('porHora'))->pluck('value', 'label');
+        $this->assertSame([0, 1, 1, 1, 0], [$porHora['15h'], $porHora['16h'], $porHora['17h'], $porHora['18h'], $porHora['19h']]);
+        $this->assertSame(['desde' => '16:30', 'hasta' => '18:30', 'value' => 1], $uno->json('horarioPico'));
+        // La serie de un día va por hora, igual que porHora.
+        $this->assertSame(1, collect($uno->json('serie'))->firstWhere('label', '17')['value']);
+
+        // Con dos reservas que se cruzan, el horario de mayor uso es donde coinciden.
+        Reserva::factory()->create($dia + ['hora_inicio' => '17:00', 'hora_fin' => '19:00']);
+        $dos = $this->getJson('/api/reportes/resumen?tab=logias&periodo=dia&fecha=2026-10-30')->assertOk();
+        $this->assertSame(['desde' => '17:00', 'hasta' => '18:30', 'value' => 2], $dos->json('horarioPico'));
+        $this->assertSame(2, $dos->json('total'));
     }
 
     public function test_tab_logias_desglosa_horas_por_cada_sala(): void

@@ -17,7 +17,7 @@ class Libro extends Model
 
     /** Campos bibliográficos que se catalogan (ver App\Support\FichaBibliografica). */
     public const CAMPOS_BIBLIOGRAFICOS = [
-        'titulo', 'isbn', 'clasificacion', 'coleccion', 'editorial',
+        'titulo', 'isbn', 'otros_isbn', 'clasificacion', 'coleccion', 'editorial',
         'anio_publicacion', 'tipo_material_id', 'nota_interna', 'nota_publica',
         'titulo_alternativo', 'edicion', 'lugar_publicacion', 'descripcion_fisica',
         'entidad_corporativa', 'reunion', 'entidad_secundaria', 'materias_personales',
@@ -64,9 +64,14 @@ class Libro extends Model
         return $this->belongsToMany(Categoria::class, 'libro_categoria');
     }
 
+    /**
+     * Las carreras a las que sirve el título; se ven en el portal (la tira de carreras de la
+     * ficha). pivot.created_at guarda desde cuándo, solo como registro: sync() inserta las
+     * nuevas, así que volver a guardar la ficha no cambia la fecha de las que ya tenía.
+     */
     public function carreras(): BelongsToMany
     {
-        return $this->belongsToMany(Carrera::class, 'libro_carrera');
+        return $this->belongsToMany(Carrera::class, 'libro_carrera')->withTimestamps();
     }
 
     /** Números recibidos y esperados, si es una revista (plantilla publicacion_seriada). */

@@ -200,4 +200,26 @@ class FichaBibliograficaTest extends TestCase
         $plantillas = collect($this->getJson('/api/libros/plantillas')->assertOk()->json());
         $this->assertSame(['libro', 'trabajo_titulacion', 'juego_educativo', 'publicacion_seriada'], $plantillas->pluck('clave')->all());
     }
+
+    /**
+     * Los códigos de Legal Publishing llevan cada uno su ISBN y además el de la colección:
+     * el propio es el ISBN; el de la colección, «Otros ISBN», y buscarlo encuentra todos.
+     */
+    public function test_el_isbn_de_la_coleccion_va_en_otros_isbn_y_encuentra_todos_sus_titulos(): void
+    {
+        $minero = $this->libroEnEstante('Libro', ['titulo' => 'Código de minería', 'isbn' => '9789564006154', 'otros_isbn' => '9789564006062']);
+        $aguas = $this->libroEnEstante('Libro', ['titulo' => 'Código de aguas', 'isbn' => '9789564006192', 'otros_isbn' => '9789564006062']);
+        $this->libroEnEstante('Libro', ['titulo' => 'Otro libro', 'isbn' => '9780000000002']);
+
+        $ficha = collect($this->fichaEnElPortal($minero))->pluck('valor', 'campo');
+        $this->assertSame('9789564006154', $ficha['ISBN']);
+        $this->assertSame('9789564006062', $ficha['Otros ISBN']);
+
+        // En el portal, con o sin guiones; en el listado del personal, igual
+        $ids = fn (string $ruta) => collect($this->getJson($ruta)->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame([$minero->id, $aguas->id], $ids('/api/mi/catalogo?q=978-956-400-606-2'));
+        $this->assertSame([$minero->id], $ids('/api/mi/catalogo?q=9789564006154'));
+        Sanctum::actingAs(Staff::factory()->create());
+        $this->assertSame([$minero->id, $aguas->id], $ids('/api/libros?q=9789564006062'));
+    }
 }

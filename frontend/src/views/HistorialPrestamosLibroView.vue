@@ -109,11 +109,14 @@ const prestamos = computed(() => {
     .flatMap((ej) =>
       ej.prestamos.map((p) => {
         const devuelto = p.fecha_devolucion_real ? new Date(p.fecha_devolucion_real) : null
+        // Los de 2007 a mayo de 2014 vienen de Horizon devueltos pero sin fecha: se dan por devueltos.
+        const devueltoSinFecha = !devuelto && p.estado === 'devuelto'
         const vence = p.fecha_devolucion ? new Date(p.fecha_devolucion) : null
         const referencia = devuelto ?? hoy()
-        const atraso = vence ? diasDeAtraso(vence, referencia) : 0
+        const atraso = vence && !devueltoSinFecha ? diasDeAtraso(vence, referencia) : 0
         let resultado: { texto: string; clase: string }
-        if (devuelto) resultado = atraso ? { texto: `Atraso ${atraso} d`, clase: 'bg-red-50 text-red-700' } : p.en_sala ? { texto: 'En sala', clase: 'bg-sky-50 text-sky-700' } : { texto: 'A tiempo', clase: 'bg-emerald-50 text-emerald-700' }
+        if (devueltoSinFecha) resultado = { texto: 'Devuelto', clase: 'bg-gray-100 text-gray-600' }
+        else if (devuelto) resultado = atraso ? { texto: `Atraso ${atraso} d`, clase: 'bg-red-50 text-red-700' } : p.en_sala ? { texto: 'En sala', clase: 'bg-sky-50 text-sky-700' } : { texto: 'A tiempo', clase: 'bg-emerald-50 text-emerald-700' }
         else resultado = atraso ? { texto: `Vencido ${atraso} d`, clase: 'bg-red-50 text-red-700' } : { texto: p.en_sala ? 'En sala' : 'En curso', clase: 'bg-indigo-50 text-indigo-700' }
         return {
           id: p.id,
@@ -121,10 +124,11 @@ const prestamos = computed(() => {
           codigo: ej.codigo_barras,
           usuario: p.usuario ?? 'Usuario eliminado',
           prestado: fecha(p.fecha_prestamo),
-          devuelto: devuelto ? fecha(p.fecha_devolucion_real!) : '—',
-          dias: dias(p.fecha_prestamo, referencia),
+          devuelto: devuelto ? fecha(p.fecha_devolucion_real!) : devueltoSinFecha ? 'Sin fecha' : '—',
+          // Sin fecha de devolución no se sabe cuánto duró.
+          dias: devueltoSinFecha ? null : dias(p.fecha_prestamo, referencia),
           conAtraso: !!devuelto && atraso > 0,
-          estaDevuelto: !!devuelto,
+          estaDevuelto: !!devuelto || devueltoSinFecha,
           fechaPrestamo: p.fecha_prestamo,
           resultado,
         }
@@ -134,8 +138,8 @@ const prestamos = computed(() => {
 })
 
 const indicadores = computed(() => {
-  const devueltos = prestamos.value.filter((p) => p.estaDevuelto)
-  const promedio = devueltos.length ? Math.round(devueltos.reduce((s, p) => s + p.dias, 0) / devueltos.length) : null
+  const devueltos = prestamos.value.filter((p) => p.estaDevuelto && p.dias !== null)
+  const promedio = devueltos.length ? Math.round(devueltos.reduce((s, p) => s + p.dias!, 0) / devueltos.length) : null
   const ultimo = prestamos.value[0]?.fechaPrestamo
   return [
     { titulo: 'Préstamos', valor: String(prestamos.value.length), clase: 'bg-indigo-50 text-indigo-800' },
@@ -285,7 +289,7 @@ async function verFicha() {
                     <span class="truncate font-medium text-gray-900 md:font-semibold">{{ p.usuario }}</span>
                     <span class="text-gray-600"><span class="text-xs text-gray-400 md:hidden">Prestado </span>{{ p.prestado }}</span>
                     <span class="text-gray-600"><span class="text-xs text-gray-400 md:hidden">Devuelto </span>{{ p.devuelto }}</span>
-                    <span class="tabular-nums text-gray-600"><span class="text-xs text-gray-400 md:hidden">Días </span>{{ p.dias }}</span>
+                    <span class="tabular-nums text-gray-600"><span class="text-xs text-gray-400 md:hidden">Días </span>{{ p.dias ?? '—' }}</span>
                     <span><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="p.resultado.clase">{{ p.resultado.texto }}</span></span>
                   </li>
                   <li v-if="!prestamos.length" class="px-4 py-8 text-center text-sm text-gray-400">Este libro todavía no se ha prestado.</li>

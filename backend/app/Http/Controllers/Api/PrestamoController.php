@@ -137,8 +137,8 @@ class PrestamoController extends Controller
         // Tanto los libros del catálogo como los recursos de apoyo (audífonos,
         // notebooks, cargadores, bicicletas… — las categorías de Administración) se
         // prestan escaneando un código de barras real. Los libros además llevan fecha
-        // de préstamo/devolución acordadas en el calendario; los recursos de apoyo no
-        // tienen fecha de vencimiento fija.
+        // de préstamo/devolución acordadas en el calendario; los recursos de apoyo se
+        // devuelven a las horas_maximas de su categoría (sin plazo si no tiene).
         $request->merge(['tipo_item' => $request->input('tipo_item', 'libro')]);
 
         // Uso en sala: el material se lee en la biblioteca y se devuelve hoy, así que las fechas
@@ -182,6 +182,7 @@ class PrestamoController extends Controller
         [$response, $status] = DB::transaction(function () use ($data, $esLibro, $enSala, $staff) {
             $ejemplar = null;
             $equipo = null;
+            $categoria = null;
             $reservaPropia = null;
 
             if ($esLibro) {
@@ -276,7 +277,7 @@ class PrestamoController extends Controller
                 'en_sala' => $enSala,
                 'codigo_barras' => $esLibro ? $ejemplar->codigo_barras : $equipo->codigo_barras,
                 'fecha_prestamo' => $esLibro && ! $enSala ? $data['fecha_prestamo'] : now(),
-                'fecha_devolucion' => $esLibro ? $data['fecha_devolucion'] : null,
+                'fecha_devolucion' => $esLibro ? $data['fecha_devolucion'] : ($categoria->horas_maximas ? now()->addHours($categoria->horas_maximas) : null),
                 'estado' => 'activo',
                 'prestado_por' => $staff->nombre,
                 'prestado_por_staff_id' => $staff->id,
@@ -293,7 +294,7 @@ class PrestamoController extends Controller
             Bitacora::registrar(
                 'prestamos.prestar',
                 ($enSala ? "Prestó para uso en sala «{$prestamo->libro_titulo}»" : ($esLibro ? "Prestó «{$prestamo->libro_titulo}»" : "Prestó el recurso {$prestamo->libro_titulo}"))
-                    .($prestamo->fecha_devolucion && ! $enSala ? ', devolución el '.$prestamo->fecha_devolucion->format('d/m/Y') : '')
+                    .($prestamo->fecha_devolucion && ! $enSala ? ', devolución el '.$prestamo->fecha_devolucion->format($esLibro ? 'd/m/Y' : 'd/m/Y \a \l\a\s H:i') : '')
                     .($reservaPropia ? ' (retiro de su reserva)' : '')
                     .($otraReservaCerrada ? ' (cierra la reserva que tenía de este título)' : ''),
                 entidad: $prestamo,

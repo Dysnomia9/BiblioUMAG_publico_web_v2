@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PortalLayout from '@/components/layout/PortalLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
+import CarrerasAsociadas from '@/components/libros/CarrerasAsociadas.vue'
 import CopiasPortal from '@/components/portal/CopiasPortal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
@@ -472,6 +473,7 @@ async function cancelar(reserva: ReservaLibro) {
                 </div>
               </div>
               <div v-if="fichaAbierta === fila.libro.id" class="hidden sm:block px-5 pb-4 bg-gray-50/60">
+                <CarrerasAsociadas :carreras="fila.libro.carreras ?? []" />
                 <FichaBibliografica :filas="fila.libro.ficha" />
                 <CopiasPortal :copias="fila.libro.copias ?? []" />
               </div>
@@ -517,6 +519,7 @@ async function cancelar(reserva: ReservaLibro) {
             <p class="mt-0.5 text-xs text-gray-500">{{ filaFicha.estado.detalle }}</p>
           </div>
         </div>
+        <CarrerasAsociadas class="mt-5" :carreras="filaFicha.libro.carreras ?? []" />
         <p class="mt-5 mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Ficha bibliográfica</p>
         <FichaBibliografica :filas="filaFicha.libro.ficha" />
         <CopiasPortal :copias="filaFicha.libro.copias ?? []" />

@@ -17,7 +17,8 @@ import { largoSegunModo, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useListadoPaginado } from '@/composables/useListadoPaginado'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
-import { ESTADOS_MULTA as ESTADOS, TIPOS_MULTA as TIPOS, fechaMulta as formatFecha, formatMonto } from '@/utils/multas'
+import { descargarExcel } from '@/utils/excel'
+import { ESTADOS_MULTA as ESTADOS, TIPOS_MULTA as TIPOS, fechaMulta as formatFecha, formatMonto, origenMulta } from '@/utils/multas'
 import type { DeudaUsuario, EstadoMulta, Multa, MultasResumen, Paginado, TipoMulta, Usuario } from '@/types'
 
 const auth = useAuthStore()
@@ -160,6 +161,101 @@ async function confirmarAnulacion() {
   }
 }
 
+// ---- Exportar a Excel ----
+// Lo que muestra la pestaña abierta, con sus filtros: la deuda por usuario o todas las
+// multas (todas las páginas, de a 100), con el motivo, el detalle y el préstamo que la originó.
+const confirmandoExportar = ref(false)
+const exportando = ref(false)
+const progreso = ref('')
+const MAXIMO_EXPORTACION = 20000
+const totalAExportar = computed(() => (pestana.value === 'deudas' ? deudasFiltradas.value.length : totalMultas.value))
+
+function pedirExportar() {
+  if (!totalAExportar.value) {
+    toast.error(pestana.value === 'deudas' ? 'No hay deudas para exportar' : 'No hay multas para exportar con los filtros actuales')
+    return
+  }
+  if (totalAExportar.value > MAXIMO_EXPORTACION) {
+    toast.error(`Son ${totalAExportar.value.toLocaleString('es-CL')} multas: acota los filtros (máximo ${MAXIMO_EXPORTACION.toLocaleString('es-CL')} por archivo).`)
+    return
+  }
+  confirmandoExportar.value = true
+}
+
+const fechaHoy = () => new Date().toLocaleDateString('sv-SE')
+const conAtraso = (dias: number | null) => (dias ? `${dias} ${dias === 1 ? 'día' : 'días'}` : '')
+
+async function exportarExcel() {
+  exportando.value = true
+  try {
+    if (pestana.value === 'deudas') {
+      await descargarExcel(`deuda-por-usuario_${fechaHoy()}.xlsx`, [
+        {
+          titulo: 'Deuda por usuario',
+          columnas: ['Usuario', 'RUT', 'Correo', 'N° de multas', 'Monto pendiente (CLP)', 'Multa más antigua'],
+          // «desde» llega como «2026-10-30 12:00:00», que Safari no lee sin la T.
+          filas: deudasFiltradas.value.map((u) => [`${u.nombre} ${u.apellido}`, u.rut, u.email ?? '', u.cantidad_multas, u.monto_total, formatFecha(u.desde.replace(' ', 'T'))]),
+        },
+      ])
+      toast.success(`Excel descargado: ${deudasFiltradas.value.length.toLocaleString('es-CL')} personas con deuda`)
+      confirmandoExportar.value = false
+      return
+    }
+
+    const todas: Multa[] = []
+    let numero = 1
+    let ultima = 1
+    do {
+      progreso.value = `Trayendo las multas: ${numero} de ${ultima}…`
+      const { data } = await api.get<Paginado<Multa>>('/multas', {
+        params: { q: filtros.q.trim() || undefined, estado: filtros.estado || undefined, tipo: filtros.tipo || undefined, page: numero, por_pagina: 100 },
+      })
+      todas.push(...data.data)
+      ultima = data.last_page
+      numero++
+    } while (numero <= ultima)
+
+    progreso.value = 'Armando el Excel…'
+    await descargarExcel(`multas_${filtros.estado || 'todas'}_${fechaHoy()}.xlsx`, [
+      {
+        titulo: 'Multas',
+        columnas: [
+          'Fecha', 'Usuario', 'RUT', 'Correo', 'Motivo', 'Detalle', 'Material', 'Prestado el', 'Debía volver el', 'Volvió el', 'Atraso',
+          'Monto (CLP)', 'Estado', 'Pagada el', 'Cobrada por', 'Anulada el', 'Anulada por', 'Motivo de la anulación', 'Origen',
+        ],
+        filas: todas.map((m) => [
+          formatFecha(m.created_at),
+          `${m.usuario?.nombre ?? ''} ${m.usuario?.apellido ?? ''}`.trim(),
+          m.usuario?.rut ?? '',
+          m.usuario?.email ?? '',
+          TIPOS[m.tipo],
+          m.detalle ?? '',
+          m.prestamo?.libro_titulo ?? '',
+          m.prestamo ? formatFecha(m.prestamo.fecha_prestamo) : '',
+          m.prestamo?.fecha_devolucion ? formatFecha(m.prestamo.fecha_devolucion) : '',
+          m.prestamo?.fecha_devolucion_real ? formatFecha(m.prestamo.fecha_devolucion_real) : '',
+          conAtraso(m.dias_atraso),
+          m.monto,
+          ESTADOS[m.estado].label,
+          m.estado === 'pagada' ? formatFecha(m.pagada_en) : '',
+          m.estado === 'pagada' ? (m.pagada_por?.nombre ?? '') : '',
+          m.estado === 'anulada' ? formatFecha(m.anulada_en) : '',
+          m.estado === 'anulada' ? (m.anulada_por?.nombre ?? '') : '',
+          m.motivo_anulacion ?? '',
+          origenMulta(m),
+        ]),
+      },
+    ])
+    toast.success(`Excel descargado: ${todas.length.toLocaleString('es-CL')} ${todas.length === 1 ? 'multa' : 'multas'}`)
+    confirmandoExportar.value = false
+  } catch {
+    toast.error('No se pudo generar el Excel')
+  } finally {
+    exportando.value = false
+    progreso.value = ''
+  }
+}
+
 // ---- Cursar multa manual ----
 const nueva = reactive({
   abierto: false,
@@ -239,6 +335,14 @@ async function guardarNueva() {
     <div class="max-w-5xl mx-auto">
       <EncabezadoPagina titulo="Multas" descripcion="Deudas de los usuarios con la biblioteca: pendientes, pagadas y anuladas">
         <template #acciones>
+          <button
+            type="button"
+            :disabled="exportando"
+            class="px-4 py-2 bg-white text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-60"
+            @click="pedirExportar"
+          >
+            Exportar a Excel
+          </button>
           <button
             v-if="auth.puede('multas.crear')"
             @click="abrirNueva"
@@ -555,6 +659,28 @@ async function guardarNueva() {
         </button>
       </template>
     </Modal>
+
+    <DialogoConfirmacion
+      :abierto="confirmandoExportar"
+      :titulo="pestana === 'deudas' ? '¿Exportar la deuda por usuario?' : '¿Exportar las multas?'"
+      confirmar="Confirmar y exportar"
+      tono="exito"
+      :cargando="exportando"
+      @confirmar="exportarExcel"
+      @cancelar="confirmandoExportar = false"
+    >
+      <p v-if="pestana === 'deudas'">
+        Se descargará en Excel (.xlsx) la deuda pendiente de {{ totalAExportar.toLocaleString('es-CL') }}
+        {{ totalAExportar === 1 ? 'persona' : 'personas' }}<template v-if="busquedaDeudas.trim()"> que coinciden con la búsqueda</template>.
+      </p>
+      <p v-else>
+        Se descargarán en Excel (.xlsx) {{ totalAExportar.toLocaleString('es-CL') }} {{ totalAExportar === 1 ? 'multa' : 'multas' }}
+        ({{ filtros.estado ? ESTADOS[filtros.estado].label.toLowerCase() + 's' : 'todos los estados' }}<template v-if="filtros.tipo">, por {{ TIPOS[filtros.tipo].toLowerCase() }}</template>),
+        todas las páginas, con su motivo, detalle, préstamo y quién la cobró o anuló.
+      </p>
+      <p v-if="exportando && progreso" class="mt-2 font-medium text-gray-700">{{ progreso }}</p>
+      <p class="mt-2">El archivo incluye nombres, RUT y correos: guárdalo solo donde corresponda.</p>
+    </DialogoConfirmacion>
 
     <DialogoConfirmacion
       :abierto="nueva.confirmando"

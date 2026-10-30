@@ -161,7 +161,7 @@ function secciones(): SeccionCsv[] {
     resultado.push({
       titulo: 'Títulos',
       columnas: [
-        'Título', 'Autor(es)', 'ISBN', 'ISSN', 'Clasificación (Dewey)', 'Editorial', 'Año', 'Edición', 'Lugar de publicación',
+        'Título', 'Autor(es)', 'ISBN', 'Otros ISBN', 'ISSN', 'Clasificación (Dewey)', 'Editorial', 'Año', 'Edición', 'Lugar de publicación',
         'Tipo de material', 'Categorías', 'Carreras', 'Colección', 'Idioma', 'Copias', 'Disponibles', 'Prestadas', 'Reservadas', 'Ubicaciones', 'Catalogado por',
         'Ingreso a Horizon', 'Ingreso a BiblioUMAG',
       ],
@@ -169,6 +169,7 @@ function secciones(): SeccionCsv[] {
         l.titulo,
         lista(l.autores),
         l.isbn ?? '',
+        l.otros_isbn ?? '',
         l.issn ?? '',
         l.clasificacion ?? '',
         l.editorial ?? '',

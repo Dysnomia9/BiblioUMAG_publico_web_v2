@@ -43,7 +43,7 @@ class CategoriaRecursoController extends Controller
             'configuracion.crear_categoria_recurso',
             "Creó la categoría de recursos de apoyo «{$categoria->nombre}»",
             entidad: $categoria,
-            datos: $categoria->only(['clave', 'nombre_plural', 'icono', 'color', 'limite_por_persona', 'indicaciones']),
+            datos: $categoria->only(['clave', 'nombre_plural', 'icono', 'color', 'limite_por_persona', 'horas_maximas', 'indicaciones']),
         );
 
         return response()->json($categoria->fresh(), 201);
@@ -85,6 +85,8 @@ class CategoriaRecursoController extends Controller
             'icono' => ['required', Rule::in(CategoriaRecurso::ICONOS)],
             'color' => ['required', Rule::in(CategoriaRecurso::COLORES)],
             'limite_por_persona' => ['nullable', 'integer', 'min:1', 'max:20'],
+            // Hasta 30 días; null: sin plazo de devolución.
+            'horas_maximas' => ['nullable', 'integer', 'min:1', 'max:720'],
             'indicaciones' => ['nullable', 'string', 'max:255'],
         ];
     }
@@ -96,6 +98,8 @@ class CategoriaRecursoController extends Controller
             'nombre.required' => 'Escribe el nombre de la categoría (en singular, ej. Bicicleta).',
             'nombre_plural.required' => 'Escribe el nombre en plural (ej. Bicicletas).',
             'limite_por_persona.min' => 'El límite por persona debe ser al menos 1 (o déjalo vacío para no poner límite).',
+            'horas_maximas.min' => 'El tiempo máximo de préstamo debe ser de al menos 1 hora (o déjalo vacío para no poner plazo).',
+            'horas_maximas.max' => 'El tiempo máximo de préstamo puede ser de hasta 720 horas (30 días).',
         ];
     }
 

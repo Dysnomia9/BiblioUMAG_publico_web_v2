@@ -129,7 +129,7 @@ class ReglaPrestamoService
         $regla = $this->reglaParaPrestar($usuario, $ejemplar);
 
         if ($regla && ! $regla->prestable) {
-            return "Este material no se presta a domicilio ({$regla->descripcion()}).";
+            return "Solo uso en sala: este material no se presta a domicilio ({$regla->descripcion()}).";
         }
 
         $maximo = $this->maxEjemplares($regla);

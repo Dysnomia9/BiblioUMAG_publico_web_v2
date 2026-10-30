@@ -33,6 +33,8 @@ class Ejemplar extends Model
         'nota_publica',
         'nota_interna',
         'coleccion',
+        // El número de registro de la copia en Horizon (item.notes).
+        'numero_registro',
     ];
 
     protected function casts(): array

@@ -46,13 +46,16 @@ class Prestamo extends Model
     }
 
     /**
-     * Atrasados: sin devolver y con la fecha de devolución ya pasada (el que vence hoy
-     * todavía no). Es la única definición de atraso: el estado dice solo si se devolvió.
-     * estaVencido() del frontend usa la misma.
+     * Atrasados: sin devolver y con la fecha de devolución ya pasada (el libro que vence
+     * hoy todavía no; el recurso de apoyo, desde su hora de devolución). Es la única
+     * definición de atraso: el estado dice solo si se devolvió. estaVencido() del
+     * frontend usa la misma.
      */
     public function scopeVencidos(Builder $query): Builder
     {
-        return $query->where('estado', 'activo')->whereDate('fecha_devolucion', '<', now()->toDateString());
+        return $query->where('estado', 'activo')->where(fn ($q) => $q
+            ->where(fn ($libro) => $libro->where('tipo_item', 'libro')->whereDate('fecha_devolucion', '<', now()->toDateString()))
+            ->orWhere(fn ($recurso) => $recurso->where('tipo_item', '!=', 'libro')->where('fecha_devolucion', '<', now())));
     }
 
     public function usuario()

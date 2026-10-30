@@ -4,7 +4,7 @@ import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { COLORES_RECURSO, ICONOS_RECURSO, useCategoriasRecurso } from '@/utils/recursos'
+import { COLORES_RECURSO, ICONOS_RECURSO, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso } from '@/types'
 
 /**
@@ -17,8 +17,8 @@ const { categorias, cargar } = useCategoriasRecurso()
 
 onMounted(() => cargar(true))
 
-type Ficha = { nombre: string; nombre_plural: string; icono: string; color: string; limite_por_persona: string; indicaciones: string }
-const fichaVacia = (): Ficha => ({ nombre: '', nombre_plural: '', icono: 'caja', color: 'slate', limite_por_persona: '', indicaciones: '' })
+type Ficha = { nombre: string; nombre_plural: string; icono: string; color: string; limite_por_persona: string; horas_maximas: string; indicaciones: string }
+const fichaVacia = (): Ficha => ({ nombre: '', nombre_plural: '', icono: 'caja', color: 'slate', limite_por_persona: '', horas_maximas: '', indicaciones: '' })
 
 const form = reactive({
   abierto: false,
@@ -44,6 +44,7 @@ function abrirEdicion(c: CategoriaRecurso) {
       icono: c.icono,
       color: c.color,
       limite_por_persona: c.limite_por_persona ? String(c.limite_por_persona) : '',
+      horas_maximas: c.horas_maximas ? String(c.horas_maximas) : '',
       indicaciones: c.indicaciones ?? '',
     },
     pluralEditado: true,
@@ -58,13 +59,14 @@ function sugerirPlural(nombre: string) {
 }
 
 const ETIQUETAS: Record<keyof Ficha, string> = {
-  nombre: 'Nombre', nombre_plural: 'Plural', icono: 'Ícono', color: 'Color', limite_por_persona: 'Máximo por persona', indicaciones: 'Indicaciones',
+  nombre: 'Nombre', nombre_plural: 'Plural', icono: 'Ícono', color: 'Color', limite_por_persona: 'Máximo por persona', horas_maximas: 'Tiempo máximo de préstamo', indicaciones: 'Indicaciones',
 }
 
 function mostrar(campo: keyof Ficha, f: Ficha): string {
   if (campo === 'icono') return ICONOS_RECURSO[f.icono]?.nombre ?? f.icono
   if (campo === 'color') return COLORES_RECURSO[f.color]?.nombre ?? f.color
   if (campo === 'limite_por_persona') return f.limite_por_persona ? `${f.limite_por_persona} a la vez` : 'sin límite'
+  if (campo === 'horas_maximas') return f.horas_maximas ? textoHoras(Number(f.horas_maximas)) : 'sin plazo'
   return f[campo].trim() || '—'
 }
 
@@ -73,7 +75,8 @@ const cambios = computed(() => {
   if (!c) return []
   const antes: Ficha = {
     nombre: c.nombre, nombre_plural: c.nombre_plural, icono: c.icono, color: c.color,
-    limite_por_persona: c.limite_por_persona ? String(c.limite_por_persona) : '', indicaciones: c.indicaciones ?? '',
+    limite_por_persona: c.limite_por_persona ? String(c.limite_por_persona) : '',
+    horas_maximas: c.horas_maximas ? String(c.horas_maximas) : '', indicaciones: c.indicaciones ?? '',
   }
   return (Object.keys(ETIQUETAS) as (keyof Ficha)[])
     .filter((campo) => antes[campo].trim() !== form.ficha[campo].trim())
@@ -88,6 +91,10 @@ function pedirConfirmacion() {
   }
   if (f.limite_por_persona && !/^\d+$/.test(f.limite_por_persona)) {
     toast.error('El máximo por persona es un número (o déjalo vacío para no poner límite)')
+    return
+  }
+  if (f.horas_maximas && (!/^\d+$/.test(f.horas_maximas) || Number(f.horas_maximas) < 1 || Number(f.horas_maximas) > 720)) {
+    toast.error('El tiempo máximo de préstamo va en horas, de 1 a 720 (o déjalo vacío para no poner plazo)')
     return
   }
   if (form.categoria && !cambios.value.length) {
@@ -105,6 +112,7 @@ async function guardar() {
     icono: f.icono,
     color: f.color,
     limite_por_persona: f.limite_por_persona ? Number(f.limite_por_persona) : null,
+    horas_maximas: f.horas_maximas ? Number(f.horas_maximas) : null,
     indicaciones: f.indicaciones.trim() || null,
   }
   form.guardando = true
@@ -180,6 +188,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
             <p class="text-xs text-gray-500">
               {{ c.recursos_activos ?? 0 }} {{ c.recursos_activos === 1 ? 'recurso' : 'recursos' }} ({{ c.recursos_disponibles ?? 0 }} libres)
               · {{ c.limite_por_persona ? `máximo ${c.limite_por_persona} por persona` : 'sin límite por persona' }}
+              · {{ c.horas_maximas ? `se presta por ${textoHoras(c.horas_maximas)}` : 'sin plazo de devolución' }}
               <template v-if="c.indicaciones"> · {{ c.indicaciones }}</template>
             </p>
           </div>
@@ -273,7 +282,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr]">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_12rem_1fr]">
           <div>
             <label for="cat-limite" class="mb-1 block text-xs font-medium text-gray-600">Máximo por persona</label>
             <input
@@ -284,6 +293,19 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
               placeholder="Sin límite"
               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+          <div>
+            <label for="cat-horas" class="mb-1 block text-xs font-medium text-gray-600">Tiempo máximo (horas)</label>
+            <input
+              id="cat-horas"
+              v-model="form.ficha.horas_maximas"
+              inputmode="numeric"
+              maxlength="3"
+              placeholder="Sin plazo"
+              aria-describedby="cat-horas-ayuda"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p id="cat-horas-ayuda" class="mt-1 text-[11px] text-gray-500">Al prestar, la devolución queda a esa hora.</p>
           </div>
           <div>
             <label for="cat-indicaciones" class="mb-1 block text-xs font-medium text-gray-600">Indicaciones al prestar (opcional)</label>
@@ -306,7 +328,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
             <div>
               <p class="font-semibold text-gray-900">{{ form.ficha.nombre_plural || 'Nombre en plural' }}</p>
               <p class="text-xs text-gray-500">
-                {{ form.ficha.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="form.ficha.limite_por_persona"> · máximo {{ form.ficha.limite_por_persona }} por persona</template>
+                {{ form.ficha.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="form.ficha.horas_maximas"> · hasta {{ textoHoras(Number(form.ficha.horas_maximas)) }}</template><template v-if="form.ficha.limite_por_persona"> · máximo {{ form.ficha.limite_por_persona }} por persona</template>
               </p>
             </div>
           </div>
@@ -348,7 +370,8 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
       <template v-else>
         <p>
           Se creará <strong class="text-gray-900">{{ form.ficha.nombre.trim() }}</strong> ({{ form.ficha.nombre_plural.trim() }}),
-          {{ form.ficha.limite_por_persona ? `máximo ${form.ficha.limite_por_persona} por persona` : 'sin límite por persona' }}.
+          {{ form.ficha.limite_por_persona ? `máximo ${form.ficha.limite_por_persona} por persona` : 'sin límite por persona' }},
+          {{ form.ficha.horas_maximas ? `se presta por ${textoHoras(Number(form.ficha.horas_maximas))}` : 'sin plazo de devolución' }}.
         </p>
         <p class="mt-2">Aparecerá de inmediato en Préstamos → Recursos de apoyo; después hay que registrar sus recursos (con su código de barras) en Recursos de apoyo.</p>
       </template>

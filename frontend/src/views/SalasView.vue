@@ -12,7 +12,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
-import { duracion } from '@/utils/reservas'
+import { duracion, PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
@@ -29,13 +29,16 @@ const auth = useAuthStore()
 // ReservaSalaService::validarTramo()); esto solo evita ofrecer una opción que el
 // servidor rechazaría.
 const puedeHoraPasada = computed(() => auth.puede('salas.hora_pasada'))
+// La Sala de Seminarios (solo_administracion) no se presta a estudiantes: la reserva quien tiene este permiso.
+const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 
 const hoy = new Date().toLocaleDateString('sv-SE')
 
 const DURACIONES = [30, 60, 90, 120]
 
-const CANTIDAD_MIN = 2
-const CANTIDAD_MAX = 5
+// El mínimo llega con las salas (config/salas.php).
+const cantidadMinima = ref(PERSONAS_MINIMAS_SALA)
+const CANTIDAD_MAX = PERSONAS_MAXIMAS_SALA
 
 const salas = ref<Sala[]>([])
 const apiError = ref(false)
@@ -101,8 +104,8 @@ const selectedSala = ref<Sala | null>(null)
 const modalInmediata = ref(false)
 const modalHoraInicio = ref('')
 const modalDuracion = ref(60)
-const cantidadPersonas = ref(CANTIDAD_MIN)
-const rutsReserva = ref<string[]>(Array.from({ length: CANTIDAD_MIN }, () => ''))
+const cantidadPersonas = ref(cantidadMinima.value)
+const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
 const { modos: modosReserva, escribir: escribirFila, cambiar: cambiarModoFila, reiniciar: reiniciarModos, errores: erroresFilas } = useModosPorFila(rutsReserva)
 const rutErrores = ref<Record<number, string>>({})
@@ -156,6 +159,7 @@ async function cargar() {
     duracionMinima.value = data.duracion_minima
     duracionMaxima.value = data.duracion_maxima
     cuotaDiaria.value = data.cuota_diaria
+    cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
     apiError.value = false
@@ -267,8 +271,8 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number) {
   modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, timeToMinutes(modalHoraInicio.value)))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = CANTIDAD_MIN
-  rutsReserva.value = Array.from({ length: CANTIDAD_MIN }, () => '')
+  cantidadPersonas.value = cantidadMinima.value
+  rutsReserva.value = Array.from({ length: cantidadMinima.value }, () => '')
   reiniciarModos()
   rutErrores.value = {}
   modalOpen.value = true
@@ -280,8 +284,8 @@ function abrirModalInmediata(sala: Sala) {
   modalHoraInicio.value = minutesToTime(ahoraMin.value)
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, ahoraMin.value))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = CANTIDAD_MIN
-  rutsReserva.value = Array.from({ length: CANTIDAD_MIN }, () => '')
+  cantidadPersonas.value = cantidadMinima.value
+  rutsReserva.value = Array.from({ length: cantidadMinima.value }, () => '')
   reiniciarModos()
   rutErrores.value = {}
   modalOpen.value = true
@@ -290,6 +294,10 @@ function abrirModalInmediata(sala: Sala) {
 function onTimelineClick(sala: Sala, event: MouseEvent) {
   if (diaCerrado.value) {
     toast.error(textoDiaCerrado.value)
+    return
+  }
+  if (sala.solo_administracion && !puedeSalasAdministracion.value) {
+    toast.error(`${sala.nombre} la gestiona solo la administración: pide a un administrador que haga la reserva.`)
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
@@ -327,7 +335,9 @@ function reservarAhora() {
     toast.error(textoFueraDeHorario.value)
     return
   }
+  // La Sala de Seminarios no se ofrece para un grupo que llega: se reserva a propósito.
   const candidatas = filteredSalas.value
+    .filter((s) => !s.solo_administracion)
     .map((s) => ({ sala: s, disponible: disponibilidadDesde(s, ahoraMin.value) }))
     .filter((c) => c.disponible >= duracionMinima.value)
     .sort((a, b) => b.disponible - a.disponible)
@@ -608,7 +618,7 @@ const proximaConfirmacion = computed(() => {
       <GuiaUso
         :pasos="[
           'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren, o use <strong>Reservar ahora</strong>.',
-          'Ingrese el <strong>RUT de cada integrante</strong> del grupo (de 2 a 5 personas, todas registradas en la biblioteca). Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.',
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca). Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           'Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>15 minutos</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.',
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
@@ -848,6 +858,9 @@ const proximaConfirmacion = computed(() => {
               <div class="text-xs text-gray-400">
                 <span class="font-mono font-semibold text-gray-500">{{ sala.codigo }}</span> · {{ sala.capacidad }} personas
               </div>
+              <div v-if="sala.solo_administracion" class="mt-0.5 text-[11px] font-semibold text-amber-700" title="No se presta a estudiantes ni se reserva desde el portal">
+                Solo administración
+              </div>
             </div>
             <div
               class="group relative h-12 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
@@ -982,8 +995,8 @@ const proximaConfirmacion = computed(() => {
                 v-model.number="cantidadPersonas"
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option v-for="n in CANTIDAD_MAX - CANTIDAD_MIN + 1" :key="n" :value="CANTIDAD_MIN + n - 1">
-                  {{ CANTIDAD_MIN + n - 1 }} personas
+                <option v-for="n in CANTIDAD_MAX - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
+                  {{ cantidadMinima + n - 1 }} personas
                 </option>
               </select>
             </div>

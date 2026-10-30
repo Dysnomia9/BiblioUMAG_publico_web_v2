@@ -25,6 +25,8 @@ final class FichaBibliografica
     private const CAMPOS = [
         'libro' => [
             ['isbn', '020', 'ISBN', true],
+            // El de la colección o la obra completa, o el que comparte con otros tomos
+            ['otros_isbn', '020', 'Otros ISBN', true],
             ['clasificacion', '082', 'Número de clasificación Dewey', true],
             ['autor_principal', '100', 'Autor principal', true],
             ['entidad_corporativa', '110', 'Entidad corporativa', true],

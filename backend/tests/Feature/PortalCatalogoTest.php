@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Ejemplar;
 use App\Models\Libro;
 use App\Models\Prestamo;
+use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -78,4 +79,17 @@ class PortalCatalogoTest extends TestCase
         $this->assertSame(now()->addDays(4)->toDateString(), $catalogo[$libro->id]['proxima_devolucion']);
         $this->assertNull($catalogo[$disponible->id]['proxima_devolucion']);
     }
+
+    public function test_el_portal_muestra_las_carreras_del_titulo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create(['titulo' => 'Programación de computadores y el Lenguaje C']);
+        Ejemplar::factory()->for($libro)->create();
+        $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'carreras' => ['Ingeniería en Computación e Informática', 'Ingeniería Civil en Computación']])->assertOk();
+
+        Sanctum::actingAs(Usuario::factory()->create());
+        $this->getJson('/api/mi/catalogo')->assertOk()
+            ->assertJsonPath('data.0.carreras', ['Ingeniería Civil en Computación', 'Ingeniería en Computación e Informática']);
+    }
 }
+

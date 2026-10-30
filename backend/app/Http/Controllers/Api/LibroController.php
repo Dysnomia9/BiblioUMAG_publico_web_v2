@@ -320,6 +320,8 @@ class LibroController extends Controller
                 : ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
             'titulo' => ['required', 'string', 'max:255'],
             'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn,' . ($ignorarLibroId ?? 'NULL') . ',id'],
+            // Varios, separados por «;», y se pueden repetir entre títulos (el de la colección)
+            'otros_isbn' => ['nullable', 'string', 'max:500'],
             'autores' => ['nullable', 'array'],
             'autores.*' => ['string', 'max:255'],
             'categorias' => ['nullable', 'array'],

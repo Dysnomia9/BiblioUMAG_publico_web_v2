@@ -50,7 +50,7 @@ function aQuien(r: Pick<ReglaPrestamo, 'tipo_usuario' | 'tipo_material_id' | 'ub
 }
 
 function condiciones(r: ReglaPrestamo) {
-  if (!r.prestable) return 'No se presta a domicilio'
+  if (!r.prestable) return 'Solo uso en sala (no se presta a domicilio)'
   const partes = [
     r.dias_prestamo !== null ? `${r.dias_prestamo} ${r.dias_prestamo === 1 ? 'día' : 'días'}` : 'plazo a elección del mesón',
     `${r.max_ejemplares ?? sinRegla.value?.max_ejemplares ?? 1} a la vez`,
@@ -232,7 +232,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
           <input v-model="form.ficha.prestable" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
             <span class="font-medium text-gray-900">Se presta a domicilio</span>
-            <span class="block text-xs text-gray-500">Si lo desmarcas, el mesón no podrá prestar este material (por ejemplo, obras de referencia).</span>
+            <span class="block text-xs text-gray-500">Si lo desmarcas, queda solo para uso en sala: el mesón no podrá prestarlo para llevar ni se podrá reservar (por ejemplo, obras de referencia o juegos).</span>
           </span>
         </label>
 

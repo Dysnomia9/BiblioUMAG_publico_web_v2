@@ -16,7 +16,27 @@ class Sala extends Model
         'codigo',
         'capacidad',
         'tipo',
+        // No se presta a estudiantes ni se ofrece en el portal (Sala de Seminarios): la
+        // reserva quien tiene el permiso salas.administracion.
+        'solo_administracion',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'solo_administracion' => 'boolean',
+        ];
+    }
+
+    /** Para el portal: por qué no se puede reservar esta sala, o null si se puede. */
+    public static function mensajeSoloAdministracion(int|string $salaId): ?string
+    {
+        $sala = static::find($salaId);
+
+        return $sala?->solo_administracion
+            ? "{$sala->nombre} no se presta a estudiantes ni se reserva desde el portal: la gestiona la administración de la biblioteca."
+            : null;
+    }
 
     /**
      * La sala de un código escrito en el mesón: «L04», «l4», «4», «Logia 4» o «SEM». Un

@@ -191,6 +191,8 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/estados-libro-personalizados', [EstadoLibroPersonalizadoController::class, 'store']);
         Route::patch('/estados-libro-personalizados/{estadoLibroPersonalizado}/activo', [EstadoLibroPersonalizadoController::class, 'cambiarActivo']);
         Route::post('/ubicaciones', [UbicacionController::class, 'store']);
+        Route::patch('/ubicaciones/{ubicacion}', [UbicacionController::class, 'update']);
+        Route::delete('/ubicaciones/{ubicacion}', [UbicacionController::class, 'destroy']);
         Route::post('/tipos-material', [TipoMaterialController::class, 'store']);
         Route::patch('/tipos-material/{tipoMaterial}', [TipoMaterialController::class, 'update']);
         Route::post('/categorias-recurso', [CategoriaRecursoController::class, 'store']);

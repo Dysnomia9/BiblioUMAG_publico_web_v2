@@ -27,6 +27,7 @@ final class Permisos
                 'entradas.registrar' => ['Registrar entradas', 'Marcar la asistencia (RUT, QR, externos y visitas) y consultar el historial de entradas.'],
                 'prestamos.gestionar' => ['Préstamos y devoluciones', 'Prestar y recibir libros y equipos, y gestionar las reservas de libros.'],
                 'salas.gestionar' => ['Salas de estudio', 'Reservar salas y logias, confirmar la llegada del grupo, liberar y recibir la llave.'],
+                'salas.administracion' => ['Sala de Seminarios', 'Reservar y editar las salas que gestiona solo la administración (Sala de Seminarios). No se prestan a estudiantes ni se reservan desde el portal.'],
                 'salas.hora_pasada' => ['Reservas en horas ya pasadas', 'Registrar después una reserva de sala que se atendió sin pasar por el sistema.'],
                 'reservas.editar' => ['Editar reservas de salas', 'Desde el Listado de reservas: cambiar la sala, el día o el horario de una reserva activa, corregir sus integrantes, cancelarla o registrar una devolución de llave que quedó pendiente.'],
                 'usuarios.ver' => ['Consultar usuarios', 'Ver el listado de usuarios y emitir la Constancia de No Multa.'],

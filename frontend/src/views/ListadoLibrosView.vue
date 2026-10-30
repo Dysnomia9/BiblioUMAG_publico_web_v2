@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
+import CarrerasAsociadas from '@/components/libros/CarrerasAsociadas.vue'
 import EditarCopia from '@/components/libros/EditarCopia.vue'
 import FasciculosRevista from '@/components/libros/FasciculosRevista.vue'
 import ExportarLibros from '@/components/libros/ExportarLibros.vue'
@@ -157,6 +158,12 @@ function onBuscarInput() {
   buscarTimer = setTimeout(filtrar, 250)
 }
 
+/** El botón «Buscar» y Enter: sin esperar la pausa al escribir. */
+function buscarAhora() {
+  clearTimeout(buscarTimer)
+  filtrar()
+}
+
 function toggleExpandido(libroId: number) {
   const nuevo = new Set(expandidos.value)
   if (nuevo.has(libroId)) nuevo.delete(libroId)
@@ -179,6 +186,8 @@ function filaDe(l: Libro) {
           : plantilla === 'juego_educativo'
             ? 'bg-amber-50 text-amber-800 ring-amber-100'
             : 'bg-gray-100 text-gray-700 ring-gray-200',
+    // «Libro electrónico» y «Juego educativo» no caben en la columna Tipo (6rem) con la letra de los demás
+    tipoTamano: (l.tipo_material?.nombre ?? 'Libro').length > 12 ? 'px-2 text-[11px]' : 'px-2.5 text-xs',
     barras: situaciones.map((s) => s.barra),
     disponibles: situaciones.filter((s) => s.disponible).length,
     total: copias.length,
@@ -187,8 +196,47 @@ function filaDe(l: Libro) {
 
 const filas = computed(() => libros.value.map((l) => ({ libro: l, ...filaDe(l) })))
 
-// «⋯»: atajos a lo que se hace con el título en otras pantallas.
+// «⋯»: atajos a lo que se hace con el título en otras pantallas. El menú va al <body> con
+// posición fija: dentro de la tabla (overflow-hidden, por sus bordes redondeados) quedaba
+// cortado cuando la lista tenía una o dos filas. Si abajo no cabe, se abre hacia arriba.
 const menuAbierto = ref<number | null>(null)
+const posicionMenu = ref<Record<string, string>>({})
+let botonMenu: HTMLElement | null = null
+const ANCHO_MENU = 224
+const ALTO_MENU = 180
+
+function ubicarMenu() {
+  const r = botonMenu?.getBoundingClientRect()
+  if (!r) return
+  const izquierda = `${Math.max(8, Math.min(r.right - ANCHO_MENU, window.innerWidth - ANCHO_MENU - 8))}px`
+  const abajo = window.innerHeight - r.bottom
+  posicionMenu.value =
+    abajo < ALTO_MENU && r.top > abajo
+      ? { left: izquierda, bottom: `${window.innerHeight - r.top + 6}px` }
+      : { left: izquierda, top: `${r.bottom + 6}px` }
+}
+
+function alternarMenu(id: number, e: MouseEvent) {
+  if (menuAbierto.value === id) {
+    menuAbierto.value = null
+    return
+  }
+  botonMenu = e.currentTarget as HTMLElement
+  menuAbierto.value = id
+  ubicarMenu()
+}
+
+function dejarDeSeguirMenu() {
+  window.removeEventListener('scroll', ubicarMenu, true)
+  window.removeEventListener('resize', ubicarMenu)
+}
+
+watch(menuAbierto, (id) => {
+  if (id === null) return dejarDeSeguirMenu()
+  window.addEventListener('scroll', ubicarMenu, true)
+  window.addEventListener('resize', ubicarMenu)
+})
+
 function alHacerClic(e: MouseEvent) {
   if (menuAbierto.value !== null && !(e.target as HTMLElement).closest('[data-menu-libro]')) menuAbierto.value = null
 }
@@ -198,7 +246,10 @@ onMounted(() => {
   cargarCatalogos()
   document.addEventListener('click', alHacerClic)
 })
-onBeforeUnmount(() => document.removeEventListener('click', alHacerClic))
+onBeforeUnmount(() => {
+  document.removeEventListener('click', alHacerClic)
+  dejarDeSeguirMenu()
+})
 
 const libroAEditar = ref<Libro | null>(null)
 
@@ -253,19 +304,28 @@ function copiaGuardada(actualizada: Ejemplar) {
       <ApiErrorBanner v-if="apiError" />
 
       <div class="mb-5 flex flex-wrap items-center gap-2">
-        <div class="relative min-w-[16rem] flex-1">
-          <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-          </svg>
-          <input
-            v-model="filtros.q"
-            type="text"
-            placeholder="Título, autor, ISBN, Dewey o código de barras"
-            aria-label="Buscar libros"
-            class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
-            @input="onBuscarInput"
-          />
-        </div>
+        <form class="flex min-w-[16rem] flex-1 gap-2" role="search" @submit.prevent="buscarAhora">
+          <div class="relative min-w-0 flex-1">
+            <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+            <input
+              v-model="filtros.q"
+              type="text"
+              placeholder="Título, autor, ISBN, Dewey, código de barras o N° de registro"
+              aria-label="Buscar libros"
+              class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+              @input="onBuscarInput"
+            />
+          </div>
+          <button
+            type="submit"
+            :disabled="cargando"
+            class="h-11 shrink-0 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
+          >
+            Buscar
+          </button>
+        </form>
         <template v-for="f in filtrosPildora" :key="f.campo">
           <label
             class="relative inline-flex h-11 items-center rounded-xl border bg-white pl-3.5 pr-9 text-sm shadow-sm transition-colors"
@@ -342,7 +402,7 @@ function copiaGuardada(actualizada: Ejemplar) {
               <div class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 lg:contents">
                 <p class="font-mono text-xs text-gray-600">{{ f.libro.clasificacion ?? '—' }}</p>
                 <p class="truncate text-sm text-gray-600">{{ f.categoria }}</p>
-                <span class="justify-self-start whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset" :class="f.tipoClase">
+                <span class="justify-self-start whitespace-nowrap rounded-full py-0.5 font-medium ring-1 ring-inset" :class="[f.tipoClase, f.tipoTamano]">
                   {{ f.libro.tipo_material?.nombre ?? 'Libro' }}
                 </span>
               </div>
@@ -352,7 +412,9 @@ function copiaGuardada(actualizada: Ejemplar) {
                   <div v-if="f.barras.length" class="mb-1 flex flex-wrap gap-1">
                     <span v-for="(b, i) in f.barras" :key="i" class="h-1.5 w-5 rounded-full" :class="b"></span>
                   </div>
-                  <p class="text-xs text-gray-500">
+                  <!-- Un libro electrónico no tiene copias: se lee en el enlace de su ficha (856) -->
+                  <p v-if="!f.total && f.libro.url_acceso" class="text-xs font-medium text-indigo-700">En línea</p>
+                  <p v-else class="text-xs text-gray-500">
                     <strong class="text-gray-900">{{ f.disponibles }}</strong> de {{ f.total }} {{ f.total === 1 ? 'disponible' : 'disponibles' }}
                   </p>
                 </div>
@@ -371,44 +433,53 @@ function copiaGuardada(actualizada: Ejemplar) {
                     class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
                     :aria-label="`Más acciones para ${f.libro.titulo}`"
                     :aria-expanded="menuAbierto === f.libro.id"
-                    @click="menuAbierto = menuAbierto === f.libro.id ? null : f.libro.id"
+                    @click="alternarMenu(f.libro.id, $event)"
                   >
                     <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
                   </button>
-                  <div v-if="menuAbierto === f.libro.id" role="menu" class="absolute right-0 top-full z-20 mt-1.5 w-56 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg">
-                    <button v-if="puedeCatalogar" type="button" role="menuitem" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="agregarCopia(f.libro)">
-                      Agregar copia
-                    </button>
-                    <router-link
-                      v-if="puedeCatalogar"
-                      role="menuitem"
-                      :to="{ name: 'etiquetas', query: { lomo: f.libro.id } }"
-                      class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  <Teleport to="body">
+                    <div
+                      v-if="menuAbierto === f.libro.id"
+                      role="menu"
+                      data-menu-libro
+                      class="fixed z-50 w-56 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg"
+                      :style="posicionMenu"
                     >
-                      Etiquetas de lomo
-                    </router-link>
-                    <router-link
-                      v-if="puedeVerHistorial"
-                      role="menuitem"
-                      :to="{ name: 'historial-prestamos-libro', query: { libro: f.libro.id } }"
-                      class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      Historial de préstamos
-                    </router-link>
-                    <router-link
-                      v-if="puedeCambiarEstado"
-                      role="menuitem"
-                      :to="{ name: 'estado-libro', query: { q: f.libro.titulo } }"
-                      class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      Estado de sus ejemplares
-                    </router-link>
-                  </div>
+                      <button v-if="puedeCatalogar" type="button" role="menuitem" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="agregarCopia(f.libro)">
+                        Agregar copia
+                      </button>
+                      <router-link
+                        v-if="puedeCatalogar"
+                        role="menuitem"
+                        :to="{ name: 'etiquetas', query: { lomo: f.libro.id } }"
+                        class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        Etiquetas de lomo
+                      </router-link>
+                      <router-link
+                        v-if="puedeVerHistorial"
+                        role="menuitem"
+                        :to="{ name: 'historial-prestamos-libro', query: { libro: f.libro.id } }"
+                        class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        Historial de préstamos
+                      </router-link>
+                      <router-link
+                        v-if="puedeCambiarEstado"
+                        role="menuitem"
+                        :to="{ name: 'estado-libro', query: { q: f.libro.titulo } }"
+                        class="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        Estado de sus ejemplares
+                      </router-link>
+                    </div>
+                  </Teleport>
                 </div>
               </div>
             </div>
 
             <div v-if="expandidos.has(f.libro.id)" class="border-t border-indigo-100/70 bg-indigo-50/30 px-4 pb-5 pt-4 lg:pl-[4.5rem] lg:pr-5">
+              <CarrerasAsociadas :carreras="(f.libro.carreras ?? []).map((c) => c.nombre)" />
               <div class="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
                 <div class="overflow-hidden rounded-xl border border-indigo-100 bg-white">
                   <p class="bg-indigo-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">Ficha bibliográfica · MARC 21</p>
@@ -431,6 +502,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                           {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
+                        <p v-if="e.numero_registro" class="text-xs text-gray-600">N° de registro Horizon: <span class="font-mono">{{ e.numero_registro }}</span></p>
                         <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota pública: {{ e.nota_publica }}</p>
                         <p v-if="e.nota_interna" class="text-xs text-violet-700">Nota interna: {{ e.nota_interna }}</p>
                         <p v-if="textoIngreso(e)" class="text-xs text-gray-400">{{ textoIngreso(e) }}</p>
@@ -460,7 +532,9 @@ function copiaGuardada(actualizada: Ejemplar) {
                         </router-link>
                       </div>
                     </li>
-                    <li v-if="!f.total" class="px-4 py-3 text-xs text-gray-400">Sin copias registradas.</li>
+                    <li v-if="!f.total" class="px-4 py-3 text-xs text-gray-400">
+                      {{ f.libro.url_acceso ? 'Sin copias físicas: se lee en línea, con el enlace de la ficha.' : 'Sin copias registradas.' }}
+                    </li>
                   </ul>
                   <div v-if="puedeCatalogar" class="px-4 pb-4 pt-2">
                     <button

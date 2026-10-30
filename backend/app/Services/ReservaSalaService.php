@@ -586,6 +586,7 @@ class ReservaSalaService
                 'capacidad' => $sala->capacidad,
                 'tipo' => $sala->tipo,
                 'codigo' => $sala->codigo,
+                'solo_administracion' => $sala->solo_administracion,
                 'libre_ahora' => $esHoy ? $disponibleHastaMin > 0 : null,
                 'disponible_hasta_min' => $disponibleHastaMin,
                 'tramos' => $tramosPorSala->get($sala->id, collect())->values(),

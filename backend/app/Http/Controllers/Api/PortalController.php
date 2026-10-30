@@ -80,6 +80,8 @@ class PortalController extends Controller
                 'tipo_item' => $prestamo->tipo_item,
                 'en_sala' => $prestamo->en_sala,
                 'fecha_devolucion' => $prestamo->fecha_devolucion?->toDateString(),
+                // Los recursos de apoyo se devuelven a una hora (horas_maximas de su categoría).
+                'hora_devolucion' => $prestamo->tipo_item !== 'libro' ? $prestamo->fecha_devolucion?->format('H:i') : null,
             ]);
 
         $reservasLibro = ReservaLibro::with('libro:id,titulo')
@@ -209,6 +211,7 @@ class PortalController extends Controller
         $query = Libro::whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
             ->with([
                 'autores', 'categorias', 'tipoMaterial',
+                'carreras' => fn ($q) => $q->orderBy('carreras.nombre'),
                 // Las copias que ve el usuario: las que están en estante.
                 'ejemplares' => fn ($q) => $q->where('estado_proceso', 'en_estante')->orderBy('numero_copia')
                     ->select(['id', 'libro_id', 'numero_copia', 'volumen', 'disponible', 'ubicacion_id', 'coleccion', 'nota_publica']),
@@ -254,6 +257,8 @@ class PortalController extends Controller
             'tipo_material' => $libro->tipoMaterial?->nombre,
             'autores' => $libro->autores->map->only(['id', 'nombre'])->values(),
             'categorias' => $libro->categorias->map->only(['id', 'nombre'])->values(),
+            // Las carreras a las que sirve (la tira de la ficha).
+            'carreras' => $libro->carreras->pluck('nombre')->values(),
             'ejemplares_total' => $libro->ejemplares_total,
             'ejemplares_disponibles' => $libro->ejemplares_disponibles,
             'proxima_devolucion' => $libro->proxima_devolucion ? Carbon::parse($libro->proxima_devolucion)->toDateString() : null,
@@ -287,7 +292,8 @@ class PortalController extends Controller
     public function salas(Request $request)
     {
         $fecha = $request->query('fecha', now()->toDateString());
-        $salas = Sala::orderBy('id')->get();
+        // La Sala de Seminarios y las demás que gestiona solo la administración no se ofrecen en el portal.
+        $salas = Sala::where('solo_administracion', false)->orderBy('id')->get();
         $usuarioId = (int) $request->user()->id;
 
         // De las reservas ajenas el usuario solo ve el horario: ni nombres ni RUT
@@ -316,6 +322,7 @@ class PortalController extends Controller
             'duracion_minima' => config('salas.duracion_minima'),
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
+            'personas_minimas' => config('salas.personas_minimas'),
             'cerrado' => $atencion === null,
             'salas' => $vista,
             // Sus cancelaciones de hoy: cuántas le quedan sin espera y, si está esperando,
@@ -336,11 +343,17 @@ class PortalController extends Controller
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
-            'cantidad_personas' => ['required', 'integer', 'min:2', 'max:5'],
+            'cantidad_personas' => ['required', 'integer', 'min:'.config('salas.personas_minimas'), 'max:5'],
             'inmediata' => ['sometimes', 'boolean'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
+        ], [
+            'cantidad_personas.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
         ]);
+
+        if ($mensaje = Sala::mensajeSoloAdministracion($data['sala_id'])) {
+            return response()->json(['message' => $mensaje], 403);
+        }
 
         // Canceló varias reservas suyas hoy: unos minutos sin lanzar otra (config/salas.php).
         // Que otros lo incluyan como integrante en sus reservas sigue permitido.
@@ -500,8 +513,9 @@ class PortalController extends Controller
                 return [$motivo, false];
             }
 
+            // Con menos personas que el mínimo la reserva ya no vale: se cancela.
             $quedan = $reserva->participantes()->whereKeyNot($usuario->id)->count();
-            if ($quedan < 2) {
+            if ($quedan < config('salas.personas_minimas')) {
                 $reserva->update(['estado' => 'cancelada']);
 
                 return [null, true];
@@ -521,7 +535,7 @@ class PortalController extends Controller
         Bitacora::registrar(
             $cancelada ? 'salas.cancelar' : 'salas.integrantes',
             "Se salió desde el portal de {$reserva->descripcion()}"
-                .($cancelada ? ': como quedaba una sola persona, la reserva se canceló' : ''),
+                .($cancelada ? ': como quedaban menos de '.config('salas.personas_minimas').' personas, la reserva se canceló' : ''),
             entidad: $reserva,
             datos: ['quitados' => $usuario->descripcion()],
             afectado: $usuario,

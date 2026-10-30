@@ -95,6 +95,8 @@ export type CategoriaRecurso = {
   icono: string
   color: string
   limite_por_persona: number | null
+  /** Horas que dura el préstamo (la hora de devolución); null: sin plazo. */
+  horas_maximas: number | null
   indicaciones: string | null
   activo: boolean
   recursos_total?: number
@@ -207,7 +209,7 @@ export type Categoria = { id: number; nombre: string }
 export type Carrera = { id: number; nombre: string }
 /** Al catalogar: las carreras del catálogo (con id) y las de los usuarios que aún no tiene ningún libro (sin id). */
 export type CarreraSugerida = { id: number | null; nombre: string }
-export type Ubicacion = { id: number; nombre: string }
+export type Ubicacion = { id: number; nombre: string; /** Solo con ?con_copias=1. */ copias?: number }
 export type PlantillaFichaClave = 'libro' | 'trabajo_titulacion' | 'juego_educativo' | 'publicacion_seriada'
 
 export type TipoMaterial = { id: number; nombre: string; plantilla: PlantillaFichaClave }
@@ -222,6 +224,8 @@ export type LibroCatalogo = {
   tipo_material: string | null
   autores: { id: number; nombre: string }[]
   categorias: { id: number; nombre: string }[]
+  /** Carreras a las que sirve el título. */
+  carreras?: string[]
   ejemplares_total: number
   ejemplares_disponibles: number
   // Devolución más próxima entre las copias prestadas (null si ninguna lo está).
@@ -273,6 +277,8 @@ export type Ejemplar = {
   nota_interna?: string | null
   /** Colección de la copia; si no tiene, vale la del libro. */
   coleccion?: string | null
+  /** Número de registro de la copia en Horizon («30727»); solo para el personal. */
+  numero_registro?: string | null
   // En /libros: si tiene un préstamo activo o una reserva lista para retirar.
   prestado?: boolean
   reservado?: boolean
@@ -284,6 +290,8 @@ export type Libro = {
   id: number
   titulo: string
   isbn: string | null
+  /** Los demás ISBN del título, separados por «; » (el de la colección, el de otros tomos). */
+  otros_isbn?: string | null
   clasificacion: string | null
   coleccion: string | null
   editorial: string | null
@@ -407,7 +415,7 @@ export type IngresosPortal = {
 
 export type ActividadPortal = {
   entrada_hoy: string | null
-  prestamos: { id: number; titulo: string; tipo_item: string; en_sala?: boolean; fecha_devolucion: string | null }[]
+  prestamos: { id: number; titulo: string; tipo_item: string; en_sala?: boolean; fecha_devolucion: string | null; hora_devolucion?: string | null }[]
   reservas_libro: { id: number; titulo: string | null; estado: 'pendiente' | 'en_cola'; fecha_retiro: string | null; posicion: number | null }[]
   reservas_sala: { id: number; sala: string | null; hora_inicio: string; hora_fin: string }[]
   multas: { cantidad: number; monto_total: number }
@@ -499,6 +507,8 @@ export type Sala = {
   tipo: 'logia' | 'puesto' | 'sala'
   /** Código propio de la sala (L04, SEM…): el del mesón y los reportes. */
   codigo: string
+  /** No se presta a estudiantes (Sala de Seminarios): la reserva quien tiene salas.administracion. */
+  solo_administracion?: boolean
   // Solo si la fecha consultada es hoy — null para otras fechas.
   libre_ahora: boolean | null
   disponible_hasta_min: number | null
@@ -518,6 +528,8 @@ export type VistaSalasDia = {
   duracion_minima: number
   duracion_maxima: number
   cuota_diaria: number
+  /** Personas mínimas por reserva (config/salas.php). */
+  personas_minimas: number
   salas: Sala[]
 }
 
@@ -599,6 +611,8 @@ export type HoraPorSala = {
 export type ReporteResumen = {
   rango: { desde: string; hasta: string }
   total: number
+  /** Uso de salas: personas (todos los integrantes) en esas reservas; en las demás pestañas, igual a total. */
+  personas?: number
   totalAnterior: number
   promedioPorPeriodo: number
   categoriaMasFrecuente: string

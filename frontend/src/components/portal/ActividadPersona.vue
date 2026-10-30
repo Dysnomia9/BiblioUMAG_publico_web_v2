@@ -16,9 +16,10 @@ function diasHasta(fecha: string) {
   return Math.round((new Date(`${fecha}T12:00:00`).getTime() - hoy.getTime()) / 86400000)
 }
 
-/** Aviso de vencimiento: solo si está atrasado o vence en los próximos 3 días. */
-function vencimiento(fecha: string | null) {
+/** Aviso de vencimiento: solo si está atrasado o vence en los próximos 3 días. Un recurso de apoyo vence a una hora. */
+function vencimiento(fecha: string | null, hora?: string | null) {
   if (!fecha) return null
+  if (hora && new Date(`${fecha}T${hora}:00`) < new Date()) return { texto: 'Atrasado', cls: 'bg-red-50 text-red-700 border-red-200' }
   const dias = diasHasta(fecha)
   const plural = (n: number) => `${n} ${n === 1 ? 'día' : 'días'}`
   if (dias < 0) return { texto: `Atrasado ${plural(-dias)}`, cls: 'bg-red-50 text-red-700 border-red-200' }
@@ -48,15 +49,15 @@ function vencimiento(fecha: string | null) {
           <p class="truncate text-sm font-semibold text-gray-900">{{ prestamo.titulo }}</p>
           <p class="text-xs text-gray-500">
             <template v-if="prestamo.en_sala">Uso en sala · se devuelve en el mesón antes del cierre</template>
-            <template v-else>{{ prestamo.tipo_item === 'libro' ? 'Préstamo' : 'Recurso de apoyo' }}<template v-if="prestamo.fecha_devolucion"> · vence el {{ fechaLarga(prestamo.fecha_devolucion) }}</template></template>
+            <template v-else>{{ prestamo.tipo_item === 'libro' ? 'Préstamo' : 'Recurso de apoyo' }}<template v-if="prestamo.fecha_devolucion"> · vence el {{ fechaLarga(prestamo.fecha_devolucion) }}<template v-if="prestamo.hora_devolucion"> a las {{ prestamo.hora_devolucion }}</template></template></template>
           </p>
         </div>
         <span
-          v-if="vencimiento(prestamo.fecha_devolucion)"
+          v-if="vencimiento(prestamo.fecha_devolucion, prestamo.hora_devolucion)"
           class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium"
-          :class="vencimiento(prestamo.fecha_devolucion)?.cls"
+          :class="vencimiento(prestamo.fecha_devolucion, prestamo.hora_devolucion)?.cls"
         >
-          {{ vencimiento(prestamo.fecha_devolucion)?.texto }}
+          {{ vencimiento(prestamo.fecha_devolucion, prestamo.hora_devolucion)?.texto }}
         </span>
       </li>
 

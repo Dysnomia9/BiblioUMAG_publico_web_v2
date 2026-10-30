@@ -30,6 +30,9 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
         \App\Models\PoliticaVigencia::olvidar();
+        // Las pruebas de salas arman grupos de 2 para probar otras reglas (solapamientos, cuota,
+        // integrantes…). El mínimo real (3, config/salas.php) se prueba en SalaPersonasMinimasTest.
+        config(['salas.personas_minimas' => 2]);
     }
 
     /** A $dias de hoy, corrida al siguiente día con atención: una devolución o un retiro no puede caer en domingo. */

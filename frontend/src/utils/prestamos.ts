@@ -4,15 +4,26 @@ const DIA = 86_400_000
 const inicioDeHoy = () => new Date(new Date().toDateString())
 
 export const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-CL')
+const horaCorta = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+
+/** Los recursos de apoyo (notebooks, bicicletas…) se devuelven a una hora: la de horas_maximas de su categoría. */
+const esRecurso = (p: Prestamo) => !!p.tipo_item && p.tipo_item !== 'libro'
+
+/** «45 min», «3 h» o «2 h 15 min». */
+function duracion(minutos: number) {
+  if (minutos < 60) return `${minutos} min`
+  const resto = minutos % 60
+  return `${Math.floor(minutos / 60)} h${resto ? ` ${resto} min` : ''}`
+}
 
 /** Días que faltan para la fecha de devolución (negativo si ya pasó). */
 function diasParaDevolver(fechaDevolucion: string) {
   return Math.round((new Date(new Date(fechaDevolucion).toDateString()).getTime() - inicioDeHoy().getTime()) / DIA)
 }
 
-/** Sin devolver y con la fecha ya pasada; el que vence hoy todavía no (igual que Prestamo::scopeVencidos()). */
+/** Sin devolver y con la fecha ya pasada; el libro que vence hoy todavía no, el recurso desde su hora (igual que Prestamo::scopeVencidos()). */
 export const estaVencido = (p: Prestamo) =>
-  p.estado !== 'devuelto' && !!p.fecha_devolucion && diasParaDevolver(p.fecha_devolucion) < 0
+  p.estado !== 'devuelto' && !!p.fecha_devolucion && (esRecurso(p) ? new Date(p.fecha_devolucion) < new Date() : diasParaDevolver(p.fecha_devolucion) < 0)
 
 /** Columna «Devolución»: la fecha y cuánto falta, cuándo se devolvió o, en los recursos de apoyo (sin fecha fija), si sigue pendiente. */
 export function devolucionDe(p: Prestamo) {
@@ -23,6 +34,12 @@ export function devolucionDe(p: Prestamo) {
     return estaVencido(p)
       ? { linea1: fechaCorta(p.fecha_devolucion!), linea2: 'Uso en sala: no se devolvió el mismo día', clase: 'text-red-700' }
       : { linea1: 'Hoy, antes del cierre', linea2: 'Uso en sala', clase: 'text-indigo-700' }
+  }
+  if (esRecurso(p) && p.fecha_devolucion) {
+    const minutos = Math.round((new Date(p.fecha_devolucion).getTime() - Date.now()) / 60_000)
+    const cuando = `${new Date(p.fecha_devolucion).toDateString() === new Date().toDateString() ? 'Hoy' : fechaCorta(p.fecha_devolucion)}, ${horaCorta(p.fecha_devolucion)}`
+    if (minutos < 0) return { linea1: cuando, linea2: `Vencido hace ${duracion(-minutos)}`, clase: 'text-red-700' }
+    return { linea1: cuando, linea2: `Quedan ${duracion(minutos)}`, clase: minutos <= 30 ? 'text-amber-700' : 'text-emerald-700' }
   }
   if (!p.fecha_devolucion) {
     return new Date(p.fecha_prestamo).toDateString() === new Date().toDateString()
@@ -44,7 +61,7 @@ export function estadoDe(p: Prestamo) {
   if (p.estado === 'devuelto') return { texto: 'Devuelto', clase: 'bg-sky-100 text-sky-800', barra: 'bg-sky-400', fila: '' }
   if (estaVencido(p)) return { texto: 'Vencido', clase: 'bg-red-100 text-red-800', barra: 'bg-red-500', fila: 'bg-red-50/50' }
   if (p.en_sala) return { texto: 'En sala', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
-  if (!p.fecha_devolucion) return { texto: 'En uso', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
+  if (!p.fecha_devolucion || esRecurso(p)) return { texto: 'En uso', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
   if (diasParaDevolver(p.fecha_devolucion) === 0) return { texto: 'Vence hoy', clase: 'bg-amber-100 text-amber-800', barra: 'bg-amber-500', fila: 'bg-amber-50/40' }
   return { texto: 'Activo', clase: 'bg-emerald-100 text-emerald-800', barra: 'bg-emerald-500', fila: 'bg-emerald-50/40' }
 }

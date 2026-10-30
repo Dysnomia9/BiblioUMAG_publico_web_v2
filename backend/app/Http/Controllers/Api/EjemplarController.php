@@ -95,6 +95,7 @@ class EjemplarController extends Controller
             'volumen' => ['sometimes', 'nullable', 'string', 'max:100'],
             'precio' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['sometimes', 'nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
+            'numero_registro' => ['sometimes', 'nullable', 'string', 'max:50'],
             ...array_map(fn (array $reglas) => ['sometimes', ...$reglas], self::reglasNotasYColeccion()),
         ]);
 
@@ -441,6 +442,12 @@ class EjemplarController extends Controller
             'fecha_inventario' => $nuevoEstado === 'inventario' ? now() : $ejemplar->fecha_inventario,
         ]);
 
+        // Una copia que nadie tiene prestada ni apartada vuelve al estante libre, aunque viniera
+        // marcada como no disponible (así llegaban de Horizon las que no estaban en estante).
+        if ($nuevoEstado === 'en_estante' && ! $ejemplar->disponible && ! $this->ocupada($ejemplar)) {
+            $ejemplar->update(['disponible' => true]);
+        }
+
         EjemplarEstadoHistorial::create([
             'ejemplar_id' => $ejemplar->id,
             'estado_anterior' => $estadoAnterior,
@@ -457,6 +464,13 @@ class EjemplarController extends Controller
         }
 
         return null;
+    }
+
+    /** Si la copia tiene un préstamo activo o está apartada para una reserva. */
+    private function ocupada(Ejemplar $ejemplar): bool
+    {
+        return $ejemplar->prestamos()->where('estado', 'activo')->exists()
+            || $ejemplar->reservasLibro()->where('estado', 'pendiente')->exists();
     }
 
     private function filtrarEjemplares(Request $request): Builder

@@ -9,6 +9,8 @@ import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
 import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import CopiasDadasDeBaja from '@/components/administracion/CopiasDadasDeBaja.vue'
 import PoliticasVigencia from '@/components/administracion/PoliticasVigencia.vue'
+import Modal from '@/components/ui/Modal.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -76,7 +78,7 @@ async function cargar() {
     const [configRes, estadosRes, ubicacionesRes, tiposMaterialRes] = await Promise.all([
       api.get<ConfiguracionInstitucional>('/configuracion'),
       api.get<EstadoLibroPersonalizado[]>('/estados-libro-personalizados'),
-      api.get<Ubicacion[]>('/ubicaciones'),
+      api.get<Ubicacion[]>('/ubicaciones', { params: { con_copias: 1 } }),
       api.get<TipoMaterial[]>('/tipos-material'),
     ])
     Object.assign(configuracion, configRes.data)
@@ -159,7 +161,7 @@ async function crearUbicacion() {
   creandoUbicacion.value = true
   try {
     const { data } = await api.post<Ubicacion>('/ubicaciones', { nombre: nuevaUbicacion.nombre.trim() })
-    ubicaciones.value.push(data)
+    ubicaciones.value.push({ ...data, copias: 0 })
     ubicaciones.value.sort((a, b) => a.nombre.localeCompare(b.nombre))
     nuevaUbicacion.nombre = ''
     confirmandoCrearUbicacion.value = false
@@ -168,6 +170,65 @@ async function crearUbicacion() {
     toast.error(mensajeDeError(e, 'No se pudo crear la ubicación'))
   } finally {
     creandoUbicacion.value = false
+  }
+}
+
+// Editar el nombre de una ubicación: sus copias la siguen teniendo.
+const edicionUbicacion = reactive({ ubicacion: null as Ubicacion | null, nombre: '', guardando: false })
+
+function abrirEdicionUbicacion(u: Ubicacion) {
+  Object.assign(edicionUbicacion, { ubicacion: u, nombre: u.nombre, guardando: false })
+}
+
+async function guardarUbicacion() {
+  const u = edicionUbicacion.ubicacion
+  const nombre = edicionUbicacion.nombre.trim()
+  if (!u) return
+  if (!nombre) {
+    toast.error('Ingresa un nombre para la ubicación')
+    return
+  }
+  if (nombre === u.nombre) {
+    edicionUbicacion.ubicacion = null
+    return
+  }
+  edicionUbicacion.guardando = true
+  try {
+    const { data } = await api.patch<Ubicacion>(`/ubicaciones/${u.id}`, { nombre })
+    u.nombre = data.nombre
+    ubicaciones.value.sort((a, b) => a.nombre.localeCompare(b.nombre))
+    edicionUbicacion.ubicacion = null
+    toast.success('Ubicación actualizada')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo cambiar el nombre de la ubicación'))
+  } finally {
+    edicionUbicacion.guardando = false
+  }
+}
+
+// Eliminar: si tiene copias, primero se elige a qué ubicación pasan.
+const eliminacionUbicacion = reactive({ ubicacion: null as Ubicacion | null, moverA: '' as number | '', eliminando: false })
+const otrasUbicaciones = computed(() => ubicaciones.value.filter((u) => u.id !== eliminacionUbicacion.ubicacion?.id))
+
+function pedirEliminarUbicacion(u: Ubicacion) {
+  Object.assign(eliminacionUbicacion, { ubicacion: u, moverA: '', eliminando: false })
+}
+
+async function eliminarUbicacion() {
+  const u = eliminacionUbicacion.ubicacion
+  if (!u) return
+  eliminacionUbicacion.eliminando = true
+  try {
+    await api.delete(`/ubicaciones/${u.id}`, { data: u.copias ? { mover_a: eliminacionUbicacion.moverA } : {} })
+    const destino = ubicaciones.value.find((x) => x.id === eliminacionUbicacion.moverA)
+    if (destino && u.copias) destino.copias = (destino.copias ?? 0) + u.copias
+    ubicaciones.value = ubicaciones.value.filter((x) => x.id !== u.id)
+    eliminacionUbicacion.ubicacion = null
+    toast.success(destino && u.copias ? `Ubicación eliminada: sus copias pasaron a «${destino.nombre}»` : 'Ubicación eliminada')
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo eliminar la ubicación'))
+  } finally {
+    eliminacionUbicacion.eliminando = false
   }
 }
 
@@ -363,7 +424,8 @@ async function confirmarDesactivar() {
             <h3 class="font-semibold text-gray-900 mb-1">Ubicaciones</h3>
             <p class="text-xs text-gray-500 mb-4">
               Sedes y otras ubicaciones físicas donde puede estar un ejemplar — se elige al catalogar un libro
-              y sirve para filtrar en Cambio Masivo de Estado. Agrega acá cualquier sede nueva, no hay límite.
+              y sirve para filtrar en Cambio Masivo de Estado. Agrega acá cualquier sede nueva, no hay límite. Al eliminar
+              una que tiene copias, se elige a qué ubicación pasan.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-2 mb-5">
@@ -378,8 +440,15 @@ async function confirmarDesactivar() {
             </div>
 
             <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-              <div v-for="u in ubicaciones" :key="u.id" class="px-4 py-3">
-                <p class="text-sm font-medium text-gray-900">{{ u.nombre }}</p>
+              <div v-for="u in ubicaciones" :key="u.id" class="flex items-center justify-between gap-3 px-4 py-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-900">{{ u.nombre }}</p>
+                  <p class="text-xs text-gray-500">{{ (u.copias ?? 0).toLocaleString('es-CL') }} {{ u.copias === 1 ? 'copia' : 'copias' }}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-3 text-sm">
+                  <button type="button" class="font-medium text-indigo-700 hover:text-indigo-800" @click="abrirEdicionUbicacion(u)">Editar</button>
+                  <button type="button" class="font-medium text-red-600 hover:text-red-700" @click="pedirEliminarUbicacion(u)">Eliminar</button>
+                </div>
               </div>
               <p v-if="!ubicaciones.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin ubicaciones todavía.</p>
             </div>
@@ -534,6 +603,72 @@ async function confirmarDesactivar() {
           </div>
         </div>
       </div>
+
+      <Modal
+        :abierto="!!edicionUbicacion.ubicacion"
+        titulo="Editar ubicación"
+        descripcion="Sus copias, reglas de préstamo y días sin atención la siguen teniendo con el nombre nuevo."
+        :bloqueado="edicionUbicacion.guardando"
+        @cerrar="edicionUbicacion.ubicacion = null"
+      >
+        <label for="ubicacion-editar-nombre" class="mb-1 block text-xs font-medium text-gray-600">Nombre</label>
+        <input
+          id="ubicacion-editar-nombre"
+          v-model="edicionUbicacion.nombre"
+          maxlength="255"
+          class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+          @keydown.enter="guardarUbicacion"
+        />
+        <template #pie>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+            :disabled="edicionUbicacion.guardando"
+            @click="edicionUbicacion.ubicacion = null"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+            :disabled="edicionUbicacion.guardando"
+            @click="guardarUbicacion"
+          >
+            {{ edicionUbicacion.guardando ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </template>
+      </Modal>
+
+      <DialogoConfirmacion
+        :abierto="!!eliminacionUbicacion.ubicacion"
+        titulo="¿Eliminar esta ubicación?"
+        confirmar="Sí, eliminar"
+        tono="peligro"
+        :cargando="eliminacionUbicacion.eliminando"
+        :deshabilitado="!!eliminacionUbicacion.ubicacion?.copias && !eliminacionUbicacion.moverA"
+        @confirmar="eliminarUbicacion"
+        @cancelar="eliminacionUbicacion.ubicacion = null"
+      >
+        <p>
+          <strong class="text-gray-900">{{ eliminacionUbicacion.ubicacion?.nombre }}</strong> dejará de ofrecerse al catalogar y en los filtros.
+        </p>
+        <template v-if="eliminacionUbicacion.ubicacion?.copias">
+          <p class="mt-2">
+            Tiene <strong class="text-gray-900">{{ eliminacionUbicacion.ubicacion.copias.toLocaleString('es-CL') }}
+            {{ eliminacionUbicacion.ubicacion.copias === 1 ? 'copia' : 'copias' }}</strong>: elige a qué ubicación pasan.
+          </p>
+          <label for="ubicacion-mover-a" class="mt-3 mb-1 block text-xs font-medium text-gray-600">Pasar sus copias a</label>
+          <select
+            id="ubicacion-mover-a"
+            v-model="eliminacionUbicacion.moverA"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-900"
+          >
+            <option value="" disabled>Elige una ubicación</option>
+            <option v-for="o in otrasUbicaciones" :key="o.id" :value="o.id">{{ o.nombre }}</option>
+          </select>
+        </template>
+        <p v-else class="mt-2">No tiene copias.</p>
+      </DialogoConfirmacion>
 
       <div
         v-if="confirmandoCrearTipoMaterial"

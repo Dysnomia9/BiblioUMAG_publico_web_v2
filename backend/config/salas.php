@@ -10,6 +10,7 @@ return [
     'duracion_minima' => 30, // minutos
     'duracion_maxima' => 120, // minutos
     'granularidad' => 30, // los inicios/fines deben caer en :00 o :30, salvo "inmediata"
+    'personas_minimas' => 3, // integrantes de una reserva, contando a quien queda a cargo (el máximo es 5)
     'cuota_diaria' => 240, // minutos por participante y día
     'plazo_confirmacion' => 15, // minutos
     'minimo_para_liberar' => 5, // minutos sin usar desde los que, al devolver la llave antes, se ofrece liberar el resto del bloque

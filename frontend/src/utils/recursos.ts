@@ -65,6 +65,12 @@ export function useCategoriasRecurso() {
   return { categorias, cargar }
 }
 
+/** «3 horas», «1 hora», «2 días» (48 horas): el tiempo máximo de préstamo de una categoría. */
+export function textoHoras(horas: number) {
+  if (horas % 24 === 0 && horas >= 48) return `${horas / 24} días`
+  return `${horas} ${horas === 1 ? 'hora' : 'horas'}`
+}
+
 export function categoriaDe(clave: string): CategoriaRecurso | undefined {
   return categorias.value.find((c) => c.clave === clave)
 }

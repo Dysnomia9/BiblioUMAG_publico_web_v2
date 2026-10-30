@@ -14,7 +14,7 @@ import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
-import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, useCategoriasRecurso } from '@/utils/recursos'
+import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
 const toast = useToast()
@@ -138,6 +138,12 @@ function lineaRecurso(c: CategoriaRecurso) {
 /** Ya llegó al máximo por persona de esa categoría (ej. una bicicleta a la vez). */
 const enTope = (c: CategoriaRecurso) => !!c.limite_por_persona && enUsoDe(c.clave).length >= c.limite_por_persona
 const mensajeTope = (c: CategoriaRecurso) => `Ya tiene ${enUsoDe(c.clave).length === 1 ? `1 ${c.nombre.toLowerCase()}` : `${enUsoDe(c.clave).length} ${c.nombre_plural.toLowerCase()}`} sin devolver: se presta un máximo de ${c.limite_por_persona} por persona a la vez`
+/** Cuándo vence un recurso que se presta ahora: «hoy a las 17:30» o «el 31/10 a las 14:00». */
+function devolucionRecurso(horas: number) {
+  const vence = new Date(Date.now() + horas * 3_600_000)
+  const hora = vence.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+  return vence.toDateString() === new Date().toDateString() ? `hoy a las ${hora}` : `el ${vence.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })} a las ${hora}`
+}
 const fondoCategoria = (c: CategoriaRecurso) => (COLORES_RECURSO[c.color] ?? COLORES_RECURSO.slate).fondo
 const puntoCategoria = (c: CategoriaRecurso) => (COLORES_RECURSO[c.color] ?? COLORES_RECURSO.slate).punto
 const iconoCategoria = (c: CategoriaRecurso) => (ICONOS_RECURSO[c.icono] ?? ICONOS_RECURSO.caja).trazo
@@ -1304,7 +1310,7 @@ function formatHora(iso: string | null) {
                   <div class="min-w-0">
                     <p class="font-semibold text-gray-900">{{ c.nombre_plural }}</p>
                     <p class="text-xs text-gray-500">
-                      {{ c.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="c.limite_por_persona"> · máximo {{ c.limite_por_persona }} por persona</template>
+                      {{ c.indicaciones || 'Se devuelve al término de la estadía' }}<template v-if="c.horas_maximas"> · hasta {{ textoHoras(c.horas_maximas) }}</template><template v-if="c.limite_por_persona"> · máximo {{ c.limite_por_persona }} por persona</template>
                     </p>
                   </div>
                 </div>
@@ -1527,12 +1533,16 @@ function formatHora(iso: string | null) {
       >
         <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
           <h3 class="mb-1 text-lg font-bold text-gray-900">¿Confirmar préstamo?</h3>
-          <p class="text-sm text-gray-500" :class="prestamoRecursoPendiente.categoria.indicaciones ? 'mb-3' : 'mb-6'">
+          <p class="text-sm text-gray-500" :class="prestamoRecursoPendiente.categoria.indicaciones || prestamoRecursoPendiente.categoria.horas_maximas ? 'mb-3' : 'mb-6'">
             Se prestará {{ prestamoRecursoPendiente.inventario ?? `${prestamoRecursoPendiente.categoria.nombre.toLowerCase()}` }} (código
             <strong class="font-mono">{{ prestamoRecursoPendiente.codigo }}</strong>) a <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong>.
           </p>
-          <p v-if="prestamoRecursoPendiente.categoria.indicaciones" class="mb-6 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Recuérdele: {{ prestamoRecursoPendiente.categoria.indicaciones }}.
+          <p v-if="prestamoRecursoPendiente.categoria.indicaciones || prestamoRecursoPendiente.categoria.horas_maximas" class="mb-6 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Recuérdele:
+            <template v-if="prestamoRecursoPendiente.categoria.horas_maximas">
+              se devuelve a más tardar {{ devolucionRecurso(prestamoRecursoPendiente.categoria.horas_maximas) }} ({{ textoHoras(prestamoRecursoPendiente.categoria.horas_maximas) }})<template v-if="prestamoRecursoPendiente.categoria.indicaciones">. </template>
+            </template>
+            <template v-if="prestamoRecursoPendiente.categoria.indicaciones">{{ prestamoRecursoPendiente.categoria.indicaciones }}</template>.
           </p>
           <div class="flex gap-3">
             <button

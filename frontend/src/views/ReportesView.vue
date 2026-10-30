@@ -96,7 +96,7 @@ const DORADO_SUAVE = computed(() => (oscuro.value ? '#5c4f3b' : '#EADFC9'))
 const UNIDAD: Record<ReporteTab, { plural: string; titulo: string; quien: string }> = {
   prestamos: { plural: 'préstamos', titulo: 'Préstamos', quien: 'pidió el préstamo' },
   ingresos: { plural: 'ingresos', titulo: 'Ingresos', quien: 'ingresó' },
-  logias: { plural: 'reservas', titulo: 'Reservas', quien: 'reservó la sala' },
+  logias: { plural: 'reservas', titulo: 'Reservas', quien: 'usó la sala' },
   libros: { plural: 'préstamos', titulo: 'Préstamos de material', quien: 'pidió el material' },
 }
 const unidad = computed(() => UNIDAD[tab.value])
@@ -260,6 +260,11 @@ watch([tab, periodo, fecha, filtros], cargarResumen, { deep: true })
 
 // --- Indicadores ---
 const diferencia = computed(() => resumen.value.total - resumen.value.totalAnterior)
+// En Uso de salas, carrera, tipo, sexo y año de ingreso cuentan a cada integrante (no solo a
+// quien reservó): sus porcentajes van sobre las personas, no sobre las reservas.
+const totalPersonas = computed(() => resumen.value.personas ?? resumen.value.total)
+// En Préstamos, el ranking de títulos es solo de la colección: sus porcentajes, sobre esos préstamos.
+const prestamosDeColeccion = computed(() => resumen.value.porLibro.reduce((suma, d) => suma + d.value, 0))
 
 const destacado = computed(() => {
   const r = resumen.value
@@ -280,11 +285,15 @@ function abreviar(texto: string) {
 
 // --- Gráficos ---
 const etiquetaHora = (label: string) => label.replace('h', '')
+// Las horas del reloj que toca el horario de mayor uso: «15:00–17:00» son las 15 y 16; en salas
+// puede ser «16:30–18:30», que toca las 16, 17 y 18.
 const horasPico = computed(() => {
   const pico = resumen.value.horarioPico
   if (!pico) return []
-  const hora = parseInt(pico.desde)
-  return [hora, hora + 1].map((h) => `${String(h).padStart(2, '0')}h`)
+  const [desde] = pico.desde.split(':').map(Number)
+  const [hasta, minutos] = pico.hasta.split(':').map(Number)
+  const ultima = minutos > 0 ? hasta : hasta - 1
+  return Array.from({ length: Math.max(1, ultima - desde + 1) }, (_, i) => `${String(desde + i).padStart(2, '0')}h`)
 })
 // En el reporte de un día, el horario de ese día; en los demás, el de la semana.
 const horarioDelDia = computed(() => resumen.value.horario[diaIso(fechaLocal(resumen.value.rango.desde))] ?? null)
@@ -298,7 +307,7 @@ const serieTieneFinesDeSemana = computed(() => resumen.value.serie.some((d) => d
 const serieTieneDiasCerrados = computed(() => resumen.value.serie.some((d) => d.cerrado))
 
 // --- Vista tabla ---
-type Agrupacion = { id: string; label: string; color: string; datos: SerieItem[]; columna: string; ordenPropio?: boolean }
+type Agrupacion = { id: string; label: string; color: string; datos: SerieItem[]; columna: string; ordenPropio?: boolean; porPersona?: boolean }
 
 function etiquetaTramo(label: string) {
   if (periodo.value === 'mes') return `${label} ${MESES[fechaLocal(resumen.value.rango.desde).getMonth()].slice(0, 3)}`
@@ -307,17 +316,19 @@ function etiquetaTramo(label: string) {
 
 const agrupaciones = computed<Agrupacion[]>(() => {
   const r = resumen.value
+  const porPersona = tab.value === 'logias'
   const lista: Agrupacion[] = [
-    { id: 'carrera', label: 'Carrera', color: INDIGO, datos: r.porCarrera, columna: 'Carrera' },
+    { id: 'carrera', label: 'Carrera', color: INDIGO, datos: r.porCarrera, columna: 'Carrera', porPersona },
     {
       id: 'tipo',
       label: 'Tipo de usuario',
       color: PIZARRA,
       datos: r.porTipoUsuario.map((d) => ({ ...d, label: NOMBRES_TIPO[d.label] ?? d.label })),
       columna: 'Tipo de usuario',
+      porPersona,
     },
-    { id: 'sexo', label: 'Sexo', color: DORADO, datos: r.porSexo, columna: 'Sexo' },
-    { id: 'anio', label: 'Año de ingreso', color: VERDE_AZULADO, datos: r.porAnioIngreso, columna: 'Año de ingreso', ordenPropio: true },
+    { id: 'sexo', label: 'Sexo', color: DORADO, datos: r.porSexo, columna: 'Sexo', porPersona },
+    { id: 'anio', label: 'Año de ingreso', color: VERDE_AZULADO, datos: r.porAnioIngreso, columna: 'Año de ingreso', ordenPropio: true, porPersona },
     {
       id: 'hora',
       label: 'Hora del día',
@@ -336,6 +347,7 @@ const agrupaciones = computed<Agrupacion[]>(() => {
       { id: 'tipoPrestamo', label: 'Tipo de préstamo', color: PIZARRA, datos: conNombres(r.porTipoPrestamo, NOMBRES_TIPO_PRESTAMO), columna: 'Tipo de préstamo' },
       { id: 'tipoMaterial', label: 'Tipo de material', color: INDIGO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
       { id: 'recurso', label: 'Recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Recurso' },
+      { id: 'libro', label: 'Título', color: INDIGO, datos: r.porLibro, columna: 'Título' },
     )
   }
   if (tab.value === 'logias') lista.push({ id: 'sala', label: 'Sala', color: DORADO, datos: r.porSala, columna: 'Sala' })
@@ -350,7 +362,10 @@ const agrupaciones = computed<Agrupacion[]>(() => {
 
 const agrupacionId = ref('carrera')
 const agrupacion = computed(() => agrupaciones.value.find((a) => a.id === agrupacionId.value) ?? agrupaciones.value[0])
-const tituloTabla = computed(() => `${unidad.value.titulo} por ${agrupacion.value.label.toLowerCase()}`)
+/** Sobre qué total va el porcentaje de una agrupación, y cómo se llama lo que cuenta. */
+const totalDe = (a: Agrupacion) => (a.porPersona ? totalPersonas.value : resumen.value.total)
+const unidadDe = (a: Agrupacion) => (a.porPersona ? 'Personas' : capital(unidad.value.plural))
+const tituloTabla = computed(() => `${agrupacion.value.porPersona ? 'Personas' : unidad.value.titulo} por ${agrupacion.value.label.toLowerCase()}`)
 const subtituloTabla = computed(() => {
   const filas = agrupacion.value.datos.length
   return `${etiquetaPeriodo.value} · ${filas} ${filas === 1 ? 'fila' : 'filas'} · haz clic en un encabezado para ordenar`
@@ -366,8 +381,8 @@ async function exportarTabla() {
     await descargarExcel(`reporte-${tab.value}-${a.id}-${resumen.value.rango.desde}.xlsx`, [
       {
         titulo: tituloTabla.value,
-        columnas: [a.columna, capital(unidad.value.plural), '% del total'],
-        filas: a.datos.map((d) => [d.label, d.value, porcentaje(d.value, resumen.value.total)]),
+        columnas: [a.columna, unidadDe(a), '% del total'],
+        filas: a.datos.map((d) => [d.label, d.value, porcentaje(d.value, totalDe(a))]),
       },
     ])
     toast.success('Tabla exportada')
@@ -413,10 +428,10 @@ async function confirmarExportar() {
   if (!formato) return
   const r = resumen.value
   const tabLabel = TABS.find((t) => t.id === tab.value)?.label ?? tab.value
-  const tabla = (titulo: string, columna: string, datos: SerieItem[]) => ({
+  const tabla = (titulo: string, columna: string, datos: SerieItem[], total = r.total) => ({
     titulo,
     columnas: [columna, 'Cantidad', '%'],
-    filas: datos.map((d) => [d.label, d.value, porcentaje(d.value, r.total)]),
+    filas: datos.map((d) => [d.label, d.value, porcentaje(d.value, total)]),
   })
 
   const secciones = [
@@ -428,12 +443,13 @@ async function confirmarExportar() {
         ['Período', etiquetaPeriodo.value],
         ['Filtros aplicados', descripcionFiltros.value],
         ['Total', r.total],
+        ...(tab.value === 'logias' ? [['Personas (todos los integrantes)', r.personas ?? r.total]] : []),
         [`Total ${etiquetaAnterior.value}`, r.totalAnterior],
         ['Horario de mayor uso', r.horarioPico ? `${r.horarioPico.desde}–${r.horarioPico.hasta} (${r.horarioPico.value})` : '—'],
         ['Horario de atención', textoHorario.value || '—'],
       ] as (string | number)[][],
     },
-    ...agrupaciones.value.map((a) => tabla(`Por ${a.label.toLowerCase()}`, a.columna, a.datos)),
+    ...agrupaciones.value.map((a) => tabla(a.porPersona ? `Personas por ${a.label.toLowerCase()}` : `Por ${a.label.toLowerCase()}`, a.columna, a.datos, totalDe(a))),
   ]
   if (tab.value === 'logias') {
     secciones.push({
@@ -635,6 +651,7 @@ async function confirmarExportar() {
               </span>
             </div>
             <p class="mt-1 text-3xl font-serif font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
+            <p v-if="tab === 'logias'" class="text-xs text-gray-500">{{ totalPersonas }} {{ totalPersonas === 1 ? 'persona' : 'personas' }}, contando a los integrantes</p>
             <p class="mt-1 text-xs text-gray-500">
               <span class="font-semibold" :class="diferencia > 0 ? 'text-emerald-600' : diferencia < 0 ? 'text-red-600' : 'text-gray-500'">
                 {{ diferencia > 0 ? `+${diferencia}` : diferencia < 0 ? `−${-diferencia}` : '=' }}
@@ -674,7 +691,7 @@ async function confirmarExportar() {
               {{ resumen.horarioPico ? `${resumen.horarioPico.desde}–${resumen.horarioPico.hasta}` : '—' }}
             </p>
             <p class="mt-1 text-xs text-gray-500">
-              <template v-if="resumen.horarioPico">{{ resumen.horarioPico.value }} de {{ resumen.total }} {{ unidad.plural }}</template>
+              <template v-if="resumen.horarioPico">{{ resumen.horarioPico.value }} de {{ resumen.total }} {{ unidad.plural }}<template v-if="tab === 'logias'"> · más salas ocupadas a la vez</template></template>
               <template v-else>Sin {{ unidad.plural }} en este período</template>
             </p>
           </div>
@@ -708,13 +725,22 @@ async function confirmarExportar() {
             </div>
           </section>
 
+          <section v-if="tab === 'prestamos' && resumen.porLibro.length" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Material más prestado</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">
+              Libros, tesis, revistas, juegos y demás de la colección, sin los recursos de apoyo: % sobre {{ prestamosDeColeccion }}
+              {{ prestamosDeColeccion === 1 ? 'préstamo' : 'préstamos' }} de la colección<template v-if="resumen.porLibro.length > 10"> · los 10 con más préstamos (todos en la vista Tabla)</template>
+            </p>
+            <BarrasRanking :datos="resumen.porLibro" :total="prestamosDeColeccion" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
+          </section>
+
           <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
               <h3 class="font-sans text-base font-bold text-gray-900">Por carrera</h3>
               <p class="mt-0.5 mb-4 text-xs text-gray-500">
-                Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ unidad.plural }} (todas en la vista Tabla)</template>
+                <template v-if="tab === 'logias'">Cada integrante de la reserva, no solo quien la hizo · </template>Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ tab === 'logias' ? 'personas' : unidad.plural }} (todas en la vista Tabla)</template>
               </p>
-              <BarrasRanking :datos="resumen.porCarrera" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" />
+              <BarrasRanking :datos="resumen.porCarrera" :total="totalPersonas" :color="INDIGO" :color-primero="INDIGO_DESTACADO" />
             </section>
 
             <div class="space-y-5 lg:col-span-2">
@@ -734,13 +760,13 @@ async function confirmarExportar() {
               <h3 class="font-sans text-base font-bold text-gray-900">Por año de ingreso</h3>
               <p class="mt-0.5 text-xs text-gray-500">Cohorte de quien {{ unidad.quien }}</p>
               <div class="mt-4 h-48">
-                <GraficoColumnas :datos="resumen.porAnioIngreso" :color="VERDE_AZULADO" :color-suave="VERDE_AZULADO" mostrar-valores :unidad="unidad.plural" />
+                <GraficoColumnas :datos="resumen.porAnioIngreso" :color="VERDE_AZULADO" :color-suave="VERDE_AZULADO" mostrar-valores :unidad="tab === 'logias' ? 'personas' : unidad.plural" />
               </div>
             </section>
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
               <h3 class="font-sans text-base font-bold text-gray-900">Por hora del día</h3>
               <p class="mt-0.5 text-xs text-gray-500">
-                {{ textoHorario }}<template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
+                {{ textoHorario }}<template v-if="tab === 'logias'"> · cada reserva cuenta en todas las horas en que tuvo la sala</template><template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
               </p>
               <div class="mt-4 h-48">
                 <GraficoColumnas
@@ -801,7 +827,7 @@ async function confirmarExportar() {
           </section>
           <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 class="font-sans text-base font-bold text-gray-900">Horas más solicitadas por sala</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Reservas por bloque horario en cada sala</p>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">Reservas en curso en cada hora, en cada sala (una de 16:30 a 18:30 cuenta a las 16, 17 y 18)</p>
             <Heatmap :data="resumen.porHoraPorSala" />
           </section>
           <section v-if="tab === 'libros'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -834,9 +860,9 @@ async function confirmarExportar() {
             :titulo="tituloTabla"
             :subtitulo="subtituloTabla"
             :columna="agrupacion.columna"
-            :unidad="capital(unidad.plural)"
+            :unidad="unidadDe(agrupacion)"
             :datos="agrupacion.datos"
-            :total="resumen.total"
+            :total="totalDe(agrupacion)"
             :color="agrupacion.color"
             :orden-propio="agrupacion.ordenPropio"
             @exportar="confirmandoTabla = true"

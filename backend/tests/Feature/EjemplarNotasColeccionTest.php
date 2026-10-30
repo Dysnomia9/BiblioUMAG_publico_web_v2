@@ -96,4 +96,19 @@ class EjemplarNotasColeccionTest extends TestCase
 
         $this->assertStringNotContainsString('Secreto', $respuesta->getContent());
     }
+
+    public function test_el_numero_de_registro_de_horizon_se_edita_y_sirve_para_buscar_el_libro(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $copia = Ejemplar::factory()->for(Libro::factory()->state(['titulo' => 'The chemical reactor minibook']))->create();
+
+        $this->patchJson("/api/ejemplares/{$copia->id}", ['numero_registro' => '30727'])
+            ->assertOk()
+            ->assertJsonPath('numero_registro', '30727');
+
+        $this->assertContains($copia->libro_id, collect($this->getJson('/api/libros?q=30727')->assertOk()->json('data'))->pluck('id'));
+        // Exacto: una parte del número no lo trae.
+        $this->assertNotContains($copia->libro_id, collect($this->getJson('/api/libros?q=3072')->assertOk()->json('data'))->pluck('id'));
+    }
 }
+

@@ -28,6 +28,8 @@ class CategoriaRecurso extends Model
         'icono',
         'color',
         'limite_por_persona',
+        // Cuántas horas dura el préstamo (null: sin plazo): define la hora de devolución.
+        'horas_maximas',
         'indicaciones',
         'activo',
     ];
@@ -37,6 +39,7 @@ class CategoriaRecurso extends Model
         return [
             'activo' => 'boolean',
             'limite_por_persona' => 'integer',
+            'horas_maximas' => 'integer',
         ];
     }
 

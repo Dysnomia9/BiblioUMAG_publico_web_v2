@@ -4,12 +4,13 @@ import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import { convertirAlModo, errorSegunModo, escribirIdentificador, largoSegunModo, modoSegunValor, type ModoDocumento } from '@/utils/documento'
+import { PERSONAS_MAXIMAS_SALA as MAXIMO, PERSONAS_MINIMAS_SALA as MINIMO } from '@/utils/reservas'
 import type { IntegrantesReserva, TramoReserva } from '@/types'
 
 /**
  * Lista editable de los integrantes de una reserva de sala: quitar a quien no vino,
  * sumar a otra persona o corregir un RUT. El servidor vuelve a revisar todo al
- * guardar (de 2 a 5 personas registradas, sin otra sala a esa hora, cuota diaria).
+ * guardar (de 3 a 5 personas registradas, sin otra sala a esa hora, cuota diaria).
  */
 const props = defineProps<{
   reservaId: number
@@ -20,9 +21,6 @@ const emit = defineEmits<{
   guardado: [resultado: IntegrantesReserva]
   cancelar: []
 }>()
-
-const MINIMO = 2
-const MAXIMO = 5
 
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
 type Fila = { clave: number; rut: string; nombre: string | null; modo: ModoDocumento }

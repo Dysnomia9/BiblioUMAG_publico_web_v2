@@ -1,5 +1,13 @@
 import type { ReservaListado, SituacionReserva } from '@/types'
 
+/**
+ * Personas por reserva de sala, contando a quien queda a cargo. El mínimo es el de
+ * config/salas.php (personas_minimas): las pantallas de salas lo reciben de la API y
+ * este vale mientras carga y en el editor de integrantes. El servidor es el que decide.
+ */
+export const PERSONAS_MINIMAS_SALA = 3
+export const PERSONAS_MAXIMAS_SALA = 5
+
 /** Cómo se muestra cada situación de una reserva de sala en el Listado de reservas. */
 export const SITUACIONES: Record<SituacionReserva, { texto: string; clase: string }> = {
   pendiente: { texto: 'Pendiente de llegada', clase: 'bg-amber-50 text-amber-800' },

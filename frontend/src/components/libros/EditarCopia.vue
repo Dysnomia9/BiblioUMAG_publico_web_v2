@@ -6,15 +6,16 @@ import { mensajeDeError, useToast } from '@/composables/useToast'
 import type { Ejemplar, Ubicacion } from '@/types'
 
 /**
- * Edita los datos de una copia ya catalogada: ubicación, volumen, colección y notas.
- * La colección vacía vale la del libro; la nota pública se ve en el portal y la
- * interna solo la ve el personal. El estado se cambia en Estado de ejemplares.
+ * Edita los datos de una copia ya catalogada: ubicación, volumen, colección, número de
+ * registro de Horizon y notas. La colección vacía vale la del libro; la nota pública se ve
+ * en el portal; el número de registro y la nota interna, solo el personal. El estado se
+ * cambia en Estado de ejemplares.
  */
 const props = defineProps<{ copia: Ejemplar | null; coleccionLibro: string | null; ubicaciones: Ubicacion[] }>()
 const emit = defineEmits<{ cerrar: []; guardada: [copia: Ejemplar] }>()
 
 const toast = useToast()
-const form = reactive({ ubicacion_id: '' as number | '', volumen: '', coleccion: '', nota_publica: '', nota_interna: '', guardando: false })
+const form = reactive({ ubicacion_id: '' as number | '', volumen: '', coleccion: '', numero_registro: '', nota_publica: '', nota_interna: '', guardando: false })
 
 watch(
   () => props.copia,
@@ -24,6 +25,7 @@ watch(
       ubicacion_id: c.ubicacion_id ?? '',
       volumen: c.volumen ?? '',
       coleccion: c.coleccion ?? '',
+      numero_registro: c.numero_registro ?? '',
       nota_publica: c.nota_publica ?? '',
       nota_interna: c.nota_interna ?? '',
     })
@@ -41,6 +43,7 @@ async function guardar() {
       ubicacion_id: form.ubicacion_id === '' ? null : form.ubicacion_id,
       volumen: form.volumen.trim() || null,
       coleccion: form.coleccion.trim() || null,
+      numero_registro: form.numero_registro.trim() || null,
       nota_publica: form.nota_publica.trim() || null,
       nota_interna: form.nota_interna.trim() || null,
     })
@@ -74,6 +77,11 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <label for="copia-editar-coleccion" class="mb-1 block text-xs font-medium text-gray-600">Colección de la copia</label>
         <input id="copia-editar-coleccion" v-model="form.coleccion" maxlength="255" :placeholder="coleccionLibro ? `${coleccionLibro} (la del libro)` : 'La del libro'" :class="CAMPO" />
         <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro<template v-if="coleccionLibro"> («{{ coleccionLibro }}»)</template>.</p>
+      </div>
+      <div>
+        <label for="copia-editar-registro" class="mb-1 block text-xs font-medium text-gray-600">N° de registro en Horizon</label>
+        <input id="copia-editar-registro" v-model="form.numero_registro" maxlength="50" inputmode="numeric" placeholder="Ej: 30727" :class="CAMPO" />
+        <p class="mt-1 text-[11px] text-gray-500">Solo lo ve el personal. Sirve para buscar el libro.</p>
       </div>
       <div class="sm:col-span-2">
         <label for="copia-editar-publica" class="mb-1 block text-xs font-medium text-gray-600">Nota pública (la ve el usuario en el portal)</label>

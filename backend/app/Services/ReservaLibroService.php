@@ -22,6 +22,10 @@ use Illuminate\Support\Facades\DB;
  */
 class ReservaLibroService
 {
+    public function __construct(private ReglaPrestamoService $reglas)
+    {
+    }
+
     /**
      * @return array{0: ReservaLibro|null, 1: string|null, 2: int}
      */
@@ -80,6 +84,12 @@ class ReservaLibroService
 
         if ($yaActiva) {
             return [null, 'Ya tienes una reserva o un lugar en la cola de espera activo para este libro', 409];
+        }
+
+        // Una reserva es para llevárselo: lo que no se presta a domicilio (los juegos) se pide en el mesón.
+        $usuario = Usuario::find($usuarioId);
+        if ($usuario && ! ($this->reglas->reglaParaPrestar($usuario, $ejemplar)?->prestable ?? true)) {
+            return [null, 'Este material es solo para uso en sala: no se presta a domicilio ni se reserva. Se pide en el mesón para usarlo en la biblioteca.', 409];
         }
 
         if ($limite = $this->mensajeLimite($usuarioId, $registradoPorStaffId !== null)) {

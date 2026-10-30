@@ -207,7 +207,8 @@ class MultaService
     private function mensajeLibrosVencidos(Usuario|int $usuario, bool $paraElUsuario): ?string
     {
         $usuarioId = $usuario instanceof Usuario ? $usuario->id : $usuario;
-        $vencidos = Prestamo::vencidos()->where('usuario_id', $usuarioId)->count();
+        // Solo libros: un recurso de apoyo atrasado no bloquea (tampoco se multa).
+        $vencidos = Prestamo::vencidos()->where('tipo_item', 'libro')->where('usuario_id', $usuarioId)->count();
 
         if ($vencidos === 0) {
             return null;

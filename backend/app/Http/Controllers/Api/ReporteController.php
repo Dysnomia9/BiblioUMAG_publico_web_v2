@@ -67,7 +67,16 @@ class ReporteController extends Controller
                 default => 'prestamos',
             };
             // leftJoin: un externo (sin usuario) cuenta igual, como «Sin dato».
-            $query = DB::table($tabla)->leftJoin('usuarios', 'usuarios.id', '=', "{$tabla}.usuario_id");
+            $query = DB::table($tabla);
+            if ($tab === 'logias') {
+                // Una fila por integrante, no solo por quien hizo la reserva: el que va de invitado
+                // también cuenta en Quiénes, carrera, sexo y año de ingreso. Lo que cuenta reservas
+                // (el total, las salas, las horas) las cuenta sin repetir: ver $porReserva abajo.
+                $query->leftJoin('reserva_participantes as rp', 'rp.reserva_id', '=', 'reservas.id')
+                    ->leftJoin('usuarios', 'usuarios.id', '=', DB::raw('coalesce(rp.usuario_id, reservas.usuario_id)'));
+            } else {
+                $query->leftJoin('usuarios', 'usuarios.id', '=', "{$tabla}.usuario_id");
+            }
 
             // De qué tipo de material es lo prestado (libro, tesis, juego educativo…): todo lo del
             // catálogo se guarda como tipo_item «libro», así que el tipo sale del título de la copia.
@@ -118,12 +127,22 @@ class ReporteController extends Controller
             return $query;
         };
 
+        // En Uso de salas, $base tiene una fila por integrante; $porReserva, una por reserva (las
+        // que tienen al menos un integrante que pasa los filtros). En las demás pestañas son lo mismo.
+        $porReserva = fn (QueryBuilder $filas) => $tab === 'logias'
+            ? DB::table('reservas')->leftJoin('salas', 'salas.id', '=', 'reservas.sala_id')->whereIn('reservas.id', (clone $filas)->select('reservas.id'))
+            : $filas;
+
         $base = $consulta($inicio, $fin);
-        $total = (clone $base)->count();
-        $totalAnterior = $consulta($inicioAnterior, $finAnterior)->count();
+        $registros = $porReserva($base);
+        $total = (clone $registros)->count();
+        $totalAnterior = $porReserva($consulta($inicioAnterior, $finAnterior))->count();
+
+        // Cada sala con su código («L04 · Logia 04»), el mismo que se usa en el mesón.
+        $salaConCodigo = "coalesce(salas.codigo || ' · ' || salas.nombre, 'Sin dato')";
 
         // Cuántos registros hubo por día y hora: con eso se arman la serie, las horas y el pico.
-        $porDiaHora = (clone $base)
+        $porDiaHora = (clone $registros)
             ->selectRaw("({$momento})::date as dia, extract(hour from {$momento})::int as hora, count(*) as cantidad")
             ->groupByRaw('1, 2')
             ->get();
@@ -137,6 +156,29 @@ class ReporteController extends Controller
             $porHoraTotal[$fila->hora] = ($porHoraTotal[$fila->hora] ?? 0) + $fila->cantidad;
         }
 
+        // Uso de salas: una reserva cuenta en todas las horas en que tuvo la sala, no solo en la de
+        // inicio (la de 16:30 a 18:30 cuenta a las 16, 17 y 18). En el reporte de un día, la serie
+        // también va por hora; en los demás, por día, y ahí cada reserva cuenta una vez.
+        $reservasDeSala = collect();
+        $porSalaHora = [];
+        if ($tab === 'logias') {
+            $reservasDeSala = (clone $registros)
+                ->selectRaw("{$salaConCodigo} as sala, reservas.hora_inicio, reservas.hora_fin")
+                ->get()
+                ->map(fn ($r) => ['sala' => $r->sala, 'desde' => self::minutos($r->hora_inicio), 'hasta' => self::minutos($r->hora_fin)]);
+
+            $porHoraTotal = [];
+            foreach ($reservasDeSala as $r) {
+                foreach (self::horasOcupadas($r['desde'], $r['hasta']) as $hora) {
+                    $porHoraTotal[$hora] = ($porHoraTotal[$hora] ?? 0) + 1;
+                    $porSalaHora[$r['sala']][$hora] = ($porSalaHora[$r['sala']][$hora] ?? 0) + 1;
+                }
+            }
+            if ($periodo === 'dia') {
+                $porTramo = collect($porHoraTotal)->mapWithKeys(fn ($cantidad, $hora) => [(string) $hora => $cantidad])->all();
+            }
+        }
+
         $serie = collect($tramos)->map(fn ($t) => [
             'label' => $t['label'],
             'value' => $porTramo[$t['clave']] ?? 0,
@@ -144,8 +186,8 @@ class ReporteController extends Controller
             'cerrado' => $t['cerrado'],
         ]);
 
-        /** Cuántos hay de cada valor de la expresión, de más a menos. */
-        $agrupar = fn (string $expresion) => (clone $base)
+        /** Cuántos hay de cada valor de la expresión, de más a menos (en Uso de salas, personas; con $registros, reservas). */
+        $agrupar = fn (string $expresion, ?QueryBuilder $desde = null) => (clone ($desde ?? $base))
             ->selectRaw("{$expresion} as label, count(*) as value")
             ->groupByRaw($expresion)
             ->orderByDesc('value')
@@ -161,12 +203,17 @@ class ReporteController extends Controller
             'value' => $porHora[$hora] ?? 0,
         ])->values();
 
-        // Horario de mayor uso: el bloque de dos horas seguidas con más registros.
+        // Horario de mayor uso: en las salas, el tramo con más salas ocupadas a la vez (ver
+        // tramoMasOcupado()); en lo demás, el bloque de dos horas seguidas con más registros.
         $horarioPico = null;
-        foreach (array_slice($horas, 0, -1) as $hora) {
-            $cantidad = ($porHoraTotal[$hora] ?? 0) + ($porHoraTotal[$hora + 1] ?? 0);
-            if ($cantidad > 0 && (! $horarioPico || $cantidad > $horarioPico['value'])) {
-                $horarioPico = ['desde' => sprintf('%02d:00', $hora), 'hasta' => sprintf('%02d:00', $hora + 2), 'value' => $cantidad];
+        if ($tab === 'logias') {
+            $horarioPico = self::tramoMasOcupado($reservasDeSala, (int) config('salas.granularidad', 30));
+        } else {
+            foreach (array_slice($horas, 0, -1) as $hora) {
+                $cantidad = ($porHoraTotal[$hora] ?? 0) + ($porHoraTotal[$hora + 1] ?? 0);
+                if ($cantidad > 0 && (! $horarioPico || $cantidad > $horarioPico['value'])) {
+                    $horarioPico = ['desde' => sprintf('%02d:00', $hora), 'hasta' => sprintf('%02d:00', $hora + 2), 'value' => $cantidad];
+                }
             }
         }
 
@@ -194,26 +241,18 @@ class ReporteController extends Controller
             end
             SQL));
 
-        // Cada sala con su código («L04 · Logia 04»), el mismo que se usa en el mesón.
-        $salaConCodigo = "coalesce(salas.codigo || ' · ' || salas.nombre, 'Sin dato')";
-
         $porHoraPorSala = [];
         $porSalaDetalle = [];
         if ($tab === 'logias') {
-            $porSalaYHora = (clone $base)
-                ->selectRaw("{$salaConCodigo} as sala, extract(hour from {$momento})::int as hora, count(*) as cantidad")
-                ->groupByRaw('1, 2')
-                ->get()
-                ->groupBy('sala');
-            $porHoraPorSala = $porSalaYHora
-                ->map(fn ($filas, $sala) => ['sala' => $sala, 'horas' => $contarHoras($filas->pluck('cantidad', 'hora')->all())])
+            $porHoraPorSala = collect($porSalaHora)
+                ->map(fn ($porHora, $sala) => ['sala' => $sala, 'horas' => $contarHoras($porHora)])
                 ->sortBy('sala')
                 ->values();
 
             // El seguimiento de cada sala: cuántas reservas tuvo, a cuántas llegó el grupo, a
             // cuántas no, las horas que de verdad se usó (si devolvieron antes y se liberó el
             // resto, cuenta solo lo usado) y cuántos bloques se liberaron antes.
-            $porSalaDetalle = (clone $base)
+            $porSalaDetalle = (clone $registros)
                 ->whereNotNull('salas.id')
                 ->selectRaw(<<<'SQL'
                     salas.codigo, salas.nombre,
@@ -241,6 +280,9 @@ class ReporteController extends Controller
         return response()->json([
             'rango' => ['desde' => $inicio->toDateString(), 'hasta' => $fin->toDateString()],
             'total' => $total,
+            // Uso de salas: cuántas personas (integrantes) hubo en esas reservas; los desgloses por
+            // carrera, tipo, sexo y año de ingreso suman esto. En las demás pestañas, igual al total.
+            'personas' => $tab === 'logias' ? (clone $base)->count() : $total,
             'totalAnterior' => $totalAnterior,
             'promedioPorPeriodo' => (int) round($total / max(1, count($tramos))),
             'categoriaMasFrecuente' => $porCarrera->first()['label'] ?? '—',
@@ -260,13 +302,77 @@ class ReporteController extends Controller
             // recursos de apoyo, por la clave de su categoría.
             'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],
             'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial($tipoDeMaterial) : [],
-            'porSala' => $tab === 'logias' ? $agrupar($salaConCodigo) : [],
+            'porSala' => $tab === 'logias' ? $agrupar($salaConCodigo, $registros) : [],
             'porSalaDetalle' => $porSalaDetalle,
             // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
-            // correcto aunque la copia ya no exista o el libro haya cambiado de título.
-            'porLibro' => $tab === 'libros' ? $agrupar("coalesce(prestamos.libro_titulo, '')") : [],
+            // correcto aunque la copia ya no exista o el libro haya cambiado de título. En
+            // Préstamos, solo el material de la colección (sin los recursos de apoyo).
+            'porLibro' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial("coalesce(prestamos.libro_titulo, '')") : [],
             'porHoraPorSala' => $porHoraPorSala,
         ]);
+    }
+
+    /** «16:30:00» → 990. */
+    private static function minutos(string $hora): int
+    {
+        [$h, $m] = array_map('intval', explode(':', $hora));
+
+        return $h * 60 + $m;
+    }
+
+    /** Las horas del reloj que toca una reserva: de 16:30 a 18:30, las 16, 17 y 18. */
+    private static function horasOcupadas(int $desde, int $hasta): array
+    {
+        return $hasta > $desde ? range(intdiv($desde, 60), intdiv($hasta - 1, 60)) : [];
+    }
+
+    /**
+     * Horario de mayor uso de las salas: el tramo, de $paso en $paso minutos (la grilla de las
+     * reservas), con más salas ocupadas a la vez, sumando todos los días del período. Los tramos
+     * seguidos con ese máximo se juntan; si quedan varios separados, gana el más largo y, si
+     * empatan, el primero. value es cuántas reservas tocan ese horario.
+     *
+     * @param  Collection<int, array{sala: string, desde: int, hasta: int}>  $reservas  minutos desde medianoche
+     * @return array{desde: string, hasta: string, value: int}|null
+     */
+    private static function tramoMasOcupado(Collection $reservas, int $paso): ?array
+    {
+        $ocupadas = [];
+        foreach ($reservas as $r) {
+            for ($m = intdiv($r['desde'], $paso) * $paso; $m < $r['hasta']; $m += $paso) {
+                $ocupadas[$m] = ($ocupadas[$m] ?? 0) + 1;
+            }
+        }
+        if (! $ocupadas) {
+            return null;
+        }
+
+        ksort($ocupadas);
+        $maximo = max($ocupadas);
+        $tramos = [];
+        foreach ($ocupadas as $m => $cantidad) {
+            if ($cantidad !== $maximo) {
+                continue;
+            }
+            $ultimo = array_key_last($tramos);
+            if ($ultimo !== null && $tramos[$ultimo][1] === $m) {
+                $tramos[$ultimo][1] = $m + $paso;
+            } else {
+                $tramos[] = [$m, $m + $paso];
+            }
+        }
+
+        [$desde, $hasta] = collect($tramos)->sortBy([
+            fn ($a, $b) => ($b[1] - $b[0]) <=> ($a[1] - $a[0]),
+            fn ($a, $b) => $a[0] <=> $b[0],
+        ])->first();
+        $hhmm = fn (int $minutos) => sprintf('%02d:%02d', intdiv($minutos, 60), $minutos % 60);
+
+        return [
+            'desde' => $hhmm($desde),
+            'hasta' => $hhmm($hasta),
+            'value' => $reservas->filter(fn ($r) => $r['desde'] < $hasta && $r['hasta'] > $desde)->count(),
+        ];
     }
 
     /**

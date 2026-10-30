@@ -35,11 +35,13 @@ final class BusquedaLibros
                 'titulo' => $libros()->whereRaw(Busqueda::sinTildes('titulo').' ilike ?', [$sinTildes]),
                 'titulo_alternativo' => $libros()->whereRaw(Busqueda::sinTildes('titulo_alternativo').' ilike ?', [$sinTildes]),
                 'clasificacion' => $libros()->where('clasificacion', 'ilike', $tal),
-                'isbn' => $libros()->where('isbn', 'ilike', $tal),
+                // El propio o cualquiera de los otros (el de la colección encuentra todos sus títulos).
+                'isbn' => $libros()->where(fn ($q) => $q->where('isbn', 'ilike', $tal)->orWhere('otros_isbn', 'ilike', $tal)),
                 'issn' => $libros()->where('issn', 'ilike', $tal),
                 // El ISBN sin guiones: «9789567189501» encuentra «978-956-7189-50-1».
                 'isbn_sin_guiones' => strlen($isbn = preg_replace('/[^0-9Xx]/', '', $texto)) >= 4
-                    ? $libros()->whereRaw("replace(isbn, '-', '') ilike ?", ["%{$isbn}%"])
+                    ? $libros()->where(fn ($q) => $q->whereRaw("replace(isbn, '-', '') ilike ?", ["%{$isbn}%"])
+                        ->orWhereRaw("replace(otros_isbn, '-', '') ilike ?", ["%{$isbn}%"]))
                     : null,
                 'autores' => DB::table('libro_autor')->join('autores', 'autores.id', '=', 'libro_autor.autor_id')
                     ->select('libro_autor.libro_id as id')
@@ -47,9 +49,10 @@ final class BusquedaLibros
                 'categorias' => DB::table('libro_categoria')->join('categorias', 'categorias.id', '=', 'libro_categoria.categoria_id')
                     ->select('libro_categoria.libro_id as id')
                     ->whereRaw(Busqueda::sinTildes('categorias.nombre').' ilike ?', [$sinTildes]),
-                // El código de 14 dígitos o el de lomo de cualquiera de sus copias.
+                // El código de 14 dígitos o el de lomo de cualquiera de sus copias, o su número
+                // de registro de Horizon (exacto: «307» no trae todos los que lo contienen).
                 'codigos' => DB::table('ejemplares')->select('libro_id as id')
-                    ->where(fn ($q) => $q->where('codigo_barras', 'ilike', $tal)->orWhere('codigo_lomo', 'like', $tal)),
+                    ->where(fn ($q) => $q->where('codigo_barras', 'ilike', $tal)->orWhere('codigo_lomo', 'like', $tal)->orWhere('numero_registro', trim($texto))),
             };
         }
 

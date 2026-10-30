@@ -127,7 +127,7 @@ class ReglaPrestamoTest extends TestCase
 
         $this->prestar(Usuario::factory()->create(), $this->copia(ubicacion: $referencia))
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Este material no se presta a domicilio (Todos los usuarios · todo material · Referencia).');
+            ->assertJsonPath('message', 'Solo uso en sala: este material no se presta a domicilio (Todos los usuarios · todo material · Referencia).');
         $this->assertDatabaseCount('prestamos', 0);
 
         // Otra ubicación no tiene esa regla.
@@ -205,11 +205,12 @@ class ReglaPrestamoTest extends TestCase
             ->assertJsonPath('prestable', false);
 
         $this->getJson('/api/reglas-prestamo')->assertOk()
-            ->assertJsonCount(1, 'reglas')
+            // La otra es la de los juegos (solo uso en sala), que viene con la instalación.
+            ->assertJsonCount(2, 'reglas')
             ->assertJsonPath('sin_regla.max_ejemplares', 1);
 
         $this->deleteJson("/api/reglas-prestamo/{$id}")->assertNoContent();
-        $this->assertDatabaseCount('reglas_prestamo', 0);
+        $this->assertDatabaseCount('reglas_prestamo', 1);
         $this->assertDatabaseHas('bitacora', ['accion' => 'configuracion.eliminar_regla_prestamo']);
     }
 
