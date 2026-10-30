@@ -65,9 +65,9 @@ class Libro extends Model
     }
 
     /**
-     * Las carreras a las que sirve el título; se ven en el portal (la tira de carreras de la
-     * ficha). pivot.created_at guarda desde cuándo, solo como registro: sync() inserta las
-     * nuevas, así que volver a guardar la ficha no cambia la fecha de las que ya tenía.
+     * Las carreras a las que sirve el título; la ficha las muestra como «Carreras asociadas»
+     * (FichaBibliografica). pivot.created_at guarda desde cuándo, solo como registro: sync()
+     * inserta las nuevas, así que volver a guardar la ficha no cambia la fecha de las que ya tenía.
      */
     public function carreras(): BelongsToMany
     {

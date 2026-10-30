@@ -6,7 +6,6 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
-import CarrerasAsociadas from '@/components/libros/CarrerasAsociadas.vue'
 import EditarCopia from '@/components/libros/EditarCopia.vue'
 import FasciculosRevista from '@/components/libros/FasciculosRevista.vue'
 import ExportarLibros from '@/components/libros/ExportarLibros.vue'
@@ -479,7 +478,6 @@ function copiaGuardada(actualizada: Ejemplar) {
             </div>
 
             <div v-if="expandidos.has(f.libro.id)" class="border-t border-indigo-100/70 bg-indigo-50/30 px-4 pb-5 pt-4 lg:pl-[4.5rem] lg:pr-5">
-              <CarrerasAsociadas :carreras="(f.libro.carreras ?? []).map((c) => c.nombre)" />
               <div class="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
                 <div class="overflow-hidden rounded-xl border border-indigo-100 bg-white">
                   <p class="bg-indigo-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">Ficha bibliográfica · MARC 21</p>

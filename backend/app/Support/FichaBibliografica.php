@@ -149,6 +149,14 @@ final class FichaBibliografica
             $filas[] = ['etiqueta' => $etiqueta, 'campo' => $nombre, 'valor' => $valor, 'interno' => ! $publico];
         }
 
+        // Las carreras a las que sirve (Catalogación → Carreras asociadas), en cualquier
+        // plantilla: una fila más, con la etiqueta local 690, en su lugar tras las materias.
+        if ($libro->carreras->isNotEmpty()) {
+            $carreras = ['etiqueta' => '690', 'campo' => 'Carreras asociadas', 'valor' => $libro->carreras->pluck('nombre')->sort()->implode('; '), 'interno' => false];
+            $despues = collect($filas)->search(fn ($fila) => $fila['etiqueta'] > '690');
+            array_splice($filas, $despues === false ? count($filas) : $despues, 0, [$carreras]);
+        }
+
         return $filas;
     }
 

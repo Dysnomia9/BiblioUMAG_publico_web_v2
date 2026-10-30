@@ -224,8 +224,6 @@ export type LibroCatalogo = {
   tipo_material: string | null
   autores: { id: number; nombre: string }[]
   categorias: { id: number; nombre: string }[]
-  /** Carreras a las que sirve el título. */
-  carreras?: string[]
   ejemplares_total: number
   ejemplares_disponibles: number
   // Devolución más próxima entre las copias prestadas (null si ninguna lo está).
@@ -613,6 +611,8 @@ export type ReporteResumen = {
   total: number
   /** Uso de salas: personas (todos los integrantes) en esas reservas; en las demás pestañas, igual a total. */
   personas?: number
+  /** Uso de salas: cuántos de esos usos son de logias y puestos registrados en Horizon, antes de BiblioUMAG. */
+  usosHorizon?: number
   totalAnterior: number
   promedioPorPeriodo: number
   categoriaMasFrecuente: string

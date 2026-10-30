@@ -11,6 +11,7 @@ use App\Models\Staff;
 use App\Models\TipoMaterial;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -219,6 +220,42 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $dos = $this->getJson('/api/reportes/resumen?tab=logias&periodo=dia&fecha=2026-10-30')->assertOk();
         $this->assertSame(['desde' => '17:00', 'hasta' => '18:30', 'value' => 2], $dos->json('horarioPico'));
         $this->assertSame(2, $dos->json('total'));
+    }
+
+    public function test_tab_logias_suma_los_usos_de_logias_y_puestos_de_horizon(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        DB::table('usos_sala_horizon')->insert([
+            ['servicio' => 'logia', 'fecha' => '2025-05-12', 'hora_inicio' => '10:00', 'hora_fin' => '12:00', 'tipo_usuario' => 'estudiante', 'carrera' => 'Enfermería', 'sexo' => 'Femenino'],
+            ['servicio' => 'logia', 'fecha' => '2025-05-13', 'hora_inicio' => '11:00', 'hora_fin' => '12:30', 'tipo_usuario' => 'docente', 'carrera' => null, 'sexo' => 'Masculino'],
+            ['servicio' => 'puesto', 'fecha' => '2025-05-13', 'hora_inicio' => '16:10', 'hora_fin' => '16:11', 'tipo_usuario' => 'estudiante', 'carrera' => 'Derecho', 'sexo' => 'Femenino'],
+            ['servicio' => 'logia', 'fecha' => '2025-04-02', 'hora_inicio' => '09:00', 'hora_fin' => '10:00', 'tipo_usuario' => 'estudiante', 'carrera' => 'Derecho', 'sexo' => 'Masculino'],
+        ]);
+
+        $mayo = $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2025-05-15')->assertOk();
+        $this->assertSame(3, $mayo->json('total'));
+        $this->assertSame(1, $mayo->json('totalAnterior'));
+        $this->assertSame(3, $mayo->json('usosHorizon'));
+        $this->assertEqualsCanonicalizing(
+            [['label' => 'Logias (Horizon, sin sala)', 'value' => 2], ['label' => 'Puestos de estudio (Horizon)', 'value' => 1]],
+            $mayo->json('porSala'),
+        );
+        $this->assertSame(['Derecho' => 1, 'Docentes (sin carrera)' => 1, 'Enfermería' => 1], collect($mayo->json('porCarrera'))->sortBy('label')->pluck('value', 'label')->all());
+        $this->assertSame(['Femenino' => 2, 'Masculino' => 1], collect($mayo->json('porSexo'))->sortBy('label')->pluck('value', 'label')->all());
+        // Las dos logias coinciden de 11:00 a 12:00.
+        $this->assertSame(['desde' => '11:00', 'hasta' => '12:00', 'value' => 2], $mayo->json('horarioPico'));
+        $this->assertSame(1, collect($mayo->json('porHora'))->firstWhere('label', '16h')['value']);
+
+        // La carrera de Horizon viene en mayúsculas: el filtro la encuentra igual.
+        DB::table('usos_sala_horizon')->where('carrera', 'Derecho')->update(['carrera' => 'DERECHO']);
+        $this->assertSame(1, $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2025-05-15&carrera=Derecho')->assertOk()->json('total'));
+
+        $docentes = $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2025-05-15&tipo_usuario=docente')->assertOk();
+        $this->assertSame(1, $docentes->json('total'));
+        // Horizon no tiene el año de ingreso.
+        $this->assertSame(0, $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2025-05-15&anio_ingreso=2024')->assertOk()->json('total'));
+        // No se mezclan con los préstamos.
+        $this->assertSame(0, $this->getJson('/api/reportes/resumen?tab=prestamos&periodo=mes&fecha=2025-05-15')->assertOk()->json('total'));
     }
 
     public function test_tab_logias_desglosa_horas_por_cada_sala(): void

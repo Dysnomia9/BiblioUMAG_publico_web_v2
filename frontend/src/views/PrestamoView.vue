@@ -47,7 +47,7 @@ const ubicacionPrestamo = ref<number | null>(null)
 const fechaPrestamo = ref(today)
 const fechaDevolucion = ref('')
 // Para llevar (a domicilio, con fecha de devolución) o uso en sala: se lee en la biblioteca y se
-// devuelve hoy. Queda elegido mientras el formulario siga abierto, para prestar varios seguidos.
+// devuelve hoy. Después de prestar en sala (un juego, una obra de referencia) vuelve a «Para llevar».
 const modoPrestamo = ref<'domicilio' | 'sala'>('domicilio')
 const enSala = computed(() => modoPrestamo.value === 'sala')
 
@@ -501,6 +501,7 @@ async function confirmarPrestamo() {
         : { fecha_prestamo: prestamoPendiente.value.fechaPrestamo, fecha_devolucion: prestamoPendiente.value.fechaDevolucion }),
     })
     toast.success(`${prestamoPendiente.value.enSala ? 'Uso en sala registrado' : 'Préstamo registrado'}: "${prestamoPendiente.value.titulo}"`)
+    modoPrestamo.value = 'domicilio'
     codigoBarrasPrestamo.value = ''
     libroEncontradoPrestamo.value = ''
     fechaPrestamo.value = today

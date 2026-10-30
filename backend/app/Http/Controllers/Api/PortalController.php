@@ -257,8 +257,6 @@ class PortalController extends Controller
             'tipo_material' => $libro->tipoMaterial?->nombre,
             'autores' => $libro->autores->map->only(['id', 'nombre'])->values(),
             'categorias' => $libro->categorias->map->only(['id', 'nombre'])->values(),
-            // Las carreras a las que sirve (la tira de la ficha).
-            'carreras' => $libro->carreras->pluck('nombre')->values(),
             'ejemplares_total' => $libro->ejemplares_total,
             'ejemplares_disponibles' => $libro->ejemplares_disponibles,
             'proxima_devolucion' => $libro->proxima_devolucion ? Carbon::parse($libro->proxima_devolucion)->toDateString() : null,

@@ -88,8 +88,10 @@ class PortalCatalogoTest extends TestCase
         $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'carreras' => ['Ingeniería en Computación e Informática', 'Ingeniería Civil en Computación']])->assertOk();
 
         Sanctum::actingAs(Usuario::factory()->create());
-        $this->getJson('/api/mi/catalogo')->assertOk()
-            ->assertJsonPath('data.0.carreras', ['Ingeniería Civil en Computación', 'Ingeniería en Computación e Informática']);
+        $ficha = collect($this->getJson('/api/mi/catalogo')->assertOk()->json('data.0.ficha'));
+        $this->assertSame('Ingeniería Civil en Computación; Ingeniería en Computación e Informática', $ficha->firstWhere('campo', 'Carreras asociadas')['valor']);
+        // Una fila más de la ficha, tras las materias (650) y antes de los autores secundarios (700).
+        $this->assertSame('690', $ficha->firstWhere('campo', 'Carreras asociadas')['etiqueta']);
     }
 }
 
