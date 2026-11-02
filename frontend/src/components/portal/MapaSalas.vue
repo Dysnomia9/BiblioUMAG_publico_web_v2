@@ -182,13 +182,14 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
                         :aria-label="`${l.sala?.nombre ?? l.lugar.etiqueta}: ${l.texto}`"
                         @click="seAbre(l.tipo) && l.sala ? (elegidaId = l.sala.id) : undefined"
                       >
-                        <span class="flex min-w-0 items-center gap-1.5">
-                          <span class="h-2 w-2 shrink-0 rounded-full" :class="ESTILOS[l.tipo].punto"></span>
-                          <span class="truncate font-bold text-gray-900" :class="esNumero(l.lugar.etiqueta) ? 'text-lg leading-none' : 'text-[13px] leading-tight'">
-                            {{ l.lugar.etiqueta }}
-                          </span>
+                        <!-- El nombre con todo el ancho (Cooperación cabe en el teléfono); el punto va con el estado. -->
+                        <span class="truncate font-bold text-gray-900" :class="esNumero(l.lugar.etiqueta) ? 'text-lg leading-none' : 'text-[13px] leading-tight'">
+                          {{ l.lugar.etiqueta }}
                         </span>
-                        <span class="mt-0.5 text-[11px] leading-tight" :class="ESTILOS[l.tipo].texto">{{ l.texto }}</span>
+                        <span class="mt-1 flex items-start gap-1.5 text-[11px] leading-tight" :class="ESTILOS[l.tipo].texto">
+                          <span class="mt-[3px] h-2 w-2 shrink-0 rounded-full" :class="ESTILOS[l.tipo].punto"></span>
+                          {{ l.texto }}
+                        </span>
                       </button>
                     </li>
                   </ul>
@@ -212,11 +213,11 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
             :aria-label="`${o.sala.nombre}: ${o.texto}`"
             @click="seAbre(o.tipo) ? (elegidaId = o.sala.id) : undefined"
           >
-            <span class="flex min-w-0 items-center gap-1.5">
-              <span class="h-2 w-2 shrink-0 rounded-full" :class="ESTILOS[o.tipo].punto"></span>
-              <span class="truncate text-[13px] font-bold text-gray-900">{{ o.sala.nombre }}</span>
+            <span class="truncate text-[13px] font-bold text-gray-900">{{ o.sala.nombre }}</span>
+            <span class="mt-1 flex items-start gap-1.5 text-[11px] leading-tight" :class="ESTILOS[o.tipo].texto">
+              <span class="mt-[3px] h-2 w-2 shrink-0 rounded-full" :class="ESTILOS[o.tipo].punto"></span>
+              {{ o.texto }}
             </span>
-            <span class="mt-0.5 text-[11px] leading-tight" :class="ESTILOS[o.tipo].texto">{{ o.texto }}</span>
           </button>
         </li>
       </ul>
