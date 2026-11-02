@@ -221,7 +221,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $this->prestar($ejemplar, '2026-11-17')->assertStatus(409);
     }
 
-    public function test_no_se_devuelve_mientras_un_usuario_la_tenga(): void
+    public function test_si_figura_prestada_no_se_devuelve_sin_motivo_ni_confirmar(): void
     {
         Carbon::setTestNow('2026-11-10 10:00:00');
         Sanctum::actingAs(Staff::factory()->create());
@@ -236,8 +236,48 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $this->getJson('/api/prestamos-interbibliotecarios?q=central chile')->assertOk()->assertJsonCount(1, 'data');
         $this->getJson('/api/prestamos-interbibliotecarios?q=uach')->assertOk()->assertJsonCount(0, 'data');
         $this->postJson("/api/prestamos-interbibliotecarios/{$pib->id}/devolver")->assertStatus(409);
+        // Sin motivo, o sin escribir CONFIRMAR, tampoco.
+        $this->postJson("/api/prestamos-interbibliotecarios/{$pib->id}/devolver", ['confirmacion' => 'CONFIRMAR'])->assertStatus(409);
+        $this->postJson("/api/prestamos-interbibliotecarios/{$pib->id}/devolver", ['motivo' => 'Se perdió'])->assertStatus(409);
+        $this->postJson("/api/prestamos-interbibliotecarios/{$pib->id}/devolver", ['motivo' => 'Se perdió', 'confirmacion' => 'SI'])->assertStatus(422);
         $this->assertNull($pib->fresh()->devuelto_el);
         $this->assertSame('en_estante', $ejemplar->fresh()->estado_proceso);
+    }
+
+    public function test_si_figura_prestada_pero_ya_volvio_el_meson_la_cierra_con_motivo_y_confirmar(): void
+    {
+        Carbon::setTestNow('2026-11-17 10:00:00');
+        $meson = Staff::factory()->asistente()->create();
+        Sanctum::actingAs($meson);
+        $ejemplar = $this->deOtraBiblioteca('2026-11-16');
+        $ejemplar->update(['disponible' => false]);
+        $usuario = Usuario::factory()->create(['nombre' => 'Camila', 'apellido' => 'Rojas']);
+        // Vencía el 13: con «Devolver» saldría una multa por atraso; acá no.
+        $prestamo = Prestamo::factory()->create(['usuario_id' => $usuario->id, 'ejemplar_id' => $ejemplar->id, 'fecha_devolucion' => '2026-11-13']);
+        $pib = PrestamoInterbibliotecario::where('ejemplar_id', $ejemplar->id)->first();
+
+        // En Préstamos, el mesón ve de qué biblioteca es; la pestaña de Catalogación no es suya.
+        $this->getJson("/api/prestamos?usuario_id={$usuario->id}")->assertOk()
+            ->assertJsonPath('0.ejemplar.prestamo_interbibliotecario.id', $pib->id)
+            ->assertJsonPath('0.ejemplar.prestamo_interbibliotecario.biblioteca', 'Biblioteca Central U. de Chile')
+            ->assertJsonPath('0.ejemplar.prestamo_interbibliotecario.fecha_limite', '2026-11-16');
+        $this->getJson('/api/prestamos-interbibliotecarios')->assertForbidden();
+
+        $this->postJson("/api/prestamos-interbibliotecarios/{$pib->id}/devolver", [
+            'motivo' => 'Lo devolvió directo a su biblioteca el 12/11',
+            'confirmacion' => 'CONFIRMAR',
+        ])->assertOk()
+            ->assertJsonPath('devuelto_el', '2026-11-17')
+            ->assertJsonPath('prestamo_cerrado', 'Camila Rojas');
+
+        $prestamo->refresh();
+        $this->assertSame('devuelto', $prestamo->estado);
+        $this->assertSame($meson->id, $prestamo->devuelto_por_staff_id);
+        $this->assertDatabaseCount('multas', 0);
+        $this->assertSame('devuelto_propietaria', $ejemplar->fresh()->estado_proceso);
+        $this->assertStringContainsString('Lo devolvió directo a su biblioteca el 12/11', $pib->fresh()->nota);
+        $this->assertDatabaseHas('bitacora', ['accion' => 'prestamos.cerrar_por_devolucion_interbibliotecaria', 'entidad_id' => $prestamo->id]);
+        $this->assertDatabaseHas('ejemplar_estado_historial', ['ejemplar_id' => $ejemplar->id, 'estado_nuevo' => 'devuelto_propietaria']);
     }
 
     public function test_lo_de_otra_biblioteca_no_se_da_de_baja(): void

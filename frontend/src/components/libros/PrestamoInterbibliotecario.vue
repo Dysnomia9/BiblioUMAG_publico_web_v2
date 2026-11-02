@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
+import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
 import { TONOS_FICHA } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
@@ -705,13 +706,24 @@ async function guardarEdicion() {
       <p v-else class="mt-3">La copia queda «Por colocar»: se presta cuando pase a «En estante».</p>
     </DialogoConfirmacion>
 
+    <!-- Si figura prestada, se cierra ese préstamo con el motivo y escribiendo CONFIRMAR. -->
+    <CerrarPrestamoInterbibliotecario
+      :abierto="!!aDevolver?.prestamo_activo"
+      :id="aDevolver?.id ?? null"
+      :biblioteca="aDevolver?.biblioteca ?? ''"
+      :titulo="aDevolver?.ejemplar.libro.titulo ?? ''"
+      :usuario="aDevolver?.prestamo_activo?.usuario ?? null"
+      :fecha-devolucion="aDevolver?.prestamo_activo?.fecha_devolucion ?? null"
+      @listo="aDevolver = null; cargar()"
+      @cancelar="aDevolver = null"
+    />
+
     <DialogoConfirmacion
-      :abierto="!!aDevolver"
+      :abierto="!!aDevolver && !aDevolver.prestamo_activo"
       :titulo="`¿Devolver a ${aDevolver?.biblioteca ?? 'su biblioteca'}?`"
       confirmar="Sí, devolver"
       tono="peligro"
       :cargando="devolviendo"
-      :deshabilitado="!!aDevolver?.prestamo_activo"
       @confirmar="devolver"
       @cancelar="aDevolver = null"
     >
@@ -722,10 +734,7 @@ async function guardarEdicion() {
         <template v-else-if="aDevolver.total_prestamos === 1">No se borra: su préstamo sigue en el historial y en los reportes.</template>
         <template v-else>No se borra: sus {{ aDevolver.total_prestamos }} préstamos siguen en el historial y en los reportes.</template>
       </p>
-      <p v-if="aDevolver?.prestamo_activo" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
-        Ahora la tiene {{ aDevolver.prestamo_activo.usuario }} (hasta el {{ fecha(aDevolver.prestamo_activo.fecha_devolucion) }}): recíbela primero en Préstamos.
-      </p>
-      <p v-else-if="aDevolver && !aDevolver.vencido" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+      <p v-if="aDevolver && !aDevolver.vencido" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
         Todavía se puede prestar hasta el {{ fecha(aDevolver.fecha_tope) }}: se devuelve antes de tiempo.
       </p>
       <div class="mt-3">

@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
+import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
@@ -528,6 +529,20 @@ async function confirmarPrestamo() {
 // ---------- Devolver y pagar ----------
 const devolucionPendiente = ref<Prestamo | null>(null)
 const devolviendo = ref(false)
+
+// Un libro de otra biblioteca que figura prestado pero el usuario ya no tiene (volvió sin
+// registrarse, o se perdió): se cierra sin multa y se devuelve a su biblioteca, con motivo y CONFIRMAR.
+const interbibliotecarioDe = (p: Prestamo) => {
+  const i = p.ejemplar?.prestamo_interbibliotecario
+  return i && !i.devuelto_el ? i : null
+}
+const cerrandoInterbibliotecario = ref<Prestamo | null>(null)
+const interbibliotecarioACerrar = computed(() => (cerrandoInterbibliotecario.value ? interbibliotecarioDe(cerrandoInterbibliotecario.value) : null))
+
+async function alCerrarInterbibliotecario() {
+  cerrandoInterbibliotecario.value = null
+  await Promise.all([cargarPrestamosYReservas(), refrescarUsuario()])
+}
 
 async function confirmarDevolucion() {
   if (!devolucionPendiente.value) return
@@ -1131,6 +1146,9 @@ function formatHora(iso: string | null) {
                   <span class="min-w-0">
                     <span class="block truncate font-semibold text-gray-900">{{ p.libro_titulo }}</span>
                     <span class="block truncate text-xs text-gray-500">{{ subtituloItem(p) }}</span>
+                    <span v-if="p.estado !== 'devuelto' && interbibliotecarioDe(p)" class="block truncate text-xs text-indigo-700">
+                      De {{ interbibliotecarioDe(p)!.biblioteca }} · vuelve a su biblioteca el {{ formatFecha(`${interbibliotecarioDe(p)!.fecha_limite}T12:00:00`) }}
+                    </span>
                   </span>
                 </div>
                 <div class="text-sm text-gray-700"><span class="block text-[11px] text-gray-400 md:hidden">Préstamo</span>{{ formatFecha(p.fecha_prestamo) }}</div>
@@ -1159,7 +1177,7 @@ function formatHora(iso: string | null) {
                   </div>
                   <span v-else class="text-gray-400">$0</span>
                 </div>
-                <div class="col-span-2 flex justify-end md:col-span-1 md:justify-start">
+                <div class="col-span-2 flex flex-col items-end gap-1 md:col-span-1 md:items-start">
                   <button
                     v-if="p.estado !== 'devuelto'"
                     type="button"
@@ -1167,6 +1185,15 @@ function formatHora(iso: string | null) {
                     @click="devolucionPendiente = p"
                   >
                     Devolver
+                  </button>
+                  <button
+                    v-if="p.estado !== 'devuelto' && interbibliotecarioDe(p)"
+                    type="button"
+                    class="text-xs font-semibold text-red-700 hover:text-red-800 hover:underline"
+                    title="El usuario ya no lo tiene: cerrar el préstamo y devolverlo a su biblioteca"
+                    @click="cerrandoInterbibliotecario = p"
+                  >
+                    Ya volvió a su biblioteca
                   </button>
                 </div>
               </li>
@@ -1433,6 +1460,17 @@ function formatHora(iso: string | null) {
           </div>
         </div>
       </div>
+
+      <CerrarPrestamoInterbibliotecario
+        :abierto="!!interbibliotecarioACerrar"
+        :id="interbibliotecarioACerrar?.id ?? null"
+        :biblioteca="interbibliotecarioACerrar?.biblioteca ?? ''"
+        :titulo="cerrandoInterbibliotecario?.libro_titulo ?? ''"
+        :usuario="usuario ? `${usuario.nombre} ${usuario.apellido}` : null"
+        :fecha-devolucion="cerrandoInterbibliotecario?.fecha_devolucion ?? null"
+        @listo="alCerrarInterbibliotecario"
+        @cancelar="cerrandoInterbibliotecario = null"
+      />
 
       <div
         v-if="pagoMultaPendiente"

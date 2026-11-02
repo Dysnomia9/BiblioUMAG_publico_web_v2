@@ -156,6 +156,11 @@ export type Prestamo = {
   devuelto_por_staff_id?: number | null
   usuario?: Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'rut'>
   multas?: Pick<Multa, 'id' | 'prestamo_id' | 'tipo' | 'monto' | 'estado'>[]
+  /** En los préstamos de una persona: si la copia es de otra biblioteca (préstamo interbibliotecario). */
+  ejemplar?: {
+    id: number
+    prestamo_interbibliotecario?: { id: number; ejemplar_id: number; biblioteca: string; fecha_limite: string; devuelto_el: string | null } | null
+  } | null
 }
 
 export type TipoMulta = 'atraso' | 'deterioro' | 'perdida' | 'otro'

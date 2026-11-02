@@ -75,7 +75,12 @@ class PrestamoController extends Controller
         $relaciones = ['usuario:id,nombre,apellido,rut', 'multas:id,prestamo_id,tipo,monto,estado'];
 
         if ($usuarioId = $request->query('usuario_id')) {
-            $query = Prestamo::with($relaciones)->where('usuario_id', $usuarioId);
+            // Si el libro es de otra biblioteca, de cuál y cuándo vuelve (el mesón puede cerrarlo si ya no lo tiene).
+            $query = Prestamo::with([
+                ...$relaciones,
+                'ejemplar:id',
+                'ejemplar.prestamoInterbibliotecario:id,ejemplar_id,biblioteca,fecha_limite,devuelto_el',
+            ])->where('usuario_id', $usuarioId);
 
             if ($estado = $request->query('estado')) {
                 $query->where('estado', $estado);

@@ -162,8 +162,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::get('/prestamos-interbibliotecarios/fecha-tope', [PrestamoInterbibliotecarioController::class, 'fechaTope']);
         Route::post('/prestamos-interbibliotecarios', [PrestamoInterbibliotecarioController::class, 'store']);
         Route::patch('/prestamos-interbibliotecarios/{prestamoInterbibliotecario}', [PrestamoInterbibliotecarioController::class, 'update'])->whereNumber('prestamoInterbibliotecario');
-        Route::post('/prestamos-interbibliotecarios/{prestamoInterbibliotecario}/devolver', [PrestamoInterbibliotecarioController::class, 'devolver'])->whereNumber('prestamoInterbibliotecario');
     });
+    // También el mesón: un libro de otra biblioteca que figura prestado pero el usuario ya no tiene.
+    Route::post('/prestamos-interbibliotecarios/{prestamoInterbibliotecario}/devolver', [PrestamoInterbibliotecarioController::class, 'devolver'])
+        ->whereNumber('prestamoInterbibliotecario')->middleware('permiso:libros.catalogar,prestamos.gestionar');
     Route::patch('/ejemplares/{ejemplar}/estado', [EjemplarController::class, 'cambiarEstado'])->middleware('permiso:libros.estado');
     Route::post('/libros/{libro}/baja', [LibroController::class, 'darDeBaja'])->whereNumber('libro')->middleware('permiso:libros.estado');
     Route::middleware('permiso:libros.cambio_masivo')->group(function () {

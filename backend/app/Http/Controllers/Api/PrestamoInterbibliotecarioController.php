@@ -204,13 +204,21 @@ class PrestamoInterbibliotecarioController extends Controller
     /**
      * Se devuelve a su biblioteca: la copia pasa a «Devuelto a su biblioteca» y sale del
      * catálogo y del portal, pero no se borra (sus préstamos siguen en los reportes y en el
-     * historial). No se puede mientras un usuario la tenga o esté apartada para alguien.
+     * historial). No se puede mientras esté apartada para alguien. Si figura prestada a un
+     * usuario pero ya no la tiene (volvió sin registrarse, o se perdió y se arregló con la
+     * biblioteca propietaria), el personal la cierra igual indicando el motivo y escribiendo
+     * CONFIRMAR: ese préstamo queda devuelto hoy, sin multa automática (si corresponde
+     * cobrar, se cursa en Multas). Lo puede hacer catalogación o el mesón (Préstamos).
      * Si el título se queda sin otras copias que se presten, su lista de espera se cancela.
      */
     public function devolver(Request $request, PrestamoInterbibliotecario $prestamoInterbibliotecario)
     {
         $data = $request->validate([
             'nota' => ['nullable', 'string', 'max:2000'],
+            'motivo' => ['nullable', 'string', 'max:500'],
+            'confirmacion' => ['nullable', Rule::in(['CONFIRMAR'])],
+        ], [
+            'confirmacion.in' => 'Escribe CONFIRMAR para cerrar el préstamo y devolverla a su biblioteca.',
         ]);
 
         $resultado = DB::transaction(function () use ($prestamoInterbibliotecario, $request, $data) {
@@ -221,9 +229,10 @@ class PrestamoInterbibliotecarioController extends Controller
                 return ['error' => "Ya se devolvió a {$prestamo->biblioteca} el {$prestamo->devuelto_el->format('d/m/Y')}."];
             }
 
-            $activo = Prestamo::with('usuario:id,nombre,apellido,rut,tipo_documento,pais')->where('ejemplar_id', $ejemplar->id)->where('estado', 'activo')->first();
-            if ($activo) {
-                return ['error' => "Está prestada a {$activo->usuario?->descripcion()} hasta el {$activo->fecha_devolucion?->format('d/m/Y')}: recíbela primero en Préstamos."];
+            $activo = Prestamo::with('usuario:id,nombre,apellido,rut,tipo_documento,pais')->where('ejemplar_id', $ejemplar->id)->where('estado', 'activo')->lockForUpdate()->first();
+            $motivo = trim((string) ($data['motivo'] ?? ''));
+            if ($activo && ($motivo === '' || ($data['confirmacion'] ?? null) !== 'CONFIRMAR')) {
+                return ['error' => "Figura prestada a {$activo->usuario?->descripcion()} hasta el {$activo->fecha_devolucion?->format('d/m/Y')}. Si está aquí, recíbela en Préstamos; si ya no la tiene, indica el motivo y escribe CONFIRMAR para cerrar ese préstamo."];
             }
 
             $apartada = ReservaLibro::with('usuario')->where('ejemplar_id', $ejemplar->id)->where('estado', 'pendiente')->first();
@@ -232,7 +241,27 @@ class PrestamoInterbibliotecarioController extends Controller
             }
 
             $staff = $request->user();
-            $nota = trim((string) ($data['nota'] ?? ''));
+            if ($activo) {
+                $activo->update([
+                    'estado' => 'devuelto',
+                    'fecha_devolucion_real' => now(),
+                    'devuelto_por' => $staff->nombre,
+                    'devuelto_por_staff_id' => $staff->id,
+                ]);
+
+                Bitacora::registrar(
+                    'prestamos.cerrar_por_devolucion_interbibliotecaria',
+                    "Cerró sin multa el préstamo de «{$activo->libro_titulo}» al devolver la copia a {$prestamo->biblioteca} (préstamo interbibliotecario). Motivo: {$motivo}",
+                    entidad: $activo,
+                    datos: ['codigo_barras' => $activo->codigo_barras, 'motivo' => $motivo],
+                    afectado: $activo->usuario,
+                );
+            }
+
+            $nota = trim(collect([
+                trim((string) ($data['nota'] ?? '')),
+                $activo ? "Figuraba prestada a {$activo->usuario?->descripcion()}; préstamo cerrado al devolverla: {$motivo}" : '',
+            ])->filter()->implode("\n"));
             $prestamo->update([
                 'devuelto_el' => today(),
                 'devuelto_por_staff_id' => $staff->id,
@@ -246,7 +275,7 @@ class PrestamoInterbibliotecarioController extends Controller
                 'estado_personalizado_anterior_id' => $ejemplar->estado_personalizado_id,
                 'estado_personalizado_nuevo_id' => null,
                 'staff_id' => $staff->id,
-                'motivo' => "Devuelto a {$prestamo->biblioteca} (préstamo interbibliotecario)",
+                'motivo' => "Devuelto a {$prestamo->biblioteca} (préstamo interbibliotecario)".($activo ? ". Figuraba prestada: {$motivo}" : ''),
             ]);
             $ejemplar->update(['estado_proceso' => 'devuelto_propietaria', 'estado_personalizado_id' => null, 'disponible' => false]);
 
@@ -255,7 +284,7 @@ class PrestamoInterbibliotecarioController extends Controller
                 ->whereNotIn('estado_proceso', ['de_baja', 'devuelto_propietaria'])->exists();
             $enCola = $quedanCopias ? 0 : ReservaLibro::where('libro_id', $ejemplar->libro_id)->where('estado', 'en_cola')->update(['estado' => 'cancelado']);
 
-            return ['prestamo' => $prestamo, 'en_cola' => $enCola];
+            return ['prestamo' => $prestamo, 'en_cola' => $enCola, 'cerrado' => $activo];
         });
 
         if (isset($resultado['error'])) {
@@ -268,10 +297,16 @@ class PrestamoInterbibliotecarioController extends Controller
             "Devolvió a {$prestamo->biblioteca} «{$prestamo->ejemplar->libro->titulo}» (copia {$prestamo->ejemplar->numero_copia}, {$prestamo->ejemplar->codigo_barras}), préstamo interbibliotecario"
                 .($resultado['en_cola'] ? ". {$resultado['en_cola']} ".($resultado['en_cola'] === 1 ? 'reserva en espera cancelada' : 'reservas en espera canceladas') : ''),
             entidad: $prestamo,
-            datos: ['codigo_barras' => $prestamo->ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'en_cola' => $resultado['en_cola']],
+            datos: ['codigo_barras' => $prestamo->ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'en_cola' => $resultado['en_cola'], 'prestamo_cerrado' => $resultado['cerrado']?->id],
+            afectado: $resultado['cerrado']?->usuario,
         );
 
-        return response()->json([...$this->conDetalle($prestamo, null), 'reservas_canceladas' => $resultado['en_cola']]);
+        return response()->json([
+            ...$this->conDetalle($prestamo, null),
+            'reservas_canceladas' => $resultado['en_cola'],
+            // A quién se le cerró el préstamo (figuraba prestada), para el aviso.
+            'prestamo_cerrado' => $resultado['cerrado'] ? trim("{$resultado['cerrado']->usuario?->nombre} {$resultado['cerrado']->usuario?->apellido}") : null,
+        ]);
     }
 
     private const MENSAJES = [
