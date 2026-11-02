@@ -152,7 +152,10 @@ npm run dev
   el mismo tramo. Devolver la llave antes no tiene castigo: si quedan 5 minutos o
   más, el mesón puede **liberar el resto del bloque** para otro grupo, al
   registrar la devolución o después desde el detalle (`reservas.hora_fin_reservada`
-  guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó.
+  guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó. Cada
+  reserva lleva de 3 a 5 personas registradas, salvo los seminarios
+  (`salas.solo_responsable`: Seminario 1 y 2), que van solo a nombre del docente o
+  funcionario que los pide, sin anotar a los asistentes.
 - **Listado de reservas** de salas por estado (todas, activas, finalizadas, no se
   presentaron, canceladas; abre en «Todas») con búsqueda y filtros. Con `reservas.editar` se puede
   cambiar sala, día u horario, corregir integrantes o registrar una llave
