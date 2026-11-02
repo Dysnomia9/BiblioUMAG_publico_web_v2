@@ -268,6 +268,10 @@ personal (con su correo o RUT) y llegan a su propia sesión, separada del panel:
   cuándo vuelve un libro prestado, reservarlo o unirse a la cola de espera; al
   liberarse, la reserva pasa sola al primero de la fila.
 - Reservar salas para el mismo día, salir de una reserva grupal o cancelarla.
+  Las salas se ven en una línea de tiempo o, alternando, en un **mapa de los dos
+  pisos** como las tarjetas del mesón (`utils/mapaSalas.ts`): cada sala con lo que
+  pasa hoy, la ventana marcada y, en gris, las que solo reserva la administración o
+  que todavía no están en el sistema (se enlazan por `salas.codigo`).
 - Inicio con el resumen de la persona (ingreso de hoy, préstamos y vencimientos,
   reservas, multas), «Mi perfil», «Mis ingresos» y descarga de la Constancia de
   No Multa.
