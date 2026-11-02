@@ -6,6 +6,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import MapaSalas from '@/components/portal/MapaSalas.vue'
 import apiUsuario from '@/services/apiUsuario'
 import { DIAS_SEMANA, diaIso } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
@@ -31,6 +32,25 @@ const CANTIDAD_MAX = PERSONAS_MAXIMAS_SALA
 const salas = ref<Sala[]>([])
 const apiError = ref(false)
 const busqueda = ref('')
+
+// Línea de tiempo o mapa de los pisos: se recuerda en este navegador.
+const CLAVE_VISTA = 'portal.salas.vista'
+function leerVista(): 'linea' | 'mapa' {
+  try {
+    return localStorage.getItem(CLAVE_VISTA) === 'mapa' ? 'mapa' : 'linea'
+  } catch {
+    return 'linea'
+  }
+}
+const vista = ref<'linea' | 'mapa'>(leerVista())
+const VISTAS = [
+  { id: 'linea' as const, label: 'Línea de tiempo', icono: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' },
+  {
+    id: 'mapa' as const,
+    label: 'Mapa',
+    icono: 'M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z',
+  },
+]
 
 const apertura = ref('08:00')
 const cierre = ref('21:00')
@@ -175,6 +195,15 @@ onMounted(async () => {
   await cargar()
   mostrarHoraActual()
 })
+
+watch(vista, (v) => {
+  try {
+    localStorage.setItem(CLAVE_VISTA, v)
+  } catch {
+    // Sin almacenamiento, la próxima vez abre en la línea de tiempo.
+  }
+  if (v === 'linea') mostrarHoraActual()
+})
 useRefrescoPeriodico(cargar, 30000)
 
 const filteredSalas = computed(() => {
@@ -184,7 +213,7 @@ const filteredSalas = computed(() => {
 })
 
 const pasosAyuda = computed(() => [
-  'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca.',
+  'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca. En <strong>Mapa</strong> ves las salas como están en cada piso: toca una para ver sus horarios libres de hoy.',
   `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${CANTIDAD_MAX} personas). El tuyo ya viene escrito.`,
   'Pulsa <strong>Confirmar</strong>: tu reserva queda en <strong>azul</strong> en la línea de tiempo.',
   'Preséntate con tu grupo en el mesón dentro de los <strong>15 minutos</strong> desde la hora de inicio; si no, la sala se libera sola.',
@@ -270,6 +299,19 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
     return
   }
 
+  abrirModal(sala, inicio)
+}
+
+/** Desde el mapa: la sala y la hora ya vienen elegidas. */
+function reservarDesdeMapa(sala: Sala, inicio: number) {
+  if (diaCerrado.value) {
+    toast.error(textoDiaCerrado)
+    return
+  }
+  if (cancelaciones.value.espera) {
+    toast.error(cancelaciones.value.espera)
+    return
+  }
   abrirModal(sala, inicio)
 }
 
@@ -429,30 +471,68 @@ async function confirmarCancelacion() {
             class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
           />
         </div>
-        <p class="text-xs text-gray-400 sm:pb-2.5">
-          Solo puedes reservar para <strong>hoy</strong>
-        </p>
+        <div class="flex flex-col gap-1.5 sm:items-end">
+          <div class="flex rounded-xl bg-gray-100 p-1" role="tablist" aria-label="Cómo ver las salas">
+            <button
+              v-for="v in VISTAS"
+              :key="v.id"
+              type="button"
+              role="tab"
+              :aria-selected="vista === v.id"
+              class="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+              @click="vista = v.id"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" :d="v.icono" />
+              </svg>
+              {{ v.label }}
+            </button>
+          </div>
+          <p class="text-xs text-gray-400">Solo puedes reservar para <strong>hoy</strong></p>
+        </div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      <div v-if="diaCerrado || horarioReducido || cancelaciones.espera" class="mb-4 space-y-2">
+        <div v-if="diaCerrado" class="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
           </svg>
           <p>{{ textoDiaCerrado }}</p>
         </div>
-        <div v-else-if="horarioReducido" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div v-else-if="horarioReducido" class="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p>{{ textoFueraDeHorario }}</p>
         </div>
-        <div v-if="cancelaciones.espera && !diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div v-if="cancelaciones.espera && !diaCerrado" class="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p>{{ cancelaciones.espera }}</p>
         </div>
+      </div>
+
+      <MapaSalas
+        v-if="vista === 'mapa'"
+        :salas="salas"
+        :ahora-min="ahoraMin"
+        :primer-inicio-min="primerInicioMin"
+        :cierra-min="cierraMin"
+        :granularidad="granularidad"
+        :duracion-minima="duracionMinima"
+        :dia-cerrado="diaCerrado"
+        :busqueda="busqueda"
+        :es-mia="esMia"
+        :me-incluyeron="meIncluyeron"
+        @reservar="reservarDesdeMapa"
+        @cancelar="(sala, tramo) => (reservaPorCancelar = { sala, tramo })"
+      />
+
+      <template v-else>
+
+      <div class="bg-white border border-gray-200 rounded-lg p-4">
         <p v-if="!diaCerrado" class="text-xs text-gray-400">
           Toca o haz clic en un espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.
         </p>
@@ -552,6 +632,7 @@ async function confirmarCancelacion() {
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full border border-red-300 bg-red-100" /> Reserva de 30 min</div>
         <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded franja-pasada border border-slate-200" /> Ya pasó o fuera de horario</div>
       </div>
+      </template>
 
       <div
         v-if="modalOpen && selectedSala"
