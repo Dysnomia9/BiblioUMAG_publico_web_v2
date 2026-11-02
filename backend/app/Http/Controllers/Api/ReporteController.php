@@ -111,6 +111,9 @@ class ReporteController extends Controller
                 $query->where('prestamos.tipo_item', 'libro')->where('prestamos.en_sala', true);
             } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'recursos_apoyo') {
                 $query->where('prestamos.tipo_item', '!=', 'libro');
+            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'interbibliotecario') {
+                // Lo que otra biblioteca nos prestó, también lo que ya volvió a ella.
+                $query->where('prestamos.tipo_item', 'libro')->whereIn('prestamos.ejemplar_id', DB::table('prestamos_interbibliotecarios')->select('ejemplar_id'));
             }
 
             foreach (['carrera' => 'carrera', 'anio_ingreso' => 'anio_ingreso', 'sexo' => 'sexo'] as $parametro => $columna) {
@@ -363,7 +366,33 @@ class ReporteController extends Controller
             // Préstamos, solo el material de la colección (sin los recursos de apoyo).
             'porLibro' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial("coalesce(prestamos.libro_titulo, '')") : [],
             'porHoraPorSala' => $porHoraPorSala,
+            'interbibliotecario' => $tab === 'prestamos' ? $this->interbibliotecario($base, $inicio, $fin) : null,
         ]);
+    }
+
+    /**
+     * Préstamo interbibliotecario en el período: cuánto material llegó de otras bibliotecas
+     * (y de cuáles), cuánto se les devolvió y cuántos de los préstamos del reporte, con sus
+     * filtros, fueron de ese material. Lo devuelto sigue contando: la copia no se borra.
+     */
+    private function interbibliotecario(QueryBuilder $prestamos, Carbon $inicio, Carbon $fin): array
+    {
+        $rango = [$inicio->toDateString(), $fin->toDateString()];
+        $recibidos = DB::table('prestamos_interbibliotecarios')->whereBetween('fecha_ingreso', $rango);
+
+        return [
+            'recibidos' => (clone $recibidos)->count(),
+            'devueltos' => DB::table('prestamos_interbibliotecarios')->whereBetween('devuelto_el', $rango)->count(),
+            'prestamos' => (clone $prestamos)->whereIn('prestamos.ejemplar_id', DB::table('prestamos_interbibliotecarios')->select('ejemplar_id'))->count(),
+            'porBiblioteca' => (clone $recibidos)
+                ->selectRaw('biblioteca as label, count(*) as value')
+                ->groupBy('biblioteca')
+                ->orderByDesc('value')
+                ->orderBy('label')
+                ->get()
+                ->map(fn ($fila) => ['label' => (string) $fila->label, 'value' => (int) $fila->value])
+                ->values(),
+        ];
     }
 
     /**

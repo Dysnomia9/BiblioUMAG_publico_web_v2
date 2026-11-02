@@ -31,7 +31,7 @@ const filtros = reactive({
   anio_ingreso: '',
   sexo: '',
   tipo_usuario: '',
-  // Solo en la pestaña Préstamos: bibliografico | recursos_apoyo.
+  // Solo en la pestaña Préstamos: bibliografico | en_sala | recursos_apoyo | interbibliotecario.
   tipo_prestamo: '',
   // Préstamos y material más prestado: id del tipo de material (libro, tesis, juego…).
   tipo_material: '',
@@ -60,6 +60,7 @@ const resumenVacio: ReporteResumen = {
   porSalaDetalle: [],
   porLibro: [],
   porHoraPorSala: [],
+  interbibliotecario: null,
 }
 
 const resumen = ref<ReporteResumen>({ ...resumenVacio })
@@ -111,7 +112,8 @@ const COLORES_SEXO: Record<string, string> = { Femenino: INDIGO, Masculino: DORA
 const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección a domicilio', en_sala: 'Colección en sala', recursos_apoyo: 'Recursos de apoyo' }
 const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, en_sala: PIZARRA, recursos_apoyo: DORADO }
 // En el filtro, «Colección» es toda (a domicilio y en sala) y «Uso en sala» solo lo leído aquí.
-const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo' }
+// «Interbibliotecario»: lo que otra biblioteca nos prestó (a domicilio o en sala), también lo que ya volvió a ella.
+const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo', interbibliotecario: 'Interbibliotecario' }
 // Cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo; el material
 // de la colección ya llega con el nombre de su tipo (Libro, Tesis, Juego educativo…).
 const NOMBRES_RECURSO = computed(() => opciones.value.recursos)
@@ -265,6 +267,12 @@ const diferencia = computed(() => resumen.value.total - resumen.value.totalAnter
 const totalPersonas = computed(() => resumen.value.personas ?? resumen.value.total)
 // En Préstamos, el ranking de títulos es solo de la colección: sus porcentajes, sobre esos préstamos.
 const prestamosDeColeccion = computed(() => resumen.value.porLibro.reduce((suma, d) => suma + d.value, 0))
+// El préstamo interbibliotecario se muestra si hubo movimiento en el período o se está filtrando por él.
+const interbibliotecario = computed(() => resumen.value.interbibliotecario ?? null)
+const verInterbibliotecario = computed(() => {
+  const i = interbibliotecario.value
+  return !!i && (i.recibidos + i.devueltos + i.prestamos > 0 || filtros.tipo_prestamo === 'interbibliotecario')
+})
 
 const destacado = computed(() => {
   const r = resumen.value
@@ -445,6 +453,13 @@ async function confirmarExportar() {
         ['Total', r.total],
         ...(tab.value === 'logias' ? [['Personas (todos los integrantes)', r.personas ?? r.total]] : []),
         ...(r.usosHorizon ? [[`De Horizon (${tab.value === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala'})`, r.usosHorizon]] : []),
+        ...(r.interbibliotecario
+          ? [
+              ['Préstamo interbibliotecario: material recibido', r.interbibliotecario.recibidos],
+              ['Préstamo interbibliotecario: devuelto a su biblioteca', r.interbibliotecario.devueltos],
+              ['Préstamo interbibliotecario: préstamos a usuarios', r.interbibliotecario.prestamos],
+            ]
+          : []),
         [`Total ${etiquetaAnterior.value}`, r.totalAnterior],
         ['Horario de mayor uso', r.horarioPico ? `${r.horarioPico.desde}–${r.horarioPico.hasta} (${r.horarioPico.value})` : '—'],
         ['Horario de atención', textoHorario.value || '—'],
@@ -452,6 +467,9 @@ async function confirmarExportar() {
     },
     ...agrupaciones.value.map((a) => tabla(a.porPersona ? `Personas por ${a.label.toLowerCase()}` : `Por ${a.label.toLowerCase()}`, a.columna, a.datos, totalDe(a))),
   ]
+  if (r.interbibliotecario?.porBiblioteca.length) {
+    secciones.push(tabla('Préstamo interbibliotecario: material recibido por biblioteca', 'Biblioteca', r.interbibliotecario.porBiblioteca, r.interbibliotecario.recibidos))
+  }
   if (tab.value === 'logias') {
     secciones.push({
       titulo: 'Detalle por sala',
@@ -736,6 +754,41 @@ async function confirmarExportar() {
               {{ prestamosDeColeccion === 1 ? 'préstamo' : 'préstamos' }} de la colección<template v-if="resumen.porLibro.length > 10"> · los 10 con más préstamos (todos en la vista Tabla)</template>
             </p>
             <BarrasRanking :datos="resumen.porLibro" :total="prestamosDeColeccion" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
+          </section>
+
+          <section v-if="tab === 'prestamos' && verInterbibliotecario && interbibliotecario" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 class="font-sans text-base font-bold text-gray-900">Préstamo interbibliotecario</h3>
+            <p class="mt-0.5 mb-4 text-xs text-gray-500">
+              Material que otras bibliotecas le prestaron a la nuestra: lo que llegó y lo que se les devolvió {{ DEL_PERIODO[periodo] }}, y cuántos de los préstamos
+              del reporte fueron de ese material (con los filtros, y aunque ya haya vuelto a su biblioteca)
+            </p>
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <dl class="grid grid-cols-3 gap-3">
+                <div class="rounded-xl bg-gray-50 p-3">
+                  <dt class="text-xs text-gray-500">Recibido</dt>
+                  <dd class="mt-1 text-2xl font-serif font-bold tabular-nums text-gray-900">{{ interbibliotecario.recibidos }}</dd>
+                </div>
+                <div class="rounded-xl bg-gray-50 p-3">
+                  <dt class="text-xs text-gray-500">Devuelto</dt>
+                  <dd class="mt-1 text-2xl font-serif font-bold tabular-nums text-gray-900">{{ interbibliotecario.devueltos }}</dd>
+                </div>
+                <div class="rounded-xl bg-gray-50 p-3">
+                  <dt class="text-xs text-gray-500">Préstamos</dt>
+                  <dd class="mt-1 text-2xl font-serif font-bold tabular-nums text-gray-900">{{ interbibliotecario.prestamos }}</dd>
+                </div>
+              </dl>
+              <div>
+                <p class="mb-2 text-xs font-semibold text-gray-600">Recibido por biblioteca</p>
+                <BarrasRanking
+                  v-if="interbibliotecario.porBiblioteca.length"
+                  :datos="interbibliotecario.porBiblioteca"
+                  :total="interbibliotecario.recibidos"
+                  :color="VERDE_AZULADO"
+                  :color-primero="VERDE_AZULADO"
+                />
+                <p v-else class="text-sm text-gray-400">No llegó material de otras bibliotecas {{ DEL_PERIODO[periodo] }}.</p>
+              </div>
+            </div>
           </section>
 
           <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">

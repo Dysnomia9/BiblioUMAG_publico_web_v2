@@ -666,6 +666,16 @@ export type ReporteResumen = {
   porSalaDetalle: SalaDetalle[]
   porLibro: SerieItem[]
   porHoraPorSala: HoraPorSala[]
+  /** Préstamos: lo que llegó de otras bibliotecas, lo que volvió a ellas y lo que se prestó de eso en el período. */
+  interbibliotecario?: ReporteInterbibliotecario | null
+}
+
+export type ReporteInterbibliotecario = {
+  recibidos: number
+  devueltos: number
+  prestamos: number
+  /** Material recibido en el período, por biblioteca propietaria. */
+  porBiblioteca: SerieItem[]
 }
 
 export type SalaDetalle = {

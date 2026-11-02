@@ -264,4 +264,36 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $this->patchJson("/api/prestamos-interbibliotecarios/{$pib->id}", ['fecha_limite' => '2026-11-01'])
             ->assertStatus(422)->assertJsonValidationErrors('fecha_limite');
     }
+
+    public function test_el_reporte_de_prestamos_cuenta_lo_recibido_lo_devuelto_y_lo_prestado(): void
+    {
+        Carbon::setTestNow('2026-11-20 10:00:00');
+        Sanctum::actingAs(Staff::factory()->create());
+        $devuelta = $this->deOtraBiblioteca('2026-11-16', '2026-11-02');
+        PrestamoInterbibliotecario::where('ejemplar_id', $devuelta->id)->update(['devuelto_el' => '2026-11-16']);
+        $devuelta->update(['estado_proceso' => 'devuelto_propietaria', 'disponible' => false]);
+        $sigue = $this->deOtraBiblioteca('2026-12-15', '2026-11-18');
+        PrestamoInterbibliotecario::where('ejemplar_id', $sigue->id)->update(['biblioteca' => 'Biblioteca UACh']);
+        $propia = Ejemplar::factory()->create();
+
+        Prestamo::factory()->count(2)->create(['ejemplar_id' => $devuelta->id, 'estado' => 'devuelto', 'fecha_prestamo' => '2026-11-05 10:00:00']);
+        Prestamo::factory()->create(['ejemplar_id' => $sigue->id, 'fecha_prestamo' => '2026-11-19 10:00:00']);
+        Prestamo::factory()->create(['ejemplar_id' => $propia->id, 'fecha_prestamo' => '2026-11-19 10:00:00']);
+
+        $this->getJson('/api/reportes/resumen?tab=prestamos&periodo=mes&fecha=2026-11-20')
+            ->assertOk()
+            ->assertJsonPath('total', 4)
+            ->assertJsonPath('interbibliotecario.recibidos', 2)
+            ->assertJsonPath('interbibliotecario.devueltos', 1)
+            ->assertJsonPath('interbibliotecario.prestamos', 3)
+            ->assertJsonPath('interbibliotecario.porBiblioteca', [
+                ['label' => 'Biblioteca Central U. de Chile', 'value' => 1],
+                ['label' => 'Biblioteca UACh', 'value' => 1],
+            ]);
+
+        // Con el filtro, solo los préstamos de ese material: también los de la copia ya devuelta.
+        $this->getJson('/api/reportes/resumen?tab=prestamos&periodo=mes&fecha=2026-11-20&tipo_prestamo=interbibliotecario')
+            ->assertOk()
+            ->assertJsonPath('total', 3);
+    }
 }
