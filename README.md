@@ -173,6 +173,16 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   material (Libro, Trabajo de titulación, Juego educativo, Publicación seriada)
   dice qué etiquetas se catalogan y cuáles son públicas
   (`app/Support/FichaBibliografica.php`).
+- **Préstamo interbibliotecario** (`prestamos_interbibliotecarios`, pestaña de
+  Catalogación): el material que otra biblioteca le presta a la nuestra se registra
+  al llegar (título nuevo con lo básico o copia de uno del catálogo), con la
+  biblioteca propietaria, la fecha de ingreso y la fecha en que vuelve a ella. A los
+  usuarios se les presta hasta un día hábil antes (lunes a viernes, sin días sin
+  atención): el mesón propone esa fecha y no deja pasarla, y después ya no se presta
+  ni se reserva. «Devolver a su biblioteca» deja la copia en «Devuelto a su
+  biblioteca»: sale del catálogo y del portal, pero sus préstamos siguen en el
+  historial y en los reportes (filtro «Interbibliotecario» y lo recibido y devuelto
+  en el período).
 - **Etiquetas para imprimir**: códigos de barras (Code128) y etiquetas de lomo
   con el **código de lomo** de 8 dígitos (`ejemplares.codigo_lomo`), que el lector
   reconoce igual que el código de 14 dígitos.
@@ -340,7 +350,7 @@ La columna «Permiso» es la clave de `app/Support/Permisos.php` que exige la ru
 | Usuarios | `/usuarios` | `usuarios.ver` (+ `usuarios.habilitar`, `usuarios.desactivar`) | `UsuarioController` |
 | Multas | `/multas` | `multas.ver` (+ `multas.cobrar`, `multas.crear`, `multas.anular`) | `MultaController`, `MultaService` |
 | Listado de material | `/catalogo/listado` | `listados.ver` | `LibroController` |
-| Catalogación | `/catalogo/catalogacion` | `libros.catalogar` | `LibroController`, `EjemplarController::store` |
+| Catalogación | `/catalogo/catalogacion` | `libros.catalogar` | `LibroController`, `EjemplarController::store`, `PrestamoInterbibliotecarioController` |
 | Estado de ejemplares | `/catalogo/estado` | `libros.estado` | `EjemplarController::cambiarEstado` |
 | Cambio masivo de estado | `/catalogo/cambio-masivo` | `libros.cambio_masivo` | `EjemplarController::cambioMasivo*` |
 | Etiquetas | `/catalogo/etiquetas` | `libros.catalogar` | `EjemplarController::etiquetasLomo` |
