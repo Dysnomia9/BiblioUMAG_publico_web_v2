@@ -17,9 +17,16 @@ use App\Support\Bitacora;
  */
 class BajaEjemplarService
 {
-    /** Por qué no se puede dar de baja ahora, o null. Una copia apartada para alguien sí lo impide. */
+    /**
+     * Por qué no se puede dar de baja ahora, o null. Una copia apartada para alguien sí lo
+     * impide, y también una de otra biblioteca: esa se le devuelve (préstamo interbibliotecario).
+     */
     public function bloqueo(Ejemplar $ejemplar): ?string
     {
+        if ($interbibliotecario = $ejemplar->prestamoInterbibliotecarioVigente()) {
+            return "Es de {$interbibliotecario->biblioteca} (préstamo interbibliotecario): no se da de baja, se le devuelve desde Catalogación › Préstamo interbibliotecario.";
+        }
+
         $apartada = ReservaLibro::where('ejemplar_id', $ejemplar->id)->where('estado', 'pendiente')->exists();
 
         return $apartada

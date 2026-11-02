@@ -79,6 +79,20 @@ class Ejemplar extends Model
         return $this->hasOne(Fasciculo::class);
     }
 
+    /** Si la copia es de otra biblioteca, que nos la prestó (préstamo interbibliotecario). */
+    public function prestamoInterbibliotecario(): HasOne
+    {
+        return $this->hasOne(PrestamoInterbibliotecario::class);
+    }
+
+    /** Su préstamo interbibliotecario, si todavía no se devuelve a la biblioteca propietaria. */
+    public function prestamoInterbibliotecarioVigente(): ?PrestamoInterbibliotecario
+    {
+        $prestamo = $this->prestamoInterbibliotecario;
+
+        return $prestamo && ! $prestamo->devuelto_el ? $prestamo->setRelation('ejemplar', $this) : null;
+    }
+
     public function historialEstado(): HasMany
     {
         return $this->hasMany(EjemplarEstadoHistorial::class);

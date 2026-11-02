@@ -98,12 +98,19 @@ class ReglaPrestamoService
     /**
      * Lo que el mesón necesita saber antes de prestar esta copia a esta persona: la
      * regla que se aplica, si se presta, cuántos libros tiene y puede tener, y la fecha
-     * de devolución propuesta.
+     * de devolución propuesta. Si la copia es de otra biblioteca (préstamo
+     * interbibliotecario), la fecha propuesta no pasa del tope: un día hábil antes de que
+     * tenga que volver a ella.
      */
     public function condiciones(Usuario $usuario, Ejemplar $ejemplar, Carbon $desde): array
     {
         $regla = $this->reglaParaPrestar($usuario, $ejemplar);
         $tarifa = $this->tarifaMulta($regla);
+        $interbibliotecario = $ejemplar->prestamoInterbibliotecarioVigente();
+        $fechaDevolucion = $this->fechaDevolucion($regla, $desde, $ejemplar->ubicacion_id);
+        if ($interbibliotecario && $fechaDevolucion?->gt($interbibliotecario->fechaTope())) {
+            $fechaDevolucion = $interbibliotecario->fechaTope();
+        }
 
         return [
             'regla' => $regla ? [...$regla->only(['id', 'tipo_usuario', 'tipo_material_id', 'ubicacion_id', 'dias_prestamo', 'max_ejemplares', 'multa_por_dia', 'tope_multa', 'prestable']), 'descripcion' => $regla->descripcion()] : null,
@@ -111,9 +118,11 @@ class ReglaPrestamoService
             'max_ejemplares' => $this->maxEjemplares($regla),
             'libros_en_prestamo' => $this->librosEnPrestamo($usuario->id),
             'dias_prestamo' => $regla?->dias_prestamo,
-            'fecha_devolucion' => $this->fechaDevolucion($regla, $desde, $ejemplar->ubicacion_id)?->toDateString(),
+            'fecha_devolucion' => $fechaDevolucion?->toDateString(),
             'multa_por_dia' => $tarifa['monto_dia'],
             'tope_multa' => $tarifa['tope'],
+            // De qué biblioteca es, cuándo tiene que volver a ella y hasta cuándo se presta.
+            'interbibliotecario' => $interbibliotecario?->resumen(),
         ];
     }
 

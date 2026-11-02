@@ -66,6 +66,23 @@ class HorarioBiblioteca
     }
 
     /**
+     * El día hábil anterior a $fecha, sin contarla: de lunes a viernes, con la biblioteca
+     * abierta y sin un día sin atención registrado (de toda la biblioteca o, con
+     * ubicación, de esa ubicación). El sábado no cuenta aunque la biblioteca abra: es el
+     * último día en que se devuelve lo que tiene que estar en otra biblioteca el $fecha.
+     */
+    public static function diaHabilAnterior(CarbonInterface $fecha, ?int $ubicacionId = null): Carbon
+    {
+        $dia = Carbon::parse($fecha->toDateString())->subDay();
+        $registrados = self::fechasSinAtencion($dia->copy()->subYear(), $dia, $ubicacionId);
+        for ($i = 0; $i < 366 && ($dia->dayOfWeekIso >= 6 || self::cerrado($dia) || $registrados->contains($dia->toDateString())); $i++) {
+            $dia->subDay();
+        }
+
+        return $dia;
+    }
+
+    /**
      * Días con atención después de $desde y hasta $hasta inclusive: los días de atraso
      * que se cobran (los feriados y los días que no abre no cuentan).
      */

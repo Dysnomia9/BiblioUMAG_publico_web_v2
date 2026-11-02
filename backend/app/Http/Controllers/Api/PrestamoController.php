@@ -53,7 +53,8 @@ class PrestamoController extends Controller
         $usuario = Usuario::findOrFail($data['usuario_id']);
         $condiciones = $this->reglas->condiciones($usuario, $ejemplar, Carbon::parse($data['fecha_prestamo'] ?? now()));
 
-        $bloqueo = $usuario->mensajeInactivo() ?? $this->multaService->mensajeBloqueo($usuario);
+        // Lo de otra biblioteca que ya tiene que volver a ella no se presta, ni en sala.
+        $bloqueo = $usuario->mensajeInactivo() ?? $this->multaService->mensajeBloqueo($usuario) ?? $ejemplar->prestamoInterbibliotecarioVigente()?->motivoRechazo();
 
         return response()->json([
             ...$condiciones,
@@ -228,6 +229,11 @@ class PrestamoController extends Controller
 
                 if ($ejemplar->estado_proceso !== 'en_estante') {
                     return [['message' => "Este libro no está disponible para préstamo (estado: {$ejemplar->estado_proceso})"], 409];
+                }
+
+                // Lo de otra biblioteca se devuelve a más tardar un día hábil antes de que tenga que volver a ella.
+                if ($rechazo = $ejemplar->prestamoInterbibliotecarioVigente()?->motivoRechazo(Carbon::parse($data['fecha_devolucion']))) {
+                    return [['message' => $rechazo], 409];
                 }
 
                 $ejemplar->loadMissing('libro');

@@ -91,7 +91,14 @@ function avisoDiaSinAtencion(fecha: string, para: string, ubicacionId: number | 
   if (!cierre) return ''
   return `La biblioteca no atiende el ${dia.toLocaleDateString('es-CL')} (${cierre.motivo || 'día sin atención'}): elige otro día ${para}.`
 }
-const avisoDevolucion = computed(() => avisoDiaSinAtencion(fechaDevolucion.value, 'para la devolución', ubicacionPrestamo.value))
+const avisoDevolucion = computed(() => {
+  // Lo de otra biblioteca se devuelve a más tardar un día hábil antes de que tenga que volver a ella.
+  const tope = condiciones.value?.interbibliotecario?.fecha_tope
+  if (tope && fechaDevolucion.value > tope) {
+    return `Es de ${condiciones.value!.interbibliotecario!.biblioteca} (préstamo interbibliotecario): se devuelve a más tardar el ${formatFecha(`${tope}T12:00:00`)}.`
+  }
+  return avisoDiaSinAtencion(fechaDevolucion.value, 'para la devolución', ubicacionPrestamo.value)
+})
 const avisoRetiro = computed(() => avisoDiaSinAtencion(fechaRetiro.value, 'para el retiro'))
 
 // ---------- Recursos de apoyo ----------
@@ -926,6 +933,14 @@ function formatHora(iso: string | null) {
             <p v-else-if="libroEncontradoPrestamo && textoRegla" class="text-xs" :class="enSala ? 'text-sky-700' : 'text-gray-500'">
               {{ textoRegla }}<template v-if="!enSala && condiciones?.fecha_devolucion"> · devolución propuesta el {{ formatFecha(`${condiciones.fecha_devolucion}T12:00:00`) }}</template>
             </p>
+            <p
+              v-if="libroEncontradoPrestamo && !rechazoRegla && condiciones?.interbibliotecario"
+              class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
+            >
+              Préstamo interbibliotecario de <strong>{{ condiciones.interbibliotecario.biblioteca }}</strong>: vuelve a su biblioteca el
+              {{ formatFecha(`${condiciones.interbibliotecario.fecha_limite}T12:00:00`) }}, así que se devuelve a más tardar el
+              <strong>{{ formatFecha(`${condiciones.interbibliotecario.fecha_tope}T12:00:00`) }}</strong>.
+            </p>
             <div v-if="enSala" class="flex justify-end">
               <button
                 type="button"
@@ -955,6 +970,7 @@ function formatHora(iso: string | null) {
                   v-model="fechaDevolucion"
                   type="date"
                   :min="fechaPrestamo || today"
+                  :max="condiciones?.interbibliotecario?.fecha_tope"
                   class="w-full rounded-lg border px-4 py-2.5 outline-none focus:ring-2"
                   :class="avisoDevolucion ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
                   :aria-invalid="!!avisoDevolucion"

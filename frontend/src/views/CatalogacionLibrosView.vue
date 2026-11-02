@@ -15,6 +15,7 @@ import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
+import PrestamoInterbibliotecario from '@/components/libros/PrestamoInterbibliotecario.vue'
 import type { Autor, CarreraSugerida, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion } from '@/types'
 
 const toast = useToast()
@@ -45,7 +46,8 @@ const carrerasOpciones = ref<CarreraSugerida[]>([])
 const ubicacionesOpciones = ref<Ubicacion[]>([])
 const tiposMaterialOpciones = ref<TipoMaterial[]>([])
 
-const modo = ref<'nuevo' | 'copia'>('nuevo')
+// Libro nuevo, copia de uno ya catalogado o material que presta otra biblioteca.
+const modo = ref<'nuevo' | 'copia' | 'interbibliotecario'>('nuevo')
 
 const editandoId = ref<number | null>(null)
 const libroEditado = ref<Libro | null>(null)
@@ -739,6 +741,7 @@ async function confirmarAgregarCopia() {
 const MODOS = [
   { id: 'nuevo' as const, label: 'Libro nuevo' },
   { id: 'copia' as const, label: 'Agregar copia a libro existente' },
+  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario' },
 ]
 
 function accionPrincipal() {
@@ -755,6 +758,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
   de_baja: { label: 'De baja', cls: 'bg-red-100 text-red-700' },
   coleccion_movil: { label: 'Colección móvil', cls: 'bg-teal-100 text-teal-700' },
   personalizado: { label: 'Personalizado', cls: 'bg-fuchsia-100 text-fuchsia-700' },
+  devuelto_propietaria: { label: 'Devuelto a su biblioteca', cls: 'bg-slate-100 text-slate-600 line-through' },
 }
 </script>
 
@@ -784,6 +788,9 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </template>
       </EncabezadoGestion>
 
+      <PrestamoInterbibliotecario v-if="modo === 'interbibliotecario'" :ubicaciones="ubicacionesOpciones" :tipos-material="tiposMaterialOpciones" />
+
+      <template v-else>
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)_17rem] xl:grid-cols-[12.5rem_minmax(0,1fr)_19rem]">
         <!-- Índice de secciones -->
         <aside class="hidden lg:block">
@@ -1373,6 +1380,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           @update:pagina="irAPaginaLibros"
         />
       </section>
+      </template>
 
       <datalist id="colecciones">
         <option value="General" />

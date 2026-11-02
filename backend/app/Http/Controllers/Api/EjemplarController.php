@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
 use App\Models\Equipo;
+use App\Models\PrestamoInterbibliotecario;
 use App\Models\ReservaLibro;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
@@ -172,6 +173,10 @@ class EjemplarController extends Controller
         [$estadoAnterior, $apartada, $bloqueo, $prestamoCerrado] = DB::transaction(function () use ($ejemplar, $data, $request) {
             $ejemplar = Ejemplar::whereKey($ejemplar->id)->lockForUpdate()->first();
 
+            if ($ejemplar->estado_proceso === 'devuelto_propietaria') {
+                return [null, null, 'Esta copia ya se devolvió a la biblioteca que la prestó (préstamo interbibliotecario): no está en la biblioteca.', null];
+            }
+
             if ($data['estado_proceso'] === 'de_baja') {
                 if ($bloqueo = $this->bajas->bloqueo($ejemplar)) {
                     return [null, null, $bloqueo, null];
@@ -291,6 +296,10 @@ class EjemplarController extends Controller
 
         [$totalActualizados, $apartadas] = DB::transaction(function () use ($request, $data, $loteId, $staffId) {
             $ejemplares = $this->filtrarEjemplares($request)->lockForUpdate()->get();
+            // Lo de otra biblioteca no se da de baja: se le devuelve (préstamo interbibliotecario).
+            $deOtraBiblioteca = $data['nuevo_estado'] === 'de_baja'
+                ? PrestamoInterbibliotecario::vigentes()->whereIn('ejemplar_id', $ejemplares->pluck('id'))->pluck('ejemplar_id')
+                : collect();
             $actualizados = 0;
             $apartadas = 0;
 
@@ -298,7 +307,7 @@ class EjemplarController extends Controller
                 // Igual que en el cambio individual: un ejemplar actualmente prestado o
                 // reservado no se puede dar de baja — se excluye del lote en vez de fallar
                 // la operación completa por uno solo ocupado.
-                if ($data['nuevo_estado'] === 'de_baja' && ! $ejemplar->disponible) {
+                if ($data['nuevo_estado'] === 'de_baja' && (! $ejemplar->disponible || $deOtraBiblioteca->contains($ejemplar->id))) {
                     continue;
                 }
 
@@ -422,6 +431,7 @@ class EjemplarController extends Controller
             'coleccion_movil' => 'Colección móvil',
             'personalizado' => 'Personalizado',
             'de_baja' => 'De baja',
+            'devuelto_propietaria' => 'Devuelto a su biblioteca',
         ][$estado] ?? $estado;
     }
 
@@ -475,7 +485,8 @@ class EjemplarController extends Controller
 
     private function filtrarEjemplares(Request $request): Builder
     {
-        $query = Ejemplar::query();
+        // Lo que ya volvió a la biblioteca que nos lo prestó no está acá: ningún cambio masivo lo toca.
+        $query = Ejemplar::where('estado_proceso', '!=', 'devuelto_propietaria');
 
         if ($ubicacionId = $request->input('ubicacion_id')) {
             $query->where('ubicacion_id', $ubicacionId);

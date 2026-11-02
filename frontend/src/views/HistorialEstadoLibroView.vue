@@ -39,6 +39,7 @@ const BORDE_ESTADO: Record<EstadoProcesoEjemplar, string> = {
   coleccion_movil: 'border-l-blue-700',
   personalizado: 'border-l-pink-600',
   de_baja: 'border-l-red-600',
+  devuelto_propietaria: 'border-l-slate-500',
 }
 
 async function cargar() {

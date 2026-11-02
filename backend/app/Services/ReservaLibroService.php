@@ -56,11 +56,15 @@ class ReservaLibroService
     public function reservarOEncolarPorLibro(int $libroId, int $usuarioId, ?string $fechaReserva = null, ?string $fechaRetiro = null): array
     {
         return DB::transaction(function () use ($libroId, $usuarioId, $fechaReserva, $fechaRetiro) {
-            $ejemplar = Ejemplar::where('libro_id', $libroId)
+            // Se salta lo de otra biblioteca que ya tiene que volver a ella (no se aparta para nadie),
+            // salvo que no haya otra copia: entonces la reserva responde por qué no.
+            $copias = Ejemplar::where('libro_id', $libroId)
                 ->where('estado_proceso', 'en_estante')
                 ->orderByDesc('disponible')
+                ->orderBy('id')
                 ->lockForUpdate()
-                ->first();
+                ->get();
+            $ejemplar = $copias->first(fn (Ejemplar $e) => ! $e->prestamoInterbibliotecarioVigente()?->motivoRechazo()) ?? $copias->first();
 
             if (! $ejemplar) {
                 return [null, 'Este libro no tiene copias disponibles para préstamo', 404];
@@ -75,6 +79,10 @@ class ReservaLibroService
     {
         if ($ejemplar->estado_proceso !== 'en_estante') {
             return [null, "Este libro no está disponible para préstamo (estado: {$ejemplar->estado_proceso})", 409];
+        }
+
+        if ($rechazo = $ejemplar->prestamoInterbibliotecarioVigente()?->motivoRechazo()) {
+            return [null, $rechazo, 409];
         }
 
         $yaActiva = ReservaLibro::where('libro_id', $ejemplar->libro_id)
@@ -310,7 +318,8 @@ class ReservaLibroService
         // orderBy('id') en vez de created_at: dos filas creadas en el mismo segundo
         // tendrían el mismo timestamp y empatarían el orden FIFO; el id autoincremental
         // no tiene esa ambigüedad.
-        $siguiente = ReservaLibro::where('libro_id', $ejemplar->libro_id)
+        // Lo de otra biblioteca que ya tiene que volver a ella no se aparta para la fila.
+        $siguiente = $ejemplar->prestamoInterbibliotecarioVigente()?->motivoRechazo() ? null : ReservaLibro::where('libro_id', $ejemplar->libro_id)
             ->where('estado', 'en_cola')
             ->oldest('id')
             ->lockForUpdate()

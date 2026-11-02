@@ -10,6 +10,7 @@ export const ESTADOS_EJEMPLAR: Record<EstadoProcesoEjemplar, { label: string; de
   coleccion_movil: { label: 'Colección móvil', descripcion: 'Préstamo itinerante fuera de la biblioteca', punto: 'bg-blue-700', badge: 'bg-blue-100 text-blue-800' },
   personalizado: { label: 'Personalizado', descripcion: 'Estado definido en Administración', punto: 'bg-pink-600', badge: 'bg-pink-100 text-pink-700' },
   de_baja: { label: 'De baja', descripcion: 'Retirada de la colección', punto: 'bg-red-600', badge: 'bg-red-100 text-red-700' },
+  devuelto_propietaria: { label: 'Devuelto a su biblioteca', descripcion: 'Préstamo interbibliotecario ya devuelto', punto: 'bg-slate-500', badge: 'bg-slate-100 text-slate-700' },
 }
 
 /** El camino normal de una copia nueva hasta quedar disponible. */

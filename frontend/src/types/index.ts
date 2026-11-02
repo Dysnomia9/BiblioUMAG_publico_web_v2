@@ -203,6 +203,8 @@ export type EstadoProcesoEjemplar =
   | 'de_baja'
   | 'coleccion_movil'
   | 'personalizado'
+  /** Volvió a la biblioteca que la prestó (préstamo interbibliotecario): solo la deja el sistema. */
+  | 'devuelto_propietaria'
 
 export type Autor = { id: number; nombre: string }
 export type Categoria = { id: number; nombre: string }
@@ -578,6 +580,34 @@ export type CondicionesPrestamo = {
   motivo_rechazo: string | null
   /** Por qué no se puede prestar para uso en sala (cuenta vencida, multas, libros atrasados); la regla no se aplica. */
   motivo_rechazo_en_sala: string | null
+  /** Si la copia es de otra biblioteca: se presta hasta fecha_tope, un día hábil antes de su fecha límite. */
+  interbibliotecario: { id: number; biblioteca: string; fecha_limite: string; fecha_tope: string } | null
+}
+
+/** Una copia que otra biblioteca le prestó a la nuestra (Catalogación › Préstamo interbibliotecario). */
+export type PrestamoInterbibliotecario = {
+  id: number
+  ejemplar_id: number
+  /** La biblioteca propietaria. */
+  biblioteca: string
+  fecha_ingreso: string
+  /** Cuándo tiene que estar de vuelta en su biblioteca. */
+  fecha_limite: string
+  /** Hasta cuándo se presta a los usuarios: un día hábil antes de la fecha límite. */
+  fecha_tope: string
+  /** Cuándo se le devolvió; null mientras siga en la biblioteca. */
+  devuelto_el: string | null
+  nota: string | null
+  /** Ya pasó la fecha tope y sigue acá: hay que devolverla. */
+  vencido: boolean
+  total_prestamos?: number
+  registrado_por?: { id: number; nombre: string } | null
+  devuelto_por?: { id: number; nombre: string } | null
+  ejemplar: Pick<Ejemplar, 'id' | 'libro_id' | 'numero_copia' | 'codigo_barras' | 'codigo_lomo' | 'estado_proceso' | 'disponible' | 'ubicacion_id'> & {
+    ubicacion?: { id: number; nombre: string } | null
+    libro: { id: number; titulo: string; isbn: string | null; autores?: { id: number; nombre: string }[] }
+  }
+  prestamo_activo: { id: number; usuario: string | null; rut: string | null; fecha_devolucion: string | null } | null
 }
 
 export type EstadoFasciculo = 'recibido' | 'esperado' | 'reclamado' | 'faltante'

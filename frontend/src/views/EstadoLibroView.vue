@@ -141,6 +141,7 @@ const TINTES: Record<EstadoProcesoEjemplar, string> = {
   coleccion_movil: 'border-blue-200 bg-blue-50',
   personalizado: 'border-pink-200 bg-pink-50',
   de_baja: 'border-red-200 bg-red-50',
+  devuelto_propietaria: 'border-slate-200 bg-slate-50',
 }
 const BORDES: Record<EstadoProcesoEjemplar, string> = {
   inventario: 'border-gray-300',
@@ -151,6 +152,7 @@ const BORDES: Record<EstadoProcesoEjemplar, string> = {
   coleccion_movil: 'border-blue-200',
   personalizado: 'border-pink-200',
   de_baja: 'border-red-200',
+  devuelto_propietaria: 'border-slate-200',
 }
 
 /** Cómo se ve cada paso del flujo para la copia elegida: hecho, actual o pendiente. */
@@ -339,6 +341,11 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
             </div>
 
             <div class="space-y-6 px-6 py-5">
+              <p v-if="seleccionada.estado_proceso === 'devuelto_propietaria'" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Esta copia era de otra biblioteca y ya se le devolvió (Catalogación › Préstamo interbibliotecario): no está en la biblioteca y su estado no cambia.
+                Sus préstamos siguen en el historial y en los reportes.
+              </p>
+              <template v-else>
               <div>
                 <p class="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Flujo de proceso</p>
                 <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
@@ -449,6 +456,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                   </button>
                 </div>
               </div>
+              </template>
 
               <div v-if="puedeVerHistorial" class="border-t border-gray-100 pt-5">
                 <p class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Historial de cambios</p>

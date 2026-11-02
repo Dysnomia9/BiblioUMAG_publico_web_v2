@@ -115,7 +115,8 @@ class LibroController extends Controller
         );
 
         $resultado = DB::transaction(function () use ($libro, $data, $request, $bajas) {
-            $copias = Ejemplar::where('libro_id', $libro->id)->where('estado_proceso', '!=', 'de_baja')->orderBy('id')->lockForUpdate()->get();
+            // Las que ya volvieron a la biblioteca que nos las prestó tampoco están en circulación.
+            $copias = Ejemplar::where('libro_id', $libro->id)->whereNotIn('estado_proceso', ['de_baja', 'devuelto_propietaria'])->orderBy('id')->lockForUpdate()->get();
 
             if ($copias->isEmpty()) {
                 return ['error' => 'Este título no tiene copias en circulación: ya está dado de baja.'];
