@@ -7,6 +7,7 @@ import SeccionFicha from '@/components/libros/SeccionFicha.vue'
 import { TONOS_FICHA } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
+import { ESTADOS_EJEMPLAR } from '@/utils/estadosEjemplar'
 import type { Autor, Libro, Paginado, PrestamoInterbibliotecario, TipoMaterial, Ubicacion } from '@/types'
 
 /**
@@ -17,6 +18,8 @@ import type { Autor, Libro, Paginado, PrestamoInterbibliotecario, TipoMaterial, 
  * del catálogo, sin borrarse: sus préstamos siguen en los reportes.
  */
 const props = defineProps<{ ubicaciones: Ubicacion[]; tiposMaterial: TipoMaterial[] }>()
+// La copia nace «Por colocar»: Catalogación ofrece ir a cambiarle el estado, como al catalogar.
+const emit = defineEmits<{ copiaCreada: [titulo: string, copia: PrestamoInterbibliotecario['ejemplar']] }>()
 
 const toast = useToast()
 const hoy = new Date().toLocaleDateString('sv-SE')
@@ -144,7 +147,7 @@ function pedirRegistro() {
 async function registrar() {
   guardando.value = true
   try {
-    await api.post('/prestamos-interbibliotecarios', {
+    const { data } = await api.post<PrestamoInterbibliotecario>('/prestamos-interbibliotecarios', {
       ...(origen.value === 'catalogo'
         ? { libro_id: libroElegido.value?.id }
         : {
@@ -163,6 +166,7 @@ async function registrar() {
       nota: form.nota.trim() || null,
     })
     toast.success(`Préstamo interbibliotecario registrado: «${tituloRegistro.value}»`)
+    emit('copiaCreada', tituloRegistro.value, data.ejemplar)
     confirmandoRegistro.value = false
     Object.assign(form, formVacio())
     cambiarLibro()
@@ -236,13 +240,15 @@ function irAPagina(p: number) {
   cargar()
 }
 
-/** Cómo está cada copia: devuelta, por devolver, prestada o disponible. */
+/** Cómo está cada copia: devuelta, por devolver, prestada, todavía sin colocar o disponible. */
 function situacion(p: PrestamoInterbibliotecario) {
   if (p.devuelto_el) return { texto: `Devuelto el ${fecha(p.devuelto_el)}`, clase: 'bg-slate-100 text-slate-700' }
   if (p.prestamo_activo) {
     return { texto: `Prestado hasta el ${fecha(p.prestamo_activo.fecha_devolucion)}`, clase: p.vencido ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800' }
   }
   if (p.vencido) return { texto: 'Plazo cumplido: devolver', clase: 'bg-red-100 text-red-700' }
+  const estado = p.ejemplar.estado_proceso
+  if (estado !== 'en_estante') return { texto: `${ESTADOS_EJEMPLAR[estado]?.label ?? estado}: aún no se presta`, clase: ESTADOS_EJEMPLAR[estado]?.badge ?? 'bg-gray-100 text-gray-700' }
   if (p.fecha_tope === hoy) return { texto: 'Último día para prestarlo', clase: 'bg-amber-100 text-amber-800' }
   return { texto: p.ejemplar.disponible ? 'Disponible' : 'Apartado para una reserva', clase: p.ejemplar.disponible ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700' }
 }
@@ -514,7 +520,8 @@ async function guardarEdicion() {
             Ese día ya pasó: se puede registrar, pero no se le presta a nadie. Queda para devolverlo.
           </p>
           <p v-else class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-500">
-            La copia queda «En estante», lista para prestar. En Préstamos, la fecha de devolución no puede pasar de ese día.
+            La copia queda «Por colocar» y se presta cuando pase a «En estante» (Estado de ejemplares). En Préstamos, la fecha de devolución no puede pasar
+            de ese día.
           </p>
         </div>
 
@@ -695,7 +702,7 @@ async function guardarEdicion() {
         <li>Se presta a los usuarios hasta el <strong class="text-gray-900">{{ topePrevisto ? fecha(topePrevisto) : '…' }}</strong>.</li>
       </ul>
       <p v-if="topeYaPaso" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">Ese día ya pasó: no se le va a poder prestar a nadie.</p>
-      <p v-else class="mt-3">La copia queda «En estante», lista para prestar.</p>
+      <p v-else class="mt-3">La copia queda «Por colocar»: se presta cuando pase a «En estante».</p>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion

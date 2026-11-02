@@ -70,7 +70,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
             ->assertOk()->assertJsonPath('fecha_tope', '2026-11-12');
     }
 
-    public function test_registra_un_titulo_nuevo_con_su_copia_en_estante(): void
+    public function test_registra_un_titulo_nuevo_con_su_copia_por_colocar(): void
     {
         Carbon::setTestNow('2026-11-04 10:00:00'); // miércoles
         $staff = Staff::factory()->create();
@@ -94,7 +94,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
             ->assertJsonPath('registrado_por.nombre', $staff->nombre);
 
         $ejemplar = Ejemplar::find($respuesta->json('ejemplar_id'));
-        $this->assertSame('en_estante', $ejemplar->estado_proceso);
+        $this->assertSame('por_colocar', $ejemplar->estado_proceso);
         $this->assertTrue($ejemplar->disponible);
         $this->assertSame(1, $ejemplar->numero_copia);
         $this->assertSame(['Guyton, Arthur C.', 'Hall, John E.'], $ejemplar->libro->autores->pluck('nombre')->all());
@@ -102,7 +102,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $this->assertDatabaseHas('bitacora', ['accion' => 'libros.recibir_interbibliotecario', 'entidad_id' => $respuesta->json('id')]);
     }
 
-    public function test_una_copia_de_un_titulo_del_catalogo_atiende_su_lista_de_espera(): void
+    public function test_una_copia_de_un_titulo_del_catalogo_atiende_su_lista_de_espera_al_pasar_al_estante(): void
     {
         Carbon::setTestNow('2026-11-04 10:00:00');
         Sanctum::actingAs(Staff::factory()->create());
@@ -119,6 +119,11 @@ class PrestamoInterbibliotecarioTest extends TestCase
         ])->assertCreated()->assertJsonPath('ejemplar.numero_copia', 2);
 
         $this->assertDatabaseCount('libros', 1);
+        // «Por colocar» todavía no se presta: la fila espera hasta que pase al estante.
+        $this->assertDatabaseHas('reservas_libro', ['id' => $enCola->id, 'estado' => 'en_cola']);
+        $this->prestar(Ejemplar::find($respuesta->json('ejemplar_id')), '2026-11-10')->assertStatus(409);
+
+        $this->patchJson('/api/ejemplares/'.$respuesta->json('ejemplar_id').'/estado', ['estado_proceso' => 'en_estante'])->assertOk();
         $this->assertDatabaseHas('reservas_libro', ['id' => $enCola->id, 'estado' => 'pendiente', 'ejemplar_id' => $respuesta->json('ejemplar_id')]);
         $this->assertDatabaseHas('ejemplares', ['id' => $respuesta->json('ejemplar_id'), 'disponible' => false]);
     }

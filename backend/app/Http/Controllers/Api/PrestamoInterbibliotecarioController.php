@@ -10,7 +10,6 @@ use App\Models\Libro;
 use App\Models\Prestamo;
 use App\Models\PrestamoInterbibliotecario;
 use App\Models\ReservaLibro;
-use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
@@ -39,10 +38,6 @@ class PrestamoInterbibliotecarioController extends Controller
         'registradoPor:id,nombre',
         'devueltoPor:id,nombre',
     ];
-
-    public function __construct(private ReservaLibroService $reservas)
-    {
-    }
 
     /**
      * Por páginas, con la pestaña (en_biblioteca, devueltos, todos) y la búsqueda (título,
@@ -109,8 +104,8 @@ class PrestamoInterbibliotecarioController extends Controller
     /**
      * Registra lo que llegó: una copia nueva de un título del catálogo (libro_id) o de uno
      * que se crea con lo básico (título, autores, ISBN, editorial, año y tipo de material).
-     * La copia nace «En estante», lista para prestar; si el título tenía lista de espera,
-     * queda apartada para el primero de la fila.
+     * La copia nace «Por colocar»: se presta cuando pasa a «En estante» (Estado de
+     * ejemplares), y ahí atiende a la lista de espera del título si la tiene.
      */
     public function store(Request $request)
     {
@@ -136,7 +131,7 @@ class PrestamoInterbibliotecarioController extends Controller
             'fecha_ingreso.before_or_equal' => 'La fecha de ingreso no puede ser futura.',
         ]);
 
-        [$prestamo, $apartada] = DB::transaction(function () use ($data, $request) {
+        $prestamo = DB::transaction(function () use ($data, $request) {
             $staff = $request->user();
             $libro = ! empty($data['libro_id']) ? Libro::findOrFail($data['libro_id']) : $this->crearTitulo($data, $staff->id);
 
@@ -145,10 +140,10 @@ class PrestamoInterbibliotecarioController extends Controller
                 'numero_copia' => Ejemplar::where('libro_id', $libro->id)->max('numero_copia') + 1,
                 'codigo_barras' => trim($data['codigo_barras']),
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
-                'estado_proceso' => 'en_estante',
+                'estado_proceso' => 'por_colocar',
             ]);
 
-            $prestamo = PrestamoInterbibliotecario::create([
+            return PrestamoInterbibliotecario::create([
                 'ejemplar_id' => $ejemplar->id,
                 'biblioteca' => trim($data['biblioteca']),
                 'fecha_ingreso' => $data['fecha_ingreso'],
@@ -156,20 +151,15 @@ class PrestamoInterbibliotecarioController extends Controller
                 'nota' => $data['nota'] ?? null,
                 'registrado_por_staff_id' => $staff->id,
             ]);
-
-            // Una copia que llega al estante atiende primero a la lista de espera del título.
-            return [$prestamo, $this->reservas->liberarLibro($ejemplar->refresh())];
         });
 
         $prestamo->load(self::RELACIONES);
         $ejemplar = $prestamo->ejemplar;
         Bitacora::registrar(
             'libros.recibir_interbibliotecario',
-            "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} (copia {$ejemplar->numero_copia}, {$ejemplar->codigo_barras}): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}"
-                .($apartada ? ". Quedó apartada para {$apartada->usuario?->descripcion()}, primera en la lista de espera" : ''),
+            "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} (copia {$ejemplar->numero_copia}, {$ejemplar->codigo_barras}, por colocar): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}",
             entidad: $prestamo,
             datos: ['codigo_barras' => $ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'fecha_limite' => $prestamo->fecha_limite->toDateString()],
-            afectado: $apartada?->usuario,
         );
 
         return response()->json($this->conDetalle($prestamo, null), 201);

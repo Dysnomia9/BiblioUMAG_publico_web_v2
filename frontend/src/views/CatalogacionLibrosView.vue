@@ -506,7 +506,7 @@ function pedirConfirmacionGuardar() {
 // ---------- Recién creada: ofrecer ir a cambiar su estado ----------
 // Toda copia nueva nace en «Inventario»; quien puede cambiar estados tiene a mano el
 // paso siguiente (Estado de ejemplares, con esa copia ya elegida).
-const copiaCreada = ref<{ titulo: string; numeroCopia: number; codigoBarras: string; codigoLomo: string | null } | null>(null)
+const copiaCreada = ref<{ titulo: string; numeroCopia: number; codigoBarras: string; codigoLomo: string | null; estado: string } | null>(null)
 const puedeCambiarEstado = computed(() => auth.puede('libros.estado'))
 
 // ---------- Dar de baja el título ----------
@@ -538,9 +538,10 @@ async function darDeBajaTitulo() {
   }
 }
 
-function avisarCopiaCreada(titulo: string, copia: Ejemplar | undefined) {
+/** La de préstamo interbibliotecario nace «Por colocar»; las demás, en «Inventario». */
+function avisarCopiaCreada(titulo: string, copia: Pick<Ejemplar, 'numero_copia' | 'codigo_barras' | 'codigo_lomo'> | undefined, estado = 'Inventario') {
   if (!copia || !puedeCambiarEstado.value) return
-  copiaCreada.value = { titulo, numeroCopia: copia.numero_copia, codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null }
+  copiaCreada.value = { titulo, numeroCopia: copia.numero_copia, codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null, estado }
 }
 
 function irACambiarEstado() {
@@ -788,7 +789,12 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </template>
       </EncabezadoGestion>
 
-      <PrestamoInterbibliotecario v-if="modo === 'interbibliotecario'" :ubicaciones="ubicacionesOpciones" :tipos-material="tiposMaterialOpciones" />
+      <PrestamoInterbibliotecario
+        v-if="modo === 'interbibliotecario'"
+        :ubicaciones="ubicacionesOpciones"
+        :tipos-material="tiposMaterialOpciones"
+        @copia-creada="(titulo, copia) => avisarCopiaCreada(titulo, copia, 'Por colocar')"
+      />
 
       <template v-else>
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)_17rem] xl:grid-cols-[12.5rem_minmax(0,1fr)_19rem]">
@@ -1468,7 +1474,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       <p>
         Se creó la copia {{ copiaCreada?.numeroCopia }} de <strong class="text-gray-900">{{ copiaCreada?.titulo }}</strong> (código
         <span class="font-mono text-gray-900">{{ copiaCreada?.codigoBarras }}</span><template v-if="copiaCreada?.codigoLomo">, lomo
-        <span class="font-mono text-gray-900">{{ copiaCreada.codigoLomo }}</span></template>). Quedó en <strong class="text-gray-900">«Inventario»</strong>
+        <span class="font-mono text-gray-900">{{ copiaCreada.codigoLomo }}</span></template>). Quedó en <strong class="text-gray-900">«{{ copiaCreada?.estado }}»</strong>
         y no se presta hasta pasar a «En estante».
       </p>
       <p class="mt-2">Puedes ir ahora a Estado de ejemplares con esta copia ya elegida.</p>
