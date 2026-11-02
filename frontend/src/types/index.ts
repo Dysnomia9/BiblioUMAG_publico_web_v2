@@ -514,6 +514,8 @@ export type Sala = {
   codigo: string
   /** No se presta a estudiantes (Sala de Seminarios): la reserva quien tiene salas.administracion. */
   solo_administracion?: boolean
+  /** Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin anotar a cada asistente: los seminarios. */
+  solo_responsable?: boolean
   // Solo si la fecha consultada es hoy — null para otras fechas.
   libre_ahora: boolean | null
   disponible_hasta_min: number | null
@@ -910,6 +912,6 @@ export type ReservaListado = {
 /** Listado de reservas: la página de la pestaña elegida, cuántas hay en cada pestaña y las salas para filtrar. */
 export type ListadoReservas = Paginado<ReservaListado> & {
   conteos: Record<VistaReservas, number>
-  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo'>[]
+  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo' | 'solo_administracion' | 'solo_responsable'>[]
 }
 

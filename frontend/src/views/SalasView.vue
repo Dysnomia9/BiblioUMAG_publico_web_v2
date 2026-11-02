@@ -121,7 +121,7 @@ const devolviendo = ref(false)
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 // Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
 const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
-const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; personas: TramoReserva['personas'] } | null>(null)
+const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; personas: TramoReserva['personas']; soloResponsable: boolean } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
 const editandoIntegrantesLlegada = ref(false)
@@ -264,6 +264,9 @@ const horaInicioOpciones = computed(() => {
   return opciones
 })
 
+/** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
+const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : cantidadMinima.value)
+
 function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number) {
   selectedSala.value = sala
   modalInmediata.value = false
@@ -271,8 +274,8 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number) {
   modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, timeToMinutes(modalHoraInicio.value)))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = cantidadMinima.value
-  rutsReserva.value = Array.from({ length: cantidadMinima.value }, () => '')
+  cantidadPersonas.value = minimoDe(sala)
+  rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
   reiniciarModos()
   rutErrores.value = {}
   modalOpen.value = true
@@ -284,8 +287,8 @@ function abrirModalInmediata(sala: Sala) {
   modalHoraInicio.value = minutesToTime(ahoraMin.value)
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, ahoraMin.value))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = cantidadMinima.value
-  rutsReserva.value = Array.from({ length: cantidadMinima.value }, () => '')
+  cantidadPersonas.value = minimoDe(sala)
+  rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
   reiniciarModos()
   rutErrores.value = {}
   modalOpen.value = true
@@ -500,6 +503,7 @@ function pedirLlegada(sala: Sala, tramo: TramoReserva, modificar = false) {
     salaNombre: sala.nombre,
     label: labelTramo(tramo.hora_inicio, tramo.hora_fin),
     personas: tramo.personas ?? [],
+    soloResponsable: !!sala.solo_responsable,
   }
   editandoIntegrantesLlegada.value = modificar
 }
@@ -618,7 +622,7 @@ const proximaConfirmacion = computed(() => {
       <GuiaUso
         :pasos="[
           'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren, o use <strong>Reservar ahora</strong>.',
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca). Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           'Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>15 minutos</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.',
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
@@ -989,7 +993,10 @@ const proximaConfirmacion = computed(() => {
               Libre {{ formatMinutos(modalDisponibleMin) }} desde las {{ modalHoraInicio }}.
             </p>
 
-            <div>
+            <p v-if="selectedSala.solo_responsable" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+              {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
+            </p>
+            <div v-else>
               <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad de personas</label>
               <select
                 v-model.number="cantidadPersonas"
@@ -1001,14 +1008,17 @@ const proximaConfirmacion = computed(() => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="block text-sm font-medium text-gray-700">RUT de cada persona <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span></label>
+              <label class="block text-sm font-medium text-gray-700">
+                {{ selectedSala.solo_responsable ? 'RUT del docente o funcionario a cargo' : 'RUT de cada persona' }}
+                <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span>
+              </label>
               <div v-for="(_, idx) in rutsReserva" :key="idx">
                 <div class="flex flex-wrap items-center gap-2">
                   <input
                     :value="rutsReserva[idx]"
                     @input="onRutInput(idx, $event)"
                     type="text"
-                    :placeholder="`${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                    :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                     :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
                     class="min-w-0 flex-1 px-4 py-2.5 border rounded-lg focus:ring-2 outline-none"
                     :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
@@ -1067,6 +1077,7 @@ const proximaConfirmacion = computed(() => {
               v-if="editandoIntegrantesDetalle"
               :reserva-id="detalleTramo.reserva_id"
               :personas="detalleTramo.personas ?? []"
+              :solo-responsable="!!detalleSala.solo_responsable"
               @guardado="integrantesGuardados"
               @cancelar="editandoIntegrantesDetalle = false"
             />
@@ -1295,6 +1306,7 @@ const proximaConfirmacion = computed(() => {
               v-if="editandoIntegrantesLlegada"
               :reserva-id="llegadaPendiente.reservaId"
               :personas="llegadaPendiente.personas"
+              :solo-responsable="llegadaPendiente.soloResponsable"
               @guardado="integrantesGuardados"
               @cancelar="editandoIntegrantesLlegada = false"
             />

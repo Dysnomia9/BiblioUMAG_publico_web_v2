@@ -62,9 +62,8 @@ class SalaSoloAdministracionTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create());
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
-        $otro = Usuario::factory()->create(['tipo' => 'funcionario']);
 
-        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut, $otro->rut]))
+        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut]))
             ->assertForbidden();
     }
 
@@ -74,11 +73,63 @@ class SalaSoloAdministracionTest extends TestCase
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
 
-        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$estudiante->rut, $docente->rut]))
+        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$estudiante->rut]))
             ->assertStatus(422);
 
-        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut, $estudiante->rut]))
+        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut]))
             ->assertCreated();
+    }
+
+    public function test_el_seminario_se_reserva_solo_a_nombre_del_docente_a_cargo(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00');
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $docente = Usuario::factory()->create(['tipo' => 'docente']);
+        $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
+        $this->assertTrue($this->seminarios()->solo_responsable);
+        $this->assertSame(1, Sala::where('solo_responsable', true)->count());
+
+        // Los asistentes no se anotan: con más de un RUT no se reserva.
+        $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut, $estudiante->rut]))
+            ->assertStatus(422)
+            ->assertJsonPath('errors.cantidad_personas.0', 'Sala de Seminarios se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.');
+
+        $id = $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut]))
+            ->assertCreated()
+            ->assertJsonPath('cantidad_personas', 1)
+            ->json('id');
+        $this->assertDatabaseCount('reserva_participantes', 1);
+
+        // El mesón sabe cuáles salas van así.
+        $sem = collect($this->getJson('/api/salas?fecha=2026-07-10')->assertOk()->json('salas'))->firstWhere('codigo', 'SEM');
+        $this->assertTrue($sem['solo_responsable']);
+
+        // Corregir quién la pidió: otro docente sí; dos personas, o un estudiante, no.
+        $otroDocente = Usuario::factory()->create(['tipo' => 'funcionario']);
+        $this->putJson("/api/reservas/{$id}/integrantes", ['ruts' => [$docente->rut, $otroDocente->rut]])->assertStatus(422);
+        $this->putJson("/api/reservas/{$id}/integrantes", ['ruts' => [$estudiante->rut]])->assertStatus(422);
+        $this->putJson("/api/reservas/{$id}/integrantes", ['ruts' => [$otroDocente->rut]])->assertOk();
+    }
+
+    public function test_ni_un_grupo_pasa_al_seminario_ni_el_seminario_a_una_logia(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00');
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $logia = Sala::where('codigo', 'L01')->sole();
+        // Un grupo a cargo de un funcionario: como el seminario no es para estudiantes, solo falta que sea uno.
+        $uno = Usuario::factory()->create(['tipo' => 'funcionario']);
+        $dos = Usuario::factory()->create();
+        $docente = Usuario::factory()->create(['tipo' => 'docente']);
+
+        $grupo = $this->postJson('/api/reservas', $this->reserva($logia, [$uno->rut, $dos->rut]))->assertCreated()->json('id');
+        $this->putJson("/api/reservas/{$grupo}", ['sala_id' => $this->seminarios()->id, 'fecha' => '2026-07-10', 'hora_inicio' => '10:00', 'hora_fin' => '12:00'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Sala de Seminarios se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo. Esta reserva tiene 2 personas: corrige los integrantes antes de pasarla a Sala de Seminarios.');
+
+        $seminario = $this->postJson('/api/reservas', [...$this->reserva($this->seminarios(), [$docente->rut]), 'hora_inicio' => '13:00', 'hora_fin' => '14:00'])->assertCreated()->json('id');
+        $this->putJson("/api/reservas/{$seminario}", ['sala_id' => $logia->id, 'fecha' => '2026-07-10', 'hora_inicio' => '15:00', 'hora_fin' => '16:00'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'La reserva necesita al menos 2 personas. Esta reserva tiene 1 persona: corrige los integrantes antes de pasarla a Logia 01.');
     }
 
     public function test_las_demas_salas_se_siguen_reservando_igual(): void

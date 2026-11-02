@@ -78,7 +78,7 @@ class SalaController extends Controller
             ...$pagina->toArray(),
             'data' => collect($pagina->items())->map(fn (Reserva $r) => ReservaSalaService::paraListado($r))->all(),
             'conteos' => collect(self::VISTAS_LISTADO)->map(fn ($estado, $v) => $filtro($v)(clone $base)->count()),
-            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion']),
+            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion', 'solo_responsable']),
         ]);
     }
 
@@ -130,6 +130,13 @@ class SalaController extends Controller
         }
 
         $integrantes = $reserva->participantes()->get(['usuarios.id', 'usuarios.rut']);
+
+        // Un seminario lleva solo a quien queda a cargo y una logia, un grupo: al cambiar de
+        // sala, los integrantes tienen que calzar con la nueva (se corrigen antes, si no).
+        $destino = Sala::findOrFail($data['sala_id']);
+        if ($destino->id !== $reserva->sala_id && ($mensaje = $destino->mensajePersonas($integrantes->count()))) {
+            return response()->json(['message' => "{$mensaje} Esta reserva tiene {$integrantes->count()} ".($integrantes->count() === 1 ? 'persona' : 'personas').": corrige los integrantes antes de pasarla a {$destino->nombre}."], 409);
+        }
 
         return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $integrantes->pluck('id'), function () use ($data, $reserva, $integrantes) {
             if ($this->reservaSalaService->existeSolapamiento($data['sala_id'], $data['fecha'], $data['hora_inicio'], $data['hora_fin'], $reserva->id)) {
@@ -197,17 +204,23 @@ class SalaController extends Controller
 
     public function storeReserva(Request $request)
     {
+        // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
+        $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
+        [$minimo, $maximo] = $sala?->personasPermitidas() ?? [(int) config('salas.personas_minimas'), Sala::PERSONAS_MAXIMAS];
+        $soloResponsable = $sala?->solo_responsable ? $sala->mensajePersonas(0) : null;
+
         $data = $request->validate([
             'sala_id' => ['required', 'exists:salas,id'],
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
-            'cantidad_personas' => ['required', 'integer', 'min:'.config('salas.personas_minimas'), 'max:5'],
+            'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
             'inmediata' => ['sometimes', 'boolean'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
-            'cantidad_personas.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
+            'cantidad_personas.min' => $soloResponsable ?? "La reserva necesita al menos {$minimo} personas.",
+            ...($soloResponsable ? ['cantidad_personas.max' => $soloResponsable] : []),
         ]);
 
         // Los RUT (o pasaportes/DNI de estudiantes extranjeros) deben pertenecer a
@@ -303,17 +316,21 @@ class SalaController extends Controller
      * Corrige quiénes vienen en una reserva activa, típicamente al confirmar la llegada:
      * alguien no vino, se sumó otra persona o un RUT quedó mal escrito. Mismas reglas que
      * al reservar: de personas_minimas (config/salas.php) a 5 usuarios registrados, sin otra sala a esa hora y dentro de la
-     * cuota diaria. Si la llegada ya estaba confirmada, quien se suma queda presente en
-     * la biblioteca, igual que el resto del grupo.
+     * cuota diaria; en un seminario, solo quien queda a cargo. Si la llegada ya estaba
+     * confirmada, quien se suma queda presente en la biblioteca, igual que el resto del grupo.
      */
     public function actualizarIntegrantes(Request $request, Reserva $reserva, EntradaService $entradas)
     {
+        $sala = $reserva->sala;
+        [$minimo, $maximo] = $sala->personasPermitidas();
+        $soloResponsable = $sala->solo_responsable ? $sala->mensajePersonas(0) : null;
+
         $data = $request->validate([
-            'ruts' => ['required', 'array', 'min:'.config('salas.personas_minimas'), 'max:5'],
+            'ruts' => ['required', 'array', 'min:'.$minimo, 'max:'.$maximo],
             'ruts.*' => ['required', 'string'],
         ], [
-            'ruts.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
-            'ruts.max' => 'La reserva admite como máximo 5 personas.',
+            'ruts.min' => $soloResponsable ?? "La reserva necesita al menos {$minimo} personas.",
+            'ruts.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
             'ruts.*.required' => 'Complete el RUT (o pasaporte/DNI) de cada persona.',
         ]);
 
@@ -326,6 +343,12 @@ class SalaController extends Controller
         }
 
         $ruts = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
+
+        // En una sala de la administración, quien queda a cargo (el primero) no puede ser un estudiante.
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $sala->id, $ruts[0] ?? null)) {
+            return $rechazo;
+        }
+
         $fecha = $reserva->fecha->toDateString();
         $despues = Usuario::whereIn('rut', $ruts)->get()->sortBy(fn (Usuario $u) => array_search($u->rut, $ruts, true))->values();
 

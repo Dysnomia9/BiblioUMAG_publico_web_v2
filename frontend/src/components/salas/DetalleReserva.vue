@@ -238,6 +238,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
           v-if="editandoIntegrantes"
           :reserva-id="actual.id"
           :personas="actual.personas"
+          :solo-responsable="!!salas.find((s) => s.id === actual?.sala?.id)?.solo_responsable"
           @guardado="integrantesGuardados"
           @cancelar="editandoIntegrantes = false"
         />

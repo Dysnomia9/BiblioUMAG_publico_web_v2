@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
@@ -10,12 +10,17 @@ import type { IntegrantesReserva, TramoReserva } from '@/types'
 /**
  * Lista editable de los integrantes de una reserva de sala: quitar a quien no vino,
  * sumar a otra persona o corregir un RUT. El servidor vuelve a revisar todo al
- * guardar (de 3 a 5 personas registradas, sin otra sala a esa hora, cuota diaria).
+ * guardar (de 3 a 5 personas registradas, sin otra sala a esa hora, cuota diaria). En un
+ * seminario (soloResponsable) va una sola persona: el docente o funcionario a cargo.
  */
 const props = defineProps<{
   reservaId: number
   personas: TramoReserva['personas']
+  soloResponsable?: boolean
 }>()
+
+const minimo = computed(() => (props.soloResponsable ? 1 : MINIMO))
+const maximo = computed(() => (props.soloResponsable ? 1 : MAXIMO))
 
 const emit = defineEmits<{
   guardado: [resultado: IntegrantesReserva]
@@ -28,7 +33,7 @@ type Fila = { clave: number; rut: string; nombre: string | null; modo: ModoDocum
 const toast = useToast()
 let siguienteClave = 0
 const filas = ref<Fila[]>(props.personas.map((p) => ({ clave: siguienteClave++, rut: p.rut, nombre: p.nombre, modo: modoSegunValor(p.rut) })))
-while (filas.value.length < MINIMO) filas.value.push({ clave: siguienteClave++, rut: '', nombre: null, modo: 'rut' })
+while (filas.value.length < minimo.value) filas.value.push({ clave: siguienteClave++, rut: '', nombre: null, modo: 'rut' })
 const errores = ref<Record<number, string>>({})
 const guardando = ref(false)
 const lista = ref<HTMLElement | null>(null)
@@ -130,8 +135,8 @@ async function guardar() {
           <button
             type="button"
             @click="quitar(idx)"
-            :disabled="filas.length <= MINIMO || guardando"
-            :title="filas.length <= MINIMO ? `La reserva necesita al menos ${MINIMO} personas` : 'Quitar a esta persona'"
+            :disabled="filas.length <= minimo || guardando"
+            :title="filas.length <= minimo ? (soloResponsable ? 'Va a nombre de quien la pide: cambia el RUT si es otra persona' : `La reserva necesita al menos ${minimo} personas`) : 'Quitar a esta persona'"
             :aria-label="`Quitar a la persona ${idx + 1}`"
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
           >
@@ -146,7 +151,7 @@ async function guardar() {
     </div>
 
     <button
-      v-if="filas.length < MAXIMO"
+      v-if="filas.length < maximo"
       type="button"
       @click="agregar"
       :disabled="guardando"
@@ -154,7 +159,8 @@ async function guardar() {
     >
       + Agregar persona
     </button>
-    <p v-else class="mt-2 text-xs text-gray-400">Máximo {{ MAXIMO }} personas por reserva.</p>
+    <p v-else-if="soloResponsable" class="mt-2 text-xs text-gray-500">Solo el docente o funcionario a cargo: los asistentes no se anotan.</p>
+    <p v-else class="mt-2 text-xs text-gray-400">Máximo {{ maximo }} personas por reserva.</p>
 
     <div class="mt-3 flex gap-2">
       <button

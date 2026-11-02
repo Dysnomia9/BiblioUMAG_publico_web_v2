@@ -587,6 +587,8 @@ class ReservaSalaService
                 'tipo' => $sala->tipo,
                 'codigo' => $sala->codigo,
                 'solo_administracion' => $sala->solo_administracion,
+                // Los seminarios: se reservan a nombre de quien la pide, sin los asistentes.
+                'solo_responsable' => $sala->solo_responsable,
                 'libre_ahora' => $esHoy ? $disponibleHastaMin > 0 : null,
                 'disponible_hasta_min' => $disponibleHastaMin,
                 'tramos' => $tramosPorSala->get($sala->id, collect())->values(),
