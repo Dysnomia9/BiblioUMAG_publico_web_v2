@@ -176,13 +176,16 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
 - **Préstamo interbibliotecario** (`prestamos_interbibliotecarios`, pestaña de
   Catalogación): el material que otra biblioteca le presta a la nuestra se registra
   al llegar (título nuevo con lo básico o copia de uno del catálogo), con la
-  biblioteca propietaria, la fecha de ingreso y la fecha en que vuelve a ella. A los
-  usuarios se les presta hasta un día hábil antes (lunes a viernes, sin días sin
-  atención): el mesón propone esa fecha y no deja pasarla, y después ya no se presta
-  ni se reserva. «Devolver a su biblioteca» deja la copia en «Devuelto a su
-  biblioteca»: sale del catálogo y del portal, pero sus préstamos siguen en el
-  historial y en los reportes (filtro «Interbibliotecario» y lo recibido y devuelto
-  en el período).
+  biblioteca propietaria, la fecha de ingreso y la fecha en que vuelve a ella; la
+  copia nace «Por colocar» y se presta al pasar a «En estante». A los usuarios se
+  les presta hasta un día hábil antes (lunes a viernes, sin días sin atención): el
+  mesón propone esa fecha y no deja pasarla, y después ya no se presta ni se
+  reserva. «Devolver a su biblioteca» deja la copia en «Devuelto a su biblioteca»:
+  sale del catálogo y del portal, pero sus préstamos siguen en el historial y en los
+  reportes (filtro «Interbibliotecario» y lo recibido y devuelto en el período). Si
+  figura prestada pero el usuario ya no la tiene, Catalogación o el mesón (en
+  Préstamos, «Ya volvió a su biblioteca») cierran ese préstamo sin multa con un
+  motivo y escribiendo CONFIRMAR.
 - **Etiquetas para imprimir**: códigos de barras (Code128) y etiquetas de lomo
   con el **código de lomo** de 8 dígitos (`ejemplares.codigo_lomo`), que el lector
   reconoce igual que el código de 14 dígitos.
