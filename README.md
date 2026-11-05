@@ -263,7 +263,7 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
 ### Portal de autoservicio
 
 Para estudiantes, docentes y funcionarios, que entran por el mismo login que el
-personal (con su correo o RUT) y llegan a su propia sesión, separada del panel:
+personal (con su correo) y llegan a su propia sesión, separada del panel:
 
 - Marcar entrada y salida por RUT o escaneando el QR con la cámara.
 - Consultar el catálogo (por título, autor, área o ISBN), ordenado de la A a la Z
