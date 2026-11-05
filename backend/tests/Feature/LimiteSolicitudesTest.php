@@ -29,16 +29,16 @@ class LimiteSolicitudesTest extends TestCase
         $this->postJson('/api/auth/login', ['email' => $otra->email, 'password' => 'password123'])->assertOk();
     }
 
-    public function test_el_limite_del_login_del_portal_cuenta_el_rut_con_o_sin_puntos_como_la_misma_cuenta(): void
+    public function test_el_limite_del_login_cuenta_el_correo_con_o_sin_mayusculas_como_la_misma_cuenta(): void
     {
-        $usuario = Usuario::factory()->create(['rut' => '15.003.151-6']);
+        Usuario::factory()->create(['email' => 'valentina.soto@umag.cl']);
 
         for ($i = 0; $i < 6; $i++) {
-            $this->postJson('/api/auth/usuario/login', ['rut' => '15.003.151-6', 'password' => 'incorrecta'])->assertStatus(422);
+            $this->postJson('/api/auth/ingresar', ['identificador' => 'valentina.soto@umag.cl', 'password' => 'incorrecta'])->assertStatus(422);
         }
 
-        $this->postJson('/api/auth/usuario/login', ['rut' => '150031516', 'password' => 'password'])->assertStatus(429);
-        $this->postJson('/api/auth/usuario/login', ['rut' => Usuario::factory()->create()->rut, 'password' => 'password'])->assertOk();
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'Valentina.Soto@UMAG.cl', 'password' => 'password'])->assertStatus(429);
+        $this->postJson('/api/auth/ingresar', ['identificador' => Usuario::factory()->create()->email, 'password' => 'password'])->assertOk();
     }
 
     public function test_una_cuenta_del_meson_puede_hacer_mas_de_60_solicitudes_por_minuto(): void

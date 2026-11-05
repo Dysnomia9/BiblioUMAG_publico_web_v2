@@ -8,7 +8,7 @@ const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
-    // Un solo login para el personal y los usuarios (correo o RUT). Las direcciones de los
+    // Un solo login para el personal y los usuarios (con el correo). Las direcciones de los
     // logins de antes llevan a este: enlaces guardados, el QR de la entrada y la vuelta de Google.
     {
       path: '/login',

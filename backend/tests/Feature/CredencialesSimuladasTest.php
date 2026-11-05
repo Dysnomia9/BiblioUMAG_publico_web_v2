@@ -45,7 +45,7 @@ class CredencialesSimuladasTest extends TestCase
     public function test_el_personal_y_los_usuarios_entran_con_su_correo_simulado(): void
     {
         Staff::factory()->create(['nombre' => 'Ignacio Contreras', 'email' => 'admin@umag.cl', 'password' => 'admin123']);
-        Usuario::factory()->create(['nombre' => 'Valentina', 'apellido' => 'Soto', 'rut' => '11.111.111-1', 'password' => 'umag123']);
+        Usuario::factory()->create(['nombre' => 'Valentina', 'apellido' => 'Soto', 'rut' => '11.111.111-1', 'email' => 'valentina.soto@umag.cl', 'password' => 'umag123']);
         $this->artisan('login-v2:correos')->assertSuccessful();
 
         $staff = $this->postJson('/api/auth/ingresar', ['identificador' => 'IGContre@umag.cl', 'password' => 'demo1234'])
@@ -61,7 +61,7 @@ class CredencialesSimuladasTest extends TestCase
         // Las credenciales de siempre siguen funcionando donde estaban.
         $this->app['auth']->forgetGuards();
         $this->postJson('/api/auth/login', ['email' => 'admin@umag.cl', 'password' => 'admin123'])->assertOk();
-        $this->postJson('/api/auth/usuario/login', ['rut' => '11.111.111-1', 'password' => 'umag123'])->assertOk();
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'valentina.soto@umag.cl', 'password' => 'umag123'])->assertOk();
     }
 
     public function test_tambien_se_entra_con_el_correo_y_la_contrasena_reales(): void
@@ -78,7 +78,7 @@ class CredencialesSimuladasTest extends TestCase
 
         // La clave de prueba no sirve con el correo real, y el simulado sigue con la suya.
         $this->postJson('/api/auth/ingresar', ['identificador' => 'admin@umag.cl', 'password' => 'demo1234'])
-            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo o RUT y la contraseña no coinciden.');
+            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo y la contraseña no coinciden.');
         $this->artisan('login-v2:correos')->assertSuccessful();
         $this->app['auth']->forgetGuards();
         $this->postJson('/api/auth/ingresar', ['identificador' => 'vasoto@umag.cl', 'password' => 'demo1234'])
@@ -104,13 +104,13 @@ class CredencialesSimuladasTest extends TestCase
         $this->artisan('login-v2:correos')->assertSuccessful();
 
         $this->postJson('/api/auth/ingresar', ['identificador' => 'vasoto@umag.cl', 'password' => 'umag123'])
-            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo o RUT y la contraseña no coinciden.');
+            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo y la contraseña no coinciden.');
         $this->postJson('/api/auth/ingresar', ['identificador' => 'inactiva@umag.cl', 'password' => 'demo1234'])
             ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'Tu cuenta se encuentra inactiva. Contacta a biblioteca.');
         $this->postJson('/api/auth/ingresar', ['identificador' => 'ines@umag.cl', 'password' => 'umag123'])
             ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'Tu cuenta se encuentra inactiva. Contacta a biblioteca.');
         $this->postJson('/api/auth/ingresar', ['identificador' => 'nadie@umag.cl', 'password' => 'demo1234'])
-            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo o RUT y la contraseña no coinciden.');
+            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo y la contraseña no coinciden.');
     }
 
     public function test_apagados_o_en_produccion_no_sirven_pero_las_claves_reales_si(): void

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
- * Lo común a las formas de entrar del login (correo o RUT con contraseña, Google y LDAP):
+ * Lo común a las formas de entrar del login (correo y contraseña, Google y LDAP):
  * a quién pertenece la identidad ya verificada (al personal, a un usuario o a los dos) y
  * la sesión de Sanctum que le corresponde. Ninguna forma crea cuentas: solo entran las
  * que un administrador ya dio de alta.

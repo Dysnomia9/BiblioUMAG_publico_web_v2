@@ -14,10 +14,10 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * El login único, para el personal y los usuarios por igual: correo (o RUT, pasaporte o
- * DNI) y contraseña. El servidor busca de quién son y responde a qué sesión corresponden;
- * si la misma persona tiene cuenta del personal y de usuario con esa clave, le pregunta con
- * cuál entra (LoginUnificadoService::resolver()).
+ * El login único, para el personal y los usuarios por igual: correo y contraseña. El RUT (o
+ * el pasaporte o DNI) no sirve para entrar. El servidor busca de quién es el correo y
+ * responde a qué sesión corresponde; si la misma persona tiene cuenta del personal y de
+ * usuario con esa clave, le pregunta con cuál entra (LoginUnificadoService::resolver()).
  *
  * En desarrollo también valen los correos y la clave simulados de credenciales_simuladas
  * (config/login_v2.php); nunca en producción.
@@ -31,18 +31,19 @@ class IngresoController extends Controller
     public function ingresar(Request $request)
     {
         $data = $request->validate([
-            'identificador' => ['required', 'string', 'max:255'],
+            'identificador' => ['required', 'string', 'max:255', 'email'],
             'password' => ['required', 'string'],
             'como' => ['nullable', Rule::in(['staff', 'usuario'])],
         ], [
-            'identificador.required' => 'Ingresa tu correo institucional o tu RUT.',
+            'identificador.required' => 'Ingresa tu correo institucional.',
+            'identificador.email' => 'Se entra con el correo institucional (por ejemplo, nombre@umag.cl), no con el RUT.',
             'password.required' => 'Ingresa tu contraseña.',
         ]);
 
-        $cuentas = $this->cuentasConClave(trim($data['identificador']), $data['password']);
+        $cuentas = $this->cuentasConClave(Str::lower(trim($data['identificador'])), $data['password']);
 
         if (! $cuentas) {
-            throw ValidationException::withMessages(['identificador' => ['El correo o RUT y la contraseña no coinciden.']]);
+            throw ValidationException::withMessages(['identificador' => ['El correo y la contraseña no coinciden.']]);
         }
 
         $activas = array_values(array_filter($cuentas, fn ($cuenta) => $cuenta->activo));
@@ -64,31 +65,22 @@ class IngresoController extends Controller
     }
 
     /**
-     * Las cuentas de ese correo o documento cuya contraseña es la que se escribió: la del
-     * personal (por su correo), la del usuario (por su correo, uno adicional o su RUT) y, en
-     * desarrollo, la del correo simulado. Sin ninguna, la clave igual se compara una vez
-     * (Credenciales): que no se note por el tiempo qué cuentas existen.
+     * Las cuentas de ese correo cuya contraseña es la que se escribió: la del personal, la
+     * del usuario (por su correo principal o uno adicional) y, en desarrollo, la del correo
+     * simulado. Sin ninguna, la clave igual se compara una vez (Credenciales): que no se
+     * note por el tiempo qué cuentas existen.
      *
      * @return list<Staff|Usuario>
      */
-    private function cuentasConClave(string $identificador, string $clave): array
+    private function cuentasConClave(string $correo, string $clave): array
     {
-        $intentos = [];
+        $staff = Staff::where('email', $correo)->first();
+        $usuario = Usuario::buscarPorCorreo($correo);
+        $intentos = [[$staff, $staff?->password], [$usuario, $usuario?->password]];
 
-        if (str_contains($identificador, '@')) {
-            $correo = Str::lower($identificador);
-            $staff = Staff::where('email', $correo)->first();
-            $usuario = Usuario::buscarPorCorreo($correo);
-            $intentos[] = [$staff, $staff?->password];
-            $intentos[] = [$usuario, $usuario?->password];
-
-            if (config('login_v2.correos_simulados') && ! app()->isProduction()) {
-                $simulada = CredencialSimulada::with('cuenta')->where('correo', $correo)->first();
-                $intentos[] = [$simulada?->cuenta, $simulada?->clave];
-            }
-        } else {
-            $usuario = Usuario::buscarPorIdentificador($identificador);
-            $intentos[] = [$usuario, $usuario?->password];
+        if (config('login_v2.correos_simulados') && ! app()->isProduction()) {
+            $simulada = CredencialSimulada::with('cuenta')->where('correo', $correo)->first();
+            $intentos[] = [$simulada?->cuenta, $simulada?->clave];
         }
 
         $intentos = array_filter($intentos, fn (array $intento) => $intento[0] !== null);

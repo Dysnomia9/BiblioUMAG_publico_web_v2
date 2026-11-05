@@ -9,8 +9,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * El login único (/auth/ingresar): correo o RUT y contraseña para el personal y los
- * usuarios, y la pregunta de con qué cuenta entrar cuando la persona tiene las dos.
+ * El login único (/auth/ingresar): correo y contraseña para el personal y los usuarios (con
+ * el RUT no se entra), y la pregunta de con qué cuenta entrar cuando la persona tiene las dos.
  */
 class IngresoTest extends TestCase
 {
@@ -41,19 +41,31 @@ class IngresoTest extends TestCase
         $this->assertSame('Inició sesión en el panel del personal', Bitacora::where('accion', 'sesion.ingresar')->sole()->descripcion);
     }
 
-    public function test_un_usuario_entra_con_su_correo_uno_adicional_su_rut_o_su_pasaporte(): void
+    public function test_un_usuario_entra_con_su_correo_o_uno_adicional(): void
     {
         $valentina = Usuario::factory()->create(['rut' => '11.111.111-1', 'email' => 'valentina.soto@umag.cl', 'password' => 'umag123']);
         $valentina->correos()->create(['email' => 'vsoto@alumnos.umag.cl']);
-        Usuario::factory()->create(['rut' => 'FT482913', 'tipo_documento' => 'pasaporte', 'pais' => 'Brasil', 'email' => null, 'password' => 'umag123']);
 
-        foreach (['valentina.soto@umag.cl', 'VSoto@alumnos.umag.cl', '11.111.111-1', '111111111', 'ft482913'] as $identificador) {
+        foreach (['valentina.soto@umag.cl', 'VSoto@alumnos.umag.cl'] as $identificador) {
             $this->ingresar($identificador, 'umag123')->assertOk()->assertJsonPath('tipo', 'usuario');
         }
 
-        $this->ingresar('11.111.111-1', 'otra-clave')
-            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo o RUT y la contraseña no coinciden.');
+        $this->ingresar('valentina.soto@umag.cl', 'otra-clave')
+            ->assertStatus(422)->assertJsonPath('errors.identificador.0', 'El correo y la contraseña no coinciden.');
         $this->ingresar('nadie@umag.cl', 'umag123')->assertStatus(422);
+    }
+
+    public function test_con_el_rut_o_el_pasaporte_no_se_entra(): void
+    {
+        Usuario::factory()->create(['rut' => '11.111.111-1', 'email' => 'valentina.soto@umag.cl', 'password' => 'umag123']);
+        Usuario::factory()->create(['rut' => 'FT482913', 'tipo_documento' => 'pasaporte', 'pais' => 'Brasil', 'email' => null, 'password' => 'umag123']);
+
+        foreach (['11.111.111-1', '111111111', 'ft482913'] as $identificador) {
+            $this->ingresar($identificador, 'umag123')
+                ->assertStatus(422)
+                ->assertJsonPath('errors.identificador.0', 'Se entra con el correo institucional (por ejemplo, nombre@umag.cl), no con el RUT.');
+        }
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_con_cuenta_del_personal_y_de_usuario_pregunta_con_cual_entrar(): void
@@ -72,8 +84,6 @@ class IngresoTest extends TestCase
 
         $this->ingresar('carla@umag.cl', 'misma-clave', 'usuario')->assertOk()->assertJsonPath('tipo', 'usuario');
         $this->ingresar('carla@umag.cl', 'misma-clave', 'staff')->assertOk()->assertJsonPath('tipo', 'staff');
-        // Con el RUT solo existe su cuenta de usuario: entra directo.
-        $this->ingresar('22.222.222-2', 'misma-clave')->assertOk()->assertJsonPath('tipo', 'usuario');
     }
 
     public function test_si_cada_cuenta_tiene_su_clave_la_clave_decide(): void

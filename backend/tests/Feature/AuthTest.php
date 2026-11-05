@@ -53,7 +53,7 @@ class AuthTest extends TestCase
     public function test_el_login_compara_la_clave_aunque_la_cuenta_no_exista(): void
     {
         // Así tarda lo mismo exista o no la cuenta, y no se puede averiguar por el tiempo
-        // qué correos o RUT están registrados.
+        // qué correos están registrados.
         $sinClave = Usuario::factory()->create(['password' => null]);
         // Envuelve el Hash real (make() sigue funcionando) y solo cuenta las comparaciones.
         $hash = Mockery::mock(Hash::getFacadeRoot());
@@ -61,8 +61,8 @@ class AuthTest extends TestCase
         Hash::swap($hash);
 
         $this->postJson('/api/auth/login', ['email' => 'nadie@umag.cl', 'password' => 'algo'])->assertStatus(422);
-        $this->postJson('/api/auth/usuario/login', ['rut' => '15.000.000-9', 'password' => 'algo'])->assertStatus(422);
-        $this->postJson('/api/auth/usuario/login', ['rut' => $sinClave->rut, 'password' => 'algo'])->assertStatus(422);
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'nadie@umag.cl', 'password' => 'algo'])->assertStatus(422);
+        $this->postJson('/api/auth/ingresar', ['identificador' => $sinClave->email, 'password' => 'algo'])->assertStatus(422);
     }
 
     public function test_el_correo_del_personal_entra_con_o_sin_mayusculas(): void

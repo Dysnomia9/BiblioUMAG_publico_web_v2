@@ -16,9 +16,9 @@ const usuarioAuth = useUsuarioAuthStore()
 const toast = useToast()
 const anio = new Date().getFullYear()
 
-// Un solo formulario para el personal y los usuarios: correo institucional o RUT (también
-// pasaporte o DNI) y contraseña. El servidor busca de quién son (POST /auth/ingresar) y
-// responde a qué sesión corresponden.
+// Un solo formulario para el personal y los usuarios: correo institucional y contraseña (con
+// el RUT no se entra). El servidor busca de quién es (POST /auth/ingresar) y responde a qué
+// sesión corresponde.
 const identificador = ref('')
 const password = ref('')
 const mostrarPassword = ref(false)
@@ -61,10 +61,14 @@ async function ingresar() {
   error.value = ''
   const valor = identificador.value.trim()
   if (!valor || !password.value) {
-    error.value = 'Ingresa tu correo institucional o tu RUT, y tu contraseña.'
+    error.value = 'Ingresa tu correo institucional y tu contraseña.'
     return
   }
-  if (valor.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) {
+  if (!valor.includes('@')) {
+    error.value = 'Se entra con el correo institucional (por ejemplo, nombre@umag.cl), no con el RUT.'
+    return
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) {
     error.value = 'Revisa el correo (por ejemplo, nombre@umag.cl).'
     return
   }
@@ -271,7 +275,7 @@ const destacados = [
             <template v-else>
               <form @submit.prevent="ingresar" class="space-y-4" novalidate>
                 <div>
-                  <label for="identificador" class="block text-sm font-medium text-gray-700 mb-1.5">Correo institucional o RUT</label>
+                  <label for="identificador" class="block text-sm font-medium text-gray-700 mb-1.5">Correo institucional</label>
                   <div class="relative">
                     <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -279,18 +283,18 @@ const destacados = [
                     <input
                       id="identificador"
                       v-model="identificador"
-                      type="text"
+                      type="email"
+                      inputmode="email"
                       autocomplete="username"
                       autocapitalize="none"
                       spellcheck="false"
-                      placeholder="nombre@umag.cl o 12.345.678-5"
+                      placeholder="nombre@umag.cl"
                       class="w-full rounded-lg border bg-gray-50/50 pl-10 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent"
                       :class="error ? 'border-red-300 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
                       :aria-invalid="error ? 'true' : 'false'"
                       @input="error = ''"
                     />
                   </div>
-                  <p class="mt-1 text-xs text-gray-500">Con pasaporte o DNI, escribe su número.</p>
                 </div>
 
                 <div>

@@ -49,11 +49,13 @@ class DocumentoExtranjeroTest extends TestCase
             ->assertJsonPath('usuario.tipo_documento', 'dni');
     }
 
-    public function test_el_portal_acepta_el_login_con_pasaporte(): void
+    public function test_al_portal_se_entra_con_el_correo_no_con_el_pasaporte(): void
     {
-        Usuario::factory()->create(['rut' => 'FT482913', 'tipo_documento' => 'pasaporte', 'password' => 'umag1234']);
+        Usuario::factory()->create(['rut' => 'FT482913', 'tipo_documento' => 'pasaporte', 'email' => 'joao.silva@umag.cl', 'password' => 'umag1234']);
 
-        $this->postJson('/api/auth/usuario/login', ['rut' => 'ft482913', 'password' => 'umag1234'])->assertOk();
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'joao.silva@umag.cl', 'password' => 'umag1234'])
+            ->assertOk()->assertJsonPath('tipo', 'usuario');
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'ft482913', 'password' => 'umag1234'])->assertStatus(422);
     }
 
     public function test_un_estudiante_extranjero_puede_integrar_una_reserva_de_sala(): void

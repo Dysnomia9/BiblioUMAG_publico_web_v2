@@ -1,6 +1,6 @@
 <?php
 
-// Solo para probar el login (/login) en desarrollo: además del correo o RUT reales con su
+// Solo para probar el login (/login) en desarrollo: además del correo real con su
 // contraseña, cada cuenta del personal y cada usuario puede entrar con un correo SIMULADO
 // con sus iniciales (Ignacio Contreras → igcontre@umag.cl) y una clave de prueba, guardados
 // aparte en credenciales_simuladas (php artisan login-v2:correos): no reemplazan el correo,

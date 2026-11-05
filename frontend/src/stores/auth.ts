@@ -27,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Guarda la sesión que emitió el login (LoginView.vue: correo o RUT, Google o LDAP).
+   * Guarda la sesión que emitió el login (LoginView.vue: correo, Google o LDAP).
    * staff se completa en la próxima validar()/GET /auth/me.
    */
   function establecerToken(nuevoToken: string) {

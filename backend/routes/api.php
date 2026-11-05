@@ -37,14 +37,12 @@ use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\VigenciaController;
 use Illuminate\Support\Facades\Route;
 
-// El login único (LoginView.vue): correo o RUT y contraseña, para el personal y los
-// usuarios; responde a qué sesión corresponde o, si la persona tiene las dos cuentas,
-// pide elegir (LoginUnificadoService).
+// El login único (LoginView.vue): correo y contraseña, para el personal y los usuarios
+// (con el RUT no se entra); responde a qué sesión corresponde o, si la persona tiene las
+// dos cuentas, pide elegir (LoginUnificadoService).
 Route::post('/auth/ingresar', [IngresoController::class, 'ingresar'])->middleware('throttle:login');
-// Los ingresos de antes, solo del personal (correo) o solo del portal (RUT): siguen
-// respondiendo para quien los use directamente.
+// El ingreso de antes, solo del personal (por correo): sigue respondiendo para quien lo use directamente.
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
-Route::post('/auth/usuario/login', [UsuarioAuthController::class, 'login'])->middleware('throttle:login');
 
 // Google y LDAP en el mismo login (ver la nota de "no configurado todavía" en .env.example).
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);

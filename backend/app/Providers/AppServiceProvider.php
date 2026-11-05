@@ -65,11 +65,11 @@ class AppServiceProvider extends ServiceProvider
 
         // Intentos de login: por cuenta + IP, como hace Laravel Breeze. Contarlos
         // solo por IP bloquearía a todo el campus a la vez, porque sus computadores
-        // y celulares suelen salir a internet por la misma IP. El identificador se
-        // normaliza para que escribir el RUT con o sin puntos cuente como el mismo.
+        // y celulares suelen salir a internet por la misma IP. El correo cuenta igual
+        // con o sin mayúsculas.
         RateLimiter::for('login', function (Request $request) {
-            $identificador = (string) ($request->input('identificador') ?? $request->input('email') ?? $request->input('rut') ?? $request->input('usuario') ?? '');
-            $cuenta = Str::lower(preg_replace('/[^0-9a-zA-Z@]/', '', $identificador));
+            $identificador = (string) ($request->input('identificador') ?? $request->input('email') ?? $request->input('usuario') ?? '');
+            $cuenta = Str::lower(trim($identificador));
 
             return Limit::perMinute(6)->by('login:'.$cuenta.'|'.$request->ip());
         });
