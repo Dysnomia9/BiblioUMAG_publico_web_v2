@@ -5,10 +5,10 @@ dist
 *.tsbuildinfo
 .DS_Store
 
-# Archivos que deja pdflatex al compilar el manual (se regeneran solos)
-docs/manual-usuario/*.aux
-docs/manual-usuario/*.out
-docs/manual-usuario/*.toc
+# Archivos que deja pdflatex al compilar los manuales (se regeneran solos)
+docs/manuales/*.aux
+docs/manuales/*.out
+docs/manuales/*.toc
 
 # Respaldos de la base de datos (datos reales: no se suben)
 respaldos/

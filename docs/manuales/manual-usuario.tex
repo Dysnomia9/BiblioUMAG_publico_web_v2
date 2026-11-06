@@ -1,0 +1,541 @@
+\documentclass[11pt,a4paper]{report}
+
+% Nombre y versión de este manual: los usan la portada, el encabezado y el PDF.
+\newcommand{\nombremanual}{Manual de Usuario}
+\newcommand{\versionmanual}{noviembre de 2026}
+
+% Paquetes, paleta, títulos, cajas y portada, compartidos con el Manual de Administración.
+\input{estilo-manual}
+
+\begin{document}
+
+\portadamanual
+  {Portal de la biblioteca para estudiantes,\\docentes y funcionarios}
+  {\textbf{Portal de la biblioteca:} ruta \texttt{/login}, con tu correo institucional\\[6pt]
+   {\small (entra desde la dirección web que indique la biblioteca)}}
+
+\tableofcontents
+\clearpage
+
+% ======================================================================
+\chapter{Introducción}
+% ======================================================================
+
+\section{Sobre este manual}
+
+Este manual explica, paso a paso, cómo usar el \textbf{portal de la
+biblioteca}: el sitio de autoservicio del Sistema de Biblioteca UMAG para
+estudiantes, docentes y funcionarios. Desde el portal puedes, sin pasar por
+el mesón:
+
+\begin{itemize}
+  \item marcar tu entrada a la biblioteca, escaneando un código QR o con tu
+  RUT;
+  \item buscar libros y revistas en el catálogo, ver si están disponibles y
+  reservarlos;
+  \item reservar una sala de estudio para el día de hoy;
+  \item revisar tus préstamos, reservas y multas, y descargar tu Constancia
+  de No Multa;
+  \item ver tu historial de ingresos.
+\end{itemize}
+
+Llevarte un libro o un recurso de apoyo, devolverlo y pagar una multa se
+hace en el mesón de la biblioteca; el capítulo~\ref{cap:meson} explica las
+reglas.
+
+Cada capítulo corresponde a una pantalla del portal, con capturas reales y
+una explicación de qué hace cada botón.
+
+\section{Requisitos}
+
+\begin{itemize}
+  \item Un computador, tablet o teléfono con un navegador web moderno
+  (Chrome, Edge, Firefox).
+  \item Conexión a la red donde esté publicado el sistema.
+  \item Tu correo institucional y tu contraseña del portal
+  (capítulo~\ref{cap:login}).
+  \item Para marcar tu entrada con el código QR, un teléfono con cámara.
+\end{itemize}
+
+\section{Tu cuenta}
+
+Tu cuenta de la biblioteca está \textbf{vigente hasta el 31 de marzo} del
+año siguiente a su última renovación. Con la cuenta vencida no puedes
+marcar tu entrada, entrar al portal ni llevarte material, pero sí devolver
+lo que tengas y pagar tus multas. Para renovarla, acércate al mesón.
+
+\section{Cómo moverse por el portal}
+
+El portal se adapta al equipo desde el que lo abres. En un computador
+(ventanas de 1024 píxeles de ancho o más) muestra un panel de inicio con tu
+actividad, las dos formas de marcar entrada lado a lado y el catálogo junto
+a \textbf{Mis reservas}. En teléfonos y tablets usa una sola columna, con
+botones grandes pensados para el tacto.
+
+En la barra superior, las pestañas \textbf{Inicio}, \textbf{Entrada},
+\textbf{Catálogo} y \textbf{Salas} llevan a cada sección. A la derecha
+aparecen tu nombre y tu tipo de usuario; al pulsarlos se abre un menú con
+el RUT de tu cuenta, \textbf{Mi perfil}, \textbf{Mis ingresos} y
+\textbf{Cerrar sesión}. En el teléfono, una barra fija abajo lleva a
+Inicio, Catálogo, Entrada (el botón central), Salas y Perfil.
+
+Junto a tu nombre está el interruptor \textbf{día / noche}: al pulsarlo, el
+portal pasa a colores oscuros, más descansados para la vista de noche, y al
+volver a pulsarlo regresa al modo claro. La elección queda guardada en ese
+teléfono o computador.
+
+Las capturas de este manual muestran el formato de computador; el de
+teléfono se ve así:
+
+\captura{27b-portal-telefono.png}{El portal en un teléfono: inicio, marcar entrada, catálogo y salas (la línea de tiempo se desliza de lado).}
+
+% ======================================================================
+\chapter{Inicio de sesión}
+\label{cap:login}
+% ======================================================================
+
+Al portal se entra por el mismo inicio de sesión que usa el personal de la
+biblioteca, en la ruta \texttt{/login}. El sistema reconoce que tu cuenta
+es de estudiante, docente o funcionario y te lleva al portal.
+
+\captura{01-login.png}{Inicio de sesión, el mismo para estudiantes, docentes, funcionarios y personal de biblioteca.}
+
+\begin{enumerate}
+  \item En \textbf{Correo institucional}, escribe tu correo de la
+  universidad (por ejemplo, \texttt{nombre@umag.cl}). Si la biblioteca
+  tiene registrado otro correo tuyo, también sirve.
+  \item En \textbf{Contraseña}, escribe tu contraseña del portal. El ojo al
+  final de la casilla la muestra u oculta.
+  \item Pulsa \textbf{Ingresar} (o \texttt{Enter}).
+\end{enumerate}
+
+\begin{importante}
+Se entra \textbf{con el correo, no con el RUT}. Si escribes tu RUT, el
+sistema avisa: ``Se entra con el correo institucional (por ejemplo,
+nombre@umag.cl), no con el RUT.'' El RUT se sigue usando para marcar tu
+entrada y en las reservas de salas.
+\end{importante}
+
+\captura{01b-login-con-rut.png}{Con el RUT no se entra: el aviso pide el correo institucional.}
+
+Si llegaste al inicio de sesión desde otra página ---por ejemplo, al
+escanear el código QR de la entrada sin haber iniciado sesión---, al entrar
+vuelves a esa misma página.
+
+\section{Si también tienes cuenta del personal}
+
+Quien trabaja en la biblioteca y además estudia puede tener las dos cuentas
+con el mismo correo. Si las dos tienen la misma contraseña, después de
+pulsar \textbf{Ingresar} aparece \textbf{Tienes dos cuentas}: elige
+\textbf{Portal de la biblioteca} para entrar al portal, o \textbf{Usar
+otros datos} para volver al formulario. Si cada cuenta tiene su propia
+contraseña, entras a la cuenta de la contraseña que escribiste.
+
+\captura{01c-login-dos-cuentas.png}{Una persona con cuenta del personal y de estudiante elige con cuál entra.}
+
+\section{Si olvidaste tu contraseña}
+
+El portal no tiene recuperación de contraseña en línea: el enlace
+\textbf{¿Olvidaste tu contraseña?} recuerda que hay que acercarse al mesón
+de la biblioteca (o contactar a un administrador). Lleva tu credencial y el
+personal te asigna una nueva.
+
+\begin{nota}
+Los botones \textbf{Continuar con Google} y \textbf{Cuenta institucional
+(LDAP)} servirán para entrar con tu cuenta de la universidad cuando esta
+los habilite. Mientras tanto, se entra con el correo y la contraseña.
+\end{nota}
+
+% ======================================================================
+\chapter{Página de Inicio}
+% ======================================================================
+
+En el computador, el inicio es un panel con lo más importante del día:
+
+\captura{27-portal-home.png}{Inicio del portal en el computador: ingreso de hoy, actividad y accesos rápidos.}
+
+\begin{itemize}
+  \item \textbf{¿Llegaste a la biblioteca?:} indica si ya marcaste tu
+  ingreso hoy (y a qué hora) y ofrece \textbf{Escanear QR} o \textbf{Usar
+  mi RUT}, que llevan directo a Marcar Entrada con la cámara encendida o
+  con el cursor en el campo del RUT.
+  \item \textbf{Ingresos de hoy:} cuántas personas marcaron su entrada hoy,
+  frente al aforo de la biblioteca. Como el sistema no registra salidas, no
+  es la cantidad de personas que están adentro en este momento.
+  \item \textbf{Buscador:} busca en el catálogo por título, autor o ISBN.
+  \item \textbf{Tu actividad:} tus préstamos vigentes con su fecha de
+  devolución (con un aviso si vencen en los próximos días o están
+  atrasados), tus reservas de libros, tus reservas de sala de hoy y el
+  estado de tus multas. Sin multas pendientes, desde ahí descargas la
+  \textbf{Constancia de No Multa} en PDF.
+  \item \textbf{Accesos rápidos:} reservar sala, explorar el catálogo y
+  \textbf{Recursos digitales} (\url{https://umag.elogim.com/}), la base de
+  datos digital de la universidad, que es un sitio externo al sistema de
+  biblioteca.
+\end{itemize}
+
+Arriba a la derecha, una etiqueta indica si la biblioteca está abierta
+(«Abierta · cierra a las 20:30») o, si está cerrada, cuándo vuelve a abrir
+(por ejemplo, «Cerrada · abre el lunes a las 08:45»), según el horario de
+atención: lunes a viernes de 08:45 a 20:30 y sábado de 09:00 a 14:00.
+
+En el teléfono, el inicio saluda con la fecha, el horario de la biblioteca
+y los ingresos del día. Debajo están el aviso \textbf{¿Llegaste a la
+biblioteca?} con \textbf{Escanear QR} y \textbf{Usar mi RUT}, el buscador
+del catálogo y \textbf{Explorar}: Catálogo, Reservar sala, Recursos
+digitales y Mis ingresos. La Constancia de No Multa, en el teléfono, está
+en \textbf{Perfil}.
+
+% ======================================================================
+\chapter{Marcar tu entrada}
+% ======================================================================
+
+Al llegar a la biblioteca puedes registrar tu propio ingreso de dos formas,
+cada una en su tarjeta. Arriba a la derecha se indica si la biblioteca está
+abierta y hasta qué hora.
+
+\captura{28-portal-entrada.png}{Marcar Entrada: escanear el código QR o ingresar con el RUT.}
+
+\begin{itemize}
+  \item \textbf{Escanear código QR} (recomendado en el celular):
+  \textbf{Abrir cámara} enciende la cámara dentro de la misma tarjeta; al
+  leer el código QR de la biblioteca, tu entrada queda registrada. La
+  primera vez, el navegador pide permiso para usar la cámara.
+  \item \textbf{Ingresar con RUT} (ideal en el computador): escribe tu RUT
+  sin puntos ni guion ---el sistema lo formatea--- y pulsa
+  \textbf{Registrar entrada} o \textbf{Enter}.
+\end{itemize}
+
+Si algo falla ---por ejemplo, un RUT que no es el de tu cuenta--- el aviso
+aparece en la misma tarjeta, sin salir de la pantalla.
+
+\captura{28b-portal-entrada-rut.png}{El RUT escrito no es el de la cuenta: el aviso aparece en la tarjeta.}
+
+\begin{nota}
+El RUT que escribes tiene que ser exactamente el de tu cuenta: desde tu
+sesión no se puede marcar la entrada de otra persona.
+\end{nota}
+
+Con el RUT correcto, tu entrada queda registrada de inmediato y el sistema
+muestra una bienvenida antes de volver solo al inicio del portal.
+
+\captura{28c-portal-entrada-exito.png}{Confirmación de entrada registrada.}
+
+% ======================================================================
+\chapter{Catálogo y reservas de libros}
+% ======================================================================
+
+En el catálogo consultas la disponibilidad de libros y revistas. El
+buscador acepta título, autor, área o ISBN (con o sin guiones) e indica
+cuántos resultados hay; los botones \textbf{Todos} y \textbf{Disponibles
+ahora} y el selector de \textbf{Área} filtran la lista. Al pulsar
+\textbf{Área} aparecen las áreas con más títulos; para encontrar otra,
+escribe unas letras de su nombre y elígela de la lista (la cruz $\times$
+quita el filtro).
+
+\captura{29-portal-catalogo.png}{Catálogo del portal, con filtros, disponibilidad y reserva directa.}
+
+Cada título muestra una portada con sus iniciales (del color de su área),
+su estado y la acción que corresponde:
+
+\begin{itemize}
+  \item \textbf{Disponible}, con cuántos ejemplares hay en estantería:
+  botón \textbf{Reservar}.
+  \item \textbf{Prestado}, con la fecha aproximada en que vuelve una copia:
+  botón \textbf{Avisarme al volver}, que te deja en la lista de espera.
+  \textbf{No disponible} indica que no hay copias libres aunque ninguna
+  esté prestada (por ejemplo, porque está apartada para otra persona).
+  \item \textbf{Lista para retirar} o \textbf{En lista de espera}, si ya lo
+  reservaste: en lugar del botón aparece \textbf{En tus reservas}.
+\end{itemize}
+
+\textbf{Ver ficha}, junto a cada título, muestra sus datos bibliográficos
+(ISBN, clasificación, pie de imprenta, materias, acceso
+electrónico\ldots). En el computador se despliega dentro de la lista; en el
+teléfono se abre una ventana con el resumen del título ---portada, estado,
+ficha y el botón para reservar--- sin alargar la página.
+
+\captura{29b-portal-ficha.png}{Ficha de un título en el portal.}
+
+\section{Reservar un libro}
+
+Reservar siempre pide confirmación. \textbf{Reservar} y \textbf{Avisarme
+al volver} abren una ventana con el título y lo que va a pasar:
+
+\begin{itemize}
+  \item Con \textbf{Reservar} se aparta una copia a tu nombre, que retiras
+  en el mesón antes de la fecha límite: tienes \textbf{tres días}, y si el
+  plazo cae en un día en que la biblioteca no atiende, se corre al
+  siguiente.
+  \item Con \textbf{Avisarme al volver} quedas en la lista de espera.
+  Cuando llega tu turno se te aparta una copia y se te avisa por correo, si
+  tienes uno registrado.
+\end{itemize}
+
+Nada se registra hasta pulsar \textbf{Confirmar}; \textbf{Cancelar} cierra
+la ventana sin reservar.
+
+\captura{29c-portal-confirmar-reserva.png}{Confirmación antes de reservar un libro.}
+
+\section{Mis reservas}
+
+\textbf{Mis reservas} (a la derecha en el computador; sobre la lista en el
+teléfono) muestra cada reserva con su estado, el plazo para retirarla o tu
+lugar en la fila, y permite cancelarla o salir de la fila (también con
+confirmación). Después de cancelar o salir de la fila hay que esperar cinco
+minutos para pedir otro libro, para que nadie pida y cancele en seguidilla;
+mientras tanto, el portal avisa a qué hora puedes volver a pedir.
+
+Cuando tu reserva diga «Lista para retirar», pasa al mesón de préstamo con
+tu RUT dentro del plazo indicado (lo recuerda el recuadro \textbf{¿Cómo
+retiro un libro?}). Si no la retiras a tiempo, la reserva se cancela sola
+esa noche y la copia pasa a la siguiente persona de la fila.
+
+\begin{importante}
+Con \textbf{multas pendientes} o con un \textbf{libro vencido} sin
+devolver, el portal no te deja reservar ni unirte a la lista de espera: te
+indica qué falta (pagar en la biblioteca o devolver el libro).
+\end{importante}
+
+% ======================================================================
+\chapter{Salas de estudio}
+% ======================================================================
+
+Desde el portal reservas las logias y salas de estudio de la biblioteca
+\textbf{para el día de hoy}. Antes de reservar, conviene conocer las
+reglas:
+
+\begin{itemize}
+  \item Las salas funcionan en horario continuo, dentro del horario de la
+  biblioteca: de lunes a viernes de 08:45 a 20:30 (la primera reserva
+  empieza a las 09:00) y el sábado de 09:00 a 14:00. Los domingos la
+  biblioteca no atiende.
+  \item Las reservas empiezan a la hora o a la media hora y duran entre 30
+  minutos y 2 horas.
+  \item Cada reserva es para un grupo de \textbf{3 a 5 personas}, todas
+  registradas en la biblioteca (no se reserva para visitantes externos). Los
+  seminarios son la excepción: van a nombre de una sola persona, el docente
+  o funcionario a cargo.
+  \item Cada persona puede sumar hasta \textbf{4 horas de reserva al día},
+  no puede estar en dos salas a la vez y tiene \textbf{una sola reserva
+  pendiente}: para pedir otra, primero usa o cancela la que tiene.
+  \item El grupo tiene \textbf{15 minutos desde la hora de inicio} para
+  presentarse en el mesón; si no llega, la sala se libera sola.
+\end{itemize}
+
+\section{Ver las salas}
+
+La pantalla muestra cada sala en una \textbf{línea de tiempo} del día: lo
+que ya pasó aparece rayado y la línea azul, con la etiqueta \textbf{Ahora},
+marca la hora actual. Lo verde está libre. Las reservas de 30 minutos, por
+ser cortas, se dibujan como un punto; al pasar el cursor sobre cualquier
+bloque se ve su horario. Lo que queda fuera del horario de la biblioteca
+también aparece rayado (el sábado, desde las 14:00, con un aviso), y los
+domingos la pantalla avisa que la biblioteca no atiende y no permite
+reservar.
+
+\captura{30-portal-salas.png}{Reserva de salas de estudio desde el portal, en la línea de tiempo.}
+
+En el teléfono, la línea de tiempo se desliza hacia el lado, con el nombre
+de cada sala fijo a la izquierda, y se abre mostrando la hora actual.
+
+Con el botón \textbf{Mapa} ves las salas como están en cada piso de la
+biblioteca: toca una para ver sus horarios libres de hoy y reservar desde
+ahí. Las salas en gris son las que reserva solo la biblioteca o que
+todavía no están en el sistema. El portal recuerda en ese navegador si
+preferiste la línea de tiempo o el mapa.
+
+El botón \textbf{¿Cómo reservo una sala?} despliega los pasos, y la página
+se actualiza sola cada 30 segundos.
+
+\section{Reservar una sala}
+
+\begin{enumerate}
+  \item Toca o haz clic en un espacio verde de la sala que quieras, a la
+  hora que quieras.
+  \item Elige la duración y escribe el RUT de cada integrante. El tuyo ya
+  viene escrito en el primer campo.
+  \item Pulsa \textbf{Confirmar}: tu reserva queda en azul en la línea de
+  tiempo.
+\end{enumerate}
+
+\captura{30b-portal-salas-modal-reserva.png}{Formulario de reserva desde el portal: el primer RUT ya viene con el de tu cuenta.}
+
+Si alguno de los RUT no corresponde a un usuario registrado, o esa persona
+ya tiene otra reserva que choca, el formulario marca en rojo exactamente
+ese campo.
+
+\section{Cancelar o salir de una reserva}
+
+Tus reservas aparecen en otro color. Al pulsar una que hiciste tú, el
+portal pregunta \textbf{¿Cancelar tu reserva?} antes de liberarla. Solo se
+cancela una reserva que todavía no se usa: si el grupo ya está en la sala,
+se cierra en el mesón al devolver la llave, y si pasaron los 15 minutos sin
+que llegaran, queda registrada como inasistencia. Las reservas terminadas o
+con inasistencia quedan en el historial y no se pueden cancelar.
+
+Puedes cancelar una reserva hecha por ti al día sin consecuencias; desde la
+segunda, tienes que esperar cinco minutos para reservar otra sala, y el
+portal te lo advierte antes de confirmar la cancelación.
+
+Si otra persona te incluyó en su reserva, no la cancelas para todo el
+grupo: al pulsarla, el portal pregunta \textbf{¿Salir de esta reserva?}, y
+si confirmas, sales de la lista y el resto del grupo la mantiene. Si en el
+grupo quedarían menos de tres personas, la reserva se cancela. Salirte no
+te pesa, y aunque estés esperando para reservar, igual puedes ir como
+integrante en las reservas de otros.
+
+\section{Llegar y devolver la llave}
+
+Preséntate con tu grupo en el mesón dentro de los 15 minutos desde la hora
+de inicio: el personal confirma la llegada y les entrega la llave. Al
+terminar, devuelve la llave en el mesón. Si la devuelves más de 5 minutos
+después de la hora de término, el personal puede cursar una multa a nombre
+de quien está a cargo de la reserva. Si terminan antes, devolverla no tiene
+castigo: el mesón puede liberar el resto del bloque para otro grupo, y
+entonces la cuota del día cuenta solo el tiempo que usaron.
+
+% ======================================================================
+\chapter{Mi perfil y Mis ingresos}
+% ======================================================================
+
+\textbf{Mi perfil} (en el menú de tu cuenta, o \textbf{Perfil} en la barra
+inferior del teléfono) muestra tu nombre, tu tipo de usuario, tu RUT, tu
+carrera y tu correo, y reúne la \textbf{Constancia de No Multa} (se
+bloquea si tienes multas pendientes), el acceso a \textbf{Mis ingresos} y
+\textbf{Cerrar sesión}.
+
+\textbf{Mis ingresos} muestra cuántas veces marcaste tu entrada este mes y
+tu historial reciente, agrupado por día, con la hora y cómo se registró:
+con el código QR, con tu RUT en el portal o en el mesón.
+
+\captura{27c-portal-perfil-ingresos.png}{Mi perfil y Mis ingresos, en el teléfono.}
+
+% ======================================================================
+\chapter{Préstamos y multas}
+\label{cap:meson}
+% ======================================================================
+
+Desde el portal se reserva, pero el préstamo y la devolución se hacen en el
+mesón de la biblioteca, con tu RUT (o tu pasaporte o DNI, si eres
+estudiante extranjero).
+
+\section{Préstamo de libros}
+
+\begin{itemize}
+  \item Cuántos libros puedes llevarte a la vez y por cuántos días depende
+  de tu tipo de usuario y del material. El mesón fija la fecha de
+  devolución al prestar, y nunca cae en un día en que la biblioteca no
+  atiende.
+  \item La fecha de devolución de cada préstamo se ve en \textbf{Tu
+  actividad}, en el inicio del portal, con un aviso cuando se acerca o ya
+  pasó.
+  \item Algunos libros se prestan solo para \textbf{uso en sala}: los lees
+  dentro de la biblioteca y los devuelves el mismo día, antes del cierre.
+  Si no vuelven ese día, quedan atrasados.
+  \item Si el libro que buscas está prestado, únete a la lista de espera
+  con \textbf{Avisarme al volver}, en el catálogo.
+\end{itemize}
+
+\section{Recursos de apoyo}
+
+En el mesón también se prestan recursos de apoyo, como notebooks,
+audífonos, cargadores o bicicletas, según lo que tenga la biblioteca. Se
+devuelven en el mesón y no generan multa.
+
+\section{Multas}
+
+\begin{itemize}
+  \item Si devuelves un libro atrasado, el sistema genera una multa por cada
+  día de atraso (en general, \$15 por día, con un tope de \$15.000 por
+  préstamo). Los días en que la biblioteca no atiende no se cobran como
+  atraso.
+  \item También se cursan multas por deterioro o pérdida de material, y el
+  personal puede multar la devolución tardía de la llave de una sala.
+  \item Las multas se pagan en la biblioteca. Una multa cursada por error se
+  anula; ninguna se borra.
+\end{itemize}
+
+\begin{importante}
+Mientras tengas \textbf{multas pendientes} no puedes llevarte libros ni
+recursos de apoyo, reservar libros (en el mesón ni desde el portal) ni
+descargar la Constancia de No Multa. Al pagar se desbloquea al instante.
+Lo mismo pasa con un \textbf{libro vencido}: hasta que lo devuelvas, no
+puedes llevarte ni reservar más material.
+\end{importante}
+
+% ======================================================================
+\chapter{Preguntas Frecuentes}
+% ======================================================================
+
+\begin{description}[leftmargin=0pt,style=nextline]
+  \item[Escribo mi RUT y no puedo entrar. ¿Qué pasa?]
+  Al portal se entra con tu \textbf{correo institucional} (por ejemplo,
+  \texttt{nombre@umag.cl}) y tu contraseña, no con el RUT.
+
+  \item[Olvidé mi contraseña. ¿Qué hago?]
+  Acércate al mesón de la biblioteca con tu credencial: el personal te
+  asigna una nueva. El portal no tiene recuperación en línea.
+
+  \item[No puedo entrar al portal ni marcar mi entrada.]
+  Revisa que estés usando tu correo. Si el problema sigue, puede que tu
+  cuenta haya vencido (vence el 31 de marzo): acércate al mesón para
+  renovarla.
+
+  \item[¿Por qué no puedo reservar un libro?]
+  Porque tienes una multa pendiente o un libro vencido sin devolver, o
+  porque cancelaste otra reserva hace menos de cinco minutos. El portal te
+  dice cuál es el motivo.
+
+  \item[¿Puedo reservar una sala para la próxima semana?]
+  No. Desde el portal solo se reserva para el día de hoy (y nunca un
+  domingo, que la biblioteca no atiende).
+
+  \item[¿Qué pasa si reservamos una sala y no llegamos?]
+  El grupo tiene 15 minutos desde la hora de inicio para presentarse en el
+  mesón. Si no llega, la sala se libera sola y queda registrada la
+  inasistencia.
+
+  \item[Me incluyeron en una reserva de sala sin preguntarme.]
+  Pulsa la reserva y elige \textbf{Salir de esta reserva}. El resto del
+  grupo la mantiene, y a ti no te pesa.
+
+  \item[¿Puedo marcar la entrada de un compañero?]
+  No. El RUT que se escribe en Marcar Entrada tiene que ser el de la cuenta
+  con que iniciaste sesión.
+
+  \item[Aparece el aviso ``No se pudo conectar con el servidor''.]
+  Mientras no vuelva la conexión, nada de lo que se ve en pantalla está al
+  día. Revisa tu conexión a internet y vuelve a intentarlo.
+\end{description}
+
+% ======================================================================
+\chapter*{Glosario}
+\addcontentsline{toc}{chapter}{Glosario}
+% ======================================================================
+
+\begin{description}[leftmargin=0pt,style=nextline]
+  \item[Ejemplar] Una copia física concreta de un libro, con su propio
+  código de barras. Un mismo título puede tener varios ejemplares.
+
+  \item[Lista de espera] Personas esperando que se libere una copia de un
+  libro, en orden de llegada: la primera en pedirlo es la primera en
+  recibirlo.
+
+  \item[Logia] Nombre que usa la biblioteca para sus salas de estudio
+  grupales, que se reservan en horario continuo por hasta dos horas cada
+  vez.
+
+  \item[Multa] Deuda con la biblioteca. Las de atraso se generan solas al
+  devolver un libro fuera de plazo; las de deterioro, pérdida u otro motivo
+  las cursa el personal. Se pagan o se anulan, pero nunca se borran.
+
+  \item[Constancia de No Multa] Documento en PDF que certifica que no
+  tienes multas pendientes con la biblioteca. Se descarga desde el portal.
+
+  \item[Portal de la biblioteca] El sitio de autoservicio para que
+  estudiantes, docentes y funcionarios resuelvan trámites simples por su
+  cuenta, sin pasar por el mesón.
+\end{description}
+
+\end{document}

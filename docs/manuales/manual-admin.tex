@@ -1,156 +1,18 @@
 \documentclass[11pt,a4paper]{report}
 
-% ---------- Codificación e idioma ----------
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[spanish,es-noindentfirst]{babel}
+% Nombre y versión de este manual: los usan la portada, el encabezado y el PDF.
+\newcommand{\nombremanual}{Manual de Administración}
+\newcommand{\versionmanual}{noviembre de 2026}
 
-% ---------- Diseño de página ----------
-\usepackage[a4paper,margin=2.5cm,headheight=15pt]{geometry}
-\usepackage{xcolor}
-\usepackage{graphicx}
-\usepackage{fancyhdr}
-\usepackage{titlesec}
-\usepackage{enumitem}
-\usepackage[most]{tcolorbox}
-\usepackage{booktabs}
-\usepackage{tabularx}
-\usepackage{caption}
-\usepackage{needspace}
-\usepackage{etoolbox}
-\usepackage{amssymb}
-\usepackage{hyperref}
-
-% ---------- Paleta institucional (la misma de la app: docs/estilo-visual.md) ----------
-% Morados del degradado de la barra superior y dorado de la pestaña activa.
-\definecolor{umagpurple}{HTML}{3B28A3}
-\definecolor{umagpurpledark}{HTML}{2D1B69}
-\definecolor{umaggold}{HTML}{B08D57}
-\definecolor{umaggray}{HTML}{4B5563}
-\definecolor{cajafondo}{HTML}{F8FAFC}
-
-\hypersetup{
-  colorlinks=true,
-  linkcolor=umagpurple,
-  urlcolor=umagpurple,
-  citecolor=umagpurple,
-  pdftitle={Manual de Usuario - Sistema de Biblioteca UMAG},
-  pdfauthor={Biblioteca UMAG},
-}
-
-% ---------- Encabezados / pies de página ----------
-\pagestyle{fancy}
-\fancyhf{}
-\renewcommand{\headrulewidth}{0.4pt}
-\renewcommand{\footrulewidth}{0pt}
-% Encabezado de capítulo sin el prefijo "Capítulo N." (ya se ve grande en la
-% portadilla del capítulo) para que quepa junto al nombre del manual sin superponerse.
-\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
-\fancyhead[L]{\small\textcolor{umaggray}{Biblioteca UMAG}}
-\fancyhead[R]{\small\textcolor{umaggray}{\leftmark}}
-\fancyfoot[C]{\small\textcolor{umaggray}{\thepage}}
-
-\fancypagestyle{plain}{%
-  \fancyhf{}
-  \fancyfoot[C]{\small\textcolor{umaggray}{\thepage}}
-  \renewcommand{\headrulewidth}{0pt}
-}
-
-% ---------- Estilo de títulos ----------
-\titleformat{\chapter}[display]
-  {\normalfont\bfseries\color{umagpurple}}
-  {\Large\filright\textcolor{umaggold}{CAPÍTULO \thechapter}}
-  {6pt}
-  {\Huge\filright}
-\titlespacing*{\chapter}{0pt}{0pt}{28pt}
-
-\titleformat{\section}
-  {\normalfont\Large\bfseries\color{umagpurpledark}}{\thesection}{0.6em}{}
-\titleformat{\subsection}
-  {\normalfont\large\bfseries\color{umagpurple}}{\thesubsection}{0.6em}{}
-% Un título de sección no queda solo al pie de la página: si no caben él,
-% su etiqueta de permiso y unas líneas de texto, pasa a la página siguiente.
-\pretocmd{\section}{\needspace{7\baselineskip}}{}{}
-
-% ---------- Cajas reutilizables ----------
-\newtcolorbox{nota}{
-  colback=umaggold!8, colframe=umaggold, boxrule=0.6pt, arc=2pt,
-  left=8pt, right=8pt, top=6pt, bottom=6pt,
-  fonttitle=\bfseries, title={Tip},
-}
-\newtcolorbox{importante}{
-  colback=umagpurple!6, colframe=umagpurple, boxrule=0.6pt, arc=2pt,
-  left=8pt, right=8pt, top=6pt, bottom=6pt,
-  fonttitle=\bfseries, title={Importante},
-}
-% Etiqueta compacta (no una caja que envuelve contenido) para marcar una
-% sección que solo ven los roles con cierto permiso, sin arriesgar que una
-% tcolorbox con una captura de pantalla adentro desborde el alto de la página.
-% \requierepermiso{nombre del permiso, tal como aparece en Personal y Roles}
-\newtcbox{\etiquetapermiso}{on line, colback=umagpurple, colframe=umagpurple,
-  coltext=white, boxrule=0pt, arc=0pt, left=4pt, right=4pt, top=2pt, bottom=2pt,
-  fontupper=\bfseries\small}
-\newcommand{\requierepermiso}[1]{%
-  \needspace{3\baselineskip}%
-  \par\noindent\etiquetapermiso{REQUIERE PERMISO: #1}\par\vspace{6pt}%
-}
-
-% ---------- Comando para insertar capturas de pantalla ----------
-% \captura{archivo}{texto de pie de figura}
-\newcommand{\captura}[2]{%
-  \begin{center}
-  \fbox{\includegraphics[width=0.92\textwidth,height=0.78\textheight,keepaspectratio]{imagenes/#1}}\\[5pt]
-  {\small\itshape\color{umaggray} #2}
-  \end{center}
-  \vspace{6pt}
-}
-
-\setlist[itemize]{leftmargin=1.4em}
-\setlist[enumerate]{leftmargin=1.6em}
+% Paquetes, paleta, títulos, cajas y portada, compartidos con el Manual de Usuario.
+\input{estilo-manual}
 
 \begin{document}
 
-% ======================================================================
-% PORTADA
-% ======================================================================
-\begin{titlepage}
-\centering
-\vspace*{1.5cm}
-
-{\includegraphics[width=3cm]{imagenes/logo-umag.png}}
-
-\vspace{0.8cm}
-
-{\color{umaggray}\large UNIVERSIDAD DE MAGALLANES}
-
-\vspace{2.2cm}
-
-{\color{umagpurple}\Huge\bfseries Sistema de Biblioteca}\\[6pt]
-{\color{umagpurpledark}\Huge\bfseries UMAG}
-
-\vspace{1cm}
-{\color{umaggold}\rule{8cm}{1.2pt}}
-\vspace{1cm}
-
-{\color{umaggray}\LARGE Manual de Usuario}
-
-\vspace{0.4cm}
-{\color{umaggray}\large Guía completa de funcionalidades para personal de biblioteca\\y usuarios del portal virtual}
-
-\vfill
-
-\begin{tcolorbox}[colback=cajafondo,colframe=umagpurple!40,width=0.8\textwidth,arc=3pt,boxrule=0.6pt]
-\centering
-\textbf{Panel de personal:} ruta \texttt{/login}\\[2pt]
-\textbf{Portal de usuarios:} ruta \texttt{/portal/login}\\[6pt]
-{\small (accede desde la dirección web que te indique el equipo de sistemas de tu institución)}
-\end{tcolorbox}
-
-\vspace{1cm}
-{\color{umaggray} Versión del documento: septiembre de 2026}
-
-\vspace{1cm}
-\end{titlepage}
+\portadamanual
+  {Panel del personal: guía para quienes atienden\\y administran la biblioteca}
+  {\textbf{Panel del personal:} ruta \texttt{/login}, con tu correo institucional\\[6pt]
+   {\small (accede desde la dirección web que te indique el equipo de sistemas de tu institución)}}
 
 \tableofcontents
 \clearpage
@@ -161,23 +23,21 @@
 
 \section{Sobre este manual}
 
-Este documento explica, paso a paso, cómo usar el Sistema de Biblioteca UMAG.
-Cubre las dos formas de acceder al sistema:
+Este documento explica, paso a paso, cómo usar el \textbf{panel del
+personal} del Sistema de Biblioteca UMAG: la parte del sistema que usan
+quienes trabajan en la biblioteca (atención de público, bibliotecarios y
+administradores) para registrar entradas, atender préstamos, reservas y
+salas, gestionar el catálogo y las multas, generar reportes y configurar el
+sistema.
 
-\begin{itemize}
-  \item El \textbf{panel de personal}, usado por quienes trabajan en la
-  biblioteca (asistentes de mesón, bibliotecarios y administradores) para
-  atender préstamos, registrar entradas, gestionar el catálogo, generar
-  reportes, etc.
-  \item El \textbf{portal del usuario}, un sitio de autoservicio donde
-  estudiantes, docentes y funcionarios pueden marcar su propia entrada,
-  consultar el catálogo, reservar salas de estudio y descargar su
-  constancia de no multa, sin necesidad de pasar por mesón.
-\end{itemize}
-
-Cada capítulo corresponde a una pantalla o funcionalidad del sistema,
+Cada capítulo corresponde a una pantalla o funcionalidad del panel,
 acompañada de capturas de pantalla reales y una explicación de qué hace
 cada botón, campo o filtro.
+
+El \textbf{portal de la biblioteca}, el sitio de autoservicio de
+estudiantes, docentes y funcionarios, tiene su propio \textbf{Manual de
+Usuario}, que se les puede entregar. Este manual lo resume en el
+capítulo~\ref{cap:portal}, con lo que conviene saber desde el mesón.
 
 \begin{nota}
 Las secciones marcadas con el recuadro \textbf{``Requiere permiso''} solo
@@ -192,26 +52,25 @@ sección~\ref{sec:roles}.
 \begin{itemize}
   \item Un navegador web moderno (Chrome, Edge, Firefox).
   \item Conexión a la red donde esté publicado el sistema.
-  \item Credenciales de acceso: un correo y contraseña de personal, o un
-  RUT y contraseña de usuario (estudiante/docente/funcionario), según
-  corresponda.
+  \item Tu cuenta del personal: tu correo institucional y tu contraseña.
 \end{itemize}
 
-\section{Dos sistemas de acceso independientes}
+\section{Un solo inicio de sesión, dos espacios}
 
-Es importante entender que el sistema tiene \textbf{dos puertas de entrada
-completamente separadas}, cada una con su propio inicio de sesión:
+Todos entran por el \textbf{mismo inicio de sesión}, en la ruta
+\texttt{/login}, con su correo institucional y su contraseña. El sistema
+reconoce de quién es la cuenta y lleva a cada persona a su espacio:
 
-\begin{enumerate}
-  \item El \textbf{panel de personal} (\texttt{/login}), pensado para
-  quienes trabajan en la biblioteca.
-  \item El \textbf{portal del usuario} (\texttt{/portal/login}), pensado
-  para estudiantes, docentes y funcionarios.
-\end{enumerate}
+\begin{itemize}
+  \item las cuentas del personal, al \textbf{panel del personal}, que
+  describe este manual;
+  \item las de estudiantes, docentes y funcionarios, al \textbf{portal de
+  la biblioteca} (capítulo~\ref{cap:portal}).
+\end{itemize}
 
-Una cuenta de personal no sirve para entrar al portal de usuarios, y
-viceversa. Si alguien te dice que ``no puede entrar'', lo primero que hay
-que verificar es que esté usando la puerta correcta.
+Son dos sesiones separadas: desde el portal no se llega al panel, ni al
+revés. Si alguien dice que ``no puede entrar'', lo primero que hay que
+verificar es que esté escribiendo su \textbf{correo}, no su RUT.
 
 % ======================================================================
 \chapter{Acceso para el Personal de Biblioteca}
@@ -219,19 +78,32 @@ que verificar es que esté usando la puerta correcta.
 
 \section{Inicio de sesión}
 
-Para ingresar al panel de personal, abre la dirección del sistema y
-completa el formulario con tu correo institucional y contraseña.
+Para ingresar al panel, abre la dirección del sistema y completa el
+formulario con tu \textbf{correo institucional} y tu contraseña. Con el
+RUT no se entra: el sistema lo avisa bajo el formulario.
 
-\captura{01-login-staff.png}{Pantalla de inicio de sesión del panel de personal.}
+\captura{01-login.png}{Inicio de sesión, el mismo para el personal y para los usuarios del portal.}
 
 Si las credenciales son incorrectas, o si tu cuenta fue desactivada por un
-administrador, el sistema mostrará un mensaje de error y no dejará
-continuar.
+administrador, el sistema muestra un mensaje de error y no deja continuar.
+Si olvidaste tu contraseña, pide a un administrador que la restablezca
+(sección~\ref{sec:cambiar-contrasena}).
+
+Quien trabaja en la biblioteca y además estudia puede tener una cuenta del
+personal y otra de usuario con el mismo correo. Si las dos tienen la misma
+contraseña, después de pulsar \textbf{Ingresar} aparece \textbf{Tienes dos
+cuentas}: \textbf{Panel del personal} (con tu rol) o \textbf{Portal de la
+biblioteca}. Si cada cuenta tiene su propia contraseña, la contraseña que
+escribas decide a cuál entras.
+
+\captura{01c-login-dos-cuentas.png}{La misma persona con cuenta del personal y de estudiante elige con cuál entra.}
 
 \begin{nota}
-Existe una segunda variante de esta pantalla (``Versión 2''), enlazada
-desde la misma página de login, con un diseño alternativo. Cumple
-exactamente la misma función; es solo una opción visual distinta.
+Los botones \textbf{Continuar con Google} y \textbf{Cuenta institucional
+(LDAP)} quedan listos para cuando Informática los habilite; mientras tanto,
+se entra con el correo y la contraseña. Las direcciones antiguas
+(\texttt{/login/v2} y \texttt{/portal/login}) llevan a este mismo inicio
+de sesión.
 \end{nota}
 
 \section{Roles del personal}
@@ -296,6 +168,7 @@ su dirección a mano), el sistema te devuelve al Panel Principal con un
 aviso.
 
 \section{Cambiar mi contraseña}
+\label{sec:cambiar-contrasena}
 
 En la barra superior, pulsa tu nombre (la burbuja con tus iniciales,
 arriba a la derecha) y elige \textbf{Cambiar mi contraseña}: se pide la
@@ -1283,6 +1156,7 @@ importar si fue un préstamo, una reserva de sala o una simple entrada.
 \end{itemize}
 
 \section{Código QR de Acceso}
+\label{sec:codigo-qr}
 
 \requierepermiso{Mostrar el código QR de acceso}
 
@@ -1294,7 +1168,7 @@ desde el portal para marcar su entrada sin escribir su RUT.
 El texto de 16 letras y números bajo el QR es el mismo código escrito: el
 QR no contiene nada más. Es igual para todos y no identifica a nadie;
 sirve para demostrar que la persona está en la biblioteca. La identidad
-la aporta la sesión del portal: quien escanea ya entró con su RUT y
+la aporta la sesión del portal: quien escanea ya entró con su correo y
 contraseña, así que la entrada queda a su nombre, con vía \textbf{QR
 Móvil}. El código no vence solo; si se sospecha que circula una foto de
 él fuera de la biblioteca, conviene regenerarlo.
@@ -1436,260 +1310,60 @@ biblioteca sin ninguna cuenta activa con acceso total.
 \end{importante}
 
 % ======================================================================
-\chapter{Portal del Usuario}
+\chapter{El portal, visto desde el mesón}
+\label{cap:portal}
 % ======================================================================
 
-El Portal del Usuario es un sitio de autoservicio independiente, pensado
-para que estudiantes, docentes y funcionarios resuelvan trámites simples
-por su cuenta, sin pasar por mesón.
-
-El portal se adapta al equipo desde el que se abre. En un computador
-(ventanas de 1024 píxeles de ancho o más) muestra un panel de inicio con
-la actividad de la persona, las dos formas de marcar entrada lado a lado
-y el catálogo junto a \textbf{Mis reservas}. En teléfonos y tablets usa
-una sola columna, con botones grandes pensados para el tacto.
-
-En la barra superior, las pestañas \textbf{Inicio}, \textbf{Entrada},
-\textbf{Catálogo} y \textbf{Salas} llevan a cada sección. A la derecha
-aparecen el nombre y el tipo de usuario; al pulsarlos se abre un menú con
-el RUT de la cuenta, \textbf{Mi perfil}, \textbf{Mis ingresos} y
-\textbf{Cerrar sesión}. En el teléfono, una barra fija abajo lleva a
-Inicio, Catálogo, Entrada (el botón central), Salas y Perfil.
-
-Junto al nombre está el interruptor \textbf{día / noche}: al pulsarlo, el
-portal pasa a colores oscuros, más descansados para la vista de noche, y al
-volver a pulsarlo regresa al modo claro. La elección queda guardada en ese
-teléfono o computador.
-
-Las capturas de este capítulo muestran el formato de computador; el de
-teléfono se ve así:
-
-\captura{27b-portal-telefono.png}{El portal en un teléfono: inicio, marcar entrada, catálogo y salas (la línea de tiempo se desliza de lado).}
-
-\section{Inicio de sesión}
-
-Se accede con el RUT y la contraseña personal del usuario (distinta de
-las credenciales de personal). Los estudiantes extranjeros marcan
-\textbf{Pasaporte / DNI} en el selector sobre la casilla y escriben su
-número; el navegador recuerda esa elección para la próxima vez.
-
-\captura{26-portal-login.png}{Inicio de sesión del Portal del Usuario.}
-
-El campo de RUT se autocompleta con los puntos y el guión a medida que
-se escribe --- no hace falta tipearlos a mano.
-
-\captura{26-portal-login-completo.png}{RUT y contraseña completados, listos para iniciar sesión.}
-
-\begin{nota}
-Si un usuario olvida su contraseña, el sistema no ofrece recuperación en
-línea --- debe acercarse al mesón de la biblioteca con su credencial para
-que el personal se la restablezca.
-\end{nota}
-
-\section{Página de Inicio}
-
-En el computador, el inicio es un panel con lo más importante del día:
+El \textbf{portal de la biblioteca} es el sitio de autoservicio de
+estudiantes, docentes y funcionarios. Entran por el mismo inicio de sesión
+que el personal, con su correo institucional, y el sistema los lleva al
+portal. Cada pantalla del portal se explica paso a paso en el
+\textbf{Manual de Usuario}; aquí está lo que conviene saber para
+atenderlos.
 
 \captura{27-portal-home.png}{Inicio del portal en el computador: ingreso de hoy, actividad y accesos rápidos.}
 
-\begin{itemize}
-  \item \textbf{¿Llegaste a la biblioteca?:} indica si la persona ya marcó
-  su ingreso hoy (y a qué hora) y ofrece \textbf{Escanear QR} o
-  \textbf{Usar mi RUT}, que llevan directo a Marcar Entrada con la cámara
-  encendida o con el cursor en el campo del RUT.
-  \item \textbf{Ingresos de hoy:} cuántas personas marcaron su entrada
-  hoy, frente al aforo de la biblioteca. Como el sistema no registra
-  salidas, no es la cantidad de personas que están adentro en este
-  momento.
-  \item \textbf{Buscador:} busca en el catálogo por título, autor o ISBN.
-  \item \textbf{Tu actividad:} los préstamos vigentes con su fecha de
-  devolución (con un aviso si vencen en los próximos días o están
-  atrasados), las reservas de libros, las reservas de sala de hoy y el
-  estado de multas. Sin multas pendientes, desde ahí se descarga la
-  \textbf{Constancia de No Multa} en PDF.
-  \item \textbf{Accesos rápidos:} reservar sala, explorar el catálogo y
-  \textbf{Recursos digitales} (\url{https://umag.elogim.com/}), la base de
-  datos digital de la universidad, que es un sitio externo al sistema de
-  biblioteca.
-\end{itemize}
-
-Arriba a la derecha, una etiqueta indica si la biblioteca está abierta
-(«Abierta · cierra a las 20:30») o, si está cerrada, cuándo vuelve a
-abrir (por ejemplo, «Cerrada · abre el lunes a las 08:45»), según el
-horario de atención: lunes a viernes de 08:45 a 20:30 y sábado de 09:00 a
-14:00.
-
-En el teléfono, el inicio saluda con la fecha, el horario de la
-biblioteca y los ingresos del día. Debajo están el aviso
-\textbf{¿Llegaste a la biblioteca?} con \textbf{Escanear QR} y
-\textbf{Usar mi RUT}, el buscador del catálogo y \textbf{Explorar}:
-Catálogo, Reservar sala, Recursos digitales y Mis ingresos. La Constancia
-de No Multa, en el teléfono, está en \textbf{Perfil}.
-
-\section{Marcar Entrada}
-
-Permite registrar el propio ingreso de dos formas, cada una en su
-tarjeta. Arriba a la derecha se indica si la biblioteca está abierta y
-hasta qué hora.
-
-\captura{28-portal-entrada.png}{Marcar Entrada: escanear el código QR o ingresar con el RUT.}
+\section{Qué hace el usuario por su cuenta}
 
 \begin{itemize}
-  \item \textbf{Escanear código QR} (recomendado en el celular):
-  \textbf{Abrir cámara} enciende la cámara dentro de la misma tarjeta; al
-  leer el código QR de la biblioteca, la entrada queda registrada. La
-  primera vez, el navegador pide permiso para usar la cámara.
-  \item \textbf{Ingresar con RUT} (ideal en el computador): se escribe el
-  RUT sin puntos ni guion ---el sistema lo formatea--- y se pulsa
-  \textbf{Registrar entrada} o \textbf{Enter}.
+  \item \textbf{Marcar su entrada}, escaneando el código QR de la
+  biblioteca (sección~\ref{sec:codigo-qr}) o escribiendo su RUT, que tiene
+  que ser el de su cuenta. En Entradas aparece con la vía \textbf{QR} o
+  \textbf{Portal digital}.
+  \item \textbf{Consultar el catálogo} y \textbf{reservar un libro} o
+  unirse a la lista de espera. Sus reservas aparecen en la pestaña
+  \textbf{Reservas} de Préstamos; las que están listas para retirar, con el
+  botón \textbf{Entregar}. El plazo para retirarlas es de tres días.
+  \item \textbf{Reservar una sala de estudio}, solo para el día de hoy y
+  sin la opción \textbf{Reservar ahora}. La reserva aparece de inmediato en
+  Salas de Estudio, y el grupo igual tiene que presentarse en el mesón
+  dentro de los 15 minutos para confirmar su llegada. Las salas que
+  gestiona solo la biblioteca no se ofrecen en el portal.
+  \item \textbf{Ver su actividad}: préstamos, reservas, multas e ingresos,
+  y descargar su \textbf{Constancia de No Multa} si no tiene multas
+  pendientes.
 \end{itemize}
 
-Si algo falla ---por ejemplo, un RUT que no es el de la cuenta--- el aviso
-aparece en la misma tarjeta, sin salir de la pantalla.
+Llevarse o devolver material y pagar multas sigue siendo en el mesón. Las
+operaciones que el usuario hace desde el portal quedan en el Registro
+Absoluto sin nadie en \textbf{Atendido por}.
 
-\captura{28b-portal-entrada-rut.png}{El RUT escrito no es el de la cuenta: el aviso aparece en la tarjeta.}
-
-\begin{nota}
-El sistema exige que el RUT ingresado coincida exactamente con el de la
-cuenta que inició sesión --- un usuario no puede marcar la entrada de
-otra persona desde su propia sesión del portal.
-\end{nota}
-
-Con el RUT correcto, la entrada queda registrada de inmediato y el
-sistema muestra una bienvenida antes de volver solo al inicio del
-portal.
-
-\captura{28c-portal-entrada-exito.png}{Confirmación de entrada registrada.}
-
-\section{Catálogo}
-
-Consulta de disponibilidad de libros y revistas. El buscador acepta
-título, autor, área o ISBN (con o sin guiones) e indica cuántos
-resultados hay; los botones \textbf{Todos} y \textbf{Disponibles ahora} y
-el selector de \textbf{Área} filtran la lista. Al pulsar \textbf{Área}
-aparecen las áreas con más títulos; para encontrar otra, se escriben unas
-letras de su nombre y se elige de la lista (la cruz $\times$ quita el filtro).
-
-\captura{29-portal-catalogo.png}{Catálogo del portal, con filtros, disponibilidad y reserva directa.}
-
-Cada título muestra una portada con sus iniciales (del color de su área),
-su estado y la acción que corresponde:
+\section{Cuando un usuario no puede entrar}
+\label{sec:portal-no-entra}
 
 \begin{itemize}
-  \item \textbf{Disponible}, con cuántos ejemplares hay en estantería:
-  botón \textbf{Reservar}.
-  \item \textbf{Prestado}, con la fecha aproximada en que vuelve una copia:
-  botón \textbf{Avisarme al volver}, que deja a la persona en la lista de
-  espera. \textbf{No disponible} indica que no hay copias libres aunque
-  ninguna esté prestada (por ejemplo, porque está apartada para otra
-  persona).
-  \item \textbf{Lista para retirar} o \textbf{En lista de espera}, si la
-  persona ya lo reservó: en lugar del botón aparece \textbf{En tus
-  reservas}.
+  \item \textbf{Escribe su RUT:} al portal se entra con el correo
+  institucional (o con un correo adicional registrado en su ficha), no con
+  el RUT.
+  \item \textbf{Olvidó su contraseña o no tiene una:} el portal no tiene
+  recuperación en línea. Quien tenga el permiso \textit{Crear y editar
+  estudiantes} le asigna una nueva en \textbf{Administración}, pestaña
+  \textbf{Estudiantes}: \textbf{Editar} y el campo \textbf{Contraseña del
+  portal}.
+  \item \textbf{Su cuenta está inactiva o vencida:} no puede entrar al
+  portal ni marcar su entrada hasta que se habilite o renueve desde
+  \textbf{Usuarios}.
 \end{itemize}
-
-\textbf{Ver ficha}, junto a cada título, muestra sus datos
-bibliográficos públicos según el tipo de material (ISBN, clasificación,
-pie de imprenta, materias, acceso electrónico\ldots). En el computador
-se despliega dentro de la lista; en el teléfono se abre una ventana con
-el resumen del título ---portada, estado, ficha y el botón para
-reservar--- sin alargar la página. Los datos de uso interno de la
-biblioteca no se muestran.
-
-\captura{29b-portal-ficha.png}{Ficha de un título en el portal: solo los datos públicos.}
-
-Reservar siempre pide confirmación. \textbf{Reservar} y
-\textbf{Avisarme al volver} abren una ventana con el título y lo que va a
-pasar: en el primer caso se aparta una copia a nombre de la persona para
-retirarla en el mesón antes de la fecha límite; en el segundo, queda en la
-lista de espera y, cuando llega su turno, se le aparta una copia y se le
-avisa por correo si tiene uno registrado. Nada se registra hasta pulsar
-\textbf{Confirmar}; \textbf{Cancelar} cierra la ventana sin reservar.
-
-\captura{29c-portal-confirmar-reserva.png}{Confirmación antes de reservar un libro.}
-
-\textbf{Mis reservas} (a la derecha en el computador; sobre la lista en el
-teléfono) muestra cada reserva con su estado, el plazo para retirarla o
-el lugar en la fila, y permite cancelarla o salir de la fila (también
-con confirmación). Después de cancelar o salir de la fila hay que esperar
-cinco minutos para pedir otro libro, para que nadie pida y cancele en
-seguidilla; mientras tanto, el portal avisa a qué hora se puede volver a
-pedir. Debajo, \textbf{¿Cómo retiro
-un libro?} recuerda que, cuando la reserva diga «Lista para retirar», hay
-que pasar al mesón de préstamo con el RUT dentro del plazo indicado. Si no
-se retira a tiempo, la reserva se cancela sola al día siguiente y la copia
-pasa a la siguiente persona de la fila.
-
-\begin{nota}
-Con multas pendientes, el portal no permite reservar ni unirse a la lista
-de espera: muestra el monto adeudado y pide pagarlo en la biblioteca.
-\end{nota}
-
-\section{Mi perfil y Mis ingresos}
-
-\textbf{Mi perfil} (en el menú de la cuenta, o \textbf{Perfil} en la
-barra inferior del teléfono) muestra el nombre, el tipo de usuario, el
-RUT, la carrera y el correo, y reúne la \textbf{Constancia de No Multa}
-(se bloquea si hay multas pendientes), el acceso a \textbf{Mis ingresos}
-y \textbf{Cerrar sesión}.
-
-\textbf{Mis ingresos} muestra cuántas veces marcó la persona su entrada
-este mes y su historial reciente, agrupado por día, con la hora y cómo se
-registró: con el código QR, con su RUT en el portal o en el mesón.
-
-\captura{27c-portal-perfil-ingresos.png}{Mi perfil y Mis ingresos, en el teléfono.}
-
-\section{Salas de Estudio}
-
-Reserva de logias desde el portal, con la misma línea de tiempo por sala
-que usa el personal: lo que ya pasó aparece rayado y la línea azul, con
-la etiqueta \textbf{Ahora}, marca la hora actual. Las reservas de 30
-minutos, por ser cortas, se dibujan como un punto; al pasar el cursor
-sobre cualquier bloque se ve su horario. El botón \textbf{¿Cómo reservo
-una sala?} despliega los pasos, y la página se actualiza sola cada 30
-segundos. Lo que queda fuera del horario de la biblioteca también aparece
-rayado (el sábado, desde las 14:00, con un aviso), y los domingos, como la
-biblioteca no atiende, la pantalla lo avisa y no permite reservar. En el
-teléfono, la línea de tiempo se desliza hacia el lado, con
-el nombre de cada sala fijo a la izquierda, y se abre mostrando la hora
-actual.
-
-\captura{30-portal-salas.png}{Reserva de salas de estudio desde el portal.}
-
-Al hacer clic en un espacio disponible se abre el mismo formulario de
-reserva que usa el personal, con una diferencia: el RUT de la propia
-persona ya viene completado automáticamente en el primer campo. En el
-portal las reservas empiezan a la hora o a la media hora; la opción
-\textbf{Reservar ahora}, que empieza en el minuto exacto, es solo del
-personal.
-
-\captura{30b-portal-salas-modal-reserva.png}{Formulario de reserva desde el portal --- el primer RUT ya viene precargado con la cuenta propia.}
-
-Las reservas propias aparecen en otro color. Al pulsar una, el portal
-pregunta \textbf{¿Cancelar tu reserva?} antes de liberarla. Solo se
-cancela una reserva que todavía no se usa: si el grupo ya está en la sala,
-se cierra en el mesón al devolver la llave, y si pasaron los 15 minutos
-sin que llegaran, queda registrada como inasistencia. Las reservas
-terminadas o con inasistencia quedan en el historial y no se pueden
-cancelar.
-
-Quien hizo la reserva puede cancelar una al día sin consecuencias; desde
-la segunda, tiene que esperar cinco minutos para reservar otra sala, y el
-portal se lo advierte antes de confirmar la cancelación. Un integrante
-(por ejemplo, alguien a quien incluyeron sin preguntarle) no cancela la
-reserva de todo el grupo: al pulsarla, el portal pregunta \textbf{¿Salir
-de esta reserva?}, y si confirma, sale de la lista y el resto del grupo la
-mantiene. Como las salas se reservan para dos o más personas, si en el
-grupo quedaría una sola, la reserva se cancela. Salirse no le pesa a
-nadie, y quien está esperando igual puede ir como integrante en las
-reservas de otros.
-
-\begin{importante}
-Desde el portal, los usuarios \textbf{solo pueden reservar salas para el
-día de hoy} --- no existe la opción de reservar con anticipación para
-otro día. El personal, en cambio, sí puede reservar para cualquier fecha
-desde el panel interno.
-\end{importante}
 
 % ======================================================================
 \chapter{Preguntas Frecuentes}
@@ -1717,6 +1391,11 @@ desde el panel interno.
   Un administrador puede restablecerla desde Personal y Roles
   (botón \textbf{Contraseña} en tu fila). Después, cámbiala por una
   propia desde el menú de tu cuenta (tu nombre, arriba a la derecha).
+
+  \item[Un estudiante no puede entrar al portal. ¿Qué reviso?]
+  Que escriba su \textbf{correo} institucional, no su RUT; que tenga una
+  contraseña del portal asignada, y que su cuenta esté activa y vigente
+  (sección~\ref{sec:portal-no-entra}).
 
   \item[Un compañero dejó la biblioteca. ¿Borro su cuenta?]
   No: se \textbf{desactiva} desde Personal y Roles. Así no puede volver a
@@ -1799,9 +1478,10 @@ desde el panel interno.
   (préstamos, reservas de sala, reservas de libro y entradas) del
   sistema, con filtros de fecha, tipo y búsqueda por persona.
 
-  \item[Portal del Usuario] Sitio de autoservicio separado del panel de
-  personal, para que estudiantes, docentes y funcionarios resuelvan
-  trámites simples por su cuenta.
+  \item[Portal de la biblioteca] Sitio de autoservicio, separado del panel
+  del personal, para que estudiantes, docentes y funcionarios resuelvan
+  trámites simples por su cuenta. Se entra por el mismo inicio de sesión.
+  Tiene su propio Manual de Usuario.
 \end{description}
 
 \end{document}
