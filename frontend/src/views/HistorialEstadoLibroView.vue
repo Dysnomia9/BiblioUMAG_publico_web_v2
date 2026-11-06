@@ -9,6 +9,7 @@ import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import { ESTADOS_EJEMPLAR } from '@/utils/estadosEjemplar'
 import { inicialesPortada, tonoPortada } from '@/utils/portada'
+import { copiarTexto } from '@/utils/portapapeles'
 import type { EjemplarEstadoHistorial, EstadoProcesoEjemplar } from '@/types'
 
 const route = useRoute()
@@ -161,12 +162,8 @@ function resumenLote(h: EjemplarEstadoHistorial) {
 }
 
 async function copiarId(loteId: string) {
-  try {
-    await navigator.clipboard.writeText(loteId)
-    toast.success('ID del lote copiado')
-  } catch {
-    toast.error('No se pudo copiar: selecciona el ID y cópialo a mano')
-  }
+  if (await copiarTexto(loteId)) toast.success('ID del lote copiado')
+  else toast.error('No se pudo copiar: selecciona el ID y cópialo a mano')
 }
 
 /** Muestra todos los cambios del mismo cambio masivo (sin los demás filtros, que podrían esconder parte). */

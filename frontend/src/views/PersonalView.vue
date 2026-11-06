@@ -10,6 +10,7 @@ import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
+import { copiarTexto } from '@/utils/portapapeles'
 import type { CuentaPersonal, GrupoPermisos, Rol } from '@/types'
 
 const auth = useAuthStore()
@@ -72,12 +73,8 @@ function generarClave() {
 }
 
 async function copiar(texto: string) {
-  try {
-    await navigator.clipboard.writeText(texto)
-    toast.info('Contraseña copiada')
-  } catch {
-    toast.error('No se pudo copiar; selecciónala y cópiala a mano')
-  }
+  if (await copiarTexto(texto)) toast.info('Contraseña copiada')
+  else toast.error('No se pudo copiar; selecciónala y cópiala a mano')
 }
 
 type Cambio = { campo: string; antes: string; despues: string }
