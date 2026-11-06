@@ -7,7 +7,9 @@ propósito (para que no se lean como cosas que "faltó hacer").
 
 El detalle técnico está en el `README.md` (raíz del repo) y en
 `docs/login-externo-pendientes.md`; el manual para el personal de biblioteca,
-en `docs/manual-usuario/manual.pdf`. Este documento es el resumen ejecutivo.
+en `docs/manuales/manual-admin.pdf`, y el de estudiantes, docentes y
+funcionarios, en `docs/manuales/manual-usuario.pdf`. Este documento es el
+resumen ejecutivo.
 
 ## Estado del sistema
 
