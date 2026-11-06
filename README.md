@@ -506,7 +506,9 @@ en CI contra la rama `main` de este repositorio.
 
 | Documento | Contenido |
 |---|---|
-| [`docs/manual-usuario/`](docs/manual-usuario/) | Manual de usuario (PDF, fuente LaTeX y capturas) |
+| [`docs/manuales/manual-usuario.pdf`](docs/manuales/manual-usuario.pdf) | Manual de Usuario: el portal, para estudiantes, docentes y funcionarios |
+| [`docs/manuales/manual-admin.pdf`](docs/manuales/manual-admin.pdf) | Manual de Administración: el panel del personal de biblioteca |
+| [`docs/manuales/`](docs/manuales/) | Fuentes LaTeX de los dos manuales (estilo común en `estilo-manual.tex`) y capturas |
 | [`docs/estilo-visual.md`](docs/estilo-visual.md) | Guía de estilo de la interfaz |
 | [`docs/handoff-informatica.md`](docs/handoff-informatica.md) | Lo que se necesita de Informática para producción |
 | [`docs/login-externo-pendientes.md`](docs/login-externo-pendientes.md) | Cómo activar el login con Google y LDAP |
