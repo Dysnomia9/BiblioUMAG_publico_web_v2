@@ -29,6 +29,21 @@ function cerrar() {
   if (!props.bloqueado) emit('cerrar')
 }
 
+// El fondo cierra el cuadro solo si el clic empezó y terminó en él. Al seleccionar texto
+// arrastrando desde un campo hasta afuera, el navegador marca el clic en el fondo (el
+// ancestro común de donde se apretó y donde se soltó), y el cuadro se cerraba.
+let presionEnFondo = false
+
+function onPresionFondo(e: PointerEvent) {
+  presionEnFondo = e.target === e.currentTarget
+}
+
+function onClicFondo(e: MouseEvent) {
+  const empezoEnFondo = presionEnFondo
+  presionEnFondo = false
+  if (empezoEnFondo && e.target === e.currentTarget) cerrar()
+}
+
 const id = Symbol()
 
 function onKeydown(e: KeyboardEvent) {
@@ -65,7 +80,8 @@ onBeforeUnmount(() => {
     <div
       v-if="abierto"
       class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      @click.self="cerrar"
+      @pointerdown="onPresionFondo"
+      @click="onClicFondo"
     >
       <div
         class="bg-white rounded-2xl shadow-2xl w-full max-h-[92vh]"
