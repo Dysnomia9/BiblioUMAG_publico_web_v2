@@ -530,6 +530,7 @@ async function confirmarEliminarRol() {
       :descripcion="formCuenta.id ? undefined : 'La persona entra con su correo y la contraseña inicial; después puede cambiarla con el ícono de llave de la barra superior.'"
       ancho="md"
       :bloqueado="formCuenta.guardando"
+      :cerrar-al-clic-afuera="false"
       @cerrar="formCuenta.abierto = false"
     >
       <div class="space-y-3">
@@ -594,6 +595,7 @@ async function confirmarEliminarRol() {
       titulo="Restablecer contraseña"
       :descripcion="`Para ${formClave.cuenta?.nombre ?? ''}. Sus sesiones abiertas se cerrarán.`"
       :bloqueado="formClave.guardando"
+      :cerrar-al-clic-afuera="false"
       @cerrar="formClave.abierto = false"
     >
       <p class="mb-4 rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-600">
@@ -689,6 +691,7 @@ async function confirmarEliminarRol() {
       :descripcion="formRol.accesoTotal ? 'Este rol tiene todos los permisos, incluida la gestión de cuentas y roles. Solo se puede cambiar su nombre y descripción.' : 'Marca lo que las personas con este rol pueden hacer. Lo que no marques quedará oculto y bloqueado para ellas.'"
       ancho="xl"
       :bloqueado="formRol.guardando"
+      :cerrar-al-clic-afuera="false"
       @cerrar="formRol.abierto = false"
     >
       <div class="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_8rem] gap-3 mb-4">

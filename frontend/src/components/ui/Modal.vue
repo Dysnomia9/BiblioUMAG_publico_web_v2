@@ -17,8 +17,10 @@ const props = withDefaults(
     bloqueado?: boolean
     /** Deja los botones del pie siempre a la vista; solo se desplaza el contenido. */
     pieFijo?: boolean
+    /** Con false, un clic en el fondo no cierra el cuadro: solo Esc o sus botones (formularios largos). */
+    cerrarAlClicAfuera?: boolean
   }>(),
-  { ancho: 'sm', bloqueado: false, pieFijo: false },
+  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true },
 )
 
 const emit = defineEmits<{ cerrar: [] }>()
@@ -41,7 +43,7 @@ function onPresionFondo(e: PointerEvent) {
 function onClicFondo(e: MouseEvent) {
   const empezoEnFondo = presionEnFondo
   presionEnFondo = false
-  if (empezoEnFondo && e.target === e.currentTarget) cerrar()
+  if (props.cerrarAlClicAfuera && empezoEnFondo && e.target === e.currentTarget) cerrar()
 }
 
 const id = Symbol()
