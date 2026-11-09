@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
@@ -116,10 +116,15 @@ const modalDuracion = ref(60)
 // media hora) y queda con la llegada confirmada (SalaController::storeReserva, inmediata).
 const AHORA = 'ahora'
 const modalEsAhora = computed(() => modalHoraInicio.value === AHORA)
-// «Otra hora de término»: en vez de una duración, el personal escribe hasta qué hora (18:35).
-const TERMINO_A_MANO = 0
-const terminoAMano = computed(() => modalDuracion.value === TERMINO_A_MANO)
+// Casilla «Escribir la hora de término a mano»: en vez de una duración, el personal escribe hasta qué hora (18:35).
+const terminoAMano = ref(false)
 const modalHoraFin = ref('')
+const campoHoraFin = ref<InstanceType<typeof CampoHora> | null>(null)
+watch(terminoAMano, async (aMano) => {
+  if (!aMano) return
+  await nextTick()
+  campoHoraFin.value?.enfocar()
+})
 const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
@@ -330,6 +335,7 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
   }
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, modalInicioMin.value))
   modalHoraFin.value = ''
+  terminoAMano.value = false
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = minimoDe(sala)
   rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
@@ -357,8 +363,14 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
   }
   // Un clic en la media hora en curso es para un grupo que está en el mesón: desde ahora.
   const bloqueActual = Math.floor(ahoraMin.value / granularidad.value) * granularidad.value
-  if (esHoy.value && minutoClickeado >= bloqueActual && minutoClickeado < bloqueActual + granularidad.value && libreDesdeAhora(sala)) {
+  const enBloqueActual = esHoy.value && minutoClickeado >= bloqueActual && minutoClickeado < bloqueActual + granularidad.value
+  if (enBloqueActual && libreDesdeAhora(sala)) {
     abrirModalProgramado(sala, AHORA)
+    return
+  }
+  const avisoCierre = `La biblioteca cierra a las ${minutesToTime(cierraMin.value)}: ya no alcanza una reserva de al menos ${formatMinutos(duracionMinima.value)}.`
+  if (enBloqueActual && disponibilidadDesde(sala, ahoraMin.value) > 0 && cierraMin.value - ahoraMin.value < duracionMinima.value) {
+    toast.error(avisoCierre)
     return
   }
   if (esHoy.value && !puedeHoraPasada.value && minutoClickeado < ahoraMin.value) {
@@ -372,7 +384,8 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
     .filter((m) => puedeHoraPasada.value || !esHoy.value || m >= ahoraMin.value)
     .find((m) => disponibilidadDesde(sala, m) > 0)
   if (inicio === undefined) {
-    toast.error('Esa hora ya está ocupada en esta sala.')
+    const desde = esHoy.value ? Math.max(minutoClickeado, ahoraMin.value) : minutoClickeado
+    toast.error(cierraMin.value - desde < duracionMinima.value ? avisoCierre : 'Esa hora ya está ocupada en esta sala.')
     return
   }
 
@@ -996,7 +1009,11 @@ const proximaConfirmacion = computed(() => {
                   <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
                 </select>
               </div>
-              <div>
+              <div v-if="terminoAMano">
+                <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
+                <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
+              </div>
+              <div v-else>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
                 <select
                   v-model.number="modalDuracion"
@@ -1005,20 +1022,17 @@ const proximaConfirmacion = computed(() => {
                   <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
                     {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
                   </option>
-                  <option :value="TERMINO_A_MANO">Otra hora de término…</option>
                 </select>
               </div>
             </div>
-            <div v-if="terminoAMano">
-              <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
-              <div class="flex flex-wrap items-center gap-3">
-                <CampoHora id="reserva-hora-fin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
-                <span v-if="!errorTermino" class="text-sm text-gray-600">
-                  {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ modalHoraFin }}
-                </span>
-              </div>
-              <p v-if="errorTermino" class="mt-1 text-xs" :class="modalHoraFin ? 'text-red-600' : 'text-gray-500'">{{ errorTermino }}</p>
-            </div>
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+              <input v-model="terminoAMano" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              Escribir la hora de término a mano
+            </label>
+            <template v-if="terminoAMano">
+              <p v-if="errorTermino" class="-mt-2 text-xs" :class="modalHoraFin ? 'text-red-600' : 'text-gray-500'">{{ errorTermino }}</p>
+              <p v-else class="-mt-2 text-xs text-gray-600">{{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ modalHoraFin }}.</p>
+            </template>
             <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
               Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
             </p>

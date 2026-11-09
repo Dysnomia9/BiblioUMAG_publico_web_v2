@@ -94,6 +94,42 @@ class SalaReservaAhoraTest extends TestCase
             ->assertJsonPath('message', 'Una reserva desde ahora es para hoy: para otro día, elige la hora de inicio.');
     }
 
+    public function test_cerca_del_cierre_no_se_reserva_por_2_horas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-10 20:00:00'); // viernes: cierra a las 20:30
+        $sala = Sala::factory()->create();
+        $ruts = [Usuario::factory()->create()->rut];
+
+        $this->reservarAhora($sala, $ruts, ['duracion' => 120])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'La biblioteca cierra a las 20:30: desde ahora se puede reservar hasta esa hora (30 minutos).');
+        // Con la hora de término escrita a mano, igual.
+        $this->reservarAhora($sala, $ruts, ['hora_fin' => '21:00', 'duracion' => null])->assertStatus(422);
+
+        $this->reservarAhora($sala, $ruts, ['duracion' => 30])->assertCreated()->assertJsonPath('hora_fin', '20:30:00');
+    }
+
+    public function test_si_falta_menos_que_lo_minimo_para_el_cierre_no_se_reserva(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-10 20:05:00');
+
+        $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], ['duracion' => 30])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'La biblioteca cierra a las 20:30: desde ahora ya no alcanza una reserva de al menos 30 minutos.');
+    }
+
+    public function test_el_sabado_cuenta_el_cierre_de_las_1400(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-11 13:00:00'); // sábado
+
+        $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], ['fecha' => '2026-07-11', 'duracion' => 120])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'La biblioteca cierra a las 14:00: desde ahora se puede reservar hasta esa hora (60 minutos).');
+    }
+
     public function test_una_reserva_con_hora_sigue_esperando_la_llegada(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

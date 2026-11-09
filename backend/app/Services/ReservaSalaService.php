@@ -307,6 +307,15 @@ class ReservaSalaService
         }
 
         [$apertura, $cierre] = $ventana;
+        // Desde ahora, cerca del cierre: se dice cuánto queda en vez de solo el horario.
+        if ($inmediata && $horaFin->format('H:i') > $cierre) {
+            $minima = (int) config('salas.duracion_minima');
+            $quedan = (Carbon::parse($cierre)->hour * 60 + Carbon::parse($cierre)->minute) - ($horaInicio->hour * 60 + $horaInicio->minute);
+
+            return $quedan >= $minima
+                ? "La biblioteca cierra a las {$cierre}: desde ahora se puede reservar hasta esa hora ({$quedan} minutos)."
+                : "La biblioteca cierra a las {$cierre}: desde ahora ya no alcanza una reserva de al menos {$minima} minutos.";
+        }
         if ($horaInicio->format('H:i') < $apertura || $horaFin->format('H:i') > $cierre) {
             return 'Los '.HorarioBiblioteca::diaEnPlural($dia)." la biblioteca atiende de {$apertura} a {$cierre}: elige un horario dentro de ese rango.";
         }
