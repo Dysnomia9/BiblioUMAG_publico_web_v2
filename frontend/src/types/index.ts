@@ -516,6 +516,8 @@ export type Sala = {
   solo_administracion?: boolean
   /** Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin anotar a cada asistente: los seminarios. */
   solo_responsable?: boolean
+  /** False: dada de baja. Ya no se ofrece ni se reserva, y su historial se conserva. */
+  activa?: boolean
   // Solo si la fecha consultada es hoy — null para otras fechas.
   libre_ahora: boolean | null
   disponible_hasta_min: number | null
@@ -540,6 +542,15 @@ export type VistaSalasDia = {
   /** Tiempo para presentarse en una reserva de ese día (Administración › Salas). */
   minutos_para_presentarse: number
   salas: Sala[]
+}
+
+/** Una sala en Administración › Salas, con sus reservas de toda la historia y las que siguen activas. */
+export type SalaAdministrada = Pick<Sala, 'id' | 'nombre' | 'codigo' | 'capacidad' | 'tipo'> & {
+  solo_administracion: boolean
+  solo_responsable: boolean
+  activa: boolean
+  reservas_count: number
+  reservas_activas_count: number
 }
 
 /** Fechas en que el tiempo para presentarse a una sala es otro (ej. la semana de pruebas). */
@@ -930,6 +941,6 @@ export type ReservaListado = {
 /** Listado de reservas: la página de la pestaña elegida, cuántas hay en cada pestaña y las salas para filtrar. */
 export type ListadoReservas = Paginado<ReservaListado> & {
   conteos: Record<VistaReservas, number>
-  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo' | 'solo_administracion' | 'solo_responsable'>[]
+  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo' | 'solo_administracion' | 'solo_responsable' | 'activa'>[]
 }
 

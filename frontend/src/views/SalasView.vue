@@ -55,6 +55,13 @@ const duracionMinima = ref(30)
 const duracionMaxima = ref(120)
 const cuotaDiaria = ref(240)
 const minutosPresentarse = ref(15)
+
+/** «15 logias de estudio, Sala de Seminarios y Sala AGACI», según las salas que hay. */
+const resumenSalas = computed(() => {
+  const logias = salas.value.filter((s) => s.tipo === 'logia').length
+  const partes = [...(logias ? [`${logias} ${logias === 1 ? 'logia' : 'logias'} de estudio`] : []), ...salas.value.filter((s) => s.tipo !== 'logia').map((s) => s.nombre)]
+  return new Intl.ListFormat('es').format(partes)
+})
 const diaCerrado = ref(false)
 const atencion = ref<[string, string] | null>(null)
 
@@ -614,7 +621,7 @@ const proximaConfirmacion = computed(() => {
         <div class="px-6 py-5">
           <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Salas de Estudio</h1>
           <p class="text-sm text-white/60 mt-1">
-            15 logias de estudio, Sala de Seminarios, Sala de Postgrado y Sala AGACI · Horario del día {{ textoHorario }} · Reservas de hasta {{ formatMinutos(duracionMaxima) }}
+            <template v-if="resumenSalas">{{ resumenSalas }} · </template>Horario del día {{ textoHorario }} · Reservas de hasta {{ formatMinutos(duracionMaxima) }}
           </p>
         </div>
       </div>
@@ -742,7 +749,7 @@ const proximaConfirmacion = computed(() => {
       <div class="bg-white rounded-xl shadow-md p-5 mb-6">
         <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide">Entregar o recibir una llave</h3>
         <p class="mt-1 mb-3 text-xs text-gray-500">
-          Escriba el código de la sala (L01 a L15, SEM, POS, AGA) o solo el número de la logia: la primera vez entrega la llave de la
+          Escriba el código de la sala (por ejemplo, L04 o SEM) o solo el número de la logia: la primera vez entrega la llave de la
           reserva que está en curso y la segunda la recibe.
         </p>
         <div class="flex gap-3 flex-wrap items-end">

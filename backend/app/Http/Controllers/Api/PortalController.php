@@ -292,7 +292,7 @@ class PortalController extends Controller
     {
         $fecha = $request->query('fecha', now()->toDateString());
         // La Sala de Seminarios y las demás que gestiona solo la administración no se ofrecen en el portal.
-        $salas = Sala::where('solo_administracion', false)->orderBy('id')->get();
+        $salas = Sala::where('solo_administracion', false)->where('activa', true)->enOrden()->get();
         $usuarioId = (int) $request->user()->id;
 
         // De las reservas ajenas el usuario solo ve el horario: ni nombres ni RUT
@@ -339,7 +339,7 @@ class PortalController extends Controller
     public function reservarSala(Request $request)
     {
         $data = $request->validate([
-            'sala_id' => ['required', 'exists:salas,id'],
+            'sala_id' => ['required', Sala::reglaDisponible()],
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],

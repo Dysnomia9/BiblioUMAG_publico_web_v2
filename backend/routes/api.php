@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\IngresoController;
 use App\Http\Controllers\Api\LdapAuthController;
 use App\Http\Controllers\Api\LibroController;
+use App\Http\Controllers\Api\MantenedorSalasController;
 use App\Http\Controllers\Api\MultaController;
 use App\Http\Controllers\Api\PersonalController;
 use App\Http\Controllers\Api\PlazoSalaController;
@@ -215,6 +216,11 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::put('/plazo-salas', [PlazoSalaController::class, 'actualizar']);
         Route::post('/plazo-salas/periodos', [PlazoSalaController::class, 'crearPeriodo']);
         Route::delete('/plazo-salas/periodos/{periodoPlazoSala}', [PlazoSalaController::class, 'eliminarPeriodo']);
+        Route::get('/mantenedor-salas', [MantenedorSalasController::class, 'index']);
+        Route::post('/mantenedor-salas', [MantenedorSalasController::class, 'store']);
+        Route::put('/mantenedor-salas/{sala}', [MantenedorSalasController::class, 'update']);
+        Route::patch('/mantenedor-salas/{sala}/activa', [MantenedorSalasController::class, 'cambiarActiva']);
+        Route::delete('/mantenedor-salas/{sala}', [MantenedorSalasController::class, 'destroy']);
     });
 
     Route::middleware('permiso:personal.gestionar')->group(function () {

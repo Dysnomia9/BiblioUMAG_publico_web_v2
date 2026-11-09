@@ -9,6 +9,7 @@ import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
 import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import CopiasDadasDeBaja from '@/components/administracion/CopiasDadasDeBaja.vue'
 import PoliticasVigencia from '@/components/administracion/PoliticasVigencia.vue'
+import MantenedorSalas from '@/components/administracion/MantenedorSalas.vue'
 import TiempoPresentarseSalas from '@/components/administracion/TiempoPresentarseSalas.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -358,7 +359,10 @@ async function confirmarDesactivar() {
       <div v-if="!cargando" class="space-y-6">
         <GestionEstudiantes v-if="seccion === 'estudiantes'" />
         <PoliticasVigencia v-if="seccion === 'vigencia'" />
-        <TiempoPresentarseSalas v-if="seccion === 'salas'" />
+        <template v-if="seccion === 'salas'">
+          <MantenedorSalas />
+          <TiempoPresentarseSalas />
+        </template>
         <CopiasDadasDeBaja v-if="seccion === 'eliminados'" />
 
         <div v-if="seccion === 'institucion'" class="bg-white rounded-xl shadow-md p-6">

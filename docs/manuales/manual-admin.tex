@@ -543,9 +543,10 @@ que no tienen fecha de devolución fija.
 \chapter{Salas de Estudio (Logias)}
 % ======================================================================
 
-Este módulo administra la reserva de las 15 logias de estudio más las
-salas con nombre propio (Sala de Seminarios, Sala de Postgrado y Sala
-AGACI). Funciona en \textbf{horario continuo}, dentro del horario de
+Este módulo administra la reserva de las logias de estudio y las salas con
+nombre propio. De fábrica son 15 logias, la Sala de Seminarios, la Sala de
+Postgrado y la Sala AGACI; se agregan y ajustan en \textbf{Administración},
+sección \textbf{Salas}. Funciona en \textbf{horario continuo}, dentro del horario de
 atención de la biblioteca: de lunes a viernes de 08:45 a 20:30 (la primera
 reserva empieza a las 09:00, porque se agenda a la hora o a la media hora)
 y el sábado de 09:00 a 14:00. Cada reserva dura entre 30 minutos y 2
@@ -1215,6 +1216,15 @@ en tres pestañas. Cada una aparece solo si el rol tiene su permiso.
     catalogado conserva sus datos.
   \end{itemize}
   \item \textbf{Salas} (permiso \textit{Catálogos del sistema}):
+  \textbf{Nueva sala} crea una con su nombre, código, tipo y capacidad, y se
+  puede reservar de inmediato. El código es el que se escribe en el mesón; si
+  corresponde a un lugar del plano del portal (por ejemplo, L22), la sala ocupa
+  ese lugar, y si no, aparece debajo del mapa. Se puede marcar que se reserve a
+  nombre de una persona (los seminarios) y que la gestione solo la
+  administración. \textbf{Editar} cambia esos datos. \textbf{Dar de baja} la deja
+  de ofrecer en el mesón y en el portal, y conserva sus reservas y reportes: no
+  se puede mientras tenga reservas activas. \textbf{Eliminar} aparece solo en las
+  salas sin ninguna reserva en su historial. En la misma sección se fija
   cuánto tiene un grupo para presentarse en el mesón antes de que su sala se
   libere. Se fija un tiempo general y, en \textbf{Fechas con otro tiempo}, uno
   distinto para un rango de días, como la semana de pruebas. Vale para las

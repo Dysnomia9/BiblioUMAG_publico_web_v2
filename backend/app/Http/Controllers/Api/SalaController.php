@@ -79,7 +79,7 @@ class SalaController extends Controller
             ...$pagina->toArray(),
             'data' => collect($pagina->items())->map(fn (Reserva $r) => ReservaSalaService::paraListado($r))->all(),
             'conteos' => collect(self::VISTAS_LISTADO)->map(fn ($estado, $v) => $filtro($v)(clone $base)->count()),
-            'salas' => Sala::orderBy('id')->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion', 'solo_responsable']),
+            'salas' => Sala::enOrden()->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion', 'solo_responsable', 'activa']),
         ]);
     }
 
@@ -94,7 +94,7 @@ class SalaController extends Controller
     public function editarReserva(Request $request, Reserva $reserva)
     {
         $data = $request->validate([
-            'sala_id' => ['required', 'integer', 'exists:salas,id'],
+            'sala_id' => ['required', 'integer', Sala::reglaDisponible()],
             'fecha' => ['required', 'date_format:Y-m-d'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i'],
@@ -184,7 +184,7 @@ class SalaController extends Controller
     public function index(Request $request)
     {
         $fecha = $request->query('fecha', now()->toDateString());
-        $salas = Sala::orderBy('id')->get();
+        $salas = Sala::where('activa', true)->enOrden()->get();
         [$apertura, $cierre] = $this->reservaSalaService->rangoDeLaSemana();
         $atencion = $this->reservaSalaService->ventanaDelDia(Carbon::parse($fecha));
 
@@ -212,7 +212,7 @@ class SalaController extends Controller
         $soloResponsable = $sala?->solo_responsable ? $sala->mensajePersonas(0) : null;
 
         $data = $request->validate([
-            'sala_id' => ['required', 'exists:salas,id'],
+            'sala_id' => ['required', Sala::reglaDisponible()],
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],

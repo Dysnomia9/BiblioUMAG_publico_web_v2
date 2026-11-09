@@ -78,7 +78,7 @@ class CodigoSalaTest extends TestCase
         $this->postJson('/api/salas/llave', ['codigo' => 'sem'])->assertOk()->assertJsonPath('id', $reserva->id);
         $this->postJson('/api/salas/llave', ['codigo' => '99'])
             ->assertStatus(409)
-            ->assertJsonPath('message', 'No hay ninguna sala con el código «99». Las logias van de L01 a L15; también sirve solo el número.');
+            ->assertJsonPath('message', 'No hay ninguna sala con el código «99». De una logia también sirve solo el número.');
         $this->postJson('/api/salas/llave', ['codigo' => 'L05'])
             ->assertStatus(409)
             ->assertJsonPath('message', 'Logia 05 no tiene una reserva vigente en este momento');

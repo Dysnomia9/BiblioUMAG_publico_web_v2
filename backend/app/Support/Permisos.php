@@ -71,7 +71,7 @@ final class Permisos
                 'codigo_qr.ver' => ['Mostrar el código QR de acceso', 'Mostrar en pantalla el QR que los usuarios escanean para marcar su entrada.'],
                 'codigo_qr.regenerar' => ['Regenerar el código QR', 'Crear un QR nuevo — el anterior deja de funcionar de inmediato.'],
                 'configuracion.editar' => ['Configuración institucional', 'Cambiar el nombre y cargo de quien firma la Constancia de No Multa.'],
-                'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas), y administrar las reglas de préstamo, los días sin atención (feriados, vacaciones y cierres) y el tiempo para presentarse a una sala.'],
+                'catalogos.gestionar' => ['Catálogos del sistema', 'Crear estados personalizados de libro, ubicaciones, tipos de material y categorías de recursos de apoyo (ej. bicicletas), y administrar las reglas de préstamo, los días sin atención (feriados, vacaciones y cierres), las salas y el tiempo para presentarse a ellas.'],
                 'usuarios.gestionar' => ['Crear y editar estudiantes', 'Registrar estudiantes y otros usuarios (con RUT, pasaporte o DNI), editar sus datos y cargarlos en forma masiva desde Excel o CSV.'],
                 'usuarios.desactivar' => ['Desactivar usuarios', 'Dejar inactivo a un usuario: no podrá marcar su entrada, pedir préstamos ni entrar al portal hasta que alguien renueve su cuenta.'],
                 'vigencia.gestionar' => ['Vigencia de las cuentas', 'Definir cuánto dura la cuenta de estudiantes, docentes y funcionarios al renovarla (fecha fija, años o sin vencimiento) y elegir otra fecha de vencimiento al hacer una carga masiva.'],

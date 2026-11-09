@@ -29,7 +29,7 @@ class ReservaSalaService
         $sala = Sala::porCodigo($codigo);
 
         if (! $sala) {
-            throw new \RuntimeException("No hay ninguna sala con el código «{$codigo}». Las logias van de L01 a L15; también sirve solo el número.");
+            throw new \RuntimeException("No hay ninguna sala con el código «{$codigo}». De una logia también sirve solo el número.");
         }
 
         $ahora = now();

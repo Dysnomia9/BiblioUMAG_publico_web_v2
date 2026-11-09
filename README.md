@@ -333,7 +333,9 @@ Bibliomag_publico_web_v2/
 - **Código propio de cada sala** (`salas.codigo`: L01 a L15 para las logias, SEM,
   POS y AGA para las salas con nombre propio): en el mesón se escribe el código o el
   número de la logia para entregar o recibir la llave, y Reportes sigue cada sala
-  por su código (reservas, asistencia, horas de uso y bloques liberados).
+  por su código (reservas, asistencia, horas de uso y bloques liberados). Las salas
+  se crean, ajustan y dan de baja en Administración › **Salas**: una con reservas en
+  su historial no se elimina, se da de baja y conserva sus reservas y reportes.
 - Compatibilidad con el código de puesto de trabajo de Horizon en las entradas, y
   mensajes de validación en español (`lang/es/`).
 
@@ -374,7 +376,7 @@ La columna «Permiso» es la clave de `app/Support/Permisos.php` que exige la ru
 | Historial de material | `/catalogo/historial-prestamos` | `historiales.ver` | `LibroController::historial` |
 | Registro absoluto | `/registro-absoluto` | `registro_absoluto.ver` | `RegistroAbsolutoController`, `BitacoraController` |
 | Código QR de acceso | `/codigo-qr` | `codigo_qr.ver` (+ `codigo_qr.regenerar`) | `CodigoAccesoController` |
-| Administración | `/administracion` | `configuracion.editar` / `catalogos.gestionar` / `usuarios.gestionar` | `ConfiguracionInstitucionalController`, `PlazoSalaController` y catálogos |
+| Administración | `/administracion` | `configuracion.editar` / `catalogos.gestionar` / `usuarios.gestionar` | `ConfiguracionInstitucionalController`, `MantenedorSalasController`, `PlazoSalaController` y catálogos |
 | Personal y roles | `/personal` | `personal.gestionar` (solo acceso total) | `PersonalController`, `RolController` |
 
 ---

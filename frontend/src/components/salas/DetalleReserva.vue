@@ -151,7 +151,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
             <label class="block sm:col-span-2">
               <span class="mb-1 block text-xs font-medium text-gray-600">Sala</span>
               <select v-model.number="form.sala_id" :disabled="ocupado" class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-                <option v-for="s in salas" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+                <option v-for="s in salas.filter((sala) => sala.activa !== false)" :key="s.id" :value="s.id">{{ s.nombre }}</option>
               </select>
             </label>
             <label class="block sm:col-span-2">

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -22,17 +23,40 @@ class Sala extends Model
         // Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin
         // anotar a cada asistente: los seminarios.
         'solo_responsable',
+        // Dada de baja (false): ya no se ofrece ni se reserva, y su historial se conserva.
+        'activa',
     ];
 
     /** Máximo de integrantes de una reserva de grupo. */
     public const PERSONAS_MAXIMAS = 5;
+
+    public const TIPOS = ['logia', 'sala'];
+
+    protected $attributes = ['activa' => true];
 
     protected function casts(): array
     {
         return [
             'solo_administracion' => 'boolean',
             'solo_responsable' => 'boolean',
+            'activa' => 'boolean',
         ];
+    }
+
+    /** Las logias por su código (L16 queda después de L15) y luego las salas con nombre propio. */
+    public function scopeEnOrden(Builder $salas): Builder
+    {
+        return $salas->orderByRaw("tipo = 'logia' desc")->orderByRaw("case when tipo = 'logia' then codigo end")->orderBy('id');
+    }
+
+    /** Regla de validación para reservar en una sala: que exista y no esté dada de baja. */
+    public static function reglaDisponible(): \Closure
+    {
+        return function (string $campo, mixed $id, \Closure $falla) {
+            if (! is_numeric($id) || ! static::whereKey($id)->where('activa', true)->exists()) {
+                $falla('Esa sala no existe o está dada de baja.');
+            }
+        };
     }
 
     /**
@@ -70,17 +94,21 @@ class Sala extends Model
     }
 
     /**
-     * La sala de un código escrito en el mesón: «L04», «l4», «4», «Logia 4» o «SEM». Un
-     * número solo es el de una logia.
+     * La sala de un código escrito en el mesón: «L04», «l4», «4», «Logia 4» o «SEM».
      */
     public static function porCodigo(string $texto): ?self
     {
-        $codigo = mb_strtoupper(preg_replace('/\s+/', '', $texto));
-        if (preg_match('/^(?:L|LOGIA)?0*(\d{1,2})$/', $codigo, $m)) {
-            $codigo = 'L'.str_pad($m[1], 2, '0', STR_PAD_LEFT);
-        }
+        $codigo = self::normalizarCodigo($texto);
 
         return $codigo === '' ? null : static::where('codigo', $codigo)->first();
+    }
+
+    /** Un código como se guarda: en mayúsculas y sin espacios. Un número solo es el de una logia: «l4» y «4» son L04. */
+    public static function normalizarCodigo(string $texto): string
+    {
+        $codigo = mb_strtoupper(preg_replace('/\s+/', '', $texto));
+
+        return preg_match('/^(?:L|LOGIA)?0*(\d{1,2})$/', $codigo, $m) ? 'L'.str_pad($m[1], 2, '0', STR_PAD_LEFT) : $codigo;
     }
 
     public function reservas()
