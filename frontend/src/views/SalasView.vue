@@ -12,7 +12,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
-import { duracion, PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA } from '@/utils/reservas'
+import { duracion, PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA, textoMinutos } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
@@ -54,6 +54,7 @@ const granularidad = ref(30)
 const duracionMinima = ref(30)
 const duracionMaxima = ref(120)
 const cuotaDiaria = ref(240)
+const minutosPresentarse = ref(15)
 const diaCerrado = ref(false)
 const atencion = ref<[string, string] | null>(null)
 
@@ -159,6 +160,7 @@ async function cargar() {
     duracionMinima.value = data.duracion_minima
     duracionMaxima.value = data.duracion_maxima
     cuotaDiaria.value = data.cuota_diaria
+    minutosPresentarse.value = data.minutos_para_presentarse
     cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
@@ -623,7 +625,7 @@ const proximaConfirmacion = computed(() => {
         :pasos="[
           'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren, o use <strong>Reservar ahora</strong>.',
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
-          'Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>15 minutos</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.',
+          `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
@@ -677,7 +679,7 @@ const proximaConfirmacion = computed(() => {
           </div>
         </div>
         <p class="text-xs text-gray-400 mb-4">
-          Cada reserva aparece aquí desde su hora de inicio y tiene 15 minutos para confirmar que el grupo llegó. Pasado
+          Cada reserva aparece aquí desde su hora de inicio y tiene {{ textoMinutos(minutosPresentarse) }} para confirmar que el grupo llegó. Pasado
           ese plazo, la sala se libera sola.
         </p>
 
@@ -1132,7 +1134,7 @@ const proximaConfirmacion = computed(() => {
             </svg>
             {{
               detalleTramo.vencida_sin_confirmar
-                ? 'Venció el plazo de 15 minutos sin confirmar llegada'
+                ? 'Venció el plazo sin confirmar la llegada'
                 : selectedDate === hoy
                   ? 'Todavía no se confirma la llegada del grupo'
                   : 'La llegada se confirma el mismo día de la reserva'

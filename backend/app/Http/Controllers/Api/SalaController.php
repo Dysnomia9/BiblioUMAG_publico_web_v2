@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PeriodoPlazoSala;
 use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Usuario;
@@ -111,7 +112,7 @@ class SalaController extends Controller
         }
 
         if ($this->reservaSalaService->liberarSiVencida($reserva)) {
-            return response()->json(['message' => 'El plazo de 15 minutos para confirmar esta reserva ya venció — la sala quedó liberada'], 409);
+            return response()->json(['message' => $reserva->mensajePlazoVencido()], 409);
         }
 
         $mismoDia = $data['fecha'] === $reserva->fecha->toDateString();
@@ -197,6 +198,7 @@ class SalaController extends Controller
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
             'personas_minimas' => config('salas.personas_minimas'),
+            'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
         ]);
@@ -339,7 +341,7 @@ class SalaController extends Controller
         }
 
         if ($this->reservaSalaService->liberarSiVencida($reserva)) {
-            return response()->json(['message' => 'El plazo de 15 minutos para confirmar esta reserva ya venció — la sala quedó liberada'], 409);
+            return response()->json(['message' => $reserva->mensajePlazoVencido()], 409);
         }
 
         $ruts = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
@@ -515,7 +517,7 @@ class SalaController extends Controller
     /**
      * Confirmación manual de llegada desde el detalle de la reserva — sirve para cualquier
      * sala. Es el "menú de confirmación": el staff ve el listado de reservas del día
-     * y marca aquí quién sí se presentó dentro del plazo de 15 minutos.
+     * y marca aquí quién sí se presentó dentro del plazo.
      *
      * Con la llegada, cada integrante queda presente en la biblioteca: a quien no
      * marcó entrada hoy se le registra, a quien ya la tenía no se le duplica. La

@@ -537,7 +537,25 @@ export type VistaSalasDia = {
   cuota_diaria: number
   /** Personas mínimas por reserva (config/salas.php). */
   personas_minimas: number
+  /** Tiempo para presentarse en una reserva de ese día (Administración › Salas). */
+  minutos_para_presentarse: number
   salas: Sala[]
+}
+
+/** Fechas en que el tiempo para presentarse a una sala es otro (ej. la semana de pruebas). */
+export type PeriodoPlazoSala = {
+  id: number
+  desde: string
+  hasta: string
+  minutos: number
+  motivo: string | null
+}
+
+export type PlazoSalas = {
+  general: number
+  periodos: PeriodoPlazoSala[]
+  minimo: number
+  maximo: number
 }
 
 export type SerieItem = {

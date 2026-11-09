@@ -35,6 +35,9 @@ export function duracion(minutos: number) {
   return m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
+/** «1 minuto», «15 minutos». */
+export const textoMinutos = (minutos: number) => `${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`
+
 /** «14:02» de una marca de tiempo completa. */
 export const horaDe = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
 

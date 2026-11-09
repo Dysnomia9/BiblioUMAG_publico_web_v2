@@ -15,7 +15,7 @@ import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { largoSegunModo, modoDe } from '@/utils/documento'
-import { PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA } from '@/utils/reservas'
+import { PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA, textoMinutos } from '@/utils/reservas'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import type { Sala, TramoReserva } from '@/types'
 
@@ -58,6 +58,7 @@ const granularidad = ref(30)
 const duracionMinima = ref(30)
 const duracionMaxima = ref(120)
 const cuotaDiaria = ref(240)
+const minutosPresentarse = ref(15)
 const diaCerrado = ref(false)
 const atencion = ref<[string, string] | null>(null)
 const textoDiaCerrado = `Hoy es ${DIAS_SEMANA[diaIso(new Date())]} y la biblioteca no atiende: no se pueden reservar salas.`
@@ -169,6 +170,7 @@ async function cargar() {
     duracionMinima.value = data.duracion_minima
     duracionMaxima.value = data.duracion_maxima
     cuotaDiaria.value = data.cuota_diaria
+    minutosPresentarse.value = data.minutos_para_presentarse
     cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
@@ -216,7 +218,7 @@ const pasosAyuda = computed(() => [
   'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca. En <strong>Mapa</strong> ves las salas como están en cada piso: toca una para ver sus horarios libres de hoy.',
   `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${CANTIDAD_MAX} personas). El tuyo ya viene escrito.`,
   'Pulsa <strong>Confirmar</strong>: tu reserva queda en <strong>azul</strong> en la línea de tiempo.',
-  'Preséntate con tu grupo en el mesón dentro de los <strong>15 minutos</strong> desde la hora de inicio; si no, la sala se libera sola.',
+  `Preséntate con tu grupo en el mesón dentro de <strong>${textoMinutos(minutosPresentarse.value)}</strong> desde la hora de inicio; si no, la sala se libera sola.`,
 ])
 const consejoAyuda = computed(
   () => `Las reservas empiezan a la hora o a la media hora. Cada persona puede reservar hasta ${formatMinutos(cuotaDiaria.value)} al día, no puede estar en dos salas a la vez y tiene una sola reserva pendiente: para pedir otra, primero usa o cancela la que tiene. Para cancelar, toca tu reserva en azul. Puedes cancelar una reserva hecha por ti al día sin consecuencias; desde la segunda, tendrás que esperar ${cancelaciones.value.minutos_espera} minutos para reservar otra sala. Si te incluyó otra persona, al tocarla te sales de ella sin consecuencias y el resto del grupo la mantiene (si quedarían menos de ${cantidadMinima.value} personas, se cancela).`,
@@ -456,7 +458,7 @@ async function confirmarCancelacion() {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
         <p>
-          Tienes <strong>15 minutos</strong> desde que empieza tu reserva para presentarte y que el personal confirme tu
+          Tienes <strong>{{ textoMinutos(minutosPresentarse) }}</strong> desde que empieza tu reserva para presentarte y que el personal confirme tu
           llegada. Si nadie se presenta dentro de ese plazo, la sala queda disponible para otra persona.
         </p>
       </div>

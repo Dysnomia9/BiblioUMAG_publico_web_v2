@@ -7,6 +7,7 @@ use App\Models\Categoria;
 use App\Models\CodigoAcceso;
 use App\Models\Entrada;
 use App\Models\Libro;
+use App\Models\PeriodoPlazoSala;
 use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\ReservaLibro;
@@ -321,6 +322,7 @@ class PortalController extends Controller
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
             'personas_minimas' => config('salas.personas_minimas'),
+            'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $vista,
             // Sus cancelaciones de hoy: cuántas le quedan sin espera y, si está esperando,

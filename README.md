@@ -146,8 +146,10 @@ npm run dev
   fila.
 - **Salas de estudio** (logias) en horario continuo dentro del horario de la
   biblioteca (lunes a viernes 08:45–20:30, sábado 09:00–14:00): inicio en pasos
-  de 30 minutos, hasta 2 horas por reserva, 15 minutos para presentarse antes de
-  que la sala se libere, cuota diaria de 4 horas por persona y **una sola reserva
+  de 30 minutos, hasta 2 horas por reserva, tiempo para presentarse antes de que
+  la sala se libere (15 minutos de fábrica; se cambia en Administración › **Salas**,
+  en general o para ciertas fechas, como la semana de pruebas, y vale
+  para las reservas siguientes), cuota diaria de 4 horas por persona y **una sola reserva
   pendiente por persona**, con bloqueo para que dos reservas simultáneas no tomen
   el mismo tramo. Devolver la llave antes no tiene castigo: si quedan 5 minutos o
   más, el mesón puede **liberar el resto del bloque** para otro grupo, al
@@ -372,7 +374,7 @@ La columna «Permiso» es la clave de `app/Support/Permisos.php` que exige la ru
 | Historial de material | `/catalogo/historial-prestamos` | `historiales.ver` | `LibroController::historial` |
 | Registro absoluto | `/registro-absoluto` | `registro_absoluto.ver` | `RegistroAbsolutoController`, `BitacoraController` |
 | Código QR de acceso | `/codigo-qr` | `codigo_qr.ver` (+ `codigo_qr.regenerar`) | `CodigoAccesoController` |
-| Administración | `/administracion` | `configuracion.editar` / `catalogos.gestionar` / `usuarios.gestionar` | `ConfiguracionInstitucionalController` y catálogos |
+| Administración | `/administracion` | `configuracion.editar` / `catalogos.gestionar` / `usuarios.gestionar` | `ConfiguracionInstitucionalController`, `PlazoSalaController` y catálogos |
 | Personal y roles | `/personal` | `personal.gestionar` (solo acceso total) | `PersonalController`, `RolController` |
 
 ---

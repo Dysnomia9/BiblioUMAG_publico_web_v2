@@ -895,7 +895,7 @@ class SeedMockupData extends Command
         $reserva->participantes()->attach($participantes->pluck('id'));
 
         if ($minutosParaVencer !== null) {
-            $reserva->created_at = now()->subMinutes(config('salas.plazo_confirmacion', 15) - $minutosParaVencer);
+            $reserva->created_at = now()->subMinutes($reserva->plazo_confirmacion_minutos - $minutosParaVencer);
             $reserva->save();
 
             return $reserva;
@@ -917,7 +917,7 @@ class SeedMockupData extends Command
                 $reserva->update(['estado' => 'no_show']);
             }
         } elseif ($fase === 'en_curso') {
-            $plazo = config('salas.plazo_confirmacion', 15);
+            $plazo = $reserva->plazo_confirmacion_minutos;
             $minutosDesdeInicio = Carbon::parse($fecha.' '.$inicio)->diffInMinutes(now());
             // Si ya pasó el plazo de 15 min sin confirmar, en el sistema real ya habría
             // quedado 'no_show' por la expiración perezosa — casi nunca debería seguir

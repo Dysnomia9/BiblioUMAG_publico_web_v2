@@ -609,6 +609,12 @@ para presentarse y confirmar su llegada. Si el plazo vence sin
 confirmación, la sala se libera automáticamente y queda disponible para
 otra persona.
 
+Ese tiempo se cambia en \textbf{Administración}, sección \textbf{Salas},
+entre 1 y 30 minutos: el tiempo general y, si hace falta, otro para
+ciertas fechas, como la semana de pruebas, que empieza y termina solo. Un cambio
+vale para las reservas que se hagan desde ese momento: las ya hechas conservan el
+tiempo que tenían. Solo si una reserva se pasa a otro día toma el tiempo de ese día.
+
 El panel \textbf{Menú de confirmación de asistencia}, en la parte
 superior de esta pantalla, lista las reservas del día que todavía no
 confirmaron llegada, con una cuenta regresiva en vivo. Desde ahí se puede:
@@ -1208,6 +1214,12 @@ en tres pestañas. Cada una aparece solo si el rol tiene su permiso.
     Cambiar la ficha de un tipo existente pide confirmación; lo ya
     catalogado conserva sus datos.
   \end{itemize}
+  \item \textbf{Salas} (permiso \textit{Catálogos del sistema}):
+  cuánto tiene un grupo para presentarse en el mesón antes de que su sala se
+  libere. Se fija un tiempo general y, en \textbf{Fechas con otro tiempo}, uno
+  distinto para un rango de días, como la semana de pruebas. Vale para las
+  reservas que se hagan desde ese momento (ver la sección de confirmación de
+  asistencia).
   \item \textbf{Estudiantes} (permiso \textit{Crear y editar estudiantes}):
   registrar estudiantes y otros usuarios, corregir sus datos con
   \textbf{Editar} y cargarlos en forma masiva desde una planilla Excel o
@@ -1344,7 +1356,7 @@ atenderlos.
   \item \textbf{Reservar una sala de estudio}, solo para el día de hoy y
   sin la opción \textbf{Reservar ahora}. La reserva aparece de inmediato en
   Salas de Estudio, y el grupo igual tiene que presentarse en el mesón
-  dentro de los 15 minutos para confirmar su llegada. Las salas que
+  dentro del tiempo fijado (15 minutos, salvo que se haya cambiado) para confirmar su llegada. Las salas que
   gestiona solo la biblioteca no se ofrecen en el portal.
   \item \textbf{Ver su actividad}: préstamos, reservas, multas e ingresos,
   y descargar su \textbf{Constancia de No Multa} si no tiene multas
@@ -1421,7 +1433,8 @@ Absoluto sin nadie en \textbf{Atendido por}.
 
   \item[¿Qué pasa si un grupo reserva una sala y no llega?]
   Tiene 15 minutos desde la hora de inicio de su reserva para confirmar
-  su llegada. Si no lo hace, la sala se libera automáticamente y queda
+  su llegada, salvo que la biblioteca haya fijado otro tiempo (Administración,
+  Salas). Si no lo hace, la sala se libera automáticamente y queda
   disponible para otra persona.
 
   \item[¿Cómo sé quién atendió una operación puntual?]

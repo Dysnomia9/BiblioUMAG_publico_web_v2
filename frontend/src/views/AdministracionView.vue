@@ -9,6 +9,7 @@ import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
 import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import CopiasDadasDeBaja from '@/components/administracion/CopiasDadasDeBaja.vue'
 import PoliticasVigencia from '@/components/administracion/PoliticasVigencia.vue'
+import TiempoPresentarseSalas from '@/components/administracion/TiempoPresentarseSalas.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
@@ -25,11 +26,12 @@ const cargando = ref(true)
 
 // Cada sección exige su propio permiso: alguien puede administrar los catálogos
 // (ubicaciones, tipos de material…) sin poder cambiar quién firma la constancia.
-type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'estudiantes' | 'vigencia' | 'eliminados'
+type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'salas' | 'estudiantes' | 'vigencia' | 'eliminados'
 const SECCIONES: { clave: Seccion; label: string; permiso: string }[] = [
   { clave: 'institucion', label: 'Configuración institucional', permiso: 'configuracion.editar' },
   { clave: 'catalogos', label: 'Catálogos (estados, ubicaciones, tipos y recursos)', permiso: 'catalogos.gestionar' },
   { clave: 'circulacion', label: 'Reglas de préstamo y días sin atención', permiso: 'catalogos.gestionar' },
+  { clave: 'salas', label: 'Salas', permiso: 'catalogos.gestionar' },
   { clave: 'estudiantes', label: 'Usuarios', permiso: 'usuarios.gestionar' },
   { clave: 'vigencia', label: 'Vigencia de cuentas', permiso: 'vigencia.gestionar' },
   { clave: 'eliminados', label: 'Eliminados', permiso: 'libros.estado' },
@@ -356,6 +358,7 @@ async function confirmarDesactivar() {
       <div v-if="!cargando" class="space-y-6">
         <GestionEstudiantes v-if="seccion === 'estudiantes'" />
         <PoliticasVigencia v-if="seccion === 'vigencia'" />
+        <TiempoPresentarseSalas v-if="seccion === 'salas'" />
         <CopiasDadasDeBaja v-if="seccion === 'eliminados'" />
 
         <div v-if="seccion === 'institucion'" class="bg-white rounded-xl shadow-md p-6">

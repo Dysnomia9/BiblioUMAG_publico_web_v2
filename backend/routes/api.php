@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\LdapAuthController;
 use App\Http\Controllers\Api\LibroController;
 use App\Http\Controllers\Api\MultaController;
 use App\Http\Controllers\Api\PersonalController;
+use App\Http\Controllers\Api\PlazoSalaController;
 use App\Http\Controllers\Api\PortalController;
 use App\Http\Controllers\Api\PortalReservaLibroController;
 use App\Http\Controllers\Api\PrestamoController;
@@ -210,6 +211,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/dias-sin-atencion', [DiaSinAtencionController::class, 'store']);
         Route::patch('/dias-sin-atencion/{diaSinAtencion}', [DiaSinAtencionController::class, 'update']);
         Route::delete('/dias-sin-atencion/{diaSinAtencion}', [DiaSinAtencionController::class, 'destroy']);
+        Route::get('/plazo-salas', [PlazoSalaController::class, 'show']);
+        Route::put('/plazo-salas', [PlazoSalaController::class, 'actualizar']);
+        Route::post('/plazo-salas/periodos', [PlazoSalaController::class, 'crearPeriodo']);
+        Route::delete('/plazo-salas/periodos/{periodoPlazoSala}', [PlazoSalaController::class, 'eliminarPeriodo']);
     });
 
     Route::middleware('permiso:personal.gestionar')->group(function () {

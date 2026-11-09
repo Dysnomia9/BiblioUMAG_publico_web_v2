@@ -166,7 +166,7 @@ class ReservaSalaService
 
     /**
      * Confirma que el grupo se presentó a retirar la sala (desde el detalle de la reserva o
-     * el menú de confirmación; sirve para cualquier sala). Rechaza la confirmación si ya pasó el plazo de 15 minutos
+     * el menú de confirmación; sirve para cualquier sala). Rechaza la confirmación si ya pasó el plazo
      * (ver Reserva::plazoConfirmacion()) y en ese caso libera la reserva de una vez
      * (mismo efecto que liberarPorNoPresentacion()) para que quede disponible de inmediato.
      */
@@ -182,7 +182,7 @@ class ReservaSalaService
 
         if ($reserva->estaVencidaSinConfirmar()) {
             $reserva->update(['estado' => 'no_show']);
-            throw new \RuntimeException('El plazo de 15 minutos para confirmar esta reserva ya venció — la sala quedó liberada');
+            throw new \RuntimeException($reserva->mensajePlazoVencido());
         }
 
         // Como en llavePorCodigo(), que solo encuentra la reserva vigente de hoy: desde el

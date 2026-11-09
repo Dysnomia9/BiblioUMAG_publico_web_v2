@@ -31,10 +31,25 @@ class Reserva extends Model
         'via',
     ];
 
+    /**
+     * Cada reserva guarda los minutos para presentarse que rigen para su día cuando se hace
+     * (PeriodoPlazoSala::minutosPara()): si la biblioteca los cambia después, sigue valiendo
+     * lo que se le dijo a ese grupo. Solo se recalculan si la reserva pasa a otro día.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Reserva $reserva) {
+            if (! $reserva->exists || $reserva->isDirty('fecha')) {
+                $reserva->plazo_confirmacion_minutos = PeriodoPlazoSala::minutosPara($reserva->fecha);
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'fecha' => 'date',
+            'plazo_confirmacion_minutos' => 'integer',
             'hora_prestamo_real' => 'datetime',
             'hora_devolucion_real' => 'datetime',
         ];
@@ -66,8 +81,8 @@ class Reserva extends Model
     }
 
     /**
-     * Plazo máximo para que el grupo se presente a confirmar la reserva: 15 minutos
-     * desde que comienza el tramo reservado — salvo que la reserva se haya creado
+     * Plazo máximo para que el grupo se presente a confirmar la reserva: los minutos
+     * que le tocaron (ver booted()) desde que comienza el tramo reservado — salvo que la reserva se haya creado
      * DESPUÉS de que el tramo ya empezó (ej. "Reservar ahora" a las 15:40 dentro de un
      * tramo 15:00-17:00 no debería pasar, pero por seguridad se toma el máximo entre
      * ambos), en cuyo caso el plazo corre desde el momento de la reserva, no desde el
@@ -78,7 +93,14 @@ class Reserva extends Model
         $inicioTramo = Carbon::parse($this->fecha->toDateString().' '.$this->hora_inicio);
         $base = $this->created_at->greaterThan($inicioTramo) ? $this->created_at : $inicioTramo;
 
-        return $base->copy()->addMinutes(config('salas.plazo_confirmacion', 15));
+        return $base->copy()->addMinutes($this->plazo_confirmacion_minutos);
+    }
+
+    public function mensajePlazoVencido(): string
+    {
+        $minutos = $this->plazo_confirmacion_minutos;
+
+        return "El plazo de {$minutos} ".($minutos === 1 ? 'minuto' : 'minutos').' para confirmar esta reserva ya venció — la sala quedó liberada';
     }
 
     public function estaVencidaSinConfirmar(): bool
