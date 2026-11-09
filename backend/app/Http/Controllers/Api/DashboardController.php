@@ -15,7 +15,8 @@ class DashboardController extends Controller
         $hoy = Carbon::today();
 
         return response()->json([
-            'usuariosActivos' => Usuario::where('activo', true)->count(),
+            // Las que sirven hoy: una cuenta vencida guarda activo = true y su fecha ya pasada.
+            'usuariosActivos' => Usuario::vigentes()->count(),
             'entradasHoy' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
             // Horizon (el sistema legado) no distingue "quién sigue adentro": cada ingreso
             // se cierra en el mismo instante en que se registra (ver EntradaController::
