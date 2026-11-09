@@ -258,12 +258,16 @@ class ReservaSalaService
      * Compartido entre SalaController::storeReserva(), SalaController::editarReserva()
      * y PortalController::reservarSala().
      *
+     * Con $terminoLibre (el mesón), el término puede ser cualquier minuto (de 17:00 a 18:35):
+     * el personal lo escribe a mano. El inicio sigue a la hora o a la media hora, salvo desde
+     * ahora. El portal no lo pasa: ahí todo va en la grilla.
+     *
      * Al editar ($editando), la hora de inicio o de término que la reserva ya tenía
      * (mismo día, misma hora) se acepta tal cual: pudo quedar en el pasado o fuera de la
      * grilla de 30 minutos ("Reservar ahora"), y eso no impide cambiarle la sala o el
      * otro extremo del horario.
      */
-    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false, ?Reserva $editando = null): ?string
+    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false, ?Reserva $editando = null, bool $terminoLibre = false): ?string
     {
         // Las salas están dentro de la biblioteca: solo se usan mientras atiende (config/biblioteca.php).
         $dia = Carbon::parse($data['fecha']);
@@ -317,9 +321,11 @@ class ReservaSalaService
 
         $granularidad = config('salas.granularidad');
         $inicioFueraDeGrilla = $horaInicio->minute % $granularidad !== 0 && ! $inicioSinCambios;
-        $finFueraDeGrilla = $horaFin->minute % $granularidad !== 0 && ! $finSinCambios;
+        $finFueraDeGrilla = $horaFin->minute % $granularidad !== 0 && ! $finSinCambios && ! $terminoLibre;
         if (! $inmediata && ($inicioFueraDeGrilla || $finFueraDeGrilla)) {
-            return 'El inicio y el término deben caer en una hora en punto o media.';
+            return $terminoLibre
+                ? 'La hora de inicio debe caer en una hora en punto o media.'
+                : 'El inicio y el término deben caer en una hora en punto o media.';
         }
 
         $data['hora_inicio'] = $horaInicio->format('H:i:s');

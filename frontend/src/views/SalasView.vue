@@ -9,6 +9,7 @@ import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
+import CampoHora from '@/components/ui/CampoHora.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
@@ -115,6 +116,10 @@ const modalDuracion = ref(60)
 // media hora) y queda con la llegada confirmada (SalaController::storeReserva, inmediata).
 const AHORA = 'ahora'
 const modalEsAhora = computed(() => modalHoraInicio.value === AHORA)
+// «Otra hora de término»: en vez de una duración, el personal escribe hasta qué hora (18:35).
+const TERMINO_A_MANO = 0
+const terminoAMano = computed(() => modalDuracion.value === TERMINO_A_MANO)
+const modalHoraFin = ref('')
 const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
@@ -269,8 +274,33 @@ const modalDisponibleMin = computed(() => (selectedSala.value ? disponibilidadDe
 const modalDuracionesValidas = computed(() => DURACIONES.filter((d) => d >= duracionMinima.value && d <= modalDisponibleMin.value))
 const textoInicioModal = computed(() => (modalEsAhora.value ? `ahora (${minutesToTime(ahoraMin.value)})` : `las ${modalHoraInicio.value}`))
 
+/**
+ * Por qué no sirve la hora de término escrita a mano, o null si sirve: las mismas reglas
+ * que revisa el servidor (duración mínima y máxima, cierre de la biblioteca y la siguiente
+ * reserva de la sala), dichas con la hora hasta la que sí se puede.
+ */
+const errorTermino = computed<string | null>(() => {
+  if (!terminoAMano.value) return null
+  if (!modalHoraFin.value) return 'Escriba la hora de término: los cuatro números, por ejemplo 1835 para las 18:35 (de 00:00 a 23:59).'
+  const inicio = modalInicioMin.value
+  const fin = timeToMinutes(modalHoraFin.value)
+  const minutos = fin - inicio
+  const hasta = (m: number) => minutesToTime(Math.min(inicio + m, cierraMin.value))
+  if (fin <= inicio) return `Debe ser después de ${textoInicioModal.value}.`
+  if (fin > cierraMin.value) return `La biblioteca cierra a las ${minutesToTime(cierraMin.value)}: puede ser hasta esa hora.`
+  if (minutos < duracionMinima.value) return `La reserva dura al menos ${formatMinutos(duracionMinima.value)}: desde las ${hasta(duracionMinima.value)}.`
+  if (minutos > duracionMaxima.value) return `Serían ${formatMinutos(minutos)}: el máximo es ${formatMinutos(duracionMaxima.value)}, hasta las ${hasta(duracionMaxima.value)}.`
+  if (minutos > modalDisponibleMin.value) return `A las ${hasta(modalDisponibleMin.value)} empieza otra reserva en esta sala: puede ser hasta esa hora.`
+  return null
+})
+const modalFinMin = computed(() =>
+  terminoAMano.value ? timeToMinutes(modalHoraFin.value || '00:00') : Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value),
+)
+const puedeConfirmarReserva = computed(() => modalDisponibleMin.value >= duracionMinima.value && !errorTermino.value)
+
 // Al cambiar la hora de inicio, la duración elegida puede dejar de caber: se toma la mayor que sí cabe.
 watch(modalHoraInicio, () => {
+  if (terminoAMano.value) return
   const validas = modalDuracionesValidas.value
   if (validas.length && !validas.includes(modalDuracion.value)) modalDuracion.value = validas[validas.length - 1]
 })
@@ -299,6 +329,7 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
     modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
   }
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, modalInicioMin.value))
+  modalHoraFin.value = ''
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = minimoDe(sala)
   rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
@@ -409,6 +440,10 @@ async function confirmarReserva() {
     return
   }
   if (!selectedSala.value) return
+  if (errorTermino.value) {
+    toast.error(errorTermino.value)
+    return
+  }
 
   rutErrores.value = {}
   try {
@@ -416,11 +451,12 @@ async function confirmarReserva() {
       sala_id: selectedSala.value.id,
       fecha: selectedDate.value,
       hora_inicio: minutesToTime(modalInicioMin.value),
-      hora_fin: minutesToTime(Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value)),
+      hora_fin: minutesToTime(modalFinMin.value),
       cantidad_personas: cantidadPersonas.value,
       ruts: rutsReserva.value,
-      // Desde ahora, el servidor pone el inicio y el término con su propia hora.
-      ...(modalEsAhora.value ? { inmediata: true, duracion: modalDuracion.value } : {}),
+      // Desde ahora, el servidor pone el inicio con su propia hora, y el término también si se
+      // eligió una duración (con una hora de término escrita, es esa).
+      ...(modalEsAhora.value ? { inmediata: true, ...(terminoAMano.value ? {} : { duracion: modalDuracion.value }) } : {}),
     })
     const tramo = labelTramo(data.hora_inicio.slice(0, 5), data.hora_fin.slice(0, 5))
     if (data.hora_prestamo_real) {
@@ -969,8 +1005,19 @@ const proximaConfirmacion = computed(() => {
                   <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
                     {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
                   </option>
+                  <option :value="TERMINO_A_MANO">Otra hora de término…</option>
                 </select>
               </div>
+            </div>
+            <div v-if="terminoAMano">
+              <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
+              <div class="flex flex-wrap items-center gap-3">
+                <CampoHora id="reserva-hora-fin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
+                <span v-if="!errorTermino" class="text-sm text-gray-600">
+                  {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ modalHoraFin }}
+                </span>
+              </div>
+              <p v-if="errorTermino" class="mt-1 text-xs" :class="modalHoraFin ? 'text-red-600' : 'text-gray-500'">{{ errorTermino }}</p>
             </div>
             <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
               Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
@@ -1029,7 +1076,7 @@ const proximaConfirmacion = computed(() => {
             </button>
             <button
               @click="confirmarReserva"
-              :disabled="modalDisponibleMin < duracionMinima"
+              :disabled="!puedeConfirmarReserva"
               class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50"
             >
               Confirmar
