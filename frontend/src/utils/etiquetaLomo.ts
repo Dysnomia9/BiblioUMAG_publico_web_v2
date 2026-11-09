@@ -33,8 +33,8 @@ export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_cop
   const lineas = (e.clasificacion ?? '').trim().split(/\s+/).filter(Boolean)
   const volumen = e.volumen?.trim() ?? ''
   if (conCopia && volumen) lineas.push(...lineasDeVolumen(volumen))
-  // «v.2-c.1» (como venía de Horizon) ya dice la copia
-  if (conCopia && e.numero_copia > 1 && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(`c.${e.numero_copia}`)
+  // La copia 0 no lleva «c.», como en Horizon; «v.2-c.1» (como venía de Horizon) ya la dice
+  if (conCopia && e.numero_copia > 0 && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(`c.${e.numero_copia}`)
   return lineas
 }
 

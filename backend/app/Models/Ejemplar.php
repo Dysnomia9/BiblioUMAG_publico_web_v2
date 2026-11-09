@@ -115,11 +115,24 @@ class Ejemplar extends Model
         return $this->coleccion ?: $this->libro?->coleccion;
     }
 
-    /** "Título (Copia N)" para copias 2+, o el título tal cual para la copia 1. */
+    /** "Título (Copia N)", o el título tal cual para la copia 0 (la que no lleva «c.»). */
     public function tituloConCopia(): string
     {
         $titulo = $this->libro->titulo;
 
-        return $this->numero_copia > 1 ? "{$titulo} (Copia {$this->numero_copia})" : $titulo;
+        return $this->numero_copia > 0 ? "{$titulo} (Copia {$this->numero_copia})" : $titulo;
+    }
+
+    /**
+     * El número de la próxima copia de un libro. Como en Horizon, la primera no lleva «c.»
+     * (es la 0) y las demás son c.1, c.2…: el mayor más uno. Copias distintas pueden
+     * compartir número (dos sin «c.», o registros de Horizon fusionados): se distinguen por
+     * el código de barras.
+     */
+    public static function siguienteNumero(int $libroId): int
+    {
+        $mayor = static::where('libro_id', $libroId)->max('numero_copia');
+
+        return $mayor === null ? 0 : (int) $mayor + 1;
     }
 }

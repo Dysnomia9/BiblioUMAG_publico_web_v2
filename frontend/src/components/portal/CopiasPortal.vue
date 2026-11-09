@@ -9,7 +9,7 @@ defineProps<{ copias: NonNullable<LibroCatalogo['copias']> }>()
   <div v-if="copias.length">
     <p class="mt-4 mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Ejemplares</p>
     <ul class="divide-y divide-gray-100 text-sm">
-      <li v-for="c in copias" :key="c.numero_copia" class="flex items-start justify-between gap-3 py-2">
+      <li v-for="(c, i) in copias" :key="i" class="flex items-start justify-between gap-3 py-2">
         <div class="min-w-0">
           <p class="text-gray-900">
             Copia {{ c.numero_copia }}<template v-if="c.volumen"> · {{ c.volumen }}</template>

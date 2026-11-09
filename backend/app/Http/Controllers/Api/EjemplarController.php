@@ -55,7 +55,7 @@ class EjemplarController extends Controller
         ]);
 
         $ejemplar = DB::transaction(function () use ($data) {
-            $siguienteNumero = Ejemplar::where('libro_id', $data['libro_id'])->max('numero_copia') + 1;
+            $siguienteNumero = Ejemplar::siguienteNumero((int) $data['libro_id']);
 
             return Ejemplar::create([
                 'libro_id' => $data['libro_id'],

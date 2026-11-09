@@ -96,7 +96,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $ejemplar = Ejemplar::find($respuesta->json('ejemplar_id'));
         $this->assertSame('por_colocar', $ejemplar->estado_proceso);
         $this->assertTrue($ejemplar->disponible);
-        $this->assertSame(1, $ejemplar->numero_copia);
+        $this->assertSame(0, $ejemplar->numero_copia); // título nuevo: su primera copia no lleva «c.»
         $this->assertSame(['Guyton, Arthur C.', 'Hall, John E.'], $ejemplar->libro->autores->pluck('nombre')->all());
         $this->assertSame($staff->id, $ejemplar->libro->catalogado_por_staff_id);
         $this->assertDatabaseHas('bitacora', ['accion' => 'libros.recibir_interbibliotecario', 'entidad_id' => $respuesta->json('id')]);
@@ -116,7 +116,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
             'biblioteca' => 'Biblioteca UACh',
             'fecha_ingreso' => '2026-11-04',
             'fecha_limite' => '2026-11-30',
-        ])->assertCreated()->assertJsonPath('ejemplar.numero_copia', 2);
+        ])->assertCreated()->assertJsonPath('ejemplar.numero_copia', 1); // la propia es la 0
 
         $this->assertDatabaseCount('libros', 1);
         // «Por colocar» todavía no se presta: la fila espera hasta que pase al estante.

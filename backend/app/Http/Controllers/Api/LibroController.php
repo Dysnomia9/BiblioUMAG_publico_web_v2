@@ -172,7 +172,8 @@ class LibroController extends Controller
 
             Ejemplar::create([
                 'libro_id' => $libro->id,
-                'numero_copia' => 1,
+                // La primera copia no lleva «c.»: ver Ejemplar::siguienteNumero()
+                'numero_copia' => 0,
                 'codigo_barras' => $data['codigo_barras'],
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
                 'volumen' => $data['volumen'] ?? null,

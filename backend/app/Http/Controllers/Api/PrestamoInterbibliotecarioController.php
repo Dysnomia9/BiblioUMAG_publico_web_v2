@@ -137,7 +137,7 @@ class PrestamoInterbibliotecarioController extends Controller
 
             $ejemplar = Ejemplar::create([
                 'libro_id' => $libro->id,
-                'numero_copia' => Ejemplar::where('libro_id', $libro->id)->max('numero_copia') + 1,
+                'numero_copia' => Ejemplar::siguienteNumero($libro->id),
                 'codigo_barras' => trim($data['codigo_barras']),
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
                 'estado_proceso' => 'por_colocar',

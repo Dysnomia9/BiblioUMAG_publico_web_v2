@@ -48,7 +48,7 @@ class LibroCatalogacionTest extends TestCase
             ->assertJsonPath('titulo', 'Título de prueba')
             ->assertJsonPath('isbn', '9781234567897')
             ->assertJsonPath('ejemplares.0.codigo_barras', 'UMAG000099')
-            ->assertJsonPath('ejemplares.0.numero_copia', 1)
+            ->assertJsonPath('ejemplares.0.numero_copia', 0) // como en Horizon, la primera no lleva «c.»
             ->assertJsonPath('ejemplares.0.estado_proceso', 'inventario')
             ->assertJsonPath('autores.0.nombre', 'Autor Nuevo')
             ->assertJsonPath('categorias.0.nombre', 'Categoría Nueva');
@@ -136,6 +136,20 @@ class LibroCatalogacionTest extends TestCase
         ]);
 
         $response->assertStatus(422)->assertJsonValidationErrors('codigo_barras');
+    }
+
+    public function test_la_primera_copia_de_un_libro_es_la_0_y_la_siguiente_la_1(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $libro = Libro::factory()->create();
+
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => 'UMAG000091'])
+            ->assertStatus(201)->assertJsonPath('numero_copia', 0);
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => 'UMAG000092'])
+            ->assertStatus(201)->assertJsonPath('numero_copia', 1);
+
+        $copias = Ejemplar::where('libro_id', $libro->id)->orderBy('numero_copia')->get();
+        $this->assertSame([$libro->titulo, "{$libro->titulo} (Copia 1)"], $copias->map->tituloConCopia()->all());
     }
 
     public function test_agregar_copia_calcula_el_siguiente_numero_de_copia(): void

@@ -50,7 +50,7 @@ class EjemplarNotasColeccionTest extends TestCase
         $this->assertSame('Interna del libro', $libro->nota_interna);
         $this->assertDatabaseHas('ejemplares', [
             'libro_id' => $libro->id,
-            'numero_copia' => 1,
+            'numero_copia' => 0,
             'nota_publica' => 'Incluye CD',
             'nota_interna' => 'Donada en 2024',
         ]);

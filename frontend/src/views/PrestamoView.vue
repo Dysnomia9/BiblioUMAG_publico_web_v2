@@ -323,7 +323,7 @@ const codigoCompleto = (codigo: string) => codigo.length === 8 || codigo.length 
 async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; ubicacionId: number | null } | null> {
   try {
     const { data } = await api.get(`/ejemplares/${codigo}`)
-    const titulo = data.numero_copia > 1 ? `${data.libro?.titulo} (Copia ${data.numero_copia})` : data.libro?.titulo
+    const titulo = data.numero_copia > 0 ? `${data.libro?.titulo} (Copia ${data.numero_copia})` : data.libro?.titulo
     return { titulo, disponible: data.disponible && data.estado_proceso === 'en_estante', ubicacionId: data.ubicacion_id ?? null }
   } catch {
     return null
