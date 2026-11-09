@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Bitacora;
 use App\Models\Rol;
 use App\Models\Staff;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -61,6 +63,116 @@ class PersonalYRolesTest extends TestCase
 
         $this->putJson("/api/personal/{$otra->id}", ['nombre' => $otra->nombre, 'email' => 'Otra.Nueva@umag.cl', 'rol' => $otra->rol])->assertOk();
         $this->assertSame('otra.nueva@umag.cl', $otra->fresh()->email);
+    }
+
+    public function test_carga_varias_cuentas_y_cada_una_entra_con_su_rol_y_su_contrasena(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Ana Rojas', 'email' => 'Ana.Rojas@umag.cl', 'password' => 'clave-de-ana', 'rol' => 'admin'],
+            ['nombre' => 'Luis Vera', 'email' => 'luis.vera@umag.cl', 'password' => 'clave-de-luis', 'rol' => 'asistente'],
+        ]])->assertStatus(201)
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.email', 'ana.rojas@umag.cl')
+            ->assertJsonPath('0.rol_nombre', 'Administrador/a')
+            ->assertJsonPath('1.rol_nombre', 'Atención de público')
+            ->assertJsonMissingPath('0.password');
+
+        $this->postJson('/api/auth/login', ['email' => 'ana.rojas@umag.cl', 'password' => 'clave-de-ana'])
+            ->assertStatus(200)->assertJsonPath('staff.rol', 'admin');
+        $this->postJson('/api/auth/login', ['email' => 'luis.vera@umag.cl', 'password' => 'clave-de-luis'])
+            ->assertStatus(200)->assertJsonPath('staff.rol', 'asistente');
+    }
+
+    public function test_la_carga_de_cuentas_queda_en_la_bitacora_sin_las_contrasenas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Ana Rojas', 'email' => 'ana.rojas@umag.cl', 'password' => 'clave-de-ana', 'rol' => 'admin'],
+            ['nombre' => 'Luis Vera', 'email' => 'luis.vera@umag.cl', 'password' => 'clave-de-luis', 'rol' => 'asistente'],
+        ]])->assertStatus(201);
+
+        $registros = Bitacora::where('accion', 'personal.crear')->get();
+        $this->assertCount(2, $registros);
+        $this->assertStringNotContainsString('clave-de', $registros->toJson());
+    }
+
+    public function test_si_un_correo_ya_tiene_cuenta_la_carga_no_crea_ninguna(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $existente = Staff::factory()->asistente()->create(['email' => 'ya@umag.cl']);
+        $total = Staff::count();
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Nueva', 'email' => 'nueva@umag.cl', 'password' => 'clave12345', 'rol' => 'asistente'],
+            ['nombre' => 'Otro rol', 'email' => 'YA@umag.cl', 'password' => 'clave12345', 'rol' => 'admin'],
+        ]])->assertStatus(422)
+            ->assertJsonValidationErrors('cuentas.1.email')
+            ->assertJsonPath('message', 'Ya existe una cuenta del personal con el correo ya@umag.cl.');
+
+        $this->assertSame($total, Staff::count());
+        $this->assertSame('asistente', $existente->fresh()->rol);
+        $this->assertSame(0, Bitacora::where('accion', 'personal.crear')->count());
+    }
+
+    public function test_la_carga_rechaza_correos_repetidos_aunque_cambien_las_mayusculas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $total = Staff::count();
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Ana', 'email' => 'ana@umag.cl', 'password' => 'clave12345', 'rol' => 'asistente'],
+            ['nombre' => 'Ana otra vez', 'email' => 'ANA@umag.cl', 'password' => 'clave12345', 'rol' => 'asistente'],
+        ]])->assertStatus(422)->assertJsonValidationErrors('cuentas.1.email');
+
+        $this->assertSame($total, Staff::count());
+    }
+
+    public function test_la_carga_de_cuentas_valida_cada_fila_y_el_tamano_de_la_lista(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $total = Staff::count();
+
+        $this->postJson('/api/personal/lote', ['cuentas' => []])->assertStatus(422)->assertJsonValidationErrors('cuentas');
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => '', 'email' => 'no-es-correo', 'password' => 'corta', 'rol' => 'no-existe'],
+        ]])->assertStatus(422)->assertJsonValidationErrors(['cuentas.0.nombre', 'cuentas.0.email', 'cuentas.0.password', 'cuentas.0.rol']);
+
+        $demasiadas = array_map(
+            fn (int $i) => ['nombre' => "Persona {$i}", 'email' => "persona{$i}@umag.cl", 'password' => 'clave12345', 'rol' => 'asistente'],
+            range(1, 51),
+        );
+        $this->postJson('/api/personal/lote', ['cuentas' => $demasiadas])->assertStatus(422)->assertJsonValidationErrors('cuentas');
+
+        $this->assertSame($total, Staff::count());
+    }
+
+    public function test_solo_quien_gestiona_el_personal_puede_cargar_cuentas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Intruso', 'email' => 'intruso@umag.cl', 'password' => 'clave12345', 'rol' => 'admin'],
+        ]])->assertStatus(403);
+
+        $this->assertNull(Staff::where('email', 'intruso@umag.cl')->first());
+    }
+
+    public function test_quien_ya_es_usuario_entra_al_panel_con_la_contrasena_de_la_cuenta_cargada(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Usuario::factory()->create(['email' => 'marta@umag.cl', 'password' => 'clave-del-portal']);
+
+        $this->postJson('/api/personal/lote', ['cuentas' => [
+            ['nombre' => 'Marta', 'email' => 'marta@umag.cl', 'password' => 'clave-del-panel', 'rol' => 'asistente'],
+        ]])->assertStatus(201);
+
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'marta@umag.cl', 'password' => 'clave-del-panel'])
+            ->assertStatus(200)->assertJsonPath('tipo', 'staff');
+        $this->postJson('/api/auth/ingresar', ['identificador' => 'marta@umag.cl', 'password' => 'clave-del-portal'])
+            ->assertStatus(200)->assertJsonPath('tipo', 'usuario');
     }
 
     public function test_cambiar_rol_de_una_cuenta(): void

@@ -68,7 +68,7 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
 
    (genera una contraseña al azar y la muestra una vez; solo corre en una base
    sin datos). Desde ahí, esa persona crea las cuentas del resto del personal en
-   "Personal y Roles". Si más adelante nadie puede entrar a esa pantalla,
+   "Personal y Roles" (con "Cargar varias", pegando la lista de correos). Si más adelante nadie puede entrar a esa pantalla,
    `php artisan personal:crear-admin <correo>` le devuelve el acceso total a
    una cuenta, con una contraseña nueva al azar.
 

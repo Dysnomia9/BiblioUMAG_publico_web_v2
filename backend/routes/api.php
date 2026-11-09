@@ -215,6 +215,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::middleware('permiso:personal.gestionar')->group(function () {
         Route::get('/personal', [PersonalController::class, 'index']);
         Route::post('/personal', [PersonalController::class, 'store']);
+        Route::post('/personal/lote', [PersonalController::class, 'crearVarias']);
         Route::put('/personal/{staff}', [PersonalController::class, 'update']);
         Route::patch('/personal/{staff}/activo', [PersonalController::class, 'cambiarActivo']);
         Route::delete('/personal/{staff}', [PersonalController::class, 'eliminar']);

@@ -7,6 +7,7 @@ use App\Models\Rol;
 use App\Models\Staff;
 use App\Support\Bitacora;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -14,6 +15,9 @@ use Illuminate\Validation\Rules\Password;
 /** Cuentas del personal (tabla staff) — solo para quien tiene 'personal.gestionar'. */
 class PersonalController extends Controller
 {
+    /** Cifrar cada contraseña toma unos 0,3 segundos: con este tope la respuesta no pasa de 15. */
+    private const MAX_CUENTAS_POR_CARGA = 50;
+
     public function index()
     {
         $cuentas = Staff::with('rolAsignado:clave,nombre,nivel,acceso_total')
@@ -35,11 +39,37 @@ class PersonalController extends Controller
             'rol' => ['required', 'exists:roles,clave'],
         ], $this->mensajes());
 
-        $staff = Staff::create($data + ['activo' => true]);
+        return response()->json($this->serializar($this->crearCuenta($data)), 201);
+    }
 
-        Bitacora::registrar('personal.crear', "Creó la cuenta de {$staff->nombre} ({$staff->email}) con el rol {$staff->rol}", entidad: $staff);
+    /**
+     * Crea de una vez la lista de cuentas que llega por correo. Son todas o ninguna: con un
+     * correo que ya tiene cuenta, o repetido en la lista, no se crea nada y la respuesta
+     * dice cuál es. Las contraseñas las genera la pantalla, que es la que las muestra.
+     */
+    public function crearVarias(Request $request)
+    {
+        $this->correosEnMinuscula($request);
+        $data = $request->validate([
+            'cuentas' => ['required', 'array', 'max:'.self::MAX_CUENTAS_POR_CARGA],
+            'cuentas.*.nombre' => ['required', 'string', 'max:255'],
+            'cuentas.*.email' => ['required', 'email', 'max:255', 'distinct', 'unique:staff,email'],
+            'cuentas.*.password' => ['required', 'string', Password::min(8)],
+            'cuentas.*.rol' => ['required', 'exists:roles,clave'],
+        ], [
+            'cuentas.required' => 'La lista no trae ninguna cuenta para crear.',
+            'cuentas.max' => 'Se pueden crear hasta '.self::MAX_CUENTAS_POR_CARGA.' cuentas de una vez.',
+            'cuentas.*.nombre.required' => 'Falta el nombre de una de las cuentas.',
+            'cuentas.*.email.email' => '«:input» no es un correo válido.',
+            'cuentas.*.email.distinct' => 'El correo :input está repetido en la lista.',
+            'cuentas.*.email.unique' => 'Ya existe una cuenta del personal con el correo :input.',
+            'cuentas.*.password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'cuentas.*.rol.exists' => 'El rol elegido no existe.',
+        ]);
 
-        return response()->json($this->serializar($staff->load('rolAsignado')), 201);
+        $creadas = DB::transaction(fn () => array_map(fn (array $cuenta) => $this->crearCuenta($cuenta), $data['cuentas']));
+
+        return response()->json(array_map(fn (Staff $staff) => $this->serializar($staff), $creadas), 201);
     }
 
     public function update(Request $request, Staff $staff)
@@ -165,6 +195,31 @@ class PersonalController extends Controller
         if (is_string($request->input('email'))) {
             $request->merge(['email' => Str::lower(trim($request->input('email')))]);
         }
+    }
+
+    /** Lo mismo que correoEnMinuscula(), para cada cuenta de una carga. */
+    private function correosEnMinuscula(Request $request): void
+    {
+        if (! is_array($request->input('cuentas'))) {
+            return;
+        }
+
+        $request->merge(['cuentas' => array_map(function ($cuenta) {
+            if (is_array($cuenta) && is_string($cuenta['email'] ?? null)) {
+                $cuenta['email'] = Str::lower(trim($cuenta['email']));
+            }
+
+            return $cuenta;
+        }, $request->input('cuentas'))]);
+    }
+
+    private function crearCuenta(array $data): Staff
+    {
+        $staff = Staff::create($data + ['activo' => true]);
+
+        Bitacora::registrar('personal.crear', "Creó la cuenta de {$staff->nombre} ({$staff->email}) con el rol {$staff->rol}", entidad: $staff);
+
+        return $staff->load('rolAsignado');
     }
 
     private function dejariaSinAccesoTotal(Staff $staff, ?string $nuevoRol): bool

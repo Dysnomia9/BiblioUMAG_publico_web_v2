@@ -6,10 +6,12 @@ import EncabezadoPagina from '@/components/ui/EncabezadoPagina.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import CargaMasivaPersonal from '@/components/administracion/CargaMasivaPersonal.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
+import { generarClave } from '@/utils/cuentasPersonal'
 import { copiarTexto } from '@/utils/portapapeles'
 import type { CuentaPersonal, GrupoPermisos, Rol } from '@/types'
 
@@ -66,12 +68,6 @@ function formatAcceso(iso: string | null) {
   return fecha.toLocaleDateString('es-CL')
 }
 
-function generarClave() {
-  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-  const valores = crypto.getRandomValues(new Uint32Array(10))
-  return Array.from(valores, (v) => alfabeto[v % alfabeto.length]).join('')
-}
-
 async function copiar(texto: string) {
   if (await copiarTexto(texto)) toast.info('Contraseña copiada')
   else toast.error('No se pudo copiar; selecciónala y cópiala a mano')
@@ -85,6 +81,7 @@ function resumirLista(lista: string[]) {
 
 // ---------- Cuentas ----------
 // Guardar pide confirmación: el formulario queda debajo y el diálogo resume lo que cambia.
+const cargaAbierta = ref(false)
 const formCuenta = reactive({ abierto: false, confirmando: false, guardando: false, id: null as number | null, nombre: '', email: '', password: '', rol: 'asistente' })
 
 function nuevaCuenta() {
@@ -352,6 +349,13 @@ async function confirmarEliminarRol() {
       <EncabezadoPagina titulo="Personal y Roles" descripcion="Cuentas del personal de la biblioteca y qué puede hacer cada rol">
         <template #acciones>
           <button
+            v-if="pestana === 'cuentas'"
+            @click="cargaAbierta = true"
+            class="px-4 py-2 border border-blanco/40 text-blanco rounded-lg hover:bg-blanco/10 transition-colors font-medium text-sm"
+          >
+            Cargar varias
+          </button>
+          <button
             @click="pestana === 'cuentas' ? nuevaCuenta() : nuevoRol()"
             class="px-4 py-2 bg-white text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm shadow-sm"
           >
@@ -363,6 +367,7 @@ async function confirmarEliminarRol() {
       <GuiaUso
         :pasos="[
           'Cada persona que atiende debe tener <strong>su propia cuenta</strong>: así queda registrado quién hizo cada préstamo, devolución o cambio.',
+          '¿Te llegó una lista de correos? Usa <strong>Cargar varias</strong>: la pegas, eliges el rol de cada persona y el sistema genera las contraseñas.',
           'El <strong>rol</strong> define qué módulos y botones ve. Ej.: «Atención de público» registra entradas, préstamos y salas, pero no cataloga ni cambia la configuración.',
           'Si alguien deja de trabajar en la biblioteca, <strong>desactive</strong> su cuenta: su sesión se cierra al instante y su historial se conserva. Si no va a volver, después puede <strong>eliminarla</strong> (escribiendo «confirmar»): deja de aparecer en la lista, pero lo que registró sigue con su nombre.',
           'En «Roles y permisos» puede ajustar qué incluye cada rol o <strong>crear uno nuevo</strong> (ej.: «Ayudante de sala» que solo registra entradas).',
@@ -519,6 +524,8 @@ async function confirmarEliminarRol() {
         </div>
       </template>
     </div>
+
+    <CargaMasivaPersonal v-model:abierto="cargaAbierta" :roles="roles" :cuentas="cuentas" @cargado="cargar" />
 
     <!-- Cuenta -->
     <Modal

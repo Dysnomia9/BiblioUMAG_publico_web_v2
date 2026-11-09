@@ -241,7 +241,9 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   *Bibliotecario/a*, *Atención de público*) y roles personalizados. Cada persona
   tiene su cuenta; las cuentas desactivadas se pueden eliminar sin perder su
   historial (`staff.deleted_at`). El menú y la API muestran y permiten solo lo
-  que el rol autoriza.
+  que el rol autoriza. **Cargar varias** crea de una vez las cuentas de una lista de
+  correos pegada (hasta 50): propone cada nombre, se elige el rol de cada persona y
+  genera las contraseñas, que se entregan por correo, CSV o lista copiada.
 - **Registro absoluto**: operaciones de los usuarios y **bitácora del personal**
   (quién hizo qué y cuándo, con el antes y el después), en la tabla `bitacora`,
   que no se edita ni se borra (`App\Support\Bitacora::registrar()`).
