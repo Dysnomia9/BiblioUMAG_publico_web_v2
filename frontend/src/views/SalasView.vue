@@ -109,7 +109,6 @@ function anchoTramoPct(tramo: TramoReserva): number {
 
 const modalOpen = ref(false)
 const selectedSala = ref<Sala | null>(null)
-const modalInmediata = ref(false)
 const modalHoraInicio = ref('')
 const modalDuracion = ref(60)
 const cantidadPersonas = ref(cantidadMinima.value)
@@ -278,23 +277,9 @@ const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : cantidadMinima.val
 
 function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number) {
   selectedSala.value = sala
-  modalInmediata.value = false
   const alineado = Math.max(primerInicioMin.value, Math.ceil(inicioSugeridoMin / granularidad.value) * granularidad.value)
   modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
   const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, timeToMinutes(modalHoraInicio.value)))
-  modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
-  cantidadPersonas.value = minimoDe(sala)
-  rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
-  reiniciarModos()
-  rutErrores.value = {}
-  modalOpen.value = true
-}
-
-function abrirModalInmediata(sala: Sala) {
-  selectedSala.value = sala
-  modalInmediata.value = true
-  modalHoraInicio.value = minutesToTime(ahoraMin.value)
-  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, ahoraMin.value))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = minimoDe(sala)
   rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
@@ -321,7 +306,7 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
     return
   }
   if (esHoy.value && !puedeHoraPasada.value && minutoClickeado < ahoraMin.value) {
-    toast.error('Esa hora ya pasó — elige un horario desde ahora en adelante, o usa "Reservar ahora".')
+    toast.error('Esa hora ya pasó — elige un horario desde ahora en adelante.')
     return
   }
   // Se propone el bloque de media hora donde cayó el clic o, si ya empezó o está
@@ -336,33 +321,6 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
   }
 
   abrirModalProgramado(sala, inicio)
-}
-
-function reservarAhora() {
-  if (diaCerrado.value) {
-    toast.error(textoDiaCerrado.value)
-    return
-  }
-  if (!atiende(ahoraMin.value)) {
-    toast.error(textoFueraDeHorario.value)
-    return
-  }
-  // La Sala de Seminarios no se ofrece para un grupo que llega: se reserva a propósito.
-  const candidatas = filteredSalas.value
-    .filter((s) => !s.solo_administracion)
-    .map((s) => ({ sala: s, disponible: disponibilidadDesde(s, ahoraMin.value) }))
-    .filter((c) => c.disponible >= duracionMinima.value)
-    .sort((a, b) => b.disponible - a.disponible)
-
-  if (!candidatas.length) {
-    toast.error('No hay salas disponibles en este momento')
-    return
-  }
-
-  abrirModalInmediata(candidatas[0].sala)
-  if (candidatas[0].disponible < duracionMaxima.value) {
-    toast.error(`Ninguna sala tiene ${formatMinutos(duracionMaxima.value)} libres ahora; ${candidatas[0].sala.nombre} está libre ${formatMinutos(candidatas[0].disponible)}`)
-  }
 }
 
 function verDetalle(sala: Sala, tramo: TramoReserva) {
@@ -436,7 +394,6 @@ async function confirmarReserva() {
       hora_fin: minutesToTime(Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value)),
       cantidad_personas: cantidadPersonas.value,
       ruts: rutsReserva.value,
-      inmediata: modalInmediata.value,
     })
     toast.success(`${selectedSala.value.nombre} reservada de ${labelTramo(data.hora_inicio.slice(0, 5), data.hora_fin.slice(0, 5))} para ${cantidadPersonas.value} persona(s)`)
     modalOpen.value = false
@@ -630,7 +587,7 @@ const proximaConfirmacion = computed(() => {
 
       <GuiaUso
         :pasos="[
-          'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren, o use <strong>Reservar ahora</strong>.',
+          'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren.',
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
@@ -649,18 +606,9 @@ const proximaConfirmacion = computed(() => {
         </div>
         <div class="bg-white rounded-xl shadow-md p-5">
           <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Salas Disponibles Ahora</div>
-          <div class="flex items-end justify-between gap-2 flex-wrap">
-            <div class="flex items-end gap-2">
-              <span class="text-3xl font-bold text-emerald-600">{{ salas.filter((s) => s.libre_ahora).length }}</span>
-              <span class="text-sm text-gray-400 mb-1">de {{ salas.length }} salas</span>
-            </div>
-            <button
-              v-if="esHoy && atiende(ahoraMin)"
-              @click="reservarAhora"
-              class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-medium shrink-0"
-            >
-              Reservar ahora
-            </button>
+          <div class="flex items-end gap-2">
+            <span class="text-3xl font-bold text-emerald-600">{{ salas.filter((s) => s.libre_ahora).length }}</span>
+            <span class="text-sm text-gray-400 mb-1">de {{ salas.length }} salas</span>
           </div>
         </div>
         <div class="bg-white rounded-xl shadow-md p-5">
@@ -973,15 +921,11 @@ const proximaConfirmacion = computed(() => {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
                 <select
-                  v-if="!modalInmediata"
                   v-model="modalHoraInicio"
                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
                   <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
                 </select>
-                <div v-else class="px-3 py-2.5 border border-gray-200 bg-gray-50 rounded-lg text-gray-600 font-mono text-sm">
-                  Ahora ({{ modalHoraInicio }})
-                </div>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
