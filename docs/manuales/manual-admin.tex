@@ -579,6 +579,14 @@ En el formulario se elige la hora de inicio, la duración, la cantidad de
 personas (de 1 a 7) y el RUT de cada una. Desde el portal, en cambio, los
 estudiantes reservan solo para grupos de 3 a 5 personas.
 
+Si el grupo está en el mesón, se hace clic en la media hora en curso o se
+elige \textbf{Ahora} como hora de inicio. La reserva parte en ese minuto, no
+a la hora o a la media hora: quien llega a las 16:27 puede reservar hasta por
+2 horas, hasta las 18:27, si la sala está libre. Como el grupo ya está ahí,
+la reserva queda con la llegada confirmada: se le entrega la llave al
+reservar, sin pasar por \textbf{Confirmar llegada}, y cada integrante queda
+con su entrada registrada en la biblioteca.
+
 \captura{06-salas-modal-reserva.png}{Formulario de reserva, con los RUT del grupo ya completados y listo para confirmar.}
 
 Si alguno de los RUT ingresados no corresponde a un usuario registrado,
@@ -607,7 +615,8 @@ Cada grupo tiene \textbf{15 minutos desde la hora de inicio} de su reserva
 (o desde el momento de reservar, si se registró con su horario ya empezado)
 para presentarse y confirmar su llegada. Si el plazo vence sin
 confirmación, la sala se libera automáticamente y queda disponible para
-otra persona.
+otra persona. Las reservas hechas con \textbf{Ahora} no pasan por este paso:
+quedan confirmadas al reservar.
 
 Ese tiempo se cambia en \textbf{Administración}, sección \textbf{Salas},
 entre 1 y 30 minutos: el tiempo general y, si hace falta, otro para

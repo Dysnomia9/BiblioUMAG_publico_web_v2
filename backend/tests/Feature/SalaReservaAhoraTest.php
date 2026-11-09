@@ -1,0 +1,108 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Entrada;
+use App\Models\Sala;
+use App\Models\Staff;
+use App\Models\Usuario;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+/**
+ * Reservar desde ahora en el mesón: el grupo ya está ahí, así que la reserva parte en ese
+ * minuto (no a la hora o a la media hora), dura hasta 2 horas y queda con la llegada
+ * confirmada, sin el paso de «Confirmar llegada».
+ */
+class SalaReservaAhoraTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
+    private function reservarAhora(Sala $sala, array $ruts, array $extra = [])
+    {
+        return $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '16:27',
+            'hora_fin' => '18:27',
+            'cantidad_personas' => count($ruts),
+            'ruts' => $ruts,
+            'inmediata' => true,
+            'duracion' => 120,
+            ...$extra,
+        ]);
+    }
+
+    public function test_a_las_1627_se_reserva_hasta_las_1827_con_la_llegada_confirmada(): void
+    {
+        $staff = Staff::factory()->create();
+        Sanctum::actingAs($staff);
+        Carbon::setTestNow('2026-07-10 16:27:40'); // viernes
+        $sala = Sala::factory()->create();
+        $grupo = Usuario::factory()->count(2)->create();
+
+        $this->reservarAhora($sala, $grupo->pluck('rut')->all())
+            ->assertCreated()
+            ->assertJsonPath('hora_inicio', '16:27:00')
+            ->assertJsonPath('hora_fin', '18:27:00')
+            ->assertJsonPath('prestado_por_staff_id', $staff->id)
+            ->assertJsonCount(2, 'asistencia.registradas');
+
+        // Los dos quedan presentes en la biblioteca, como al confirmar la llegada.
+        $this->assertSame(2, Entrada::where('via', 'sala')->count());
+        $this->assertDatabaseHas('bitacora', ['accion' => 'salas.llegada']);
+    }
+
+    public function test_el_termino_lo_calcula_el_servidor_aunque_el_navegador_vaya_corrido(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-10 16:27:05');
+        $sala = Sala::factory()->create();
+
+        // El navegador cree que son las 16:26: con su término la reserva duraría 29 minutos.
+        $this->reservarAhora($sala, [Usuario::factory()->create()->rut], ['hora_inicio' => '16:26', 'hora_fin' => '16:56', 'duracion' => 30])
+            ->assertCreated()
+            ->assertJsonPath('hora_inicio', '16:27:00')
+            ->assertJsonPath('hora_fin', '16:57:00');
+    }
+
+    public function test_no_pasa_de_2_horas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-10 16:27:00');
+
+        $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], ['duracion' => 121])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'La reserva debe durar entre 30 minutos y 2 horas.');
+    }
+
+    public function test_desde_ahora_es_solo_para_hoy(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-09 16:27:00');
+
+        $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Una reserva desde ahora es para hoy: para otro día, elige la hora de inicio.');
+    }
+
+    public function test_una_reserva_con_hora_sigue_esperando_la_llegada(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-07-10 16:27:00');
+
+        $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], [
+            'hora_inicio' => '17:00', 'hora_fin' => '18:00', 'inmediata' => false, 'duracion' => null,
+        ])->assertCreated()->assertJsonPath('hora_prestamo_real', null);
+
+        $this->assertSame(0, Entrada::count());
+    }
+}

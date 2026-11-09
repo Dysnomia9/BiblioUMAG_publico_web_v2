@@ -206,7 +206,13 @@ class SalaController extends Controller
         ]);
     }
 
-    public function storeReserva(Request $request)
+    /**
+     * Reserva una sala desde el mesón. Con `inmediata` el grupo ya está en el mesón: la reserva
+     * parte en ese minuto (no a la hora o a la media hora), dura `duracion` minutos (hasta el
+     * máximo de config/salas.php) y queda con la llegada confirmada, como si se hubiera pulsado
+     * «Confirmar llegada»: la llave queda entregada y cada integrante, presente en la biblioteca.
+     */
+    public function storeReserva(Request $request, EntradaService $entradas)
     {
         // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
@@ -220,6 +226,7 @@ class SalaController extends Controller
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
             'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
             'inmediata' => ['sometimes', 'boolean'],
+            'duracion' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1440'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
@@ -253,7 +260,7 @@ class SalaController extends Controller
 
         $usuarios = Usuario::whereIn('rut', $data['ruts'])->get()->keyBy('rut');
 
-        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $usuarios->pluck('id'), function () use ($data, $usuarios) {
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $usuarios->pluck('id'), function () use ($data, $usuarios, $inmediata, $request, $entradas) {
             $existe = $this->reservaSalaService->existeSolapamiento(
                 $data['sala_id'],
                 $data['fecha'],
@@ -311,6 +318,14 @@ class SalaController extends Controller
                 datos: ['integrantes' => $data['ruts']],
                 afectado: $usuarios[$data['ruts'][0]],
             );
+
+            // El grupo está en el mesón: no hay llegada que esperar.
+            if ($inmediata) {
+                $reserva = $this->conAsistencia(
+                    $this->reservaSalaService->registrarLlegada($reserva, $request->user()),
+                    $request, $entradas, 'Confirmó la llegada, al reservar desde ahora, a',
+                );
+            }
 
             return response()->json($reserva, 201);
         });

@@ -248,8 +248,12 @@ class ReservaSalaService
     /**
      * Valida el tramo horario (ventana de atención, duración, granularidad) y, si
      * $inmediata es true, sobrescribe `hora_inicio` en $data con la hora real del
-     * servidor — para que la hora de "Reservar ahora" la fije el backend, no el
-     * navegador del usuario. Normaliza hora_inicio/hora_fin a H:i:s al terminar.
+     * servidor — para que la hora de una reserva "desde ahora" la fije el backend, no el
+     * navegador del usuario. Con `duracion` (minutos), el término también se calcula desde
+     * esa hora: si el reloj del navegador va un minuto corrido, una reserva de 30 minutos no
+     * queda de 29. Una reserva desde ahora no se ajusta a la grilla de 30 minutos: el grupo
+     * que llega a las 16:27 puede reservar hasta las 18:27. Normaliza hora_inicio/hora_fin a
+     * H:i:s al terminar.
      * Devuelve el mensaje de error si algo no cumple, o null si el tramo es válido.
      * Compartido entre SalaController::storeReserva(), SalaController::editarReserva()
      * y PortalController::reservarSala().
@@ -269,7 +273,13 @@ class ReservaSalaService
         }
 
         if ($inmediata) {
+            if ($data['fecha'] !== now()->toDateString()) {
+                return 'Una reserva desde ahora es para hoy: para otro día, elige la hora de inicio.';
+            }
             $data['hora_inicio'] = now()->format('H:i');
+            if (isset($data['duracion'])) {
+                $data['hora_fin'] = Carbon::parse($data['hora_inicio'])->addMinutes((int) $data['duracion'])->format('H:i');
+            }
         }
 
         $horaInicio = Carbon::parse($data['hora_inicio']);

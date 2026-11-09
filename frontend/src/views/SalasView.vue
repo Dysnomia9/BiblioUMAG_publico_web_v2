@@ -111,6 +111,10 @@ const modalOpen = ref(false)
 const selectedSala = ref<Sala | null>(null)
 const modalHoraInicio = ref('')
 const modalDuracion = ref(60)
+// «Ahora»: el grupo está en el mesón. La reserva parte en este minuto (no a la hora o a la
+// media hora) y queda con la llegada confirmada (SalaController::storeReserva, inmediata).
+const AHORA = 'ahora'
+const modalEsAhora = computed(() => modalHoraInicio.value === AHORA)
 const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
@@ -257,9 +261,19 @@ function disponibilidadDesde(sala: Sala, desdeMin: number): number {
   return Math.max(0, Math.min(limite - desdeMin, duracionMaxima.value))
 }
 
-const modalInicioMin = computed(() => timeToMinutes(modalHoraInicio.value || apertura.value))
+/** Si se puede reservar `sala` desde este minuto: hoy, con la biblioteca abierta y la sala libre al menos lo mínimo. */
+const libreDesdeAhora = (sala: Sala) => esHoy.value && !diaCerrado.value && disponibilidadDesde(sala, ahoraMin.value) >= duracionMinima.value
+
+const modalInicioMin = computed(() => (modalEsAhora.value ? ahoraMin.value : timeToMinutes(modalHoraInicio.value || apertura.value)))
 const modalDisponibleMin = computed(() => (selectedSala.value ? disponibilidadDesde(selectedSala.value, modalInicioMin.value) : 0))
 const modalDuracionesValidas = computed(() => DURACIONES.filter((d) => d >= duracionMinima.value && d <= modalDisponibleMin.value))
+const textoInicioModal = computed(() => (modalEsAhora.value ? `ahora (${minutesToTime(ahoraMin.value)})` : `las ${modalHoraInicio.value}`))
+
+// Al cambiar la hora de inicio, la duración elegida puede dejar de caber: se toma la mayor que sí cabe.
+watch(modalHoraInicio, () => {
+  const validas = modalDuracionesValidas.value
+  if (validas.length && !validas.includes(modalDuracion.value)) modalDuracion.value = validas[validas.length - 1]
+})
 
 const horaInicioOpciones = computed(() => {
   const opciones: string[] = []
@@ -276,11 +290,15 @@ const horaInicioOpciones = computed(() => {
 /** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
 const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : cantidadMinima.value)
 
-function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number) {
+function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHORA) {
   selectedSala.value = sala
-  const alineado = Math.max(primerInicioMin.value, Math.ceil(inicioSugeridoMin / granularidad.value) * granularidad.value)
-  modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
-  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, timeToMinutes(modalHoraInicio.value)))
+  if (inicioSugeridoMin === AHORA) {
+    modalHoraInicio.value = AHORA
+  } else {
+    const alineado = Math.max(primerInicioMin.value, Math.ceil(inicioSugeridoMin / granularidad.value) * granularidad.value)
+    modalHoraInicio.value = minutesToTime(Math.min(alineado, cierraMin.value - duracionMinima.value))
+  }
+  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, modalInicioMin.value))
   modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
   cantidadPersonas.value = minimoDe(sala)
   rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
@@ -304,6 +322,12 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
 
   if (!atiende(minutoClickeado)) {
     toast.error(textoFueraDeHorario.value)
+    return
+  }
+  // Un clic en la media hora en curso es para un grupo que está en el mesón: desde ahora.
+  const bloqueActual = Math.floor(ahoraMin.value / granularidad.value) * granularidad.value
+  if (esHoy.value && minutoClickeado >= bloqueActual && minutoClickeado < bloqueActual + granularidad.value && libreDesdeAhora(sala)) {
+    abrirModalProgramado(sala, AHORA)
     return
   }
   if (esHoy.value && !puedeHoraPasada.value && minutoClickeado < ahoraMin.value) {
@@ -391,12 +415,19 @@ async function confirmarReserva() {
     const { data } = await api.post('/reservas', {
       sala_id: selectedSala.value.id,
       fecha: selectedDate.value,
-      hora_inicio: modalHoraInicio.value,
+      hora_inicio: minutesToTime(modalInicioMin.value),
       hora_fin: minutesToTime(Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value)),
       cantidad_personas: cantidadPersonas.value,
       ruts: rutsReserva.value,
+      // Desde ahora, el servidor pone el inicio y el término con su propia hora.
+      ...(modalEsAhora.value ? { inmediata: true, duracion: modalDuracion.value } : {}),
     })
-    toast.success(`${selectedSala.value.nombre} reservada de ${labelTramo(data.hora_inicio.slice(0, 5), data.hora_fin.slice(0, 5))} para ${cantidadPersonas.value} persona(s)`)
+    const tramo = labelTramo(data.hora_inicio.slice(0, 5), data.hora_fin.slice(0, 5))
+    if (data.hora_prestamo_real) {
+      toast.success(`${selectedSala.value.nombre} reservada de ${tramo}, con la llegada confirmada: entregue la llave. ${textoAsistencia(data.asistencia)}`.trim())
+    } else {
+      toast.success(`${selectedSala.value.nombre} reservada de ${tramo} para ${cantidadPersonas.value} persona(s)`)
+    }
     modalOpen.value = false
     await cargar()
   } catch (e: any) {
@@ -588,7 +619,7 @@ const proximaConfirmacion = computed(() => {
 
       <GuiaUso
         :pasos="[
-          'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren.',
+          `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
@@ -925,6 +956,7 @@ const proximaConfirmacion = computed(() => {
                   v-model="modalHoraInicio"
                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
+                  <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
                   <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
                 </select>
               </div>
@@ -941,10 +973,14 @@ const proximaConfirmacion = computed(() => {
               </div>
             </div>
             <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
-              Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde las {{ modalHoraInicio }}.
+              Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
             </p>
             <p v-else class="text-xs text-gray-400">
-              Libre {{ formatMinutos(modalDisponibleMin) }} desde las {{ modalHoraInicio }}.
+              Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
+            </p>
+            <p v-if="modalEsAhora" class="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              El grupo está en el mesón: la reserva parte en este minuto, dura lo que elija (hasta {{ formatMinutos(duracionMaxima) }}) y queda con la
+              llegada confirmada. Entregue la llave al reservar.
             </p>
 
             <p v-if="selectedSala.solo_responsable" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
