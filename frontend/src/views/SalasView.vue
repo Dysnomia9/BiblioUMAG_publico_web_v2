@@ -12,7 +12,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { diaEnPlural } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
-import { duracion, PERSONAS_MAXIMAS_SALA, PERSONAS_MINIMAS_SALA, textoMinutos } from '@/utils/reservas'
+import { duracion, PERSONAS_MAXIMAS_MESON, PERSONAS_MINIMAS_MESON, textoMinutos } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
@@ -36,9 +36,9 @@ const hoy = new Date().toLocaleDateString('sv-SE')
 
 const DURACIONES = [30, 60, 90, 120]
 
-// El mínimo llega con las salas (config/salas.php).
-const cantidadMinima = ref(PERSONAS_MINIMAS_SALA)
-const CANTIDAD_MAX = PERSONAS_MAXIMAS_SALA
+// El rango del mesón llega con las salas (config/salas.php): más amplio que el del portal.
+const cantidadMinima = ref(PERSONAS_MINIMAS_MESON)
+const cantidadMaxima = ref(PERSONAS_MAXIMAS_MESON)
 
 const salas = ref<Sala[]>([])
 const apiError = ref(false)
@@ -167,7 +167,8 @@ async function cargar() {
     duracionMaxima.value = data.duracion_maxima
     cuotaDiaria.value = data.cuota_diaria
     minutosPresentarse.value = data.minutos_para_presentarse
-    cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
+    cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_MESON
+    cantidadMaxima.value = data.personas_maximas ?? PERSONAS_MAXIMAS_MESON
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
     apiError.value = false
@@ -588,7 +589,7 @@ const proximaConfirmacion = computed(() => {
       <GuiaUso
         :pasos="[
           'Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren.',
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${CANTIDAD_MAX} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
@@ -955,8 +956,8 @@ const proximaConfirmacion = computed(() => {
                 v-model.number="cantidadPersonas"
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option v-for="n in CANTIDAD_MAX - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
-                  {{ cantidadMinima + n - 1 }} personas
+                <option v-for="n in cantidadMaxima - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
+                  {{ cantidadMinima + n - 1 }} {{ cantidadMinima + n - 1 === 1 ? 'persona' : 'personas' }}
                 </option>
               </select>
             </div>

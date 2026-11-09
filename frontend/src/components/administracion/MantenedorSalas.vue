@@ -16,17 +16,17 @@ import type { SalaAdministrada } from '@/types'
 const toast = useToast()
 
 const salas = ref<SalaAdministrada[]>([])
-const personasMinimas = ref(3)
-const personasMaximas = ref(5)
+type Rango = { minimo: number; maximo: number }
+// Personas por reserva de grupo: en el mesón el rango es más amplio que en el portal (config/salas.php).
+const personas = ref<{ meson: Rango; portal: Rango }>({ meson: { minimo: 1, maximo: 7 }, portal: { minimo: 3, maximo: 5 } })
 const apiError = ref(false)
 const cargando = ref(true)
 
 async function cargar() {
   try {
-    const { data } = await api.get<{ salas: SalaAdministrada[]; personas_minimas: number; personas_maximas: number }>('/mantenedor-salas')
+    const { data } = await api.get<{ salas: SalaAdministrada[]; personas: { meson: Rango; portal: Rango } }>('/mantenedor-salas')
     salas.value = data.salas
-    personasMinimas.value = data.personas_minimas
-    personasMaximas.value = data.personas_maximas
+    personas.value = data.personas
     apiError.value = false
   } catch {
     apiError.value = true
@@ -40,7 +40,13 @@ onMounted(cargar)
 const deBaja = computed(() => salas.value.filter((s) => !s.activa).length)
 
 const TIPOS: Record<string, string> = { logia: 'Logia', sala: 'Sala' }
-const textoReserva = (soloResponsable: boolean) => (soloResponsable ? 'A nombre de una persona' : `Grupo de ${personasMinimas.value} a ${personasMaximas.value} personas`)
+const rango = (r: Rango) => `de ${r.minimo} a ${r.maximo}`
+/** Una sala que no está en el portal se reserva solo en el mesón: ahí no rige el rango del portal. */
+const textoReserva = (soloResponsable: boolean, soloAdministracion: boolean) => {
+  if (soloResponsable) return 'A nombre de una persona'
+  const { meson, portal } = personas.value
+  return soloAdministracion ? `Grupo ${rango(meson)} personas` : `Grupo ${rango(meson)} personas en el mesón, ${rango(portal)} en el portal`
+}
 const textoAcceso = (soloAdministracion: boolean) => (soloAdministracion ? 'Solo administración' : 'Mesón y portal')
 const textoCapacidad = (capacidad: number) => `${capacidad} ${capacidad === 1 ? 'persona' : 'personas'}`
 const textoReservas = (cantidad: number) => `${cantidad} ${cantidad === 1 ? 'reserva activa' : 'reservas activas'}`
@@ -60,7 +66,7 @@ const form = reactive({
 })
 
 function nueva() {
-  Object.assign(form, { abierto: true, confirmando: false, sala: null, nombre: '', codigo: '', tipo: 'logia', capacidad: personasMinimas.value, solo_administracion: false, solo_responsable: false })
+  Object.assign(form, { abierto: true, confirmando: false, sala: null, nombre: '', codigo: '', tipo: 'logia', capacidad: personas.value.portal.minimo, solo_administracion: false, solo_responsable: false })
 }
 
 function editar(sala: SalaAdministrada) {
@@ -99,7 +105,7 @@ const cambios = computed(() => {
   comparar('Código', o.codigo, codigoFinal.value)
   comparar('Tipo', TIPOS[o.tipo] ?? o.tipo, TIPOS[form.tipo] ?? form.tipo)
   comparar('Capacidad', textoCapacidad(o.capacidad), textoCapacidad(Number(form.capacidad)))
-  comparar('Se reserva', textoReserva(o.solo_responsable), textoReserva(form.solo_responsable))
+  comparar('Se reserva', textoReserva(o.solo_responsable, o.solo_administracion), textoReserva(form.solo_responsable, form.solo_administracion))
   comparar('Acceso', textoAcceso(o.solo_administracion), textoAcceso(form.solo_administracion))
   return lista
 })
@@ -218,7 +224,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
             </td>
             <td class="px-3 py-2 whitespace-nowrap">{{ textoCapacidad(s.capacidad) }}</td>
             <td class="px-3 py-2">
-              <p>{{ textoReserva(s.solo_responsable) }}</p>
+              <p>{{ textoReserva(s.solo_responsable, s.solo_administracion) }}</p>
               <p class="text-xs text-gray-500">{{ textoAcceso(s.solo_administracion) }}</p>
             </td>
             <td class="px-3 py-2">
@@ -279,7 +285,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <input v-model="form.solo_responsable" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
             <span class="block text-sm font-medium text-gray-800">Se reserva a nombre de una persona</span>
-            <span class="block text-xs text-gray-500">Para el docente o funcionario a cargo, sin anotar a cada asistente (los seminarios). Si no, se reserva en grupo, de {{ personasMinimas }} a {{ personasMaximas }} personas.</span>
+            <span class="block text-xs text-gray-500">Para el docente o funcionario a cargo, sin anotar a cada asistente (los seminarios). Si no, se reserva en grupo: {{ rango(personas.meson) }} personas en el mesón y {{ rango(personas.portal) }} en el portal.</span>
           </span>
         </label>
         <label class="flex items-start gap-2.5 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-gray-50">
@@ -315,7 +321,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <p class="mt-3">Las reservas ya hechas siguen en esta sala, con los datos nuevos.</p>
       </template>
       <p v-else>
-        <strong class="text-gray-900">{{ form.nombre.trim() }}</strong> ({{ codigoFinal }}), {{ textoCapacidad(Number(form.capacidad)) }}. {{ textoReserva(form.solo_responsable) }} · {{ textoAcceso(form.solo_administracion) }}.
+        <strong class="text-gray-900">{{ form.nombre.trim() }}</strong> ({{ codigoFinal }}), {{ textoCapacidad(Number(form.capacidad)) }}. {{ textoReserva(form.solo_responsable, form.solo_administracion) }} · {{ textoAcceso(form.solo_administracion) }}.
         Se podrá reservar de inmediato.
       </p>
     </DialogoConfirmacion>

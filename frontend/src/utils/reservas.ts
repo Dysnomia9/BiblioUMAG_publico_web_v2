@@ -1,12 +1,15 @@
 import type { ReservaListado, SituacionReserva } from '@/types'
 
 /**
- * Personas por reserva de sala, contando a quien queda a cargo. El mínimo es el de
- * config/salas.php (personas_minimas): las pantallas de salas lo reciben de la API y
- * este vale mientras carga y en el editor de integrantes. El servidor es el que decide.
+ * Personas por reserva de sala, contando a quien queda a cargo, como en config/salas.php:
+ * desde el portal los estudiantes reservan en grupo (_SALA) y en el mesón el personal puede
+ * anotar menos o más (_MESON). Las pantallas de salas reciben el rango de la API; estos
+ * valen mientras carga y en el editor de integrantes. El servidor es el que decide.
  */
 export const PERSONAS_MINIMAS_SALA = 3
 export const PERSONAS_MAXIMAS_SALA = 5
+export const PERSONAS_MINIMAS_MESON = 1
+export const PERSONAS_MAXIMAS_MESON = 7
 
 /** Cómo se muestra cada situación de una reserva de sala en el Listado de reservas. */
 export const SITUACIONES: Record<SituacionReserva, { texto: string; clase: string }> = {

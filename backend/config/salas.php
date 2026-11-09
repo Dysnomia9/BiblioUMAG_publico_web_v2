@@ -11,7 +11,12 @@ return [
     'duracion_minima' => 30, // minutos
     'duracion_maxima' => 120, // minutos
     'granularidad' => 30, // los inicios/fines deben caer en :00 o :30, salvo "inmediata"
-    'personas_minimas' => 3, // integrantes de una reserva, contando a quien queda a cargo (el máximo es 5)
+    // Integrantes de una reserva, contando a quien queda a cargo. Desde el portal los
+    // estudiantes reservan en grupo; en el mesón el personal puede anotar menos o más.
+    'personas_minimas' => 3, // portal
+    'personas_maximas' => 5, // portal
+    'personas_minimas_meson' => 1,
+    'personas_maximas_meson' => 7,
     'cuota_diaria' => 240, // minutos por participante y día
     'minimo_para_liberar' => 5, // minutos sin usar desde los que, al devolver la llave antes, se ofrece liberar el resto del bloque
 

@@ -118,19 +118,19 @@ class SalaIntegrantesTest extends TestCase
         $this->assertEqualsCanonicalizing([$ana->id, $beto->id], $reserva->participantes()->pluck('usuarios.id')->all());
     }
 
-    public function test_no_se_puede_dejar_la_reserva_con_menos_de_dos_ni_mas_de_cinco_personas(): void
+    public function test_no_se_puede_dejar_la_reserva_sin_nadie_ni_con_mas_de_siete_personas(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        $usuarios = Usuario::factory()->count(6)->create();
+        $usuarios = Usuario::factory()->count(8)->create();
         $reserva = $this->reserva([$usuarios[0], $usuarios[1]]);
 
-        $this->putJson("/api/reservas/{$reserva->id}/integrantes", ['ruts' => [$usuarios[0]->rut]])
+        $this->putJson("/api/reservas/{$reserva->id}/integrantes", ['ruts' => []])
             ->assertStatus(422)
-            ->assertJsonPath('errors.ruts.0', 'La reserva necesita al menos 2 personas.');
+            ->assertJsonValidationErrors(['ruts']);
 
         $this->putJson("/api/reservas/{$reserva->id}/integrantes", ['ruts' => $usuarios->pluck('rut')->all()])
             ->assertStatus(422)
-            ->assertJsonPath('errors.ruts.0', 'La reserva admite como máximo 5 personas.');
+            ->assertJsonPath('errors.ruts.0', 'La reserva admite como máximo 7 personas.');
     }
 
     public function test_no_se_puede_sumar_a_alguien_que_tiene_otra_sala_a_esa_hora(): void

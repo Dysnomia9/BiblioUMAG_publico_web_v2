@@ -29,8 +29,11 @@ class MantenedorSalasController extends Controller
 
         return response()->json([
             'salas' => $this->conConteos(Sala::query())->orderByDesc('activa')->enOrden()->get(),
-            'personas_minimas' => (int) config('salas.personas_minimas'),
-            'personas_maximas' => Sala::PERSONAS_MAXIMAS,
+            // Cuántas personas lleva una reserva de grupo en el mesón y en el portal.
+            'personas' => [
+                'meson' => array_combine(['minimo', 'maximo'], Sala::personasDelMeson()),
+                'portal' => array_combine(['minimo', 'maximo'], Sala::personasDelPortal()),
+            ],
         ]);
     }
 
@@ -139,8 +142,9 @@ class MantenedorSalasController extends Controller
             'capacidad.max' => 'La capacidad va de 1 a 500 personas.',
         ]);
 
-        // Una reserva de grupo lleva un mínimo de personas: si no caben, la sala no se podría reservar.
-        $minimo = (int) config('salas.personas_minimas');
+        // Una reserva de grupo del portal lleva un mínimo de personas: si no caben, la sala no se
+        // podría reservar ahí.
+        $minimo = Sala::personasDelPortal()[0];
         if (! $data['solo_responsable'] && $data['capacidad'] < $minimo) {
             throw ValidationException::withMessages(['capacidad' => ["Una reserva de grupo lleva al menos {$minimo} personas: la sala necesita capacidad para ellas, o reservarse a nombre de una sola."]]);
         }

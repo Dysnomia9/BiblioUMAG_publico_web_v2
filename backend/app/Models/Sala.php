@@ -27,9 +27,6 @@ class Sala extends Model
         'activa',
     ];
 
-    /** Máximo de integrantes de una reserva de grupo. */
-    public const PERSONAS_MAXIMAS = 5;
-
     public const TIPOS = ['logia', 'sala'];
 
     protected $attributes = ['activa' => true];
@@ -60,14 +57,27 @@ class Sala extends Model
     }
 
     /**
-     * Cuántas personas lleva una reserva de esta sala, [mínimo, máximo]: en los seminarios,
-     * solo quien queda a cargo; en las demás, el grupo (config/salas.php, personas_minimas).
+     * Cuántas personas lleva una reserva de esta sala hecha en el mesón, [mínimo, máximo]: en
+     * los seminarios, solo quien queda a cargo; en las demás, lo que permite el mesón
+     * (config/salas.php). El portal tiene su propio rango: personasDelPortal().
      *
      * @return array{0: int, 1: int}
      */
     public function personasPermitidas(): array
     {
-        return $this->solo_responsable ? [1, 1] : [(int) config('salas.personas_minimas'), self::PERSONAS_MAXIMAS];
+        return $this->solo_responsable ? [1, 1] : self::personasDelMeson();
+    }
+
+    /** @return array{0: int, 1: int} */
+    public static function personasDelMeson(): array
+    {
+        return [(int) config('salas.personas_minimas_meson'), (int) config('salas.personas_maximas_meson')];
+    }
+
+    /** @return array{0: int, 1: int} */
+    public static function personasDelPortal(): array
+    {
+        return [(int) config('salas.personas_minimas'), (int) config('salas.personas_maximas')];
     }
 
     /** Por qué esa cantidad de personas no vale para esta sala, o null si vale. */
@@ -77,7 +87,7 @@ class Sala extends Model
 
         return match (true) {
             $this->solo_responsable && $cantidad !== 1 => "{$this->nombre} se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.",
-            $cantidad < $minimo => "La reserva necesita al menos {$minimo} personas.",
+            $cantidad < $minimo => $minimo === 1 ? 'La reserva necesita al menos una persona.' : "La reserva necesita al menos {$minimo} personas.",
             $cantidad > $maximo => "La reserva admite como máximo {$maximo} personas.",
             default => null,
         };

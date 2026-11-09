@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Reserva;
 use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\Usuario;
@@ -111,7 +112,7 @@ class SalaSoloAdministracionTest extends TestCase
         $this->putJson("/api/reservas/{$id}/integrantes", ['ruts' => [$otroDocente->rut]])->assertOk();
     }
 
-    public function test_ni_un_grupo_pasa_al_seminario_ni_el_seminario_a_una_logia(): void
+    public function test_un_grupo_no_pasa_al_seminario_y_el_seminario_si_a_una_logia(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00');
         Sanctum::actingAs(Staff::factory()->admin()->create());
@@ -127,9 +128,9 @@ class SalaSoloAdministracionTest extends TestCase
             ->assertJsonPath('message', 'Sala de Seminarios se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo. Esta reserva tiene 2 personas: corrige los integrantes antes de pasarla a Sala de Seminarios.');
 
         $seminario = $this->postJson('/api/reservas', [...$this->reserva($this->seminarios(), [$docente->rut]), 'hora_inicio' => '13:00', 'hora_fin' => '14:00'])->assertCreated()->json('id');
-        $this->putJson("/api/reservas/{$seminario}", ['sala_id' => $logia->id, 'fecha' => '2026-07-10', 'hora_inicio' => '15:00', 'hora_fin' => '16:00'])
-            ->assertStatus(409)
-            ->assertJsonPath('message', 'La reserva necesita al menos 2 personas. Esta reserva tiene 1 persona: corrige los integrantes antes de pasarla a Logia 01.');
+        // En el mesón una logia también se reserva para una sola persona.
+        $this->putJson("/api/reservas/{$seminario}", ['sala_id' => $logia->id, 'fecha' => '2026-07-10', 'hora_inicio' => '15:00', 'hora_fin' => '16:00'])->assertOk();
+        $this->assertSame($logia->id, Reserva::findOrFail($seminario)->sala_id);
     }
 
     public function test_las_demas_salas_se_siguen_reservando_igual(): void

@@ -537,8 +537,9 @@ export type VistaSalasDia = {
   duracion_minima: number
   duracion_maxima: number
   cuota_diaria: number
-  /** Personas mínimas por reserva (config/salas.php). */
+  /** Personas por reserva (config/salas.php): en el mesón el rango es más amplio que en el portal. */
   personas_minimas: number
+  personas_maximas: number
   /** Tiempo para presentarse en una reserva de ese día (Administración › Salas). */
   minutos_para_presentarse: number
   salas: Sala[]

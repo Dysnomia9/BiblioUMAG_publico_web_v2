@@ -4,13 +4,13 @@ import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import { convertirAlModo, errorSegunModo, escribirIdentificador, largoSegunModo, modoSegunValor, type ModoDocumento } from '@/utils/documento'
-import { PERSONAS_MAXIMAS_SALA as MAXIMO, PERSONAS_MINIMAS_SALA as MINIMO } from '@/utils/reservas'
+import { PERSONAS_MAXIMAS_MESON as MAXIMO, PERSONAS_MINIMAS_MESON as MINIMO } from '@/utils/reservas'
 import type { IntegrantesReserva, TramoReserva } from '@/types'
 
 /**
- * Lista editable de los integrantes de una reserva de sala: quitar a quien no vino,
- * sumar a otra persona o corregir un RUT. El servidor vuelve a revisar todo al
- * guardar (de 3 a 5 personas registradas, sin otra sala a esa hora, cuota diaria). En un
+ * Lista editable de los integrantes de una reserva de sala, en el mesón: quitar a quien no
+ * vino, sumar a otra persona o corregir un RUT. El servidor vuelve a revisar todo al
+ * guardar (de 1 a 7 personas registradas, sin otra sala a esa hora, cuota diaria). En un
  * seminario (soloResponsable) va una sola persona: el docente o funcionario a cargo.
  */
 const props = defineProps<{
@@ -136,7 +136,7 @@ async function guardar() {
             type="button"
             @click="quitar(idx)"
             :disabled="filas.length <= minimo || guardando"
-            :title="filas.length <= minimo ? (soloResponsable ? 'Va a nombre de quien la pide: cambia el RUT si es otra persona' : `La reserva necesita al menos ${minimo} personas`) : 'Quitar a esta persona'"
+            :title="filas.length <= minimo ? (soloResponsable ? 'Va a nombre de quien la pide: cambia el RUT si es otra persona' : minimo === 1 ? 'La reserva necesita al menos una persona' : `La reserva necesita al menos ${minimo} personas`) : 'Quitar a esta persona'"
             :aria-label="`Quitar a la persona ${idx + 1}`"
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
           >

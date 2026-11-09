@@ -197,7 +197,9 @@ class SalaController extends Controller
             'duracion_minima' => config('salas.duracion_minima'),
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
-            'personas_minimas' => config('salas.personas_minimas'),
+            // En el mesón (el portal tiene su propio rango, config/salas.php).
+            'personas_minimas' => Sala::personasDelMeson()[0],
+            'personas_maximas' => Sala::personasDelMeson()[1],
             'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
@@ -208,7 +210,7 @@ class SalaController extends Controller
     {
         // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
-        [$minimo, $maximo] = $sala?->personasPermitidas() ?? [(int) config('salas.personas_minimas'), Sala::PERSONAS_MAXIMAS];
+        [$minimo, $maximo] = $sala?->personasPermitidas() ?? Sala::personasDelMeson();
         $soloResponsable = $sala?->solo_responsable ? $sala->mensajePersonas(0) : null;
 
         $data = $request->validate([
@@ -221,8 +223,8 @@ class SalaController extends Controller
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
-            'cantidad_personas.min' => $soloResponsable ?? "La reserva necesita al menos {$minimo} personas.",
-            ...($soloResponsable ? ['cantidad_personas.max' => $soloResponsable] : []),
+            'cantidad_personas.min' => $soloResponsable ?? $sala?->mensajePersonas($minimo - 1) ?? "La reserva necesita al menos {$minimo} personas.",
+            'cantidad_personas.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
         ]);
 
         // Los RUT (o pasaportes/DNI de estudiantes extranjeros) deben pertenecer a
@@ -317,7 +319,7 @@ class SalaController extends Controller
     /**
      * Corrige quiénes vienen en una reserva activa, típicamente al confirmar la llegada:
      * alguien no vino, se sumó otra persona o un RUT quedó mal escrito. Mismas reglas que
-     * al reservar: de personas_minimas (config/salas.php) a 5 usuarios registrados, sin otra sala a esa hora y dentro de la
+     * al reservar en el mesón: usuarios registrados, entre el mínimo y el máximo del mesón (config/salas.php), sin otra sala a esa hora y dentro de la
      * cuota diaria; en un seminario, solo quien queda a cargo. Si la llegada ya estaba
      * confirmada, quien se suma queda presente en la biblioteca, igual que el resto del grupo.
      */
@@ -331,7 +333,7 @@ class SalaController extends Controller
             'ruts' => ['required', 'array', 'min:'.$minimo, 'max:'.$maximo],
             'ruts.*' => ['required', 'string'],
         ], [
-            'ruts.min' => $soloResponsable ?? "La reserva necesita al menos {$minimo} personas.",
+            'ruts.min' => $soloResponsable ?? $sala->mensajePersonas($minimo - 1),
             'ruts.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
             'ruts.*.required' => 'Complete el RUT (o pasaporte/DNI) de cada persona.',
         ]);

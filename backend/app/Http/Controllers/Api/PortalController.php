@@ -321,7 +321,8 @@ class PortalController extends Controller
             'duracion_minima' => config('salas.duracion_minima'),
             'duracion_maxima' => config('salas.duracion_maxima'),
             'cuota_diaria' => config('salas.cuota_diaria'),
-            'personas_minimas' => config('salas.personas_minimas'),
+            'personas_minimas' => Sala::personasDelPortal()[0],
+            'personas_maximas' => Sala::personasDelPortal()[1],
             'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $vista,
@@ -338,17 +339,19 @@ class PortalController extends Controller
 
     public function reservarSala(Request $request)
     {
+        [$minimo, $maximo] = Sala::personasDelPortal();
         $data = $request->validate([
             'sala_id' => ['required', Sala::reglaDisponible()],
             'fecha' => ['required', 'date'],
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
-            'cantidad_personas' => ['required', 'integer', 'min:'.config('salas.personas_minimas'), 'max:5'],
+            'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
             'inmediata' => ['sometimes', 'boolean'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
-            'cantidad_personas.min' => 'La reserva necesita al menos '.config('salas.personas_minimas').' personas.',
+            'cantidad_personas.min' => "La reserva necesita al menos {$minimo} personas.",
+            'cantidad_personas.max' => "La reserva admite como máximo {$maximo} personas.",
         ]);
 
         if ($mensaje = Sala::mensajeSoloAdministracion($data['sala_id'])) {
@@ -489,8 +492,8 @@ class PortalController extends Controller
     /**
      * Un integrante (quizás lo pusieron sin preguntarle) se sale de una reserva que hizo
      * otra persona, sin consecuencias para nadie: el resto del grupo la mantiene, con una
-     * persona menos, y él queda libre para reservar otra sala. Si quedaría una sola
-     * persona, la reserva se cancela, porque las salas se reservan para 2 a 5.
+     * persona menos, y él queda libre para reservar otra sala. Si quedan menos personas que
+     * el mínimo del portal (config/salas.php), la reserva se cancela.
      */
     public function salirDeReservaSala(Request $request, Reserva $reserva)
     {

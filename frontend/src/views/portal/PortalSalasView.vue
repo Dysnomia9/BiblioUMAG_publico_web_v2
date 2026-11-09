@@ -25,9 +25,9 @@ const router = useRouter()
 
 const hoy = new Date().toLocaleDateString('sv-SE')
 const DURACIONES = [30, 60, 90, 120]
-// El mínimo llega con las salas (config/salas.php).
+// El rango llega con las salas (config/salas.php).
 const cantidadMinima = ref(PERSONAS_MINIMAS_SALA)
-const CANTIDAD_MAX = PERSONAS_MAXIMAS_SALA
+const cantidadMaxima = ref(PERSONAS_MAXIMAS_SALA)
 
 const salas = ref<Sala[]>([])
 const apiError = ref(false)
@@ -172,6 +172,7 @@ async function cargar() {
     cuotaDiaria.value = data.cuota_diaria
     minutosPresentarse.value = data.minutos_para_presentarse
     cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
+    cantidadMaxima.value = data.personas_maximas ?? PERSONAS_MAXIMAS_SALA
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
     apiError.value = false
@@ -216,7 +217,7 @@ const filteredSalas = computed(() => {
 
 const pasosAyuda = computed(() => [
   'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca. En <strong>Mapa</strong> ves las salas como están en cada piso: toca una para ver sus horarios libres de hoy.',
-  `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${CANTIDAD_MAX} personas). El tuyo ya viene escrito.`,
+  `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${cantidadMaxima.value} personas). El tuyo ya viene escrito.`,
   'Pulsa <strong>Confirmar</strong>: tu reserva queda en <strong>azul</strong> en la línea de tiempo.',
   `Preséntate con tu grupo en el mesón dentro de <strong>${textoMinutos(minutosPresentarse.value)}</strong> desde la hora de inicio; si no, la sala se libera sola.`,
 ])
@@ -679,7 +680,7 @@ async function confirmarCancelacion() {
                 v-model.number="cantidadPersonas"
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option v-for="n in CANTIDAD_MAX - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
+                <option v-for="n in cantidadMaxima - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
                   {{ cantidadMinima + n - 1 }} personas
                 </option>
               </select>
