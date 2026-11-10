@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import api from '@/services/api'
@@ -9,7 +8,6 @@ import { useAuthStore } from '@/stores/auth'
 import { itemPorRuta } from '@/navegacion'
 import type { ResumenDashboard } from '@/types'
 
-const router = useRouter()
 const resumenVacio: ResumenDashboard = {
   usuariosActivos: 0,
   entradasHoy: 0,
@@ -27,12 +25,17 @@ const auth = useAuthStore()
 // Solo los accesos a módulos que el rol de esta cuenta puede abrir.
 const shortcuts = computed(() => STAFF_SHORTCUTS.filter((s) => auth.puedeAlguno(itemPorRuta(s.name)?.permiso)))
 
-const SHORTCUT_COLORS: Record<StaffShortcutColor, { icon: string; iconHover: string; border: string; topBorder: string }> = {
-  emerald: { icon: 'bg-emerald-50 text-emerald-600', iconHover: 'group-hover:bg-emerald-600', border: 'hover:border-emerald-300', topBorder: 'border-t-emerald-400' },
-  indigo: { icon: 'bg-indigo-50 text-indigo-600', iconHover: 'group-hover:bg-indigo-600', border: 'hover:border-indigo-300', topBorder: 'border-t-indigo-400' },
-  amber: { icon: 'bg-amber-50 text-amber-600', iconHover: 'group-hover:bg-amber-600', border: 'hover:border-amber-300', topBorder: 'border-t-amber-400' },
-  violet: { icon: 'bg-violet-50 text-violet-600', iconHover: 'group-hover:bg-violet-600', border: 'hover:border-violet-300', topBorder: 'border-t-violet-400' },
+// Botones de acceso: franja arriba, un tinte suave que baja desde ella, el ícono en un
+// cuadro del color y «Abrir módulo» en el mismo tono.
+const COLORES_ACCESO: Record<StaffShortcutColor, { franja: string; tinte: string; icono: string; enlace: string; borde: string }> = {
+  emerald: { franja: 'bg-emerald-400', tinte: 'from-emerald-50/80', icono: 'bg-emerald-400 shadow-emerald-400/30', enlace: 'text-emerald-700', borde: 'hover:border-emerald-300' },
+  indigo: { franja: 'bg-indigo-400', tinte: 'from-indigo-50/80', icono: 'bg-indigo-400 shadow-indigo-400/30', enlace: 'text-indigo-700', borde: 'hover:border-indigo-300' },
+  amber: { franja: 'bg-amber-400', tinte: 'from-amber-50/80', icono: 'bg-amber-400 shadow-amber-400/30', enlace: 'text-amber-700', borde: 'hover:border-amber-300' },
+  violet: { franja: 'bg-violet-400', tinte: 'from-violet-50/80', icono: 'bg-violet-400 shadow-violet-400/30', enlace: 'text-violet-700', borde: 'hover:border-violet-300' },
 }
+
+// Línea morada en el borde superior de las dos tarjetas grandes.
+const FRANJA = 'linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%)'
 
 const fechaHoy = computed(() => {
   const str = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -53,92 +56,102 @@ onMounted(async () => {
 
 <template>
   <StaffLayout>
-    <div class="max-w-6xl mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
-      <!-- Hero -->
-      <div class="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-purple-50/60 p-6 sm:p-8 mb-6">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+    <div class="max-w-7xl mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
+      <!-- Encabezado: título, fecha y rol, y las dos cifras del día -->
+      <section class="mb-6 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/60 shadow-sm">
+        <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
+        <div class="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-2">Menú Inicio</h1>
-            <p class="text-sm text-gray-500 mb-4 max-w-md">
-              Desde aquí puedes gestionar los módulos principales de la Biblioteca UMAG.
-            </p>
-            <div class="flex items-center gap-2 text-sm font-medium text-indigo-700">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {{ fechaHoy }}
+            <h1 class="font-serif text-3xl font-bold text-gray-900 sm:text-4xl">Menú Inicio</h1>
+            <p class="mt-3 max-w-xl text-gray-600">Desde aquí puedes gestionar los módulos principales de la Biblioteca UMAG.</p>
+            <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span class="flex items-center gap-2 font-medium text-indigo-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {{ fechaHoy }}
+              </span>
+              <span v-if="auth.staff?.rol_nombre" class="rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700">
+                Tu rol: {{ auth.staff.rol_nombre }}
+              </span>
             </div>
-            <p v-if="auth.staff?.rol_nombre" class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
-              Tu rol: {{ auth.staff.rol_nombre }}
-            </p>
           </div>
 
-          <div class="flex flex-wrap gap-4">
-            <div class="flex items-center gap-3 bg-white rounded-xl border border-gray-100 border-l-4 border-l-emerald-400 shadow-sm px-5 py-4">
-              <div class="h-11 w-11 shrink-0 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <div class="grid gap-4 sm:grid-cols-2 lg:flex lg:shrink-0">
+            <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-l-4 border-l-emerald-400 bg-white px-6 py-5 shadow-sm lg:w-60">
+              <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87M9 12a4 4 0 100-8 4 4 0 000 8z" />
                 </svg>
-              </div>
-              <div>
-                <p class="text-[11px] font-medium uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
-                  <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Personas en Biblioteca
+              </span>
+              <div class="min-w-0">
+                <p class="flex items-start gap-1.5 text-[11px] font-semibold uppercase leading-snug tracking-wider text-gray-600">
+                  <span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true"></span>
+                  Personas en biblioteca
                 </p>
-                <p class="text-2xl font-bold text-gray-900 tabular-nums">
+                <p class="mt-1 text-3xl font-bold tabular-nums text-gray-900">
                   {{ resumen.personasEnSala }} <span v-if="resumen.aforo" class="text-sm font-normal text-gray-400">/ {{ resumen.aforo }}</span>
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center gap-3 bg-white rounded-xl border border-gray-100 border-l-4 border-l-indigo-400 shadow-sm px-5 py-4">
-              <div class="h-11 w-11 shrink-0 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-l-4 border-l-indigo-400 bg-white px-6 py-5 shadow-sm lg:w-60">
+              <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M5 5v14" />
                 </svg>
-              </div>
-              <div>
-                <p class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Entradas hoy</p>
-                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ resumen.entradasHoy }}</p>
+              </span>
+              <div class="min-w-0">
+                <p class="text-[11px] font-semibold uppercase leading-snug tracking-wider text-gray-600">Entradas hoy</p>
+                <p class="mt-1 text-3xl font-bold tabular-nums text-gray-900">{{ resumen.entradasHoy }}</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <ApiErrorBanner v-if="apiError" />
 
-      <!-- Accesos rápidos -->
-      <div class="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 mb-6">
-        <div class="flex items-center gap-3 mb-1">
-          <span class="w-1 h-6 rounded-full bg-indigo-600 shrink-0"></span>
-          <h2 class="text-lg font-bold text-gray-900">Accesos rápidos</h2>
+      <!-- Accesos rápidos: los módulos de F1 a F4 que el rol puede abrir -->
+      <section v-if="shortcuts.length" class="mb-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-[0_12px_32px_-16px_rgb(67_56_202/0.25)]">
+        <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
+        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-6 py-5 sm:px-8">
+          <div class="flex items-center gap-3">
+            <span class="h-7 w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+            <h2 class="font-serif text-2xl font-bold text-gray-900">Accesos rápidos</h2>
+          </div>
+          <p class="ml-4 mt-1 text-gray-600">Selecciona un módulo para comenzar</p>
         </div>
-        <p class="text-sm text-gray-400 mb-6 ml-4">Selecciona un módulo para comenzar</p>
 
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <button
-            v-for="shortcut in shortcuts"
-            :key="shortcut.key"
-            @click="router.push({ name: shortcut.name })"
-            class="group flex flex-col items-center rounded-xl border border-t-4 border-gray-200 bg-white p-6 text-center transition-all hover:shadow-md active:scale-[0.98]"
-            :class="[SHORTCUT_COLORS[shortcut.color].border, SHORTCUT_COLORS[shortcut.color].topBorder]"
-          >
-            <div
-              class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl transition-colors group-hover:text-white"
-              :class="[SHORTCUT_COLORS[shortcut.color].icon, SHORTCUT_COLORS[shortcut.color].iconHover]"
+        <div class="p-4 sm:p-6">
+          <div class="grid grid-cols-1 gap-4 rounded-2xl border border-gray-100 bg-gray-50/70 p-3 sm:grid-cols-2 sm:gap-5 sm:p-4 xl:grid-cols-4">
+            <router-link
+              v-for="s in shortcuts"
+              :key="s.key"
+              :to="{ name: s.name }"
+              class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-b to-white to-60% p-6 pt-7 shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+              :class="[COLORES_ACCESO[s.color].tinte, COLORES_ACCESO[s.color].borde]"
             >
-              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" :d="shortcut.icon" />
-              </svg>
-            </div>
-            <div class="text-[15px] font-semibold text-gray-900">{{ shortcut.label }}</div>
-            <kbd class="mt-4 rounded border border-gray-200 bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500">
-              {{ shortcut.key }}
-            </kbd>
-          </button>
+              <span class="absolute inset-x-0 top-0 h-1" :class="COLORES_ACCESO[s.color].franja" aria-hidden="true"></span>
+              <span class="flex items-start justify-between gap-3">
+                <span class="flex h-14 w-14 items-center justify-center rounded-xl text-white shadow-lg" :class="COLORES_ACCESO[s.color].icono">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" :d="s.icon" />
+                  </svg>
+                </span>
+                <kbd class="min-w-[2.25rem] rounded-md border border-gray-200 bg-white px-2.5 py-1 text-center font-sans text-xs font-semibold text-gray-700 shadow-[0_2px_0_rgb(15_23_42/0.07)]">{{ s.key }}</kbd>
+              </span>
+              <span class="mt-5 text-xl font-semibold text-gray-900">{{ s.label }}</span>
+              <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" :class="COLORES_ACCESO[s.color].enlace">
+                Abrir módulo
+                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </span>
+            </router-link>
+          </div>
         </div>
-      </div>
+      </section>
 
       <p class="text-center text-xs text-gray-400 mt-auto pt-6 pb-2">
         © {{ new Date().getFullYear() }} Biblioteca UMAG - Universidad de Magallanes. Todos los derechos reservados.
