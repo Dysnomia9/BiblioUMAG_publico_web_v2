@@ -577,7 +577,6 @@ async function confirmarCancelacion() {
           <div v-for="sala in filteredSalas" :key="sala.id" class="flex items-center">
             <div class="w-[112px] shrink-0 self-stretch pr-3 flex flex-col justify-center sticky left-0 z-30 bg-white">
               <div class="font-medium text-sm text-gray-900 truncate">{{ sala.nombre }}</div>
-              <div class="text-xs text-gray-400">{{ sala.capacidad }} personas</div>
             </div>
             <div
               class="group relative h-12 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"

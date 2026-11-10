@@ -250,7 +250,7 @@ async function registrarLlave() {
 const filteredSalas = computed(() => {
   if (!busqueda.value.trim()) return salas.value
   const q = sinTildes(busqueda.value.trim())
-  return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q) || String(s.capacidad).includes(q))
+  return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q))
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredSalas.value.length / salasPerPage)))
@@ -876,22 +876,27 @@ const proximaConfirmacion = computed(() => {
         </template>
       </Modal>
 
-      <div class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <div class="mb-4 flex items-stretch gap-3">
-          <span class="w-1 shrink-0 rounded-full bg-[#b08d57]" aria-hidden="true"></span>
-          <div>
-            <h2 class="text-lg font-serif font-bold text-gray-900">Entregar o recibir una llave</h2>
-            <p class="mt-1 text-sm text-gray-600">
-              Escriba el código de la sala (por ejemplo, L04 o SEM) o solo el número de la logia: la primera vez entrega la llave de la
-              reserva que está en curso y la segunda la recibe.
-            </p>
+      <!-- Llaves: en una sola fila (título a la izquierda, código y botón a la derecha; se apila en
+           pantallas angostas) y, al pie, una nota con la otra forma: la reserva en la línea de tiempo. -->
+      <div class="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-3 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:gap-6">
+          <div class="flex min-w-0 flex-1 items-stretch gap-3">
+            <span class="w-1 shrink-0 rounded-full bg-[#b08d57]" aria-hidden="true"></span>
+            <div class="min-w-0">
+              <h2 class="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-serif font-bold text-gray-900">
+                Entregar o recibir una llave
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-gray-600">Alternativa</span>
+              </h2>
+              <p class="mt-0.5 text-xs text-gray-600">
+                Escriba el código de la sala (L04, SEM…) o el número de la logia: la primera vez entrega la llave y la segunda la recibe.
+              </p>
+            </div>
           </div>
-        </div>
-        <div class="flex gap-3 flex-wrap items-end">
-          <div class="flex-1 min-w-[200px]">
-            <label for="codigo-sala" class="mb-1.5 block text-sm font-semibold text-gray-800">Código de la sala</label>
+        <div class="flex gap-2 lg:w-[26rem] lg:shrink-0">
+          <div class="min-w-0 flex-1">
+            <label for="codigo-sala" class="sr-only">Código de la sala</label>
             <div class="relative">
-              <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-dorado-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-dorado-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
               </svg>
               <input
@@ -902,7 +907,7 @@ const proximaConfirmacion = computed(() => {
                 autocapitalize="characters"
                 maxlength="20"
                 placeholder="Ej: L04 o 4"
-                class="w-full rounded-xl border border-gray-300 bg-gray-50 py-2.5 pl-11 pr-4 font-mono uppercase outline-none transition-colors placeholder:font-sans placeholder:normal-case focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 py-2 pl-10 pr-3 text-sm font-mono uppercase outline-none transition-colors placeholder:font-sans placeholder:normal-case focus:bg-white focus:ring-2 focus:ring-indigo-500"
                 @keydown.enter="registrarLlave"
               />
             </div>
@@ -910,11 +915,26 @@ const proximaConfirmacion = computed(() => {
           <button
             @click="registrarLlave"
             :disabled="registrandoLlave"
-            class="rounded-xl bg-indigo-600 px-6 py-2.5 font-semibold text-white shadow-lg shadow-indigo-600/25 transition-colors hover:bg-indigo-700 disabled:opacity-60"
+            class="shrink-0 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition-colors hover:bg-indigo-700 disabled:opacity-60"
           >
             {{ registrandoLlave ? 'Registrando…' : 'Registrar' }}
           </button>
         </div>
+        </div>
+        <!-- Nota: los colores son los de la leyenda de la línea de tiempo (tramoClases). -->
+        <p class="flex items-start gap-2 border-t border-dashed border-gray-200 bg-gray-50/70 px-4 py-2.5 text-xs leading-relaxed text-gray-600 sm:px-5">
+          <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+          </svg>
+          <span>
+            <strong class="font-semibold text-gray-800">También desde la línea de tiempo:</strong>
+            haga clic en la reserva. Si está
+            <span class="whitespace-nowrap"><span class="mr-1 inline-block h-2.5 w-2.5 rounded-sm border border-red-300 bg-red-100 align-[-1px]" aria-hidden="true"></span><strong class="font-semibold text-gray-800">en uso</strong></span>,
+            la recibe con «Confirmar devolución»; si está
+            <span class="whitespace-nowrap"><span class="mr-1 inline-block h-2.5 w-2.5 rounded-sm border border-amber-300 bg-amber-100 align-[-1px]" aria-hidden="true"></span><strong class="font-semibold text-gray-800">por confirmar</strong></span>,
+            la entrega con «Confirmar llegada».
+          </span>
+        </p>
       </div>
 
       <!-- Línea de tiempo: buscador y páginas en el encabezado, las salas debajo -->
@@ -1012,9 +1032,8 @@ const proximaConfirmacion = computed(() => {
           <div v-for="sala in salasPage" :key="sala.id" class="flex items-center gap-3">
             <div class="w-[136px] shrink-0">
               <div class="truncate text-sm font-medium text-gray-900">{{ sala.nombre }}</div>
-              <div class="text-xs text-gray-400">
-                <span class="font-mono font-semibold text-gray-500">{{ sala.codigo }}</span> · {{ sala.capacidad }} personas
-              </div>
+              <!-- Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
+              <div class="font-mono text-xs font-semibold text-gray-500">{{ sala.codigo }}</div>
               <div v-if="sala.solo_administracion" class="mt-0.5 text-[11px] font-semibold text-amber-700" title="No se presta a estudiantes ni se reserva desde el portal">
                 Solo administración
               </div>
@@ -1112,7 +1131,7 @@ const proximaConfirmacion = computed(() => {
             <div class="min-w-0">
               <h3 class="text-lg font-bold text-gray-900 mb-1">Reservar {{ selectedSala.nombre }}</h3>
               <p class="text-sm text-gray-500">
-                Capacidad: {{ selectedSala.capacidad }} personas · {{ formatFechaLarga(selectedDate) }}
+                {{ formatFechaLarga(selectedDate) }}
               </p>
             </div>
             <!-- La hora con la que valen las reservas, para no calcularla de memoria al reservar. -->
