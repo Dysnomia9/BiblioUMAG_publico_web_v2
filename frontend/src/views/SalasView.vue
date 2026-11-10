@@ -694,7 +694,7 @@ const proximaConfirmacion = computed(() => {
 
 <template>
   <StaffLayout>
-    <div class="max-w-7xl mx-auto">
+    <div class="pagina-compacta max-w-7xl mx-auto">
       <!-- Encabezado: el degradado con puntos tenues y dos anillos a la derecha -->
       <div
         class="relative mb-6 overflow-hidden rounded-2xl shadow-md"

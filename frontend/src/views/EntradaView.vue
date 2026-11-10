@@ -415,7 +415,7 @@ function verSusPrestamos(e: Entrada) {
 
 <template>
   <StaffLayout>
-    <div class="mx-auto max-w-[88rem]">
+    <div class="pagina-compacta mx-auto max-w-[88rem]">
       <GuiaUso
         v-model:abierta="guiaAbierta"
         :con-boton="false"

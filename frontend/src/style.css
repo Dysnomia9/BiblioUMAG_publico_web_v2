@@ -67,6 +67,13 @@
   .dark .franja-pasada {
     background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.14) 0 3px, transparent 3px 9px);
   }
+  /* Pantallas densas del mesón (Entradas y Salas): el contenido al 90 %, como con el zoom
+     del navegador, sin achicar la barra superior. Los cuadros que se abren sobre la
+     página con Modal van fuera y quedan a tamaño normal. Las posiciones que se calculan
+     con getBoundingClientRect y clientX siguen valiendo: los dos vienen ya escalados. */
+  .pagina-compacta {
+    zoom: 0.9;
+  }
   /* Puntos finos sobre un fondo suave (cuerpo del Menú de Gestión). Toman el tono de los
      bordes del fondo elegido, y en modo noche se oscurecen solos. */
   .fondo-punteado {
