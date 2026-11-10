@@ -100,6 +100,18 @@ const {
   posicionTramo,
 } = useHorarioSalas({ apertura, cierre, atencion, granularidad, fecha: selectedDate })
 
+/** Parte del horario del día que ya está reservada, sumando todas las salas (0–100). */
+const ocupacionHoy = computed(() => {
+  if (cierraMin.value <= abreMin.value || !salas.value.length) return 0
+  const reservado = salas.value.reduce((s, sala) => s + sala.tramos.reduce((s2, t) => s2 + (timeToMinutes(t.hora_fin) - timeToMinutes(t.hora_inicio)), 0), 0)
+  return Math.min(100, Math.round((reservado / (salas.value.length * (cierraMin.value - abreMin.value))) * 100))
+})
+
+// «¿Cómo se usa esta pantalla?» va en el encabezado; los pasos se abren debajo.
+const guiaAbierta = ref(false)
+// Línea morada en el borde superior de la tarjeta de la línea de tiempo.
+const FRANJA = 'linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%)'
+
 function pct(hhmm: string): number {
   return ((timeToMinutes(hhmm) - aperturaMin.value) / totalMin.value) * 100
 }
@@ -682,22 +694,53 @@ const proximaConfirmacion = computed(() => {
 
 <template>
   <StaffLayout>
-    <div class="max-w-[1200px] mx-auto">
+    <div class="max-w-7xl mx-auto">
+      <!-- Encabezado: el degradado con puntos tenues y dos anillos a la derecha -->
       <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
+        class="relative mb-6 overflow-hidden rounded-2xl shadow-md"
         style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
       >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Salas de Estudio</h1>
-          <p class="text-sm text-white/60 mt-1">
-            <template v-if="resumenSalas">{{ resumenSalas }} · </template>Horario del día {{ textoHorario }} · Reservas de hasta {{ formatMinutos(duracionMaxima) }}
-          </p>
+        <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -right-20 -top-28 h-80 w-80 rounded-full border-[48px] border-white/[0.05]" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -bottom-32 right-40 h-64 w-64 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
+        <div class="relative flex flex-col gap-5 px-6 py-6 sm:px-8 sm:py-7 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 class="font-serif text-3xl font-bold tracking-tight text-white">Salas de Estudio</h1>
+            <p v-if="resumenSalas" class="mt-1.5 text-white/75">{{ resumenSalas }}</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-blanco/10 px-3 py-1 text-xs font-semibold text-white">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Horario del día {{ textoHorario }}
+              </span>
+              <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-blanco/10 px-3 py-1 text-xs font-semibold text-white">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+                Reservas de hasta {{ formatMinutos(duracionMaxima) }}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/30 bg-blanco/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blanco/20 md:self-center"
+            :aria-expanded="guiaAbierta"
+            @click="guiaAbierta = !guiaAbierta"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+            </svg>
+            {{ guiaAbierta ? 'Ocultar la ayuda' : '¿Cómo se usa esta pantalla?' }}
+          </button>
         </div>
       </div>
 
       <ApiErrorBanner v-if="apiError" />
 
       <GuiaUso
+        v-model:abierta="guiaAbierta"
+        :con-boton="false"
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
@@ -707,35 +750,60 @@ const proximaConfirmacion = computed(() => {
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
       />
 
+      <!-- Cifras del día y la fecha: tarjetas con franja de color arriba -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Ocupación Hoy</div>
-          <div class="flex items-end gap-2">
-            <span class="text-3xl font-bold text-indigo-700">
-              {{ cierraMin > abreMin ? Math.round((salas.reduce((s, sala) => s + sala.tramos.reduce((s2, t) => s2 + (timeToMinutes(t.hora_fin) - timeToMinutes(t.hora_inicio)), 0), 0) / (salas.length * (cierraMin - abreMin) || 1)) * 100) : 0 }}%
-            </span>
+        <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-t-4 border-t-indigo-400 bg-white p-5 shadow-sm">
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+            </svg>
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Ocupación hoy</div>
+            <div class="mt-0.5 text-3xl font-bold tabular-nums text-indigo-700">{{ ocupacionHoy }}%</div>
+            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100" role="presentation">
+              <div class="h-full rounded-full bg-indigo-500 transition-all" :style="{ width: ocupacionHoy + '%' }"></div>
+            </div>
           </div>
         </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Salas Disponibles Ahora</div>
-          <div class="flex items-end gap-2">
-            <span class="text-3xl font-bold text-emerald-600">{{ salas.filter((s) => s.libre_ahora).length }}</span>
-            <span class="text-sm text-gray-400 mb-1">de {{ salas.length }} salas</span>
+        <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-t-4 border-t-emerald-400 bg-white p-5 shadow-sm">
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 21V4.5A1.5 1.5 0 016.5 3h11A1.5 1.5 0 0119 4.5V21M3 21h18M14.25 12h.008v.008h-.008V12z" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Salas disponibles ahora</div>
+            <div class="mt-0.5 flex items-baseline gap-2">
+              <span class="text-3xl font-bold tabular-nums text-emerald-600">{{ salas.filter((s) => s.libre_ahora).length }}</span>
+              <span class="text-sm text-gray-500">de {{ salas.length }} salas</span>
+            </div>
           </div>
         </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <label class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 block">Fecha</label>
+        <div class="rounded-2xl border border-gray-200 border-t-4 border-t-[#b08d57] bg-white p-5 shadow-sm">
+          <label for="fecha-salas" class="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-gray-600">Fecha</label>
           <input
+            id="fecha-salas"
             v-model="selectedDate"
             type="date"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
       </div>
 
-      <div v-if="selectedDate === hoy" class="bg-white rounded-xl shadow-md p-5 mb-6">
-        <div class="flex items-start justify-between gap-3 mb-1">
-          <h3 class="text-sm font-semibold text-gray-900">Menú de confirmación de asistencia</h3>
+      <div v-if="selectedDate === hoy" class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="mb-5 flex items-start justify-between gap-3">
+          <div class="flex items-stretch gap-3">
+            <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+            <div>
+              <h2 class="text-xl font-serif font-bold text-gray-900">Menú de confirmación de asistencia</h2>
+              <p class="mt-1 text-sm text-gray-600">
+                Cada reserva aparece aquí desde su hora de inicio y tiene {{ textoMinutos(minutosPresentarse) }} para confirmar que el grupo llegó.
+                Pasado ese plazo, la sala se libera sola.
+              </p>
+            </div>
+          </div>
           <div v-if="pendientesConfirmacion.length" class="flex shrink-0 items-center gap-1.5">
             <span v-if="vencidasConfirmacion" class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
               {{ vencidasConfirmacion }} {{ vencidasConfirmacion === 1 ? 'vencida' : 'vencidas' }}
@@ -745,10 +813,6 @@ const proximaConfirmacion = computed(() => {
             </span>
           </div>
         </div>
-        <p class="text-xs text-gray-400 mb-4">
-          Cada reserva aparece aquí desde su hora de inicio y tiene {{ textoMinutos(minutosPresentarse) }} para confirmar que el grupo llegó. Pasado
-          ese plazo, la sala se libera sola.
-        </p>
 
         <template v-if="pendientesConfirmacion.length">
           <ListaConfirmacionAsistencia
@@ -766,7 +830,12 @@ const proximaConfirmacion = computed(() => {
             Ver las {{ pendientesConfirmacion.length }} reservas por confirmar
           </button>
         </template>
-        <p v-else class="text-sm text-gray-400 text-center py-4">Sin reservas pendientes de confirmar por ahora.</p>
+        <div v-else class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-7 text-center">
+          <span class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          </span>
+          <p class="text-sm text-gray-600">Sin reservas pendientes de confirmar por ahora.</p>
+        </div>
         <p v-if="proximaConfirmacion" class="mt-3 text-xs text-gray-500">
           <template v-if="proximaConfirmacion.otras">
             Próximas: {{ proximaConfirmacion.sala }} y {{ proximaConfirmacion.otras }} más a las {{ proximaConfirmacion.hora }};
@@ -806,40 +875,53 @@ const proximaConfirmacion = computed(() => {
         </template>
       </Modal>
 
-      <div class="bg-white rounded-xl shadow-md p-5 mb-6">
-        <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide">Entregar o recibir una llave</h3>
-        <p class="mt-1 mb-3 text-xs text-gray-500">
-          Escriba el código de la sala (por ejemplo, L04 o SEM) o solo el número de la logia: la primera vez entrega la llave de la
-          reserva que está en curso y la segunda la recibe.
-        </p>
+      <div class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="mb-5 flex items-stretch gap-3">
+          <span class="w-1 shrink-0 rounded-full bg-[#b08d57]" aria-hidden="true"></span>
+          <div>
+            <h2 class="text-xl font-serif font-bold text-gray-900">Entregar o recibir una llave</h2>
+            <p class="mt-1 text-sm text-gray-600">
+              Escriba el código de la sala (por ejemplo, L04 o SEM) o solo el número de la logia: la primera vez entrega la llave de la
+              reserva que está en curso y la segunda la recibe.
+            </p>
+          </div>
+        </div>
         <div class="flex gap-3 flex-wrap items-end">
           <div class="flex-1 min-w-[200px]">
-            <label for="codigo-sala" class="block text-xs font-medium text-gray-600 mb-1">Código de la sala</label>
-            <input
-              id="codigo-sala"
-              v-model="codigoSala"
-              type="text"
-              autocomplete="off"
-              autocapitalize="characters"
-              maxlength="20"
-              placeholder="Ej: L04 o 4"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono uppercase placeholder:normal-case placeholder:font-sans"
-              @keydown.enter="registrarLlave"
-            />
+            <label for="codigo-sala" class="mb-1.5 block text-sm font-semibold text-gray-800">Código de la sala</label>
+            <div class="relative">
+              <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-dorado-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+              <input
+                id="codigo-sala"
+                v-model="codigoSala"
+                type="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                maxlength="20"
+                placeholder="Ej: L04 o 4"
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 py-3 pl-11 pr-4 font-mono uppercase outline-none transition-colors placeholder:font-sans placeholder:normal-case focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                @keydown.enter="registrarLlave"
+              />
+            </div>
           </div>
           <button
             @click="registrarLlave"
             :disabled="registrandoLlave"
-            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-60"
+            class="rounded-xl bg-indigo-600 px-7 py-3 font-semibold text-white shadow-lg shadow-indigo-600/25 transition-colors hover:bg-indigo-700 disabled:opacity-60"
           >
             {{ registrandoLlave ? 'Registrando…' : 'Registrar' }}
           </button>
         </div>
       </div>
 
-      <div class="mb-4 flex flex-wrap items-center gap-3">
-        <div class="relative max-w-sm flex-1 min-w-[200px]">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <!-- Línea de tiempo: buscador y páginas en el encabezado, las salas debajo -->
+      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-4 sm:px-6">
+        <div class="relative max-w-md flex-1 min-w-[200px]">
+          <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
           </svg>
           <input
@@ -847,23 +929,24 @@ const proximaConfirmacion = computed(() => {
             @input="page = 0"
             type="text"
             placeholder="Buscar logia..."
-            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+            aria-label="Buscar logia"
+            class="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
-        <div v-if="totalPages > 1" class="flex items-center gap-2 bg-white rounded-lg shadow-sm p-1.5">
+        <div v-if="totalPages > 1" class="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           <button
             v-for="n in totalPages"
             :key="n"
             @click="page = n - 1"
-            class="px-4 py-2 rounded-md text-sm font-semibold transition-colors"
-            :class="page === n - 1 ? 'bg-indigo-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'"
+            class="rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
+            :class="page === n - 1 ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'"
           >
             Página {{ n }}
           </button>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md p-5">
+      <div class="p-5 sm:p-6">
         <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -877,16 +960,16 @@ const proximaConfirmacion = computed(() => {
           <p>{{ textoFueraDeHorario }}</p>
         </div>
         <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <p class="text-xs text-gray-400">
+          <p class="text-sm text-gray-600">
             {{ diaCerrado ? 'Elija otra fecha arriba para reservar.' : 'Click en cualquier espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.' }}
           </p>
-          <p v-if="actualizadoEn" class="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <p v-if="actualizadoEn" class="flex items-center gap-2 text-xs text-gray-500">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
             Se actualiza sola cada {{ REFRESCO_SEGUNDOS }} s · última vez a las {{ enPuntaArenas(actualizadoEn).conSegundos }}
             <button
               type="button"
               @click="cargar"
-              class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-indigo-700 transition-colors"
+              class="ml-1 rounded-lg border border-gray-200 bg-white p-1.5 text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-indigo-700"
               title="Actualizar ahora"
               aria-label="Actualizar ahora"
             >
@@ -901,7 +984,7 @@ const proximaConfirmacion = computed(() => {
         <div class="overflow-x-auto">
         <div class="min-w-[640px]">
         <div v-if="esHoy && !diaCerrado && nowPct > 0 && nowPct < 100" class="flex items-end mb-1">
-          <div class="w-[132px] shrink-0 self-stretch"></div>
+          <div class="w-[162px] shrink-0 self-stretch"></div>
           <div class="relative h-7 flex-1">
             <span
               class="absolute top-0 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm whitespace-nowrap"
@@ -914,8 +997,8 @@ const proximaConfirmacion = computed(() => {
           </div>
         </div>
         <div class="flex items-center gap-3 mb-2">
-          <div class="w-[120px] shrink-0"></div>
-          <div class="relative h-4 flex-1 text-[10px] font-medium text-gray-400">
+          <div class="w-[150px] shrink-0"></div>
+          <div class="relative h-4 flex-1 text-xs font-medium text-gray-500">
             <span
               v-for="h in horasRotuladas"
               :key="h"
@@ -924,10 +1007,10 @@ const proximaConfirmacion = computed(() => {
             >{{ String(h).padStart(2, '0') }}:00</span>
           </div>
         </div>
-        <div class="space-y-2.5">
+        <div class="space-y-3">
           <div v-for="sala in salasPage" :key="sala.id" class="flex items-center gap-3">
-            <div class="w-[120px] shrink-0">
-              <div class="font-medium text-sm text-gray-900 truncate">{{ sala.nombre }}</div>
+            <div class="w-[150px] shrink-0">
+              <div class="truncate text-[15px] font-medium text-gray-900">{{ sala.nombre }}</div>
               <div class="text-xs text-gray-400">
                 <span class="font-mono font-semibold text-gray-500">{{ sala.codigo }}</span> · {{ sala.capacidad }} personas
               </div>
@@ -936,7 +1019,7 @@ const proximaConfirmacion = computed(() => {
               </div>
             </div>
             <div
-              class="group relative h-12 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
+              class="group relative h-14 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
               @click="onTimelineClick(sala, $event)"
             >
               <div class="absolute inset-0 flex pointer-events-none">
@@ -1005,6 +1088,7 @@ const proximaConfirmacion = computed(() => {
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       <div class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 text-xs text-gray-500">
