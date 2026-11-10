@@ -153,7 +153,7 @@ Para que una pantalla nueva funcione en los dos modos:
 Cada persona del personal elige el fondo del panel en el menú de la cuenta ›
 **Aspecto visual** (`components/layout/AspectoVisual.vue`). Queda en su cuenta
 (`staff.fondo`, `PATCH /auth/fondo`), así que la sigue en cualquier computador; sin
-elegir, tiene **Neblina**. El portal de los usuarios va siempre en Neblina. En modo
+elegir, tiene **Patagonia**. El portal de los usuarios va siempre en Neblina. En modo
 noche no se usan: se ve el fondo oscuro de siempre.
 
 Hay veinte: Neblina, Clásico (el de antes), Liso, Puntos, Cuadrícula,

@@ -10,11 +10,13 @@
     // Sin acceso a localStorage (modo privado estricto): queda en claro.
   }
   // El portal usa siempre Neblina; el panel, el último fondo que eligió el personal en este
-  // navegador (lo confirma la sesión al cargar).
-  var fondo = 'neblina'
+  // navegador (lo confirma la sesión al cargar) o, si no hay, el predeterminado: Patagonia
+  // (FONDO_PREDETERMINADO en utils/fondos.ts).
+  var portal = location.pathname.indexOf('/portal') === 0
+  var fondo = portal ? 'neblina' : 'patagonia'
   try {
     var recordado = localStorage.getItem('fondo')
-    if (location.pathname.indexOf('/portal') !== 0 && /^[a-z-]+$/.test(recordado || '')) fondo = recordado
+    if (!portal && /^[a-z-]+$/.test(recordado || '')) fondo = recordado
   } catch (e) {
     // Sin localStorage: el predeterminado.
   }

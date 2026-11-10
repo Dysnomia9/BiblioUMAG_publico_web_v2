@@ -262,8 +262,9 @@ export const FONDOS: Fondo[] = [
   },
 ]
 
-/** El del personal que no ha elegido (staff.fondo vacío) y el fijo del portal. */
-export const FONDO_PREDETERMINADO = 'neblina'
+/** El del personal que no ha elegido (staff.fondo vacío; public/tema.js lo repite). */
+export const FONDO_PREDETERMINADO = 'patagonia'
+/** El del portal de usuarios, que no eligen fondo. */
 export const FONDO_PORTAL = 'neblina'
 
 export function esFondo(clave: unknown): clave is string {
