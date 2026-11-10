@@ -260,7 +260,8 @@ class SalaReservaTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_inicio_no_alineado_a_la_media_hora_sin_inmediata_devuelve_422(): void
+    /** En el mesón la hora de inicio se puede escribir a mano: cualquier minuto (el portal sigue en la grilla, SalaHoraAManoTest). */
+    public function test_en_el_meson_el_inicio_puede_no_estar_en_la_media_hora(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
         $sala = Sala::factory()->create();
@@ -275,7 +276,7 @@ class SalaReservaTest extends TestCase
             'ruts' => $usuarios->pluck('rut')->all(),
         ]);
 
-        $response->assertStatus(422);
+        $response->assertStatus(201)->assertJsonPath('hora_inicio', '10:10:00');
     }
 
     public function test_reserva_que_cruza_el_cierre_devuelve_422(): void

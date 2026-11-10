@@ -115,7 +115,16 @@ const modalDuracion = ref(60)
 // «Ahora»: el grupo está en el mesón. La reserva parte en este minuto (no a la hora o a la
 // media hora) y queda con la llegada confirmada (SalaController::storeReserva, inmediata).
 const AHORA = 'ahora'
-const modalEsAhora = computed(() => modalHoraInicio.value === AHORA)
+// Casilla «Escribir la hora de inicio a mano»: cualquier minuto (17:10), en vez de «Ahora» o la grilla.
+const inicioAMano = ref(false)
+const modalHoraInicioEscrita = ref('')
+const campoHoraInicio = ref<InstanceType<typeof CampoHora> | null>(null)
+watch(inicioAMano, async (aMano) => {
+  if (!aMano) return
+  await nextTick()
+  campoHoraInicio.value?.enfocar()
+})
+const modalEsAhora = computed(() => !inicioAMano.value && modalHoraInicio.value === AHORA)
 // Casilla «Escribir la hora de término a mano»: en vez de una duración, el personal escribe hasta qué hora (18:35).
 const terminoAMano = ref(false)
 const modalHoraFin = ref('')
@@ -274,10 +283,25 @@ function disponibilidadDesde(sala: Sala, desdeMin: number): number {
 /** Si se puede reservar `sala` desde este minuto: hoy, con la biblioteca abierta y la sala libre al menos lo mínimo. */
 const libreDesdeAhora = (sala: Sala) => esHoy.value && !diaCerrado.value && disponibilidadDesde(sala, ahoraMin.value) >= duracionMinima.value
 
-const modalInicioMin = computed(() => (modalEsAhora.value ? ahoraMin.value : timeToMinutes(modalHoraInicio.value || apertura.value)))
+const modalInicioMin = computed(() => {
+  if (inicioAMano.value) return modalHoraInicioEscrita.value ? timeToMinutes(modalHoraInicioEscrita.value) : ahoraMin.value
+  return modalEsAhora.value ? ahoraMin.value : timeToMinutes(modalHoraInicio.value || apertura.value)
+})
 const modalDisponibleMin = computed(() => (selectedSala.value ? disponibilidadDesde(selectedSala.value, modalInicioMin.value) : 0))
 const modalDuracionesValidas = computed(() => DURACIONES.filter((d) => d >= duracionMinima.value && d <= modalDisponibleMin.value))
-const textoInicioModal = computed(() => (modalEsAhora.value ? `ahora (${minutesToTime(ahoraMin.value)})` : `las ${modalHoraInicio.value}`))
+const textoInicioModal = computed(() => (modalEsAhora.value ? `ahora (${minutesToTime(ahoraMin.value)})` : `las ${minutesToTime(modalInicioMin.value)}`))
+
+/** Por qué no sirve la hora de inicio escrita a mano, o null si sirve (el servidor revisa lo mismo). */
+const errorInicio = computed<string | null>(() => {
+  if (!inicioAMano.value || !selectedSala.value) return null
+  if (!modalHoraInicioEscrita.value) return 'Escriba la hora de inicio: los cuatro números, por ejemplo 1710 para las 17:10 (de 00:00 a 23:59).'
+  const inicio = modalInicioMin.value
+  if (inicio < abreMin.value || inicio >= cierraMin.value) return `La biblioteca atiende de ${minutesToTime(abreMin.value)} a ${minutesToTime(cierraMin.value)}: escriba una hora dentro de ese horario.`
+  if (esHoy.value && !puedeHoraPasada.value && inicio < ahoraMin.value) return `Esa hora ya pasó: escriba una desde las ${minutesToTime(ahoraMin.value)}, o desmarque la casilla y elija «Ahora».`
+  if (cierraMin.value - inicio < duracionMinima.value) return `La biblioteca cierra a las ${minutesToTime(cierraMin.value)}: desde las ${minutesToTime(inicio)} ya no alcanza una reserva de al menos ${formatMinutos(duracionMinima.value)}.`
+  if (disponibilidadDesde(selectedSala.value, inicio) === 0) return `A las ${minutesToTime(inicio)} esta sala ya está ocupada.`
+  return null
+})
 
 /**
  * Por qué no sirve la hora de término escrita a mano, o null si sirve: las mismas reglas
@@ -285,7 +309,7 @@ const textoInicioModal = computed(() => (modalEsAhora.value ? `ahora (${minutesT
  * reserva de la sala), dichas con la hora hasta la que sí se puede.
  */
 const errorTermino = computed<string | null>(() => {
-  if (!terminoAMano.value) return null
+  if (!terminoAMano.value || errorInicio.value) return null
   if (!modalHoraFin.value) return 'Escriba la hora de término: los cuatro números, por ejemplo 1835 para las 18:35 (de 00:00 a 23:59).'
   const inicio = modalInicioMin.value
   const fin = timeToMinutes(modalHoraFin.value)
@@ -301,10 +325,13 @@ const errorTermino = computed<string | null>(() => {
 const modalFinMin = computed(() =>
   terminoAMano.value ? timeToMinutes(modalHoraFin.value || '00:00') : Math.min(modalInicioMin.value + modalDuracion.value, cierraMin.value),
 )
-const puedeConfirmarReserva = computed(() => modalDisponibleMin.value >= duracionMinima.value && !errorTermino.value)
+const puedeConfirmarReserva = computed(() => modalDisponibleMin.value >= duracionMinima.value && !errorInicio.value && !errorTermino.value)
+/** El aviso de las horas escritas a mano: primero el del inicio. */
+const avisoHoras = computed(() => errorInicio.value ?? errorTermino.value)
+const avisoHorasEsError = computed(() => (errorInicio.value ? !!modalHoraInicioEscrita.value : !!modalHoraFin.value))
 
 // Al cambiar la hora de inicio, la duración elegida puede dejar de caber: se toma la mayor que sí cabe.
-watch(modalHoraInicio, () => {
+watch(modalInicioMin, () => {
   if (terminoAMano.value) return
   const validas = modalDuracionesValidas.value
   if (validas.length && !validas.includes(modalDuracion.value)) modalDuracion.value = validas[validas.length - 1]
@@ -327,6 +354,8 @@ const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : cantidadMinima.val
 
 function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHORA) {
   selectedSala.value = sala
+  inicioAMano.value = false
+  modalHoraInicioEscrita.value = ''
   if (inicioSugeridoMin === AHORA) {
     modalHoraInicio.value = AHORA
   } else {
@@ -453,8 +482,8 @@ async function confirmarReserva() {
     return
   }
   if (!selectedSala.value) return
-  if (errorTermino.value) {
-    toast.error(errorTermino.value)
+  if (avisoHoras.value) {
+    toast.error(avisoHoras.value)
     return
   }
 
@@ -1000,45 +1029,66 @@ const proximaConfirmacion = computed(() => {
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
-                <select
-                  v-model="modalHoraInicio"
-                  class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
-                  <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
-                </select>
+                <template v-if="inicioAMano">
+                  <label for="reserva-hora-inicio" class="block text-sm font-medium text-gray-700 mb-1">Desde las</label>
+                  <CampoHora
+                    id="reserva-hora-inicio"
+                    ref="campoHoraInicio"
+                    v-model="modalHoraInicioEscrita"
+                    etiqueta="Hora de inicio"
+                    :invalida="!!modalHoraInicioEscrita && !!errorInicio"
+                  />
+                </template>
+                <template v-else>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
+                  <select
+                    v-model="modalHoraInicio"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
+                    <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
+                  </select>
+                </template>
+                <label class="mt-2 flex cursor-pointer items-start gap-2 text-xs text-gray-700">
+                  <input v-model="inicioAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  Escribir la hora de inicio a mano
+                </label>
               </div>
-              <div v-if="terminoAMano">
-                <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
-                <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
-              </div>
-              <div v-else>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
-                <select
-                  v-model.number="modalDuracion"
-                  class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
-                    {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
-                  </option>
-                </select>
+              <div>
+                <template v-if="terminoAMano">
+                  <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
+                  <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
+                </template>
+                <template v-else>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
+                  <select
+                    v-model.number="modalDuracion"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
+                      {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
+                    </option>
+                  </select>
+                </template>
+                <label class="mt-2 flex cursor-pointer items-start gap-2 text-xs text-gray-700">
+                  <input v-model="terminoAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  Escribir la hora de término a mano
+                </label>
               </div>
             </div>
-            <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-              <input v-model="terminoAMano" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-              Escribir la hora de término a mano
-            </label>
-            <template v-if="terminoAMano">
-              <p v-if="errorTermino" class="-mt-2 text-xs" :class="modalHoraFin ? 'text-red-600' : 'text-gray-500'">{{ errorTermino }}</p>
-              <p v-else class="-mt-2 text-xs text-gray-600">{{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ modalHoraFin }}.</p>
+            <p v-if="avisoHoras" class="text-xs" :class="avisoHorasEsError ? 'text-red-600' : 'text-gray-500'">{{ avisoHoras }}</p>
+            <p v-else-if="inicioAMano || terminoAMano" class="text-xs text-gray-600">
+              {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}.
+            </p>
+            <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
+            <template v-if="!errorInicio">
+              <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
+                Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
+              </p>
+              <p v-else class="text-xs text-gray-400">
+                Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
+              </p>
             </template>
-            <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
-              Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
-            </p>
-            <p v-else class="text-xs text-gray-400">
-              Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
-            </p>
             <p v-if="modalEsAhora" class="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               El grupo está en el mesón: la reserva parte en este minuto, dura lo que elija (hasta {{ formatMinutos(duracionMaxima) }}) y queda con la
               llegada confirmada. Entregue la llave al reservar.

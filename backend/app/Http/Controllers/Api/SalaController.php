@@ -253,8 +253,8 @@ class SalaController extends Controller
         // pasar por el sistema en su momento) requiere un permiso aparte — el resto del
         // personal sigue restringido a "desde ahora en adelante", igual que el portal.
         $permitirHoraPasada = $request->user()->puede('salas.hora_pasada');
-        // En el mesón el término se puede escribir a mano: cualquier minuto, no solo :00 o :30.
-        $error = $this->reservaSalaService->validarTramo($data, $inmediata, $permitirHoraPasada, terminoLibre: true);
+        // En el mesón el inicio y el término se pueden escribir a mano: cualquier minuto, no solo :00 o :30.
+        $error = $this->reservaSalaService->validarTramo($data, $inmediata, $permitirHoraPasada, alMinuto: true);
         if ($error) {
             return response()->json(['message' => $error], 422);
         }

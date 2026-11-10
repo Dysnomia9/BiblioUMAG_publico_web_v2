@@ -12,10 +12,10 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * En el mesón la hora de término se puede escribir a mano (18:35), no solo a la hora o a la
- * media hora; el inicio sigue en la grilla, salvo desde ahora. El portal no cambia.
+ * En el mesón la hora de inicio y la de término se pueden escribir a mano (de 17:10 a 18:35),
+ * no solo a la hora o a la media hora. El portal no cambia.
  */
-class SalaTerminoAManoTest extends TestCase
+class SalaHoraAManoTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -47,14 +47,27 @@ class SalaTerminoAManoTest extends TestCase
             ->assertJsonPath('hora_prestamo_real', null);
     }
 
-    public function test_el_inicio_sigue_a_la_hora_o_a_la_media_hora(): void
+    public function test_el_meson_reserva_de_1710_a_1835(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
         Carbon::setTestNow('2026-07-10 16:00:00');
 
-        $this->reservar('/api/reservas', Sala::factory()->create(), [Usuario::factory()->create()->rut], ['hora_inicio' => '17:10', 'hora_fin' => '18:00'])
+        $this->reservar('/api/reservas', Sala::factory()->create(), [Usuario::factory()->create()->rut], ['hora_inicio' => '17:10', 'hora_fin' => '18:35'])
+            ->assertCreated()
+            ->assertJsonPath('hora_inicio', '17:10:00')
+            ->assertJsonPath('hora_fin', '18:35:00')
+            // Con hora de inicio, el grupo igual confirma su llegada.
+            ->assertJsonPath('hora_prestamo_real', null);
+    }
+
+    public function test_una_hora_de_inicio_escrita_que_ya_paso_no_sirve(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'asistente']));
+        Carbon::setTestNow('2026-07-10 16:27:00');
+
+        $this->reservar('/api/reservas', Sala::factory()->create(), [Usuario::factory()->create()->rut], ['hora_inicio' => '16:20', 'hora_fin' => '17:00'])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'La hora de inicio debe caer en una hora en punto o media.');
+            ->assertJsonPath('message', 'Esa hora ya pasó — elige un horario desde ahora en adelante.');
     }
 
     public function test_desde_ahora_con_la_hora_de_termino_escrita(): void
@@ -95,8 +108,11 @@ class SalaTerminoAManoTest extends TestCase
         [$yo, $otro] = Usuario::factory()->count(2)->create();
         Sanctum::actingAs($yo);
 
-        $this->reservar('/api/mi/reservas', Sala::factory()->create(), [$yo->rut, $otro->rut], ['hora_inicio' => '17:00', 'hora_fin' => '18:35'])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'El inicio y el término deben caer en una hora en punto o media.');
+        $sala = Sala::factory()->create();
+        foreach ([['17:00', '18:35'], ['17:10', '18:00']] as [$inicio, $fin]) {
+            $this->reservar('/api/mi/reservas', $sala, [$yo->rut, $otro->rut], ['hora_inicio' => $inicio, 'hora_fin' => $fin])
+                ->assertStatus(422)
+                ->assertJsonPath('message', 'El inicio y el término deben caer en una hora en punto o media.');
+        }
     }
 }

@@ -146,8 +146,9 @@ npm run dev
   fila.
 - **Salas de estudio** (logias) en horario continuo dentro del horario de la
   biblioteca (lunes a viernes 08:45–20:30, sábado 09:00–14:00): inicio en pasos
-  de 30 minutos, salvo en el mesón con **Ahora** (el grupo que llega a las 16:27
-  reserva desde ese minuto y queda con la llegada confirmada), hasta 2 horas por
+  de 30 minutos, salvo en el mesón: con **Ahora** el grupo que llega a las 16:27
+  reserva desde ese minuto y queda con la llegada confirmada, y el inicio y el
+  término también se pueden escribir a mano (de 17:10 a 18:35), hasta 2 horas por
   reserva, tiempo para presentarse antes de que
   la sala se libere (15 minutos de fábrica; se cambia en Administración › **Salas**,
   en general o para ciertas fechas, como la semana de pruebas, y vale
