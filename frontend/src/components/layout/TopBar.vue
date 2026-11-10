@@ -343,24 +343,24 @@ async function guardarClave() {
                   {{ seccion.titulo }}
                   <span class="h-px flex-1 bg-indigo-200/80" aria-hidden="true"></span>
                 </p>
-                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex min-h-[5.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-t-[3px] border-gray-200 bg-white px-1.5 py-2.5 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98]"
+                    class="group flex min-h-[6.75rem] flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98]"
                     :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
                   >
                     <div
-                      class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors group-hover:text-white"
+                      class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors group-hover:text-white"
                       :class="[ADMIN_COLORS[link.color].icon, ADMIN_COLORS[link.color].iconHover]"
                     >
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="link.icon" />
                       </svg>
                     </div>
-                    <div class="text-[11px] font-semibold text-gray-900 leading-tight">{{ link.label }}</div>
+                    <div class="text-xs font-semibold text-gray-900 leading-tight">{{ link.label }}</div>
                   </router-link>
                 </div>
               </section>
