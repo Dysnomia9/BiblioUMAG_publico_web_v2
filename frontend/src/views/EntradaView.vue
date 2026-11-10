@@ -36,6 +36,8 @@ const errorRut = ref('')
 const cuentaInactiva = ref<Pick<Usuario, 'id' | 'nombre' | 'apellido' | 'vigente_hasta' | 'inactividad'> | null>(null)
 const registrando = ref(false)
 const guiaAbierta = ref(false)
+// Línea morada en el borde superior del registro y de la lista de entradas.
+const FRANJA = 'linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%)'
 
 const entradas = ref<Entrada[]>([])
 const resumenHoy = ref<RespuestaEntradas['hoy']>({ personas: 0, entradas: 0, qr: 0, portal: 0, manuales: 0, sala: 0 })
@@ -432,25 +434,32 @@ function verSusPrestamos(e: Entrada) {
 
       <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         <!-- Registrar -->
-        <section class="flex flex-col justify-center rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+        <section class="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div class="h-1 shrink-0" :style="{ background: FRANJA }" aria-hidden="true"></div>
+          <div class="flex flex-1 flex-col justify-center p-5 sm:p-6">
           <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Control de acceso</p>
-              <h1 class="mt-2 font-sans text-xl font-bold tracking-tight text-gray-900">Registro de entrada</h1>
+            <div class="flex items-stretch gap-3">
+              <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Control de acceso</p>
+                <h1 class="mt-0.5 font-serif text-2xl font-bold tracking-tight text-gray-900">Registro de entrada</h1>
+              </div>
             </div>
             <button
               type="button"
-              class="-mr-2 -mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
               :aria-expanded="guiaAbierta"
               @click="guiaAbierta = !guiaAbierta"
             >
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
               </svg>
               ¿Cómo se usa?
             </button>
           </div>
-          <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <!-- El registro, en un recuadro suave -->
+          <div class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 sm:p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <label for="rut-entrada" class="block text-sm text-gray-500">
               {{ modoRut === 'rut' ? 'Ingresa el RUT para registrar el acceso.' : 'Ingresa el pasaporte o DNI del estudiante extranjero.' }}
             </label>
@@ -469,7 +478,7 @@ function verSusPrestamos(e: Entrada) {
                 autocomplete="off"
                 :placeholder="placeholderSegunModo(modoRut)"
                 :maxlength="largoSegunModo(modoRut)"
-                class="h-14 w-full rounded-xl border-2 bg-white pl-12 pr-4 text-lg font-medium tracking-wide text-gray-900 outline-none transition placeholder:font-normal placeholder:text-gray-400 focus:ring-4"
+                class="h-12 w-full rounded-xl border-2 bg-white pl-12 pr-4 text-lg font-medium tracking-wide text-gray-900 outline-none transition placeholder:font-normal placeholder:text-gray-400 focus:ring-4"
                 :class="errorRut ? 'border-red-400 focus:ring-red-100' : 'border-indigo-200 focus:border-indigo-500 focus:ring-indigo-100'"
                 @input="onRutInput"
                 @keydown.enter="registrarEntrada"
@@ -477,7 +486,7 @@ function verSusPrestamos(e: Entrada) {
             </div>
             <button
               type="button"
-              class="flex h-14 shrink-0 items-center justify-center gap-2.5 rounded-xl px-6 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:opacity-60"
+              class="flex h-12 shrink-0 items-center justify-center gap-2.5 rounded-xl px-6 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:opacity-60"
               style="background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%);"
               :disabled="registrando"
               @click="registrarEntrada"
@@ -491,6 +500,7 @@ function verSusPrestamos(e: Entrada) {
           <RenovarCuenta v-if="cuentaInactiva" class="mt-3" :usuario="cuentaInactiva" @renovada="entradaTrasRenovar" />
           <p v-if="errorRut" class="mt-2.5 text-sm text-red-600" role="alert">{{ errorRut }}</p>
           <p v-else-if="yaPresente" class="mt-2.5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200" role="status">{{ yaPresente }}</p>
+          </div>
           <p class="mt-4 text-center text-sm text-gray-500">
             ¿No es de la universidad?
             <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="abrirModalExterno">Registrar visitante externo →</button>
@@ -499,12 +509,15 @@ function verSusPrestamos(e: Entrada) {
               <button type="button" class="font-semibold text-sky-700 hover:underline" @click="abrirModalConvenio">Convenio →</button>
             </template>
           </p>
+          </div>
         </section>
 
         <!-- Hoy -->
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div class="h-1 bg-emerald-400" aria-hidden="true"></div>
+          <div class="p-5 sm:p-6">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Hoy en la biblioteca</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Hoy en la biblioteca</p>
             <PildoraHorario v-if="horario" :horario="horario" />
           </div>
           <div class="mt-4 flex items-end justify-between gap-4">
@@ -528,38 +541,42 @@ function verSusPrestamos(e: Entrada) {
             <div class="h-full rounded-full bg-emerald-600 transition-all" :style="{ width: `${Math.min(100, porcentajeAforo)}%` }" />
           </div>
           <p class="mt-2 text-xs text-gray-500">Personas distintas que marcaron su entrada hoy.</p>
-          <div class="mt-4 grid grid-cols-2 gap-y-4 border-t border-gray-100 pt-4">
+          <div class="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-gray-100 bg-gray-50/70 p-2">
             <div
-              v-for="(k, i) in [
-                { valor: resumenHoy.entradas, texto: 'Entradas hoy', icono: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25' },
-                { valor: resumenHoy.qr, texto: 'Por QR', icono: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z' },
-                { valor: resumenHoy.portal, texto: 'Portal digital', icono: 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3' },
-                { valor: resumenHoy.manuales + resumenHoy.sala, texto: resumenHoy.sala ? `Manuales · ${resumenHoy.sala} al llegar a sala` : 'Manuales', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
+              v-for="k in [
+                { valor: resumenHoy.entradas, texto: 'Entradas hoy', tono: 'bg-indigo-50 text-indigo-600', icono: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25' },
+                { valor: resumenHoy.qr, texto: 'Por QR', tono: 'bg-violet-50 text-violet-600', icono: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z' },
+                { valor: resumenHoy.portal, texto: 'Portal digital', tono: 'bg-sky-50 text-sky-600', icono: 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3' },
+                { valor: resumenHoy.manuales + resumenHoy.sala, texto: resumenHoy.sala ? `Manuales · ${resumenHoy.sala} al llegar a sala` : 'Manuales', tono: 'bg-amber-50 text-amber-600', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
               ]"
               :key="k.texto"
-              class="flex items-center gap-2.5"
-              :class="i % 2 ? 'border-l border-gray-100 pl-4' : 'pr-2'"
+              class="flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm"
             >
-              <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 sm:flex">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+              <span class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:flex" :class="k.tono">
+                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
                   <path stroke-linecap="round" stroke-linejoin="round" :d="k.icono" />
                 </svg>
               </span>
               <span class="min-w-0">
-                <span class="block text-xl font-bold tabular-nums leading-tight text-gray-900">{{ k.valor }}</span>
+                <span class="block text-lg font-bold tabular-nums leading-tight text-gray-900">{{ k.valor }}</span>
                 <span class="block truncate text-xs text-gray-500">{{ k.texto }}</span>
               </span>
             </div>
           </div>
+          </div>
         </section>
       </div>
 
-      <!-- Entradas -->
+      <!-- Entradas: línea morada, encabezado en lavanda con el día, el buscador y la vía -->
       <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+        <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
+        <div class="flex flex-col gap-3 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <h2 class="text-lg font-semibold text-gray-900">{{ titulo }}</h2>
-            <div v-if="modo === 'dia'" class="flex items-center gap-1">
+            <h2 class="flex items-center gap-3 font-serif text-xl font-bold text-gray-900">
+              <span class="h-6 w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+              {{ titulo }}
+            </h2>
+            <div v-if="modo === 'dia'" class="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
               <button
                 type="button"
                 class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
@@ -610,13 +627,13 @@ function verSusPrestamos(e: Entrada) {
                 class="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
               />
             </div>
-            <div class="flex overflow-x-auto rounded-xl bg-gray-100 p-1" role="group" aria-label="Vía de entrada">
+            <div class="flex overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="group" aria-label="Vía de entrada">
               <button
                 v-for="v in VIAS"
                 :key="v.id"
                 type="button"
                 class="flex-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3.5"
-                :class="via === v.id ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-200' : 'text-gray-600 hover:text-gray-900'"
+                :class="via === v.id ? 'bg-indigo-600 font-semibold text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'"
                 :aria-pressed="via === v.id"
                 @click="via = v.id"
               >
@@ -732,11 +749,18 @@ function verSusPrestamos(e: Entrada) {
               </span>
             </div>
           </li>
-          <li v-if="!cargando && !visibles.length" class="px-6 py-10 text-center text-sm text-gray-400">
-            <template v-if="modo === 'busqueda' && !hayCriterioDeBusqueda">Escriba un nombre o RUT, o elija un rango de fechas.</template>
-            <template v-else-if="modo === 'busqueda'">Sin resultados para esta búsqueda.</template>
-            <template v-else-if="entradas.length">Ninguna entrada coincide con el filtro.</template>
-            <template v-else>Sin entradas registradas {{ fecha === hoy ? 'hoy' : 'ese día' }}.</template>
+          <li v-if="!cargando && !visibles.length" class="p-4 sm:p-6">
+            <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-7 text-center">
+              <span class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M5 5v14" /></svg>
+              </span>
+              <p class="text-sm text-gray-600">
+                <template v-if="modo === 'busqueda' && !hayCriterioDeBusqueda">Escriba un nombre o RUT, o elija un rango de fechas.</template>
+                <template v-else-if="modo === 'busqueda'">Sin resultados para esta búsqueda.</template>
+                <template v-else-if="entradas.length">Ninguna entrada coincide con el filtro.</template>
+                <template v-else>Sin entradas registradas {{ fecha === hoy ? 'hoy' : 'ese día' }}.</template>
+              </p>
+            </div>
           </li>
         </ul>
 
