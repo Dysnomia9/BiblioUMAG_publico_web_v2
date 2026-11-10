@@ -31,9 +31,13 @@ type Tarjeta = { name: string; label: string; icon: string; color: AdminColor }
 
 // El menú de gestión, separado por secciones. Cada tarjeta se muestra solo si el
 // rol tiene el permiso del módulo (el mismo que exige su ruta, ver navegacion.ts).
-const SECCIONES: { titulo: string; tarjetas: Tarjeta[] }[] = [
+// Cada sección va en su propio recuadro, con el encabezado de su color y su ícono.
+type TonoSeccion = 'indigo' | 'emerald' | 'amber' | 'slate'
+const SECCIONES: { titulo: string; tono: TonoSeccion; icono: string; tarjetas: Tarjeta[] }[] = [
   {
     titulo: 'Atención de público',
+    tono: 'indigo',
+    icono: 'M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46',
     tarjetas: [
       { name: 'usuarios', label: 'Usuarios', icon: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87M9 12a4 4 0 100-8 4 4 0 000 8z', color: 'indigo' },
       { name: 'multas', label: 'Multas', icon: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.99 3.75h.008v.008h-.008v-.008z', color: 'red' },
@@ -41,6 +45,8 @@ const SECCIONES: { titulo: string; tarjetas: Tarjeta[] }[] = [
   },
   {
     titulo: 'Catálogo',
+    tono: 'emerald',
+    icono: 'M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z',
     tarjetas: [
       { name: 'listado-libros', label: 'Listado de material', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', color: 'emerald' },
       { name: 'catalogacion-libros', label: 'Catalogación', icon: 'M12 4.5v15m0-15c-2.485 0-4.5.672-6 2.25v13.5c1.5-1.578 3.515-2.25 6-2.25s4.5.672 6 2.25V6.75c-1.5-1.578-3.515-2.25-6-2.25z', color: 'violet' },
@@ -52,6 +58,8 @@ const SECCIONES: { titulo: string; tarjetas: Tarjeta[] }[] = [
   },
   {
     titulo: 'Consultas e historiales',
+    tono: 'amber',
+    icono: 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
     tarjetas: [
       { name: 'listado-prestamos', label: 'Listado Préstamos', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
       { name: 'listado-reservas', label: 'Listado Reservas', icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5', color: 'sky' },
@@ -61,6 +69,8 @@ const SECCIONES: { titulo: string; tarjetas: Tarjeta[] }[] = [
   },
   {
     titulo: 'Administración del sistema',
+    tono: 'slate',
+    icono: 'M12 2.714A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
     tarjetas: [
       { name: 'codigo-qr', label: 'Código QR', icon: 'M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 3h3m3 0h-3m0 0v3m0-3v-3', color: 'rose' },
       { name: 'administracion', label: 'Administración', icon: 'M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z', color: 'slate' },
@@ -69,6 +79,14 @@ const SECCIONES: { titulo: string; tarjetas: Tarjeta[] }[] = [
     ],
   },
 ]
+
+// Recuadro de cada sección: borde, encabezado tenue, ícono sólido y título en su color.
+const TONOS_SECCION: Record<TonoSeccion, { marco: string; cabecera: string; icono: string; titulo: string }> = {
+  indigo: { marco: 'border-indigo-100', cabecera: 'border-indigo-100 bg-indigo-50/80', icono: 'bg-indigo-600', titulo: 'text-indigo-800' },
+  emerald: { marco: 'border-emerald-100', cabecera: 'border-emerald-100 bg-emerald-50/70', icono: 'bg-emerald-600', titulo: 'text-emerald-800' },
+  amber: { marco: 'border-amber-100', cabecera: 'border-amber-100 bg-amber-50/70', icono: 'bg-amber-600', titulo: 'text-amber-800' },
+  slate: { marco: 'border-slate-200', cabecera: 'border-slate-200 bg-slate-100/80', icono: 'bg-slate-700', titulo: 'text-slate-700' },
+}
 
 const ADMIN_COLORS: Record<AdminColor, { icon: string; iconHover: string; border: string; topBorder: string }> = {
   indigo: { icon: 'bg-indigo-50 text-indigo-600', iconHover: 'group-hover:bg-indigo-600', border: 'hover:border-indigo-300', topBorder: 'border-t-indigo-400' },
@@ -287,7 +305,7 @@ async function guardarClave() {
       >
         <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido.
              my-auto lo centra en la pantalla y, si no cabe, deja desplazar sin cortar el borde de arriba. -->
-        <div class="w-full max-w-3xl lg:max-w-6xl my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
+        <div class="w-full max-w-3xl lg:max-w-[75rem] my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
           <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
           <div class="flex items-start justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-5 sm:px-8 sm:py-6">
             <div class="flex items-stretch gap-3">
@@ -337,22 +355,31 @@ async function guardarClave() {
               </div>
             </div>
 
-            <!-- Las secciones van una al lado de la otra mientras quepan (en una pantalla
-                 ancha, todo entra en dos filas sin desplazarse) y se apilan en las angostas. -->
-            <div class="flex flex-wrap gap-x-8 gap-y-5">
-              <section v-for="seccion in secciones" :key="seccion.titulo" class="w-full sm:w-auto sm:max-w-full">
-                <!-- Nombre de la sección con una línea que llega hasta el borde -->
-                <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-800 mb-2.5">
-                  {{ seccion.titulo }}
-                  <span class="h-px min-w-[1.5rem] flex-1 bg-indigo-200/80" aria-hidden="true"></span>
-                </p>
-                <div class="flex flex-wrap gap-2.5 sm:gap-3">
+            <!-- Cada sección es un recuadro con su encabezado de color. Van una al lado de la
+                 otra mientras quepan y se estiran para llenar la fila (en una pantalla ancha,
+                 todo entra en dos filas sin desplazarse); en las angostas se apilan. -->
+            <div class="flex flex-wrap gap-5">
+              <section
+                v-for="seccion in secciones"
+                :key="seccion.titulo"
+                class="w-full overflow-hidden rounded-2xl border bg-white/75 shadow-sm backdrop-blur-sm sm:w-auto sm:max-w-full sm:flex-auto"
+                :class="TONOS_SECCION[seccion.tono].marco"
+              >
+                <h3 class="flex items-center gap-2.5 border-b px-4 py-2.5 font-sans" :class="TONOS_SECCION[seccion.tono].cabecera">
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-sm" :class="TONOS_SECCION[seccion.tono].icono" aria-hidden="true">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" :d="seccion.icono" />
+                    </svg>
+                  </span>
+                  <span class="text-xs font-bold uppercase tracking-[0.14em]" :class="TONOS_SECCION[seccion.tono].titulo">{{ seccion.titulo }}</span>
+                </h3>
+                <div class="flex flex-wrap gap-2.5 p-3 sm:gap-3 sm:p-4">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex min-h-[6.75rem] w-[calc(33.333%-0.417rem)] flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98] sm:w-[7.5rem]"
+                    class="group flex min-h-[6.75rem] min-w-[7.25rem] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98] sm:w-[7.25rem] sm:flex-none"
                     :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
                   >
                     <div
