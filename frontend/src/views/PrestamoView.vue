@@ -31,6 +31,8 @@ const usuario = ref<Usuario | null>(null)
 const buscando = ref(false)
 const apiError = ref(false)
 const guiaAbierta = ref(false)
+// Línea morada en el borde superior de la búsqueda y de las pestañas.
+const FRANJA = 'linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%)'
 
 const prestamos = ref<Prestamo[]>([])
 const reservas = ref<ReservaLibro[]>([])
@@ -739,19 +741,23 @@ function formatHora(iso: string | null) {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-5xl">
-      <div class="mb-6 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
-        <div class="flex flex-wrap items-start justify-between gap-3 px-6 py-5">
+      <!-- Encabezado: el degradado con puntos tenues y dos anillos a la derecha, como en Salas -->
+      <div class="relative mb-6 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+        <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5">
           <div>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Préstamos, devoluciones y reservas</h1>
-            <p class="mt-1 text-sm text-white/70">Gestionar préstamos y reservas de material bibliográfico</p>
+            <p class="mt-1 text-sm text-white/75">Gestionar préstamos y reservas de material bibliográfico</p>
           </div>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-white/85 transition-colors hover:bg-blanco/10 hover:text-white"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
             :aria-expanded="guiaAbierta"
             @click="guiaAbierta = !guiaAbierta"
           >
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
             </svg>
             ¿Cómo se usa?
@@ -773,20 +779,25 @@ function formatHora(iso: string | null) {
         consejo="Cada usuario puede tener <strong>un solo libro</strong> a la vez, y con <strong>multas pendientes</strong> no puede llevarse ni reservar material hasta pagarlas."
       />
 
-      <div class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <!-- Buscar al usuario: línea morada arriba y barra junto al título -->
+      <div class="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <span class="absolute inset-x-0 top-0 h-1" :style="{ background: FRANJA }" aria-hidden="true"></span>
         <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <label for="rut-prestamos" class="block text-sm font-semibold text-gray-900">{{ modoRut === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}</label>
-            <p class="mt-0.5 text-xs text-gray-500">
-              {{ modoRut === 'rut' ? 'Con o sin puntos y guion.' : 'Tal como aparece en su documento.' }}
-              Presiona <kbd class="rounded border border-gray-300 bg-gray-50 px-1 font-mono text-[10px]">Enter</kbd> para buscar.
-            </p>
+          <div class="flex items-stretch gap-3">
+            <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+            <div>
+              <label for="rut-prestamos" class="block font-semibold text-gray-900">{{ modoRut === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}</label>
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ modoRut === 'rut' ? 'Con o sin puntos y guion.' : 'Tal como aparece en su documento.' }}
+                Presiona <kbd class="rounded border border-gray-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-700 shadow-sm">Enter</kbd> para buscar.
+              </p>
+            </div>
           </div>
           <SelectorDocumento v-model="modoRut" />
         </div>
         <div class="flex flex-col gap-3 sm:flex-row">
           <div class="relative flex-1">
-            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
             </svg>
             <input
@@ -805,11 +816,15 @@ function formatHora(iso: string | null) {
           </div>
           <button
             type="button"
-            class="h-12 shrink-0 rounded-xl bg-indigo-600 px-6 font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
+            class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 font-semibold text-white shadow-md shadow-indigo-600/20 transition-colors hover:bg-indigo-700 disabled:opacity-60"
             :disabled="buscando"
             @click="buscarUsuario"
           >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
             {{ buscando ? 'Buscando…' : 'Buscar usuario' }}
+            <kbd class="hidden rounded-md bg-blanco/20 px-1.5 py-0.5 font-sans text-[10px] font-semibold sm:inline">Enter</kbd>
           </button>
         </div>
         <p v-if="errorRut" class="mt-2 text-sm text-red-600" role="alert">{{ errorRut }}</p>
@@ -839,7 +854,8 @@ function formatHora(iso: string | null) {
         </div>
       </div>
 
-      <div v-else class="mb-5 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-white p-5 shadow-sm">
+      <div v-else class="relative mb-5 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-white p-5 shadow-sm">
+        <span class="absolute inset-x-0 top-0 h-1 bg-emerald-400" aria-hidden="true"></span>
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div class="flex min-w-0 items-center gap-4">
             <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-lg font-bold text-[#1a2430]">{{ inicialesUsuario }}</span>
@@ -1086,28 +1102,34 @@ function formatHora(iso: string | null) {
 
       <!-- Préstamos y reservas -->
       <div class="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div class="grid grid-cols-3 gap-1 border-b border-gray-200 bg-gray-100/80 p-1.5" role="tablist">
+        <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
+        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-3 py-3 sm:px-4">
+        <div class="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist">
           <button
             v-for="t in [
-              { id: 'prestamos', texto: 'Libros', n: librosEnPrestamo },
-              { id: 'recursos', texto: 'Recursos de apoyo', n: recursosEnUso.length },
-              { id: 'reservas', texto: 'Reservas', n: reservasVigentes.length },
+              { id: 'prestamos', texto: 'Libros', n: librosEnPrestamo, icono: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25' },
+              { id: 'recursos', texto: 'Recursos de apoyo', n: recursosEnUso.length, icono: 'M20.25 7.5l-8.25 4.5L3.75 7.5M3.75 7.5l8.25-4.5 8.25 4.5M3.75 7.5v9l8.25 4.5m0-9v9m0-9l8.25-4.5m-8.25 4.5l8.25 4.5m0 0v-9' },
+              { id: 'reservas', texto: 'Reservas', n: reservasVigentes.length, icono: 'M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z' },
             ] as const"
             :key="t.id"
             type="button"
             role="tab"
             :aria-selected="!!usuario && activeTab === t.id"
             :disabled="!usuario"
-            class="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors disabled:cursor-default"
-            :class="usuario && activeTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 enabled:hover:text-gray-900'"
+            class="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:cursor-default"
+            :class="usuario && activeTab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700 enabled:hover:bg-gray-50'"
             @click="activeTab = t.id"
           >
+            <svg class="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" :d="t.icono" />
+            </svg>
             {{ t.texto }}
             <span
               class="min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-xs font-bold"
-              :class="usuario && activeTab === t.id ? 'bg-blanco/20 text-white' : 'bg-gray-200/80 text-gray-600'"
+              :class="usuario && activeTab === t.id ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'"
             >{{ usuario ? t.n : '–' }}</span>
           </button>
+        </div>
         </div>
 
         <template v-if="!usuario || activeTab === 'prestamos'">
@@ -1197,7 +1219,14 @@ function formatHora(iso: string | null) {
                   </button>
                 </div>
               </li>
-              <li v-if="!filasPrestamos.length" class="px-5 py-8 text-center text-sm text-gray-400">No tiene préstamos activos.</li>
+              <li v-if="!filasPrestamos.length" class="p-4 sm:p-5">
+                <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                  </span>
+                  <p class="text-sm text-gray-600">No tiene préstamos activos.</p>
+                </div>
+              </li>
             </ul>
             <div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <p class="text-gray-500">
@@ -1268,7 +1297,14 @@ function formatHora(iso: string | null) {
                 </button>
               </div>
             </li>
-            <li v-if="!filasReservas.length" class="px-5 py-8 text-center text-sm text-gray-400">No tiene reservas vigentes.</li>
+            <li v-if="!filasReservas.length" class="p-4 sm:p-5">
+              <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
+                <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                </span>
+                <p class="text-sm text-gray-600">No tiene reservas vigentes.</p>
+              </div>
+            </li>
           </ul>
           <div v-if="terminadasOcultables" class="border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm">
             <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarTerminadas = !mostrarTerminadas">
@@ -1321,7 +1357,14 @@ function formatHora(iso: string | null) {
                   </button>
                 </div>
               </li>
-              <li v-if="!filasRecursos.length" class="px-5 py-6 text-center text-sm text-gray-400">No tiene recursos de apoyo prestados.</li>
+              <li v-if="!filasRecursos.length" class="p-4 sm:p-5">
+                <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-8.25 4.5L3.75 7.5M3.75 7.5l8.25-4.5 8.25 4.5M3.75 7.5v9l8.25 4.5m0-9v9m0-9l8.25-4.5m-8.25 4.5l8.25 4.5m0 0v-9" /></svg>
+                  </span>
+                  <p class="text-sm text-gray-600">No tiene recursos de apoyo prestados.</p>
+                </div>
+              </li>
             </ul>
             <div v-if="recursosDevueltos" class="border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm">
               <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarRecursosDevueltos = !mostrarRecursosDevueltos">
