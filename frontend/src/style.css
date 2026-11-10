@@ -67,6 +67,12 @@
   .dark .franja-pasada {
     background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.14) 0 3px, transparent 3px 9px);
   }
+  /* Puntos finos sobre un fondo suave (cuerpo del Menú de Gestión). Toman el tono de los
+     bordes del fondo elegido, y en modo noche se oscurecen solos. */
+  .fondo-punteado {
+    background-image: radial-gradient(circle, rgb(var(--borde-slate-300) / 0.6) 1px, transparent 1.3px);
+    background-size: 16px 16px;
+  }
   /* Miniatura de un fondo en Aspecto visual: la página del fondo de su data-fondo. */
   .miniatura-fondo {
     background-color: var(--pagina-base);

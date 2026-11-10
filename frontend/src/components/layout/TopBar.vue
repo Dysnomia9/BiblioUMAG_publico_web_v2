@@ -285,32 +285,35 @@ async function guardarClave() {
         class="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-3 sm:p-8"
         @click.self="cerrarMenuGestion"
       >
-        <!-- Marco con bisel: más claro arriba y más oscuro abajo, para que el panel no sea un cuadrado plano -->
-        <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 rounded-[22px] p-[5px] bg-gradient-to-b from-white/85 via-indigo-200/70 to-indigo-400/70 shadow-2xl ring-1 ring-white/30">
-        <div class="rounded-2xl border border-indigo-200/80 bg-white shadow-[inset_0_2px_0_rgba(255,255,255,1),inset_0_-2px_0_rgba(79,70,229,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-2px_0_rgba(79,70,229,0.2)]">
-          <div class="px-5 py-5 sm:px-7 sm:py-6">
-            <div class="flex items-start justify-between gap-4 mb-5">
-              <div class="flex items-center gap-2.5">
-                <span class="w-1 h-6 rounded-full bg-indigo-600 shrink-0"></span>
-                <div>
-                  <h2 class="text-lg sm:text-xl font-serif font-bold text-gray-900">Menú de Gestión</h2>
-                  <p class="text-xs text-gray-500 mt-0.5">Selecciona un módulo para continuar · se muestran solo los que tu rol puede usar</p>
-                </div>
+        <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con puntos finos -->
+        <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
+          <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
+          <div class="flex items-start justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-5 sm:px-8 sm:py-6">
+            <div class="flex items-stretch gap-3">
+              <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+              <div>
+                <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900">Menú de Gestión</h2>
+                <p class="text-sm text-gray-600 mt-1">Selecciona un módulo para continuar · se muestran solo los que tu rol puede usar</p>
               </div>
-              <button
-                @click="cerrarMenuGestion"
-                class="shrink-0 h-8 w-8 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:border-gray-300 shadow-sm transition-colors"
-                aria-label="Cerrar menú de gestión"
-              >
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
+            <button
+              @click="cerrarMenuGestion"
+              class="shrink-0 h-10 w-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:border-gray-300 shadow-sm transition-colors"
+              aria-label="Cerrar menú de gestión"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
+          <div class="fondo-punteado bg-slate-50 px-5 py-6 sm:px-8 sm:py-7">
             <!-- En celular, el menú también trae los módulos de la barra superior -->
-            <div class="lg:hidden mb-6">
-              <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Módulos principales</p>
+            <div class="lg:hidden mb-7">
+              <p class="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-600 mb-3">
+                Módulos principales
+                <span class="h-px flex-1 bg-indigo-200/80" aria-hidden="true"></span>
+              </p>
               <div class="grid grid-cols-2 gap-2">
                 <router-link
                   :to="{ name: 'dashboard' }"
@@ -333,36 +336,36 @@ async function guardarClave() {
               </div>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-7">
               <section v-for="seccion in secciones" :key="seccion.titulo">
-                <p class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2.5">
+                <!-- Nombre de la sección con una línea que llega hasta el borde -->
+                <p class="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-600 mb-3">
                   {{ seccion.titulo }}
-                  <span class="h-px flex-1 bg-gray-100"></span>
+                  <span class="h-px flex-1 bg-indigo-200/80" aria-hidden="true"></span>
                 </p>
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex flex-col items-center rounded-xl border border-t-[3px] border-gray-200 bg-white p-3.5 text-center shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+                    class="group flex min-h-[10rem] flex-col items-center justify-center gap-3 rounded-xl border border-t-4 border-gray-200 bg-white px-3 py-5 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98]"
                     :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
                   >
                     <div
-                      class="mb-2 flex h-9 w-9 items-center justify-center rounded-xl transition-colors group-hover:text-white"
+                      class="flex h-12 w-12 items-center justify-center rounded-xl transition-colors group-hover:text-white"
                       :class="[ADMIN_COLORS[link.color].icon, ADMIN_COLORS[link.color].iconHover]"
                     >
-                      <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="link.icon" />
                       </svg>
                     </div>
-                    <div class="text-xs font-semibold text-gray-900 leading-tight">{{ link.label }}</div>
+                    <div class="text-sm font-semibold text-gray-900 leading-snug">{{ link.label }}</div>
                   </router-link>
                 </div>
               </section>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </Teleport>
