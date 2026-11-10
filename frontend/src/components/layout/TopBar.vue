@@ -285,8 +285,9 @@ async function guardarClave() {
         class="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-3 sm:p-8"
         @click.self="cerrarMenuGestion"
       >
-        <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido -->
-        <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
+        <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido.
+             my-auto lo centra en la pantalla y, si no cabe, deja desplazar sin cortar el borde de arriba. -->
+        <div class="w-full max-w-3xl lg:max-w-6xl my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
           <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
           <div class="flex items-start justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-5 sm:px-8 sm:py-6">
             <div class="flex items-stretch gap-3">
@@ -309,7 +310,7 @@ async function guardarClave() {
 
           <div class="fondo-elegido px-5 py-6 sm:px-8 sm:py-7">
             <!-- En celular, el menú también trae los módulos de la barra superior -->
-            <div class="lg:hidden mb-7">
+            <div class="lg:hidden mb-5">
               <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-800 mb-2.5">
                 Módulos principales
                 <span class="h-px flex-1 bg-indigo-200/80" aria-hidden="true"></span>
@@ -336,20 +337,22 @@ async function guardarClave() {
               </div>
             </div>
 
-            <div class="space-y-5">
-              <section v-for="seccion in secciones" :key="seccion.titulo">
+            <!-- Las secciones van una al lado de la otra mientras quepan (en una pantalla
+                 ancha, todo entra en dos filas sin desplazarse) y se apilan en las angostas. -->
+            <div class="flex flex-wrap gap-x-8 gap-y-5">
+              <section v-for="seccion in secciones" :key="seccion.titulo" class="w-full sm:w-auto sm:max-w-full">
                 <!-- Nombre de la sección con una línea que llega hasta el borde -->
                 <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-800 mb-2.5">
                   {{ seccion.titulo }}
-                  <span class="h-px flex-1 bg-indigo-200/80" aria-hidden="true"></span>
+                  <span class="h-px min-w-[1.5rem] flex-1 bg-indigo-200/80" aria-hidden="true"></span>
                 </p>
-                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
+                <div class="flex flex-wrap gap-2.5 sm:gap-3">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex min-h-[6.75rem] flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98]"
+                    class="group flex min-h-[6.75rem] w-[calc(33.333%-0.417rem)] flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98] sm:w-[7.5rem]"
                     :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
                   >
                     <div
