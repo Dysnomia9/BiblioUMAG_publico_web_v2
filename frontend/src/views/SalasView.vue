@@ -11,7 +11,7 @@ import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoHora from '@/components/ui/CampoHora.vue'
 import api from '@/services/api'
-import { diaEnPlural } from '@/utils/horario'
+import { diaEnPlural, enPuntaArenas } from '@/utils/horario'
 import { sinTildes } from '@/utils/texto'
 import { duracion, PERSONAS_MAXIMAS_MESON, PERSONAS_MINIMAS_MESON, textoMinutos } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
@@ -33,7 +33,8 @@ const puedeHoraPasada = computed(() => auth.puede('salas.hora_pasada'))
 // La Sala de Seminarios (solo_administracion) no se presta a estudiantes: la reserva quien tiene este permiso.
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 
-const hoy = new Date().toLocaleDateString('sv-SE')
+// La fecha y la hora son las de Punta Arenas, como en el servidor (utils/horario.ts), no las del computador.
+const hoy = enPuntaArenas().fecha
 
 const DURACIONES = [30, 60, 90, 120]
 
@@ -244,7 +245,8 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filteredSalas.value.leng
 const salasPage = computed(() => filteredSalas.value.slice(page.value * salasPerPage, (page.value + 1) * salasPerPage))
 
 const esHoy = computed(() => selectedDate.value === hoy)
-const ahoraMin = computed(() => ahora.value.getHours() * 60 + ahora.value.getMinutes())
+const ahoraEnPuntaArenas = computed(() => enPuntaArenas(ahora.value))
+const ahoraMin = computed(() => ahoraEnPuntaArenas.value.minutos)
 const nowPct = computed(() => Math.min(100, Math.max(0, ((ahoraMin.value - aperturaMin.value) / totalMin.value) * 100)))
 /** Horas enteras dentro del horario (sin los bordes): una línea guía por cada una. */
 const horasIntermedias = computed(() => {
@@ -252,7 +254,7 @@ const horasIntermedias = computed(() => {
   const ultima = Math.ceil(cierreMin.value / 60) - 1
   return Array.from({ length: Math.max(0, ultima - primera + 1) }, (_, i) => primera + i)
 })
-const horaActual = computed(() => ahora.value.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }))
+const horaActual = computed(() => ahoraEnPuntaArenas.value.hora)
 /** El marcador «Ahora» se centra en la línea, salvo en los bordes, donde se apoya hacia adentro. */
 const alineacionAhora = computed(() => (nowPct.value < 8 ? '' : nowPct.value > 92 ? '-translate-x-full' : '-translate-x-1/2'))
 /** Lo rayado desde la izquierda: hasta ahora si es hoy (o hasta que abre), entera si es un día anterior o sin atención. */
@@ -880,7 +882,7 @@ const proximaConfirmacion = computed(() => {
           </p>
           <p v-if="actualizadoEn" class="flex items-center gap-1.5 text-[11px] text-gray-400">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-            Se actualiza sola cada {{ REFRESCO_SEGUNDOS }} s · última vez a las {{ actualizadoEn.toLocaleTimeString('es-CL', { hour12: false }) }}
+            Se actualiza sola cada {{ REFRESCO_SEGUNDOS }} s · última vez a las {{ enPuntaArenas(actualizadoEn).conSegundos }}
             <button
               type="button"
               @click="cargar"
@@ -1021,10 +1023,19 @@ const proximaConfirmacion = computed(() => {
         @click.self="modalOpen = false"
       >
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">Reservar {{ selectedSala.nombre }}</h3>
-          <p class="text-sm text-gray-500 mb-5">
-            Capacidad: {{ selectedSala.capacidad }} personas · {{ formatFechaLarga(selectedDate) }}
-          </p>
+          <div class="mb-5 flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h3 class="text-lg font-bold text-gray-900 mb-1">Reservar {{ selectedSala.nombre }}</h3>
+              <p class="text-sm text-gray-500">
+                Capacidad: {{ selectedSala.capacidad }} personas · {{ formatFechaLarga(selectedDate) }}
+              </p>
+            </div>
+            <!-- La hora con la que valen las reservas, para no calcularla de memoria al reservar. -->
+            <div class="shrink-0 rounded-lg bg-indigo-50 px-3 py-1.5 text-right" aria-live="off">
+              <p class="text-[11px] font-medium text-indigo-700">Hora actual · Punta Arenas</p>
+              <p class="font-mono text-lg font-semibold tabular-nums text-indigo-900">{{ ahoraEnPuntaArenas.conSegundos }}</p>
+            </div>
+          </div>
 
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
