@@ -701,21 +701,22 @@ const proximaConfirmacion = computed(() => {
         style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
       >
         <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -right-20 -top-28 h-80 w-80 rounded-full border-[48px] border-white/[0.05]" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -bottom-32 right-40 h-64 w-64 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
-        <div class="relative flex flex-col gap-4 px-5 py-5 sm:px-7 sm:py-6 md:flex-row md:items-center md:justify-between">
-          <div>
+        <div class="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
+        <!-- Del mismo alto que el de Préstamos: el horario y el largo de las reservas van en la línea del resumen. -->
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+          <div class="min-w-0">
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Salas de Estudio</h1>
-            <p v-if="resumenSalas" class="mt-1 text-sm text-white/75">{{ resumenSalas }}</p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-blanco/10 px-3 py-1 text-xs font-semibold text-white">
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <p v-if="resumenSalas" class="text-sm text-white/75">{{ resumenSalas }}</p>
+              <span class="inline-flex items-center gap-1 rounded-full border border-white/25 bg-blanco/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Horario del día {{ textoHorario }}
               </span>
-              <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-blanco/10 px-3 py-1 text-xs font-semibold text-white">
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <span class="inline-flex items-center gap-1 rounded-full border border-white/25 bg-blanco/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
                 Reservas de hasta {{ formatMinutos(duracionMaxima) }}
@@ -724,14 +725,14 @@ const proximaConfirmacion = computed(() => {
           </div>
           <button
             type="button"
-            class="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20 md:self-center"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
             :aria-expanded="guiaAbierta"
             @click="guiaAbierta = !guiaAbierta"
           >
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
             </svg>
-            {{ guiaAbierta ? 'Ocultar la ayuda' : '¿Cómo se usa esta pantalla?' }}
+            {{ guiaAbierta ? 'Ocultar la ayuda' : '¿Cómo se usa?' }}
           </button>
         </div>
       </div>

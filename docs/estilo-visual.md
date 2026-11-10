@@ -156,8 +156,10 @@ Cada persona del personal elige el fondo del panel en el menú de la cuenta ›
 elegir, tiene **Neblina**. El portal de los usuarios va siempre en Neblina. En modo
 noche no se usan: se ve el fondo oscuro de siempre.
 
-Hay doce: Neblina, Clásico (el de antes), Gris azulado, Lavanda, Gris perla,
-Marfil, Ambiental, Ambiental con puntos, Papel, Lino, Aurora austral y Patagonia.
+Hay veinte: Neblina, Clásico (el de antes), Liso, Puntos, Cuadrícula,
+Diagonales, Aurora, Aurora + puntos, Ondas, Lomos de libro, Gris azulado, Lavanda,
+Gris perla, Marfil, Ambiental, Ambiental con puntos, Papel, Lino, Aurora austral y
+Patagonia.
 
 **Cómo funciona.** La lista está en `src/utils/fondos.ts`, y de ahí
 `tailwind.config.js` arma las variables de cada uno, que se activan con

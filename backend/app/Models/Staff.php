@@ -38,8 +38,9 @@ class Staff extends Authenticatable
      * predeterminado). Tienen que coincidir con FONDOS de frontend/src/utils/fondos.ts.
      */
     public const FONDOS = [
-        'neblina', 'clasico', 'gris-azulado', 'lavanda', 'perla', 'marfil',
-        'ambiental', 'ambiental-puntos', 'papel', 'lino', 'aurora', 'patagonia',
+        'neblina', 'clasico', 'liso', 'puntos', 'cuadricula', 'diagonales',
+        'aurora-suave', 'aurora-puntos', 'ondas', 'lomos', 'gris-azulado', 'lavanda',
+        'perla', 'marfil', 'ambiental', 'ambiental-puntos', 'papel', 'lino', 'aurora', 'patagonia',
     ];
 
     protected function casts(): array

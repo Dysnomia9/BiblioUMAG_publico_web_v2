@@ -75,6 +75,27 @@ const LUCES_AMBIENTALES =
 // Un punto violeta azulado de 1,25 px por cada cuadro de 20 px.
 const PUNTOS = 'radial-gradient(circle, rgb(92 84 204 / 0.12) 1.25px, transparent 1.5px)'
 
+// «Exploración de fondos»: el mismo gris lila de base con distintas texturas finas.
+const GRIS_LILA = '#f1f1f8'
+const PUNTOS_LILA = 'radial-gradient(circle, rgb(99 102 170 / 0.22) 1px, transparent 1.4px)'
+// Verde arriba a la izquierda, lila arriba a la derecha y dorado abajo: los tonos de las tarjetas.
+const LUCES_AURORA =
+  'radial-gradient(ellipse 50% 45% at 8% 6%, rgb(167 243 208 / 0.35), transparent 70%), ' +
+  'radial-gradient(ellipse 50% 50% at 95% 8%, rgb(196 189 250 / 0.5), transparent 70%), ' +
+  'radial-gradient(ellipse 55% 40% at 45% 100%, rgb(214 182 124 / 0.22), transparent 70%)'
+// Anillos que salen de la esquina de abajo a la izquierda y de la de arriba a la derecha.
+const anillos = (cx: number, cy: number) =>
+  Array.from({ length: 11 }, (_, i) => `<circle cx='${cx}' cy='${cy}' r='${170 + i * 125}'/>`).join('')
+const ANILLOS = svg(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice'>` +
+    `<g fill='none' stroke='#6366f1' stroke-opacity='0.09' stroke-width='1.5'>${anillos(0, 1000)}${anillos(1600, 0)}</g></svg>`,
+)
+// Franjas verticales de distinto ancho (lomos en un estante), que se borran hacia abajo.
+const LOMOS =
+  `linear-gradient(180deg, rgb(241 241 248 / 0) 0%, rgb(241 241 248 / 0.7) 30%, ${GRIS_LILA} 55%), ` +
+  'repeating-linear-gradient(90deg, rgb(99 102 241 / 0.07) 0 12px, transparent 12px 20px, rgb(99 102 241 / 0.04) 20px 34px, ' +
+  'transparent 34px 40px, rgb(176 141 87 / 0.08) 40px 48px, transparent 48px 62px, rgb(99 102 241 / 0.05) 62px 70px, transparent 70px 90px)'
+
 export const FONDOS: Fondo[] = [
   {
     clave: 'neblina',
@@ -92,6 +113,65 @@ export const FONDOS: Fondo[] = [
     descripcion: 'El de siempre: casi blanco, con tarjetas blancas.',
     base: '#f8fafc',
     capas: 'linear-gradient(to bottom right, rgb(238 242 255 / 0.6), #f8fafc, rgb(250 245 255 / 0.4))',
+  },
+  {
+    clave: 'liso',
+    nombre: 'Liso',
+    descripcion: 'Sin textura, solo el gris lila. El más neutro y limpio.',
+    base: GRIS_LILA,
+    capas: 'none',
+  },
+  {
+    clave: 'puntos',
+    nombre: 'Puntos',
+    descripcion: 'Puntos finos y parejos: discreto y ordenado, casi no se nota.',
+    base: GRIS_LILA,
+    capas: PUNTOS_LILA,
+    tamanos: '18px 18px',
+  },
+  {
+    clave: 'cuadricula',
+    nombre: 'Cuadrícula',
+    descripcion: 'Como papel milimetrado: técnico y da sensación de orden.',
+    base: GRIS_LILA,
+    capas: 'linear-gradient(rgb(99 102 241 / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(99 102 241 / 0.07) 1px, transparent 1px)',
+    tamanos: '24px 24px, 24px 24px',
+  },
+  {
+    clave: 'diagonales',
+    nombre: 'Diagonales',
+    descripcion: 'Líneas finas en diagonal: algo de movimiento sin distraer.',
+    base: GRIS_LILA,
+    capas: 'repeating-linear-gradient(135deg, rgb(99 102 241 / 0.07) 0 1px, transparent 1px 14px)',
+  },
+  {
+    clave: 'aurora-suave',
+    nombre: 'Aurora',
+    descripcion: 'Manchas difusas de verde, lila y dorado, los mismos tonos de las tarjetas.',
+    base: GRIS_LILA,
+    capas: LUCES_AURORA,
+  },
+  {
+    clave: 'aurora-puntos',
+    nombre: 'Aurora + puntos',
+    descripcion: 'La aurora con los puntos finos encima: cálido y con profundidad.',
+    base: GRIS_LILA,
+    capas: `${PUNTOS_LILA}, ${LUCES_AURORA}`,
+    tamanos: '18px 18px, auto, auto, auto',
+  },
+  {
+    clave: 'ondas',
+    nombre: 'Ondas',
+    descripcion: 'Anillos desde las esquinas, como curvas de nivel.',
+    base: GRIS_LILA,
+    capas: ANILLOS,
+  },
+  {
+    clave: 'lomos',
+    nombre: 'Lomos de libro',
+    descripcion: 'Franjas verticales que recuerdan un estante y se desvanecen hacia abajo.',
+    base: GRIS_LILA,
+    capas: LOMOS,
   },
   {
     clave: 'gris-azulado',
