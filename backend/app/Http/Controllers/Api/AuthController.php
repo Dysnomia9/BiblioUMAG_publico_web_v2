@@ -40,6 +40,7 @@ class AuthController extends Controller
         }
 
         $token = $staff->createToken('staff-token')->plainTextToken;
+        $staff->registrarAcceso();
 
         Bitacora::registrar('sesion.ingresar', 'Inició sesión en el panel del personal', entidad: $staff, actor: $staff);
 
@@ -84,6 +85,8 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        // La sesión se borra: lo último que hizo queda en la cuenta.
+        $request->user()->registrarAcceso();
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Sesión cerrada correctamente']);

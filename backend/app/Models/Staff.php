@@ -38,7 +38,20 @@ class Staff extends Authenticatable
         return [
             'password' => 'hashed',
             'activo' => 'boolean',
+            'ultimo_acceso_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Anota que la persona entró al panel (o cerró sesión): el «Último acceso» de
+     * Administración › Personal. Queda en la cuenta porque las sesiones se borran al salir y
+     * cada noche las vencidas. No toca updated_at: entrar no es editar la cuenta.
+     */
+    public function registrarAcceso(): void
+    {
+        $this->ultimo_acceso_at = now();
+        static::whereKey($this->getKey())->toBase()->update(['ultimo_acceso_at' => $this->ultimo_acceso_at]);
+        $this->syncOriginalAttribute('ultimo_acceso_at');
     }
 
     /** Siempre en minúscula: "Ana@umag.cl" y "ana@umag.cl" son la misma cuenta. */

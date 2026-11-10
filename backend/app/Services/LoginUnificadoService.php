@@ -120,6 +120,7 @@ class LoginUnificadoService
         $tipo = self::tipoDe($cuenta);
 
         if ($cuenta instanceof Staff) {
+            $cuenta->registrarAcceso();
             Bitacora::registrar(
                 'sesion.ingresar',
                 'Inició sesión en el panel del personal'.($medio === 'correo' ? '' : " (con {$medio})"),

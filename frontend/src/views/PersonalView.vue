@@ -13,6 +13,7 @@ import { mensajeDeError, useToast } from '@/composables/useToast'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 import { generarClave } from '@/utils/cuentasPersonal'
 import { copiarTexto } from '@/utils/portapapeles'
+import { enPuntaArenas } from '@/utils/horario'
 import type { CuentaPersonal, GrupoPermisos, Rol } from '@/types'
 
 const auth = useAuthStore()
@@ -58,14 +59,29 @@ function rolDe(clave: string) {
   return roles.value.find((r) => r.clave === clave)
 }
 
+/** El último acceso en Punta Arenas, o null si nunca entró (o la fecha no se entiende). */
+function accesoEnPuntaArenas(iso: string | null) {
+  const momento = iso ? new Date(iso) : null
+  return momento && !Number.isNaN(momento.getTime()) ? enPuntaArenas(momento) : null
+}
+
+const fechaCorta = (fecha: string) => fecha.split('-').reverse().join('-')
+
+/** «Hoy 09:15», «Ayer 18:05», «Hace 3 días» o la fecha, por día calendario en Punta Arenas: lo de anoche es «Ayer», no «Hoy». */
 function formatAcceso(iso: string | null) {
-  if (!iso) return 'Nunca'
-  const fecha = new Date(iso)
-  const dias = Math.floor((Date.now() - fecha.getTime()) / 86_400_000)
-  if (dias === 0) return `Hoy ${fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`
-  if (dias === 1) return 'Ayer'
+  const acceso = accesoEnPuntaArenas(iso)
+  if (!acceso) return 'Nunca'
+  const dias = Math.round((Date.parse(`${enPuntaArenas().fecha}T12:00:00Z`) - Date.parse(`${acceso.fecha}T12:00:00Z`)) / 86_400_000)
+  if (dias <= 0) return `Hoy ${acceso.hora}`
+  if (dias === 1) return `Ayer ${acceso.hora}`
   if (dias < 30) return `Hace ${dias} días`
-  return fecha.toLocaleDateString('es-CL')
+  return fechaCorta(acceso.fecha)
+}
+
+/** Para el detalle al pasar el mouse: «10-11-2026 09:15». */
+function fechaHoraAcceso(iso: string | null) {
+  const acceso = accesoEnPuntaArenas(iso)
+  return acceso ? `${fechaCorta(acceso.fecha)} ${acceso.hora}` : undefined
 }
 
 async function copiar(texto: string) {
@@ -439,7 +455,7 @@ async function confirmarEliminarRol() {
                       {{ c.activo ? 'Activa' : 'Desactivada' }}
                     </span>
                   </td>
-                  <td class="px-5 py-3 text-sm text-gray-600 whitespace-nowrap">{{ formatAcceso(c.ultimo_acceso) }}</td>
+                  <td class="px-5 py-3 text-sm text-gray-600 whitespace-nowrap" :title="fechaHoraAcceso(c.ultimo_acceso)">{{ formatAcceso(c.ultimo_acceso) }}</td>
                   <td class="px-5 py-3 text-sm whitespace-nowrap">
                     <button @click="editarCuenta(c)" class="text-indigo-700 hover:text-indigo-800 font-medium mr-3">Editar</button>
                     <button @click="restablecerClave(c)" class="text-indigo-700 hover:text-indigo-800 font-medium mr-3">Restablecer contraseña</button>

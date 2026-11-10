@@ -7,6 +7,7 @@ use App\Models\Rol;
 use App\Models\Staff;
 use App\Support\Bitacora;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,8 @@ class PersonalController extends Controller
     public function index()
     {
         $cuentas = Staff::with('rolAsignado:clave,nombre,nivel,acceso_total')
-            ->withMax('tokens as ultimo_acceso', 'last_used_at')
+            // La sesión abierta dice si siguió usando el panel después de entrar (Staff::registrarAcceso()).
+            ->withMax('tokens as ultimo_uso_de_sesion', 'last_used_at')
             ->orderByDesc('activo')
             ->orderBy('nombre')
             ->get();
@@ -239,6 +241,17 @@ class PersonalController extends Controller
             ->exists();
     }
 
+    /** Lo más reciente entre el último ingreso (o salida) y el último uso de una sesión abierta, con su zona horaria. */
+    private function ultimoAcceso(Staff $staff): ?string
+    {
+        $fechas = array_filter([
+            $staff->ultimo_acceso_at,
+            $staff->ultimo_uso_de_sesion ? Carbon::parse($staff->ultimo_uso_de_sesion) : null,
+        ]);
+
+        return $fechas ? max($fechas)->toIso8601String() : null;
+    }
+
     private function serializar(Staff $staff): array
     {
         return [
@@ -248,7 +261,7 @@ class PersonalController extends Controller
             'rol' => $staff->rol,
             'rol_nombre' => $staff->rolAsignado?->nombre,
             'activo' => $staff->activo,
-            'ultimo_acceso' => $staff->ultimo_acceso ?? null,
+            'ultimo_acceso' => $this->ultimoAcceso($staff),
             'created_at' => $staff->created_at,
         ];
     }
