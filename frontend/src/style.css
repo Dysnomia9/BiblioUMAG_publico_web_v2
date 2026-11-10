@@ -74,9 +74,16 @@
   .pagina-compacta {
     zoom: 0.9;
   }
-  /* Puntos finos sobre un fondo suave (cuerpo del Menú de Gestión). Toman el tono de los
-     bordes del fondo elegido, y en modo noche se oscurecen solos. */
-  .fondo-punteado {
+  /* El fondo que eligió la persona en Aspecto visual, con su textura, dentro de un panel
+     (el cuerpo del Menú de Gestión). En modo noche esos fondos no existen: va el oscuro
+     con puntos finos. */
+  .fondo-elegido {
+    background-color: var(--pagina-base);
+    background-image: var(--pagina-capas);
+    background-size: var(--pagina-tamanos);
+  }
+  .dark .fondo-elegido {
+    background-color: rgb(var(--fondo-slate-50));
     background-image: radial-gradient(circle, rgb(var(--borde-slate-300) / 0.6) 1px, transparent 1.3px);
     background-size: 16px 16px;
   }

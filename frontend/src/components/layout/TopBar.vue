@@ -285,7 +285,7 @@ async function guardarClave() {
         class="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-3 sm:p-8"
         @click.self="cerrarMenuGestion"
       >
-        <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con puntos finos -->
+        <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido -->
         <div class="w-full max-w-3xl lg:max-w-4xl my-2 sm:my-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
           <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
           <div class="flex items-start justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-5 sm:px-8 sm:py-6">
@@ -307,7 +307,7 @@ async function guardarClave() {
             </button>
           </div>
 
-          <div class="fondo-punteado bg-slate-50 px-5 py-6 sm:px-8 sm:py-7">
+          <div class="fondo-elegido px-5 py-6 sm:px-8 sm:py-7">
             <!-- En celular, el menú también trae los módulos de la barra superior -->
             <div class="lg:hidden mb-7">
               <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-800 mb-2.5">
