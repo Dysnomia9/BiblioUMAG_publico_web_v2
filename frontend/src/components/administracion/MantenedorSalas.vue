@@ -292,7 +292,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <input v-model="form.solo_administracion" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
             <span class="block text-sm font-medium text-gray-800">Solo la gestiona la administración</span>
-            <span class="block text-xs text-gray-500">No se presta a estudiantes ni aparece en el portal: la reserva quien tiene el permiso «Sala de Seminarios».</span>
+            <span class="block text-xs text-gray-500">No se presta a estudiantes ni aparece en el portal: la reserva quien tiene el permiso «Salas de la administración».</span>
           </span>
         </label>
       </div>

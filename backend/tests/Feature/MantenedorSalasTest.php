@@ -68,19 +68,20 @@ class MantenedorSalasTest extends TestCase
     public function test_una_logia_nueva_queda_despues_de_las_otras_logias(): void
     {
         $this->comoAdmin();
-        $this->postJson('/api/mantenedor-salas', $this->datos())->assertStatus(201);
+        $this->postJson('/api/mantenedor-salas', $this->datos(['nombre' => 'Logia 31', 'codigo' => 'L31']))->assertStatus(201);
 
         $codigos = collect($this->getJson('/api/mantenedor-salas')->assertOk()->json('salas'))->pluck('codigo')->all();
 
-        $this->assertSame(array_search('L15', $codigos) + 1, array_search('L16', $codigos));
-        $this->assertLessThan(array_search('SEM', $codigos), array_search('L16', $codigos));
+        // La última logia del plano es la 30.
+        $this->assertSame(array_search('L30', $codigos) + 1, array_search('L31', $codigos));
+        $this->assertLessThan(array_search('SEM', $codigos), array_search('L31', $codigos));
     }
 
     public function test_el_codigo_se_guarda_como_lo_busca_el_meson(): void
     {
         $this->comoAdmin();
 
-        foreach ([['l16', 'L16'], [' Logia 17 ', 'L17'], ['18', 'L18'], ['sem2', 'SEM2']] as $i => [$escrito, $guardado]) {
+        foreach ([['l16', 'L16'], [' Logia 17 ', 'L17'], ['18', 'L18'], ['sem3', 'SEM3']] as $i => [$escrito, $guardado]) {
             $this->postJson('/api/mantenedor-salas', $this->datos(['nombre' => "Sala {$i}", 'codigo' => $escrito]))
                 ->assertStatus(201)->assertJsonPath('codigo', $guardado);
             $this->assertNotNull(Sala::porCodigo($escrito));
@@ -119,7 +120,7 @@ class MantenedorSalasTest extends TestCase
     {
         $this->comoAdmin();
         $id = $this->postJson('/api/mantenedor-salas', $this->datos([
-            'nombre' => 'Seminario 2', 'codigo' => 'SEM2', 'tipo' => 'sala', 'capacidad' => 1, 'solo_responsable' => true,
+            'nombre' => 'Seminario 3', 'codigo' => 'SEM3', 'tipo' => 'sala', 'capacidad' => 1, 'solo_responsable' => true,
         ]))->assertStatus(201)->json('id');
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
 

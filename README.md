@@ -158,7 +158,7 @@ npm run dev
   más, el mesón puede **liberar el resto del bloque** para otro grupo, al
   registrar la devolución o después desde el detalle (`reservas.hora_fin_reservada`
   guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó. Cada
-  reserva lleva personas registradas: de 3 a 5 desde el portal y de 1 a 7 en el
+  reserva lleva personas registradas: de 3 a 6 desde el portal y de 1 a 7 en el
   mesón (`config/salas.php`), salvo los seminarios
   (`salas.solo_responsable`: Seminario 1 y 2), que van solo a nombre del docente o
   funcionario que los pide, sin anotar a los asistentes.
@@ -334,8 +334,9 @@ Bibliomag_publico_web_v2/
   login, inactivos hasta configurar `GOOGLE_CLIENT_ID` o `LDAP_HOST` (ver
   `docs/login-externo-pendientes.md`). Las direcciones de antes (`/login/v2`,
   `/portal/login`) llevan a este.
-- **Código propio de cada sala** (`salas.codigo`: L01 a L15 para las logias, SEM,
-  POS y AGA para las salas con nombre propio): en el mesón se escribe el código o el
+- **Código propio de cada sala** (`salas.codigo`: L01 a L13 y L22 a L30 para las
+  logias; SEM, SEM2, POS, AGA, MOR y COO para las salas con nombre propio; las
+  salas son las del plano del portal, `frontend/src/utils/mapaSalas.ts`): en el mesón se escribe el código o el
   número de la logia para entregar o recibir la llave, y Reportes sigue cada sala
   por su código (reservas, asistencia, horas de uso y bloques liberados). Las salas
   se crean, ajustan y dan de baja en Administración › **Salas**: una con reservas en

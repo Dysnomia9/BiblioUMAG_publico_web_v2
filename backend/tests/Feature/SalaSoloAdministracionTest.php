@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** La Sala de Seminarios no se presta a estudiantes: no está en el portal y en el mesón la reserva solo la administración. */
+/** Los seminarios, Cooperación y Moraga no se prestan a estudiantes: no están en el portal y en el mesón los reserva solo la administración. */
 class SalaSoloAdministracionTest extends TestCase
 {
     use RefreshDatabase;
@@ -42,7 +42,7 @@ class SalaSoloAdministracionTest extends TestCase
     public function test_la_sala_de_seminarios_viene_marcada(): void
     {
         $this->assertTrue($this->seminarios()->solo_administracion);
-        $this->assertSame(1, Sala::where('solo_administracion', true)->count());
+        $this->assertEqualsCanonicalizing(['SEM', 'SEM2', 'COO', 'MOR'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
     }
 
     public function test_no_aparece_en_el_portal_ni_se_puede_reservar_desde_ahi(): void
@@ -52,7 +52,9 @@ class SalaSoloAdministracionTest extends TestCase
         Sanctum::actingAs($yo);
 
         $codigos = collect($this->getJson('/api/mi/salas')->assertOk()->json('salas'))->pluck('codigo');
-        $this->assertNotContains('SEM', $codigos);
+        foreach (['SEM', 'SEM2', 'COO', 'MOR'] as $deLaAdministracion) {
+            $this->assertNotContains($deLaAdministracion, $codigos);
+        }
         $this->assertContains('L01', $codigos);
 
         $this->postJson('/api/mi/reservas', $this->reserva($this->seminarios(), [$yo->rut, $companero->rut]))
@@ -88,12 +90,12 @@ class SalaSoloAdministracionTest extends TestCase
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
         $this->assertTrue($this->seminarios()->solo_responsable);
-        $this->assertSame(1, Sala::where('solo_responsable', true)->count());
+        $this->assertEqualsCanonicalizing(['SEM', 'SEM2', 'COO', 'MOR'], Sala::where('solo_responsable', true)->pluck('codigo')->all());
 
         // Los asistentes no se anotan: con más de un RUT no se reserva.
         $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut, $estudiante->rut]))
             ->assertStatus(422)
-            ->assertJsonPath('errors.cantidad_personas.0', 'Sala de Seminarios se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.');
+            ->assertJsonPath('errors.cantidad_personas.0', 'Seminario 1 se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.');
 
         $id = $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut]))
             ->assertCreated()
@@ -125,7 +127,7 @@ class SalaSoloAdministracionTest extends TestCase
         $grupo = $this->postJson('/api/reservas', $this->reserva($logia, [$uno->rut, $dos->rut]))->assertCreated()->json('id');
         $this->putJson("/api/reservas/{$grupo}", ['sala_id' => $this->seminarios()->id, 'fecha' => '2026-07-10', 'hora_inicio' => '10:00', 'hora_fin' => '12:00'])
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Sala de Seminarios se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo. Esta reserva tiene 2 personas: corrige los integrantes antes de pasarla a Sala de Seminarios.');
+            ->assertJsonPath('message', 'Seminario 1 se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo. Esta reserva tiene 2 personas: corrige los integrantes antes de pasarla a Seminario 1.');
 
         $seminario = $this->postJson('/api/reservas', [...$this->reserva($this->seminarios(), [$docente->rut]), 'hora_inicio' => '13:00', 'hora_fin' => '14:00'])->assertCreated()->json('id');
         // En el mesón una logia también se reserva para una sola persona.

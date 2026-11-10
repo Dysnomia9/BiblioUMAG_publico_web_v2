@@ -258,9 +258,9 @@ class ReservaSalaService
      * Compartido entre SalaController::storeReserva(), SalaController::editarReserva()
      * y PortalController::reservarSala().
      *
-     * Con $alMinuto (el mesón), el inicio y el término pueden ser cualquier minuto (de 17:10 a
-     * 18:35): el personal los escribe a mano. El portal no lo pasa: ahí todo va a la hora o a
-     * la media hora.
+     * Con $alMinuto, el inicio y el término pueden ser cualquier minuto (de 17:10 a 18:35): se
+     * escriben a mano. Lo pasan el mesón y el portal; sin él, todo va a la hora o a la media
+     * hora (al editar desde el Listado de reservas).
      *
      * Al editar ($editando), la hora de inicio o de término que la reserva ya tenía
      * (mismo día, misma hora) se acepta tal cual: pudo quedar en el pasado o fuera de la

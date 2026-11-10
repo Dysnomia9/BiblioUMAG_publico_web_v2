@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 /**
  * En el mesón la hora de inicio y la de término se pueden escribir a mano (de 17:10 a 18:35),
- * no solo a la hora o a la media hora. El portal no cambia.
+ * no solo a la hora o a la media hora. En el portal, el estudiante también.
  */
 class SalaHoraAManoTest extends TestCase
 {
@@ -103,17 +103,49 @@ class SalaHoraAManoTest extends TestCase
             ->assertStatus(409);
     }
 
-    public function test_el_portal_sigue_en_la_grilla(): void
+    public function test_en_el_portal_el_estudiante_tambien_escribe_la_hora_a_mano(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00');
-        [$yo, $otro] = Usuario::factory()->count(2)->create();
+        [$yo, $otro, $tercera] = Usuario::factory()->count(3)->create();
         Sanctum::actingAs($yo);
 
+        $this->reservar('/api/mi/reservas', Sala::factory()->create(), [$yo->rut, $otro->rut, $tercera->rut], ['hora_inicio' => '17:10', 'hora_fin' => '18:35'])
+            ->assertCreated()
+            ->assertJsonPath('hora_inicio', '17:10:00')
+            ->assertJsonPath('hora_fin', '18:35:00');
+    }
+
+    public function test_en_el_portal_las_horas_a_mano_no_chocan_con_otra_reserva(): void
+    {
+        Carbon::setTestNow('2026-07-10 09:00:00');
         $sala = Sala::factory()->create();
-        foreach ([['17:00', '18:35'], ['17:10', '18:00']] as [$inicio, $fin]) {
-            $this->reservar('/api/mi/reservas', $sala, [$yo->rut, $otro->rut], ['hora_inicio' => $inicio, 'hora_fin' => $fin])
-                ->assertStatus(422)
-                ->assertJsonPath('message', 'El inicio y el término deben caer en una hora en punto o media.');
-        }
+        [$a1, $a2, $a3, $b1, $b2, $b3] = Usuario::factory()->count(6)->create();
+
+        Sanctum::actingAs($a1);
+        $this->reservar('/api/mi/reservas', $sala, [$a1->rut, $a2->rut, $a3->rut], ['hora_inicio' => '17:10', 'hora_fin' => '18:00'])->assertCreated();
+
+        // Otro grupo: se monta con la anterior, no; justo cuando termina, sí.
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($b1);
+        $this->reservar('/api/mi/reservas', $sala, [$b1->rut, $b2->rut, $b3->rut], ['hora_inicio' => '17:45', 'hora_fin' => '18:30'])->assertStatus(409);
+        $this->reservar('/api/mi/reservas', $sala, [$b1->rut, $b2->rut, $b3->rut], ['hora_inicio' => '16:30', 'hora_fin' => '17:15'])->assertStatus(409);
+        $this->reservar('/api/mi/reservas', $sala, [$b1->rut, $b2->rut, $b3->rut], ['hora_inicio' => '18:00', 'hora_fin' => '18:40'])->assertCreated();
+    }
+
+    public function test_en_el_portal_la_hora_a_mano_sigue_las_reglas_del_portal(): void
+    {
+        Carbon::setTestNow('2026-07-10 16:27:00');
+        [$yo, $otro, $tercera] = Usuario::factory()->count(3)->create();
+        Sanctum::actingAs($yo);
+        $sala = Sala::factory()->create();
+        $grupo = [$yo->rut, $otro->rut, $tercera->rut];
+
+        // Una hora que ya pasó, o más de 2 horas, no.
+        $this->reservar('/api/mi/reservas', $sala, $grupo, ['hora_inicio' => '16:20', 'hora_fin' => '17:00'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Esa hora ya pasó — elige un horario desde ahora en adelante.');
+        $this->reservar('/api/mi/reservas', $sala, $grupo, ['hora_inicio' => '16:40', 'hora_fin' => '18:45'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'La reserva debe durar entre 30 minutos y 2 horas.');
     }
 }

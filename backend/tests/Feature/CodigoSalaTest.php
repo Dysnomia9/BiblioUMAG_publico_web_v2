@@ -47,11 +47,12 @@ class CodigoSalaTest extends TestCase
         $codigos = Sala::pluck('codigo', 'nombre');
 
         $this->assertSame('L04', $codigos['Logia 04']);
-        $this->assertSame('L15', $codigos['Logia 15']);
-        $this->assertSame('SEM', $codigos['Sala de Seminarios']);
+        $this->assertSame('L22', $codigos['Logia 22']);
+        $this->assertSame('SEM', $codigos['Seminario 1']);
         $this->assertSame('POS', $codigos['Sala de Postgrado']);
         $this->assertSame('AGA', $codigos['Sala AGACI']);
-        $this->assertCount(18, $codigos->unique());
+        // Las del plano: 22 logias y 6 salas con nombre propio.
+        $this->assertCount(28, $codigos->unique());
     }
 
     public function test_la_llave_se_entrega_y_se_recibe_con_el_codigo_o_el_numero(): void

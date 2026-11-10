@@ -717,38 +717,42 @@ class SeedMockupData extends Command
     /** @return \Illuminate\Support\Collection<int, Sala> */
     private function seedSalas()
     {
-        // 15 logias de estudio, todas en la misma ubicación, más 3 salas
-        // especiales con nombre propio.
-        $capacidades = [2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4];
+        // Las salas del plano de la biblioteca (frontend/src/utils/mapaSalas.ts), que es lo único
+        // que tiene la cantidad real: logias 1 a 13 y 22 a 30, y las salas con nombre propio.
+        // Por código: en una base nueva ya las crearon las migraciones (crear_salas_iniciales y
+        // salas_como_en_el_plano); acá solo se completan.
         $salas = collect();
-
-        // Por nombre: en una base nueva las salas ya las creó la migración
-        // crear_salas_iniciales, con su código (Logia 04 → L04); acá solo se completan.
-        for ($i = 0; $i < 15; $i++) {
-            $numero = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
-            $salas->push(Sala::updateOrCreate(['nombre' => "Logia {$numero}"], [
-                'codigo' => "L{$numero}",
-                'capacidad' => $capacidades[$i],
+        foreach ([...range(1, 13), ...range(22, 30)] as $i => $numero) {
+            $numero = str_pad((string) $numero, 2, '0', STR_PAD_LEFT);
+            $salas->push(Sala::updateOrCreate(['codigo' => "L{$numero}"], [
+                'nombre' => "Logia {$numero}",
+                'capacidad' => [2, 3, 4][$i % 3],
                 'tipo' => 'logia',
             ]));
         }
 
-        // Salas con nombre propio: se reservan con el mismo flujo de bloques horarios.
+        // Salas con nombre propio: se reservan con el mismo flujo de bloques horarios. Los
+        // seminarios, Moraga y Cooperación son de la administración, a nombre de una persona.
         $salasEspeciales = [
-            ['nombre' => 'Sala de Seminarios', 'codigo' => 'SEM', 'capacidad' => 30],
-            ['nombre' => 'Sala de Postgrado', 'codigo' => 'POS', 'capacidad' => 20],
-            ['nombre' => 'Sala AGACI', 'codigo' => 'AGA', 'capacidad' => 10],
+            ['codigo' => 'SEM', 'nombre' => 'Seminario 1', 'capacidad' => 30, 'administracion' => true],
+            ['codigo' => 'POS', 'nombre' => 'Sala de Postgrado', 'capacidad' => 20, 'administracion' => false],
+            ['codigo' => 'AGA', 'nombre' => 'Sala AGACI', 'capacidad' => 10, 'administracion' => false],
+            ['codigo' => 'MOR', 'nombre' => 'Sala Moraga', 'capacidad' => 10, 'administracion' => true],
+            ['codigo' => 'COO', 'nombre' => 'Sala Cooperación', 'capacidad' => 20, 'administracion' => true],
+            ['codigo' => 'SEM2', 'nombre' => 'Seminario 2', 'capacidad' => 30, 'administracion' => true],
         ];
 
         foreach ($salasEspeciales as $especial) {
-            $salas->push(Sala::updateOrCreate(['nombre' => $especial['nombre']], [
-                'codigo' => $especial['codigo'],
+            $salas->push(Sala::updateOrCreate(['codigo' => $especial['codigo']], [
+                'nombre' => $especial['nombre'],
                 'capacidad' => $especial['capacidad'],
                 'tipo' => 'sala',
+                'solo_administracion' => $especial['administracion'],
+                'solo_responsable' => $especial['administracion'],
             ]));
         }
 
-        $this->line('  · '.$salas->count().' salas listas (15 logias + Seminarios + Postgrado + AGACI)');
+        $this->line('  · '.$salas->count().' salas listas (las del plano: 22 logias y 6 salas con nombre propio)');
 
         return $salas;
     }

@@ -14,7 +14,7 @@ return [
     // Integrantes de una reserva, contando a quien queda a cargo. Desde el portal los
     // estudiantes reservan en grupo; en el mesón el personal puede anotar menos o más.
     'personas_minimas' => 3, // portal
-    'personas_maximas' => 5, // portal
+    'personas_maximas' => 6, // portal
     'personas_minimas_meson' => 1,
     'personas_maximas_meson' => 7,
     'cuota_diaria' => 240, // minutos por participante y día

@@ -33,7 +33,7 @@ const puedeHoraPasada = computed(() => auth.puede('salas.hora_pasada'))
 // Reservar por más que el máximo del portal (ej. la Sala de Postgrado todo el día) requiere
 // el permiso 'salas.sin_limite'; el servidor vuelve a revisarlo.
 const puedeReservaLarga = computed(() => auth.puede('salas.sin_limite'))
-// La Sala de Seminarios (solo_administracion) no se presta a estudiantes: la reserva quien tiene este permiso.
+// Las salas de la administración (solo_administracion: seminarios, Cooperación, Moraga) no se prestan a estudiantes: las reserva quien tiene este permiso.
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 
 // La fecha y la hora son las de Punta Arenas, como en el servidor (utils/horario.ts), no las del computador.
@@ -61,7 +61,7 @@ const duracionMaxima = ref(120)
 const cuotaDiaria = ref(240)
 const minutosPresentarse = ref(15)
 
-/** «15 logias de estudio, Sala de Seminarios y Sala AGACI», según las salas que hay. */
+/** «22 logias de estudio, Seminario 1 y Sala AGACI», según las salas que hay. */
 const resumenSalas = computed(() => {
   const logias = salas.value.filter((s) => s.tipo === 'logia').length
   const partes = [...(logias ? [`${logias} ${logias === 1 ? 'logia' : 'logias'} de estudio`] : []), ...salas.value.filter((s) => s.tipo !== 'logia').map((s) => s.nombre)]
@@ -749,7 +749,7 @@ const proximaConfirmacion = computed(() => {
         :con-boton="false"
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); la Sala de Seminarios va solo a nombre del docente o funcionario que la pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); las salas de la administración (los seminarios, Cooperación y Moraga) van solo a nombre del docente o funcionario que las pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"

@@ -50,10 +50,11 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
    el código de puesto genérico de Horizon, hoy un valor **inventado como
    placeholder** (`'62572'` en `config/horizon_barcodes.php`); si se quiere el
    real, se cambia ahí. Las salas no usan códigos de barras: cada una tiene su
-   código propio (L01 a L15, SEM, POS, AGA), que se escribe en el mesón para
-   entregar o recibir la llave. Las salas no hay que crearlas: al migrar una
-   base nueva se crean solas las 15 logias (Logia 01 a Logia 15) y la Sala de
-   Seminarios, la de Postgrado y la AGACI, cada una con su código.
+   código propio (L01 a L13 y L22 a L30, SEM, SEM2, POS, AGA, MOR, COO), que se
+   escribe en el mesón para entregar o recibir la llave. Las salas no hay que
+   crearlas: al migrar una base nueva quedan las del plano de la biblioteca (22
+   logias, Seminario 1 y 2, Postgrado, AGACI, Moraga y Cooperación), cada una con
+   su código. Los seminarios, Moraga y Cooperación son solo de la administración.
 5. **Quién será el primer administrador**: en producción el sistema
    arranca sin cuentas: los datos de prueba (que traen `admin@umag.cl` /
    `admin123` con acceso total) solo se cargan en desarrollo (`APP_ENV=local`,

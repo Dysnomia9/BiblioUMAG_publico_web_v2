@@ -389,7 +389,10 @@ class PortalController extends Controller
         $data['ruts'] = [$usuario->rut, ...array_values(array_diff($data['ruts'], [$usuario->rut]))];
 
         $inmediata = $data['inmediata'] ?? false;
-        $error = $this->reservaSalaService->validarTramo($data, $inmediata);
+        // Como en el mesón, el estudiante puede escribir la hora de inicio y la de término a
+        // mano (de 17:10 a 18:35); el resto de las reglas del portal sigue igual (hoy, desde
+        // ahora, máximo de 2 horas, cuota diaria).
+        $error = $this->reservaSalaService->validarTramo($data, $inmediata, alMinuto: true);
         if ($error) {
             return response()->json(['message' => $error], 422);
         }

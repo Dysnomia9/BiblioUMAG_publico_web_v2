@@ -8,12 +8,15 @@ import type { Sala, TramoReserva } from '@/types'
 /**
  * Las salas de estudio como en el plano de la biblioteca (utils/mapaSalas.ts), con lo que
  * pasa hoy en cada una: libre, ocupada, tu reserva o que no se reserva aquí. Al tocar una sala
- * se ven sus horarios de hoy; reservar y cancelar siguen el mismo camino que la línea de tiempo
- * (los hace PortalSalasView).
+ * se abre su línea de tiempo de hoy y la lista de lo que queda; reservar y cancelar siguen el
+ * mismo camino que la vista de línea de tiempo (los hace PortalSalasView, con la hora de la
+ * lista o escrita a mano).
  */
 const props = defineProps<{
   salas: Sala[]
   ahoraMin: number
+  /** Apertura de la biblioteca hoy: donde empieza la línea de tiempo de la sala. */
+  abreMin: number
   /** Primera hora en que se puede empezar una reserva hoy. */
   primerInicioMin: number
   cierraMin: number
@@ -52,7 +55,8 @@ function franjas(sala: Sala): Franja[] {
   for (const r of reservas) {
     if (r.inicio > cursor && cursor < props.cierraMin) lista.push({ inicio: cursor, fin: Math.min(r.inicio, props.cierraMin), tipo: 'libre' })
     lista.push({ inicio: r.inicio, fin: r.fin, tipo: props.esMia(r.tramo) ? 'mia' : 'ocupada', tramo: r.tramo })
-    cursor = Math.max(cursor, Math.ceil(r.fin / paso) * paso)
+    // Desde el minuto exacto en que termina: con la hora escrita a mano se puede empezar ahí (17:10).
+    cursor = Math.max(cursor, r.fin)
   }
   if (cursor < props.cierraMin) lista.push({ inicio: cursor, fin: props.cierraMin, tipo: 'libre' })
 
@@ -117,6 +121,10 @@ const TEXTO_NO_SE_ABRE: Partial<Record<TipoEstado, string>> = {
 
 // ---------- Horarios de hoy de la sala elegida ----------
 const elegidaId = ref<number | null>(null)
+function abrirSala(id: number) {
+  avisoLinea.value = ''
+  elegidaId.value = id
+}
 const elegida = computed(() => props.salas.find((s) => s.id === elegidaId.value) ?? null)
 const diaElegida = computed(() => (elegida.value ? franjas(elegida.value) : []))
 const primeraLibre = computed(() => diaElegida.value.find((f) => f.tipo === 'libre') ?? null)
@@ -131,6 +139,56 @@ function cancelar(tramo: TramoReserva) {
   const sala = elegida.value
   elegidaId.value = null
   if (sala) emit('cancelar', sala, tramo)
+}
+
+// ---------- Línea de tiempo de la sala elegida, de la apertura al cierre ----------
+const totalEje = computed(() => Math.max(1, props.cierraMin - props.abreMin))
+/** Dónde cae un minuto en la línea, en % (recortado a la apertura y el cierre). */
+const enEje = (min: number) => ((Math.min(Math.max(min, props.abreMin), props.cierraMin) - props.abreMin) / totalEje.value) * 100
+/** Las horas en punto dentro del horario: una raya cada hora y el rótulo cada dos. */
+const horasEje = computed(() => {
+  const horas: number[] = []
+  for (let h = Math.ceil(props.abreMin / 60); h * 60 < props.cierraMin; h++) horas.push(h)
+  return horas
+})
+/** Todas las reservas de hoy de la sala, también las que ya pasaron. */
+const tramosElegida = computed(() =>
+  (elegida.value?.tramos ?? []).map((tramo) => ({ tramo, inicio: aMinutos(tramo.hora_inicio), fin: aMinutos(tramo.hora_fin) })),
+)
+function claseTramo(t: { tramo: TramoReserva; fin: number }) {
+  if (props.esMia(t.tramo)) return 'border-indigo-400 bg-indigo-100 text-indigo-800'
+  if (t.fin <= props.ahoraMin) return 'border-gray-300 bg-gray-100 text-gray-500'
+  return 'border-red-300 bg-red-100 text-red-700'
+}
+
+const avisoLinea = ref('')
+/** Tocar la línea: en un espacio libre, reservar desde esa media hora; si no, se dice por qué no. */
+function tocarLinea(evento: MouseEvent) {
+  const rect = (evento.currentTarget as HTMLElement).getBoundingClientRect()
+  const minuto = props.abreMin + ((evento.clientX - rect.left) / rect.width) * totalEje.value
+  if (minuto < props.ahoraMin) {
+    avisoLinea.value = 'Esa hora ya pasó: toca más a la derecha.'
+    return
+  }
+  const ocupado = tramosElegida.value.find((t) => minuto >= t.inicio && minuto < t.fin)
+  if (ocupado) {
+    avisoLinea.value = props.esMia(ocupado.tramo)
+      ? 'Esa es tu reserva: tócala para cancelarla.'
+      : `A esa hora está ocupada (de ${aHora(ocupado.inicio)} a ${aHora(ocupado.fin)}).`
+    return
+  }
+  const libre = diaElegida.value.find((f) => f.tipo === 'libre' && minuto >= f.inicio - props.granularidad && minuto < f.fin)
+  const inicio = libre ? Math.max(libre.inicio, Math.floor(minuto / props.granularidad) * props.granularidad) : null
+  if (!libre || inicio === null || libre.fin - inicio < props.duracionMinima) {
+    avisoLinea.value = 'Desde ahí no alcanza para una reserva: elige otro espacio verde.'
+    return
+  }
+  avisoLinea.value = ''
+  reservar(inicio)
+}
+function tocarTramo(t: { tramo: TramoReserva; inicio: number; fin: number }) {
+  if (props.esMia(t.tramo)) cancelar(t.tramo)
+  else avisoLinea.value = `A esa hora está ocupada (de ${aHora(t.inicio)} a ${aHora(t.fin)}).`
 }
 
 const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
@@ -180,7 +238,7 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
                         :class="[ESTILOS[l.tipo].caja, seAbre(l.tipo) ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default', coincide(l.lugar.etiqueta, l.sala) ? '' : 'opacity-30']"
                         :title="seAbre(l.tipo) ? `${l.sala?.nombre}: ver horarios de hoy` : TEXTO_NO_SE_ABRE[l.tipo]"
                         :aria-label="`${l.sala?.nombre ?? l.lugar.etiqueta}: ${l.texto}`"
-                        @click="seAbre(l.tipo) && l.sala ? (elegidaId = l.sala.id) : undefined"
+                        @click="seAbre(l.tipo) && l.sala ? abrirSala(l.sala.id) : undefined"
                       >
                         <!-- El nombre con todo el ancho (Cooperación cabe en el teléfono); el punto va con el estado. -->
                         <span class="truncate font-bold text-gray-900" :class="esNumero(l.lugar.etiqueta) ? 'text-lg leading-none' : 'text-[13px] leading-tight'">
@@ -211,7 +269,7 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
             class="flex min-h-[3.25rem] w-full flex-col justify-center rounded-xl border-2 px-2.5 py-1.5 text-left transition-all"
             :class="[ESTILOS[o.tipo].caja, seAbre(o.tipo) ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default', coincide(o.sala.nombre, o.sala) ? '' : 'opacity-30']"
             :aria-label="`${o.sala.nombre}: ${o.texto}`"
-            @click="seAbre(o.tipo) ? (elegidaId = o.sala.id) : undefined"
+            @click="seAbre(o.tipo) ? abrirSala(o.sala.id) : undefined"
           >
             <span class="truncate text-[13px] font-bold text-gray-900">{{ o.sala.nombre }}</span>
             <span class="mt-1 flex items-start gap-1.5 text-[11px] leading-tight" :class="ESTILOS[o.tipo].texto">
@@ -231,8 +289,51 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
       <div class="flex items-center gap-1.5"><span class="h-3 w-1.5 rounded-full bg-gray-300"></span> Pared</div>
     </div>
 
-    <Modal :abierto="!!elegida" :titulo="elegida?.nombre ?? ''" :descripcion="elegida ? `Hasta ${elegida.capacidad} personas · hoy` : ''" @cerrar="elegidaId = null">
+    <Modal
+      :abierto="!!elegida"
+      :titulo="elegida?.nombre ?? ''"
+      descripcion="Hoy. Toca un espacio verde de la línea para reservar desde esa hora."
+      ancho="lg"
+      @cerrar="elegidaId = null"
+    >
       <template v-if="elegida">
+        <!-- La línea de tiempo de la sala, como en la vista de línea de tiempo -->
+        <div class="mb-4">
+          <div class="relative mb-1 h-4 text-[10px] font-medium text-gray-500" aria-hidden="true">
+            <span v-for="h in horasEje.filter((h) => h % 2 === 0)" :key="h" class="absolute -translate-x-1/2" :style="{ left: enEje(h * 60) + '%' }">
+              {{ String(h).padStart(2, '0') }}:00
+            </span>
+          </div>
+          <div
+            class="relative h-14 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50 transition-colors hover:bg-emerald-100/70"
+            role="button"
+            aria-label="Línea de tiempo de hoy: toca un espacio verde para reservar desde esa hora"
+            @click="tocarLinea"
+          >
+            <div v-for="h in horasEje" :key="h" class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10" :style="{ left: enEje(h * 60) + '%' }"></div>
+            <div v-if="ahoraMin > abreMin" class="franja-pasada pointer-events-none absolute inset-y-0 left-0" :style="{ width: enEje(ahoraMin) + '%' }"></div>
+            <div
+              v-for="t in tramosElegida"
+              :key="t.tramo.reserva_id"
+              class="absolute inset-y-1.5 flex items-center justify-center overflow-hidden whitespace-nowrap rounded-lg border px-1 text-[10px] font-semibold"
+              :class="[claseTramo(t), esMia(t.tramo) ? 'cursor-pointer hover:brightness-95' : 'cursor-default']"
+              :style="{ left: enEje(t.inicio) + '%', width: enEje(t.fin) - enEje(t.inicio) + '%' }"
+              :title="`${aHora(t.inicio)} – ${aHora(t.fin)}${esMia(t.tramo) ? ' · tu reserva' : ''}`"
+              @click.stop="tocarTramo(t)"
+            >
+              <span v-if="enEje(t.fin) - enEje(t.inicio) >= 12">{{ aHora(t.inicio) }}–{{ aHora(t.fin) }}</span>
+            </div>
+            <div
+              v-if="ahoraMin > abreMin && ahoraMin < cierraMin"
+              class="pointer-events-none absolute inset-y-0 -ml-px w-[3px] rounded-full bg-indigo-600"
+              :style="{ left: enEje(ahoraMin) + '%' }"
+            ></div>
+          </div>
+          <p class="mt-1.5 text-xs" :class="avisoLinea ? 'text-red-600' : 'text-gray-500'" aria-live="polite">
+            {{ avisoLinea || 'Verde: libre · rojo: ocupada · azul: tu reserva (tócala para cancelarla).' }}
+          </p>
+        </div>
+
         <button
           v-if="primeraLibre"
           type="button"

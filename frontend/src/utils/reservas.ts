@@ -7,7 +7,7 @@ import type { ReservaListado, SituacionReserva } from '@/types'
  * valen mientras carga y en el editor de integrantes. El servidor es el que decide.
  */
 export const PERSONAS_MINIMAS_SALA = 3
-export const PERSONAS_MAXIMAS_SALA = 5
+export const PERSONAS_MAXIMAS_SALA = 6
 export const PERSONAS_MINIMAS_MESON = 1
 export const PERSONAS_MAXIMAS_MESON = 7
 

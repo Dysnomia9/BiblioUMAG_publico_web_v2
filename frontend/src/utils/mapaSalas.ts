@@ -1,5 +1,7 @@
 /**
- * Plano de las salas de estudio, como las tarjetas del mesón: cada piso con sus salas a los
+ * Plano de las salas de estudio, como las tarjetas del mesón. Es lo único que tiene la cantidad
+ * real de salas: una logia que no está aquí no existe (la migración salas_como_en_el_plano
+ * dejó las del sistema iguales a este plano). cada piso con sus salas a los
  * dos lados del pasillo y el lado de la ventana. Cada lugar se enlaza con la sala del sistema
  * por su código (salas.codigo). El que todavía no tiene sala en el sistema se dibuja igual, en
  * gris: está en la biblioteca pero no se reserva en línea. Si se crea con ese código, se
@@ -9,7 +11,7 @@ export type LugarMapa = {
   codigo: string
   /** Lo que se lee en el plano: el número de la logia o el nombre de la sala. */
   etiqueta: string
-  /** No se presta a estudiantes (los seminarios, Cooperación): en gris aunque exista. */
+  /** No se presta a estudiantes (los seminarios, Cooperación, Moraga): en gris aunque exista. */
   soloAdministracion?: boolean
 }
 
@@ -34,7 +36,7 @@ export const PISOS_MAPA: PisoMapa[] = [
     izquierda: {
       borde: 'pared',
       tramos: [
-        [logia(10), logia(11), logia(12), logia(13), { codigo: 'AGA', etiqueta: 'AGACI' }, { codigo: 'MOR', etiqueta: 'Moraga' }],
+        [logia(10), logia(11), logia(12), logia(13), { codigo: 'AGA', etiqueta: 'AGACI' }, { codigo: 'MOR', etiqueta: 'Moraga', soloAdministracion: true }],
         [{ codigo: 'SEM', etiqueta: 'Seminario 1', soloAdministracion: true }],
       ],
     },

@@ -514,7 +514,7 @@ export type Sala = {
   tipo: 'logia' | 'puesto' | 'sala'
   /** Código propio de la sala (L04, SEM…): el del mesón y los reportes. */
   codigo: string
-  /** No se presta a estudiantes (Sala de Seminarios): la reserva quien tiene salas.administracion. */
+  /** No se presta a estudiantes (seminarios, Cooperación, Moraga): la reserva quien tiene salas.administracion. */
   solo_administracion?: boolean
   /** Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin anotar a cada asistente: los seminarios. */
   solo_responsable?: boolean

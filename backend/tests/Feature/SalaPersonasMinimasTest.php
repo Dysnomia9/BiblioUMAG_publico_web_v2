@@ -12,7 +12,7 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Cuántas personas lleva una reserva de sala (config/salas.php): desde el portal, de 3 a 5;
+ * Cuántas personas lleva una reserva de sala (config/salas.php): desde el portal, de 3 a 6;
  * en el mesón, el personal puede anotar de 1 a 7.
  */
 class SalaPersonasMinimasTest extends TestCase
@@ -45,9 +45,9 @@ class SalaPersonasMinimasTest extends TestCase
         ];
     }
 
-    public function test_los_rangos_son_3_a_5_en_el_portal_y_1_a_7_en_el_meson(): void
+    public function test_los_rangos_son_3_a_6_en_el_portal_y_1_a_7_en_el_meson(): void
     {
-        $this->assertSame([3, 5], Sala::personasDelPortal());
+        $this->assertSame([3, 6], Sala::personasDelPortal());
         $this->assertSame([1, 7], Sala::personasDelMeson());
     }
 
@@ -68,10 +68,10 @@ class SalaPersonasMinimasTest extends TestCase
         $this->assertSame([1, 7], [$salas->json('personas_minimas'), $salas->json('personas_maximas')]);
     }
 
-    public function test_el_portal_sigue_de_3_a_5(): void
+    public function test_el_portal_sigue_de_3_a_6(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00'); // viernes
-        $grupo = Usuario::factory()->count(6)->create();
+        $grupo = Usuario::factory()->count(7)->create();
         Sanctum::actingAs($grupo[0]);
 
         $this->postJson('/api/mi/reservas', $this->reserva($grupo->take(2)->pluck('rut')->all()))
@@ -79,10 +79,13 @@ class SalaPersonasMinimasTest extends TestCase
             ->assertJsonPath('errors.cantidad_personas.0', 'La reserva necesita al menos 3 personas.');
         $this->postJson('/api/mi/reservas', $this->reserva($grupo->pluck('rut')->all()))
             ->assertStatus(422)
-            ->assertJsonPath('errors.cantidad_personas.0', 'La reserva admite como máximo 5 personas.');
+            ->assertJsonPath('errors.cantidad_personas.0', 'La reserva admite como máximo 6 personas.');
 
         $salas = $this->getJson('/api/mi/salas')->assertOk();
-        $this->assertSame([3, 5], [$salas->json('personas_minimas'), $salas->json('personas_maximas')]);
+        $this->assertSame([3, 6], [$salas->json('personas_minimas'), $salas->json('personas_maximas')]);
+
+        // Un grupo de 6 sí entra.
+        $this->postJson('/api/mi/reservas', $this->reserva($grupo->take(6)->pluck('rut')->all()))->assertCreated();
     }
 
     public function test_en_el_meson_los_integrantes_van_de_1_a_7(): void

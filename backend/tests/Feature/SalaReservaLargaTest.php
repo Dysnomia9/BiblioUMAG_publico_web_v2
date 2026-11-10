@@ -92,7 +92,7 @@ class SalaReservaLargaTest extends TestCase
 
     public function test_el_portal_sigue_con_su_maximo(): void
     {
-        // En el portal se reserva en grupo (de 3 a 5): el grupo es válido, la duración no.
+        // En el portal se reserva en grupo (de 3 a 6): el grupo es válido, la duración no.
         [$yo, $otra, $tercera] = Usuario::factory()->count(3)->create();
         Sanctum::actingAs($yo);
         Carbon::setTestNow('2026-07-10 08:30:00');
