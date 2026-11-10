@@ -1197,14 +1197,9 @@ const proximaConfirmacion = computed(() => {
               </div>
             </div>
             <p v-if="avisoHoras" class="text-xs" :class="avisoHorasEsError ? 'text-red-600' : 'text-gray-500'">{{ avisoHoras }}</p>
-            <!-- Una reserva larga (permiso salas.sin_limite) se destaca, para notar a tiempo un error al escribir la hora. -->
-            <p
-              v-else-if="inicioAMano || terminoAMano"
-              class="text-xs"
-              :class="modalFinMin - modalInicioMin > duracionMaxima ? 'font-medium text-amber-700' : 'text-gray-600'"
-            >
-              {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}.
-              <template v-if="modalFinMin - modalInicioMin > duracionMaxima">Reserva larga: más que las {{ formatMinutos(duracionMaxima) }} del portal.</template>
+            <!-- Una reserva larga (permiso salas.sin_limite) es normal: solo se anota que pasa de las 2 h. -->
+            <p v-else-if="inicioAMano || terminoAMano" class="text-xs text-gray-600">
+              {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}<template v-if="modalFinMin - modalInicioMin > duracionMaxima"> (más de {{ formatMinutos(duracionMaxima) }})</template>.
             </p>
             <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
             <template v-if="!errorInicio">
