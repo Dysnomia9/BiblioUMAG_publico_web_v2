@@ -1,8 +1,22 @@
-// Pone el modo oscuro antes de dibujar la página, para que no aparezca un instante en
-// claro. Va en un archivo aparte porque la política de seguridad (nginx-cabeceras.conf)
-// no deja correr código escrito dentro de la página. El resto está en useTema.ts.
-try {
-  if (localStorage.getItem('tema') === 'oscuro') document.documentElement.classList.add('dark')
-} catch (e) {
-  // Sin acceso a localStorage (modo privado estricto): queda en claro.
-}
+// Pone el modo oscuro y el fondo del modo día antes de dibujar la página, para que no
+// aparezca un instante en claro ni con otro fondo. Va en un archivo aparte porque la
+// política de seguridad (nginx-cabeceras.conf) no deja correr código escrito dentro de la
+// página. El resto está en useTema.ts y useFondo.ts.
+;(function () {
+  var raiz = document.documentElement
+  try {
+    if (localStorage.getItem('tema') === 'oscuro') raiz.classList.add('dark')
+  } catch (e) {
+    // Sin acceso a localStorage (modo privado estricto): queda en claro.
+  }
+  // El portal usa siempre Neblina; el panel, el último fondo que eligió el personal en este
+  // navegador (lo confirma la sesión al cargar).
+  var fondo = 'neblina'
+  try {
+    var recordado = localStorage.getItem('fondo')
+    if (location.pathname.indexOf('/portal') !== 0 && /^[a-z-]+$/.test(recordado || '')) fondo = recordado
+  } catch (e) {
+    // Sin localStorage: el predeterminado.
+  }
+  raiz.setAttribute('data-fondo', fondo)
+})()

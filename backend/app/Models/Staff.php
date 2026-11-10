@@ -33,6 +33,15 @@ class Staff extends Authenticatable
         'password',
     ];
 
+    /**
+     * Fondos del modo día que se pueden elegir en Aspecto visual (staff.fondo; vacío es el
+     * predeterminado). Tienen que coincidir con FONDOS de frontend/src/utils/fondos.ts.
+     */
+    public const FONDOS = [
+        'neblina', 'clasico', 'gris-azulado', 'lavanda', 'perla', 'marfil',
+        'ambiental', 'ambiental-puntos', 'papel', 'lino', 'aurora', 'patagonia',
+    ];
+
     protected function casts(): array
     {
         return [

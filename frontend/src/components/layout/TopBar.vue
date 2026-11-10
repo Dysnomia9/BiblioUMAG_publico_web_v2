@@ -7,6 +7,7 @@ import { itemPorRuta } from '@/navegacion'
 import api from '@/services/api'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import InterruptorTema from '@/components/ui/InterruptorTema.vue'
+import AspectoVisual from './AspectoVisual.vue'
 import logoUmag from '@/assets/logo-umag.png'
 
 const auth = useAuthStore()
@@ -153,6 +154,13 @@ onBeforeUnmount(() => {
 function pedirCambioClave() {
   menuCuentaAbierto.value = false
   abrirCambioClave()
+}
+
+const aspectoAbierto = ref(false)
+
+function abrirAspecto() {
+  menuCuentaAbierto.value = false
+  aspectoAbierto.value = true
 }
 
 function pedirSalida() {
@@ -361,7 +369,7 @@ async function guardarClave() {
 
     <InterruptorTema />
 
-    <!-- Cuenta: nombre y rol; el menú tiene «Cambiar mi contraseña» y «Cerrar sesión» -->
+    <!-- Cuenta: nombre y rol; el menú tiene «Cambiar mi contraseña», «Aspecto visual» y «Cerrar sesión» -->
     <div ref="menuCuenta" class="relative shrink-0">
       <button
         type="button"
@@ -404,6 +412,17 @@ async function guardarClave() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
           </svg>
           Cambiar mi contraseña
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          @click="abrirAspecto"
+        >
+          <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
+          </svg>
+          Aspecto visual
         </button>
         <div class="my-1 border-t border-gray-100"></div>
         <button
@@ -475,5 +494,7 @@ async function guardarClave() {
     >
       <p>Tendrás que volver a iniciar sesión para seguir usando el panel.</p>
     </DialogoConfirmacion>
+
+    <AspectoVisual :abierto="aspectoAbierto" @cerrar="aspectoAbierto = false" />
   </header>
 </template>

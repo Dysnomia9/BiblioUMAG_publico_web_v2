@@ -9,6 +9,7 @@ use App\Support\Credenciales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -81,6 +82,26 @@ class AuthController extends Controller
         Bitacora::registrar('sesion.cambiar_password', 'Cambió su propia contraseña', entidad: $staff);
 
         return response()->json(['message' => 'Contraseña actualizada']);
+    }
+
+    /**
+     * El fondo del panel en modo día (menú de la cuenta › Aspecto visual). Es un gusto de la
+     * persona, no una edición de la cuenta: no toca updated_at ni queda en la bitácora.
+     */
+    public function cambiarFondo(Request $request)
+    {
+        $data = $request->validate([
+            'fondo' => ['required', 'string', Rule::in(Staff::FONDOS)],
+        ], [
+            'fondo.required' => 'Elige un fondo.',
+            'fondo.in' => 'Ese fondo no existe.',
+        ]);
+
+        $staff = $request->user();
+        $staff->timestamps = false;
+        $staff->forceFill(['fondo' => $data['fondo']])->save();
+
+        return response()->json(['fondo' => $staff->fondo]);
     }
 
     public function logout(Request $request)

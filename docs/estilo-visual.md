@@ -83,15 +83,13 @@ Se toman siempre de ese archivo, sin repetir los colores en cada pantalla.
 
 | Dónde | Valor |
 |---|---|
-| `<body>` | `bg-slate-50` (en `index.html`) |
-| Fondo de las pantallas del personal | `bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40` (en `StaffLayout.vue`) |
-| Fondo de las pantallas del portal | `bg-gradient-to-b from-[#F7F8FC] to-[#ffffff] to-60%` (en `PortalLayout.vue`) |
+| Fondo de las pantallas (personal y portal) | el fondo del modo día que corresponda (sección 1c), con la clase `fondo-pagina` en `StaffLayout.vue` y `PortalLayout.vue` |
 | Texto normal / secundario / apagado | `gray-900` / `gray-500–600` / `gray-400` |
 | Bordes | `gray-200` (tarjetas y tablas), `gray-300` (campos y botones secundarios) |
 | Textos dorado y azul pizarra (catalogación, recursos de apoyo) | `text-dorado-600` / `-700` y `text-pizarra-600` / `-700` (antes `#8a6a3b`, `#6f5226`, `#3F5F8A`, `#2f4a6e`) |
 
-Los tres fondos de página tienen además su versión de modo noche (`dark:`), un
-azul casi negro más oscuro que las tarjetas.
+En modo noche las pantallas usan su degradado oscuro (`dark:` en los dos layouts
+y en el `<body>`), un azul casi negro más oscuro que las tarjetas.
 
 ### Colores por módulo en el Menú de Gestión
 
@@ -149,6 +147,37 @@ Para que una pantalla nueva funcione en los dos modos:
   `oscuro` de `useTema()` y usan su versión para fondo oscuro.
 - Las píldoras seleccionadas en `gray-900` (grupos de vista) pasan a `indigo-500`
   en modo noche (`dark:bg-indigo-500`), porque el negro no se distingue del fondo.
+
+## 1c. Fondos del modo día
+
+Cada persona del personal elige el fondo del panel en el menú de la cuenta ›
+**Aspecto visual** (`components/layout/AspectoVisual.vue`). Queda en su cuenta
+(`staff.fondo`, `PATCH /auth/fondo`), así que la sigue en cualquier computador; sin
+elegir, tiene **Neblina**. El portal de los usuarios va siempre en Neblina. En modo
+noche no se usan: se ve el fondo oscuro de siempre.
+
+Hay doce: Neblina, Clásico (el de antes), Gris azulado, Lavanda, Gris perla,
+Marfil, Ambiental, Ambiental con puntos, Papel, Lino, Aurora austral y Patagonia.
+
+**Cómo funciona.** La lista está en `src/utils/fondos.ts`, y de ahí
+`tailwind.config.js` arma las variables de cada uno, que se activan con
+`data-fondo` en `<html>` (`composables/useFondo.ts`; `public/tema.js` lo pone
+antes de dibujar la página, con el último fondo usado en ese navegador). Un fondo
+puede cambiar:
+
+- la página: un color base y capas de `background-image` (degradados, tramas o un
+  SVG), que dibuja una capa fija detrás de `.fondo-pagina`;
+- la superficie de tarjetas y modales (`bg-white`);
+- los grises claros de fondo (`gray` y `slate` 50–300) y sus bordes.
+
+Textos, botones, estados y el degradado morado no cambian, así que **las pantallas
+no hacen nada especial**: usan `bg-white`, `bg-gray-50`, `border-gray-200`, etc.
+como siempre. Lo marcado con `tema-claro` (marco del QR, etiqueta de lomo) sigue en
+blanco puro, y lo impreso también.
+
+**Agregar un fondo.** Sumarlo a `FONDOS` en `src/utils/fondos.ts` y su clave a
+`Staff::FONDOS` en el backend (tienen que coincidir). La miniatura del selector sale
+sola.
 
 ---
 

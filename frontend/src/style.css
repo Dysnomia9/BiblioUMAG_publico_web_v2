@@ -67,4 +67,10 @@
   .dark .franja-pasada {
     background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.14) 0 3px, transparent 3px 9px);
   }
+  /* Miniatura de un fondo en Aspecto visual: la página del fondo de su data-fondo. */
+  .miniatura-fondo {
+    background-color: var(--pagina-base);
+    background-image: var(--pagina-capas);
+    background-size: var(--pagina-tamanos);
+  }
 }

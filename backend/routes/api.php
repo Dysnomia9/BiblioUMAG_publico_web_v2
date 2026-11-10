@@ -58,6 +58,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::patch('/auth/password', [AuthController::class, 'cambiarPassword'])->middleware('throttle:6,1');
+    Route::patch('/auth/fondo', [AuthController::class, 'cambiarFondo']);
 
     Route::get('/dashboard/resumen', [DashboardController::class, 'resumen']);
 

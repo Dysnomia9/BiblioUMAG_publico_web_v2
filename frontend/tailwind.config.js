@@ -5,6 +5,7 @@
 // Guía completa: docs/estilo-visual.md
 import colores from 'tailwindcss/colors'
 import plugin from 'tailwindcss/plugin'
+import { FONDOS } from './src/utils/fondos.ts'
 
 // Modo oscuro (clase .dark en <html>, ver src/composables/useTema.ts). Los tonos que se
 // usan de fondo claro, de texto oscuro o de borde claro valen una variable CSS: en modo
@@ -93,6 +94,27 @@ for (const [nombre, tonos] of Object.entries(PROPIOS)) {
   }
 }
 
+// Fondos del modo día (src/utils/fondos.ts), que activa data-fondo en <html>. Todos fijan
+// el mismo juego de variables: tarjetas, grises claros y bordes de gray y slate (lo que no
+// indican, como en Tailwind). Así la miniatura de un fondo en el selector no hereda nada
+// del que está puesto, y .tema-claro vuelve al blanco con ese mismo juego. La página la
+// dibuja .fondo-pagina con --pagina-base y --pagina-capas.
+function variablesDeFondo(fondo = {}) {
+  const v = { '--fondo-white': canales(fondo.tarjeta ?? '#ffffff') }
+  for (const escala of ['gray', 'slate']) {
+    for (const tono of [50, 100, 200, 300]) v[`--fondo-${escala}-${tono}`] = canales(fondo.neutros?.[tono] ?? colores[escala][tono])
+    for (const tono of [100, 200, 300]) v[`--borde-${escala}-${tono}`] = canales(fondo.bordes?.[tono] ?? colores[escala][tono])
+  }
+  return v
+}
+const pagina = (fondo) => ({ '--pagina-base': fondo.base, '--pagina-capas': fondo.capas, '--pagina-tamanos': fondo.tamanos ?? 'auto' })
+const reglasDeFondos = Object.fromEntries(
+  // Sin .dark: en modo noche <html> no toma el fondo, pero una miniatura sí (se ve en claro).
+  FONDOS.map((fondo) => [`[data-fondo="${fondo.clave}"]:not(.dark)`, { ...variablesDeFondo(fondo), ...pagina(fondo) }]),
+)
+// Sin data-fondo, la página como siempre.
+Object.assign(variables.claro, pagina(FONDOS.find((f) => f.clave === 'clasico')))
+
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   // Tailwind solo emite las reglas de base con clases si encuentra esas clases en el
@@ -129,6 +151,22 @@ export default {
           // Campos sin fondo propio: la superficie, no el gris del navegador.
           ':where(html.dark) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea)': {
             'background-color': 'rgb(var(--fondo-white))',
+          },
+          ...reglasDeFondos,
+          // En modo día, lo que se ve como en papel (QR, etiqueta de lomo) sigue en blanco.
+          '[data-fondo] .tema-claro': variablesDeFondo(),
+          'html:not(.dark) body': { 'background-color': 'var(--pagina-base)' },
+          // La página de los layouts: una capa fija detrás de todo, para que las ondas, los
+          // cerros o las manchas queden en su lugar al desplazarse por una lista larga.
+          'html:not(.dark) .fondo-pagina::before': {
+            content: '""',
+            position: 'fixed',
+            inset: '0',
+            'z-index': '-1',
+            'pointer-events': 'none',
+            'background-color': 'var(--pagina-base)',
+            'background-image': 'var(--pagina-capas)',
+            'background-size': 'var(--pagina-tamanos)',
           },
         },
       })

@@ -7,6 +7,8 @@ export type Staff = {
   rol_acceso_total: boolean
   permisos: string[]
   activo: boolean
+  /** Fondo del modo día que eligió (utils/fondos.ts); null, el predeterminado. */
+  fondo: string | null
 }
 
 export type PermisoCatalogo = {

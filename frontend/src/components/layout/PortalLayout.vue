@@ -2,12 +2,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
+import { useFondo } from '@/composables/useFondo'
 import InterruptorTema from '@/components/ui/InterruptorTema.vue'
 import logoUmag from '@/assets/logo-umag.png'
 
 const auth = useUsuarioAuthStore()
 const router = useRouter()
 const route = useRoute()
+
+// Los usuarios no eligen fondo: el portal va siempre en Neblina (utils/fondos.ts).
+useFondo().ponerDelPortal()
 
 const iniciales = computed(() => {
   const letras = `${auth.usuario?.nombre?.charAt(0) ?? ''}${auth.usuario?.apellido?.charAt(0) ?? ''}`
@@ -84,7 +88,7 @@ async function onLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
+  <div class="fondo-pagina min-h-screen flex flex-col">
     <header
       class="shrink-0"
       style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%); padding-top: env(safe-area-inset-top);"
@@ -174,7 +178,7 @@ async function onLogout() {
       </div>
       <slot name="cabecera" />
     </header>
-    <main class="flex-1 p-6 pb-28 md:pb-6 bg-gradient-to-b from-[#F7F8FC] to-[#ffffff] to-60% dark:from-[#12152b] dark:to-[#0e1124]">
+    <main class="flex-1 p-6 pb-28 md:pb-6 dark:bg-gradient-to-b dark:from-[#12152b] dark:to-[#0e1124]">
       <slot />
     </main>
 
