@@ -226,7 +226,8 @@ class SalaReservaTest extends TestCase
 
     public function test_reserva_que_excede_la_duracion_maxima_devuelve_422(): void
     {
-        Sanctum::actingAs(Staff::factory()->create());
+        // Sin el permiso de reservas largas (salas.sin_limite): rige el máximo de 2 horas.
+        Sanctum::actingAs(Staff::factory()->sinReservasLargas()->create());
         $sala = Sala::factory()->create();
         $usuarios = Usuario::factory()->count(2)->create();
 

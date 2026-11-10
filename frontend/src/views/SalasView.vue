@@ -30,6 +30,9 @@ const auth = useAuthStore()
 // ReservaSalaService::validarTramo()); esto solo evita ofrecer una opción que el
 // servidor rechazaría.
 const puedeHoraPasada = computed(() => auth.puede('salas.hora_pasada'))
+// Reservar por más que el máximo del portal (ej. la Sala de Postgrado todo el día) requiere
+// el permiso 'salas.sin_limite'; el servidor vuelve a revisarlo.
+const puedeReservaLarga = computed(() => auth.puede('salas.sin_limite'))
 // La Sala de Seminarios (solo_administracion) no se presta a estudiantes: la reserva quien tiene este permiso.
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 
@@ -291,7 +294,7 @@ function disponibilidadDesde(sala: Sala, desdeMin: number): number {
     .sort((a, b) => a - b)
 
   const limite = Math.min(siguientes.length ? siguientes[0] : cierraMin.value, cierraMin.value)
-  return Math.max(0, Math.min(limite - desdeMin, duracionMaxima.value))
+  return Math.max(0, puedeReservaLarga.value ? limite - desdeMin : Math.min(limite - desdeMin, duracionMaxima.value))
 }
 
 /** Si se puede reservar `sala` desde este minuto: hoy, con la biblioteca abierta y la sala libre al menos lo mínimo. */
@@ -332,7 +335,9 @@ const errorTermino = computed<string | null>(() => {
   if (fin <= inicio) return `Debe ser después de ${textoInicioModal.value}.`
   if (fin > cierraMin.value) return `La biblioteca cierra a las ${minutesToTime(cierraMin.value)}: puede ser hasta esa hora.`
   if (minutos < duracionMinima.value) return `La reserva dura al menos ${formatMinutos(duracionMinima.value)}: desde las ${hasta(duracionMinima.value)}.`
-  if (minutos > duracionMaxima.value) return `Serían ${formatMinutos(minutos)}: el máximo es ${formatMinutos(duracionMaxima.value)}, hasta las ${hasta(duracionMaxima.value)}.`
+  if (minutos > duracionMaxima.value && !puedeReservaLarga.value) {
+    return `Serían ${formatMinutos(minutos)}: el máximo es ${formatMinutos(duracionMaxima.value)}, hasta las ${hasta(duracionMaxima.value)}. Para reservar más tiempo se necesita el permiso «Reservas largas».`
+  }
   if (minutos > modalDisponibleMin.value) return `A las ${hasta(modalDisponibleMin.value)} empieza otra reserva en esta sala: puede ser hasta esa hora.`
   return null
 })
@@ -1192,8 +1197,14 @@ const proximaConfirmacion = computed(() => {
               </div>
             </div>
             <p v-if="avisoHoras" class="text-xs" :class="avisoHorasEsError ? 'text-red-600' : 'text-gray-500'">{{ avisoHoras }}</p>
-            <p v-else-if="inicioAMano || terminoAMano" class="text-xs text-gray-600">
+            <!-- Una reserva larga (permiso salas.sin_limite) se destaca, para notar a tiempo un error al escribir la hora. -->
+            <p
+              v-else-if="inicioAMano || terminoAMano"
+              class="text-xs"
+              :class="modalFinMin - modalInicioMin > duracionMaxima ? 'font-medium text-amber-700' : 'text-gray-600'"
+            >
               {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}.
+              <template v-if="modalFinMin - modalInicioMin > duracionMaxima">Reserva larga: más que las {{ formatMinutos(duracionMaxima) }} del portal.</template>
             </p>
             <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
             <template v-if="!errorInicio">

@@ -194,7 +194,8 @@ class ListadoReservasTest extends TestCase
 
     public function test_editar_aplica_las_mismas_reglas_que_al_reservar(): void
     {
-        Sanctum::actingAs(Staff::factory()->admin()->create());
+        // Sin el permiso de reservas largas (salas.sin_limite): rige el máximo de 2 horas.
+        $this->editorDeReservas();
         $logia1 = Sala::factory()->create();
         $logia2 = Sala::factory()->create();
         [$ana, $beto, $carla, $dani] = Usuario::factory()->count(4)->create();

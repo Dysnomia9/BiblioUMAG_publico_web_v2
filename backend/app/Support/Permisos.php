@@ -29,6 +29,7 @@ final class Permisos
                 'salas.gestionar' => ['Salas de estudio', 'Reservar salas y logias, confirmar la llegada del grupo, liberar y recibir la llave.'],
                 'salas.administracion' => ['Sala de Seminarios', 'Reservar y editar las salas que gestiona solo la administración (Sala de Seminarios). No se prestan a estudiantes ni se reservan desde el portal.'],
                 'salas.hora_pasada' => ['Reservas en horas ya pasadas', 'Registrar después una reserva de sala que se atendió sin pasar por el sistema.'],
+                'salas.sin_limite' => ['Reservas largas', 'Reservar una sala desde el panel por más tiempo que el máximo del portal (por ejemplo, todo el día), sin la cuota diaria por persona. El portal sigue con su máximo.'],
                 'reservas.editar' => ['Editar reservas de salas', 'Desde el Listado de reservas: cambiar la sala, el día o el horario de una reserva activa, corregir sus integrantes, cancelarla o registrar una devolución de llave que quedó pendiente.'],
                 'usuarios.ver' => ['Consultar usuarios', 'Ver el listado de usuarios y emitir la Constancia de No Multa.'],
                 'usuarios.habilitar' => ['Renovar cuentas de usuarios', 'Renovar la cuenta de quien está vencido o inactivo (por ejemplo, porque su registro venció en Horizon) para que pueda marcar su entrada, pedir préstamos y entrar al portal. Se hace desde el listado de Usuarios o al atenderlo en Préstamos y Entradas. La cuenta queda vigente hasta el 31 de marzo del año siguiente.'],

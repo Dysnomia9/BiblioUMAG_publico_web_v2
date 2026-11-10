@@ -125,7 +125,8 @@ class SalaController extends Controller
             return response()->json(['message' => 'Ese día ya pasó: elige hoy o un día próximo.'], 422);
         }
 
-        $error = $this->reservaSalaService->validarTramo($data, false, $permitirHoraPasada, $reserva);
+        $sinMaximo = $request->user()->puede('salas.sin_limite');
+        $error = $this->reservaSalaService->validarTramo($data, false, $permitirHoraPasada, $reserva, sinMaximo: $sinMaximo);
         if ($error) {
             return response()->json(['message' => $error], 422);
         }
@@ -253,8 +254,10 @@ class SalaController extends Controller
         // pasar por el sistema en su momento) requiere un permiso aparte — el resto del
         // personal sigue restringido a "desde ahora en adelante", igual que el portal.
         $permitirHoraPasada = $request->user()->puede('salas.hora_pasada');
+        // Más que el máximo del portal (ej. la Sala de Postgrado todo el día) también es un permiso aparte.
+        $sinMaximo = $request->user()->puede('salas.sin_limite');
         // En el mesón el inicio y el término se pueden escribir a mano: cualquier minuto, no solo :00 o :30.
-        $error = $this->reservaSalaService->validarTramo($data, $inmediata, $permitirHoraPasada, alMinuto: true);
+        $error = $this->reservaSalaService->validarTramo($data, $inmediata, $permitirHoraPasada, alMinuto: true, sinMaximo: $sinMaximo);
         if ($error) {
             return response()->json(['message' => $error], 422);
         }

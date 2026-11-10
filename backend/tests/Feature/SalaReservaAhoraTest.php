@@ -76,7 +76,8 @@ class SalaReservaAhoraTest extends TestCase
 
     public function test_no_pasa_de_2_horas(): void
     {
-        Sanctum::actingAs(Staff::factory()->create());
+        // Sin el permiso de reservas largas (salas.sin_limite): rige el máximo de 2 horas.
+        Sanctum::actingAs(Staff::factory()->sinReservasLargas()->create());
         Carbon::setTestNow('2026-07-10 16:27:00');
 
         $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], ['duracion' => 121])

@@ -72,7 +72,8 @@ class SalaHoraAManoTest extends TestCase
 
     public function test_desde_ahora_con_la_hora_de_termino_escrita(): void
     {
-        Sanctum::actingAs(Staff::factory()->create());
+        // Sin el permiso de reservas largas (salas.sin_limite): rige el máximo de 2 horas.
+        Sanctum::actingAs(Staff::factory()->sinReservasLargas()->create());
         Carbon::setTestNow('2026-07-10 16:27:30');
         $sala = Sala::factory()->create();
         $ruts = [Usuario::factory()->create()->rut];

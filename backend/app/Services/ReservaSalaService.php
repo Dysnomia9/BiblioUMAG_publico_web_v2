@@ -266,8 +266,12 @@ class ReservaSalaService
      * (mismo día, misma hora) se acepta tal cual: pudo quedar en el pasado o fuera de la
      * grilla de 30 minutos ("Reservar ahora"), y eso no impide cambiarle la sala o el
      * otro extremo del horario.
+     *
+     * Con $sinMaximo (el personal con el permiso salas.sin_limite) la reserva puede durar
+     * más que config('salas.duracion_maxima'): por ejemplo, la Sala de Postgrado todo el día.
+     * Sigue dentro del horario de atención y con la duración mínima. El portal no lo pasa.
      */
-    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false, ?Reserva $editando = null, bool $alMinuto = false): ?string
+    public function validarTramo(array &$data, bool $inmediata, bool $permitirHoraPasada = false, ?Reserva $editando = null, bool $alMinuto = false, bool $sinMaximo = false): ?string
     {
         // Las salas están dentro de la biblioteca: solo se usan mientras atiende (config/biblioteca.php).
         $dia = Carbon::parse($data['fecha']);
@@ -324,7 +328,10 @@ class ReservaSalaService
         $minima = config('salas.duracion_minima');
         $maxima = config('salas.duracion_maxima');
 
-        if ($duracion < $minima || $duracion > $maxima) {
+        if ($sinMaximo && $duracion < $minima) {
+            return "La reserva debe durar al menos {$minima} minutos.";
+        }
+        if (! $sinMaximo && ($duracion < $minima || $duracion > $maxima)) {
             return "La reserva debe durar entre {$minima} minutos y ".($maxima / 60).' horas.';
         }
 
@@ -413,12 +420,20 @@ class ReservaSalaService
      * `[rut, minutosYaUsados]` del primer participante que excedería la cuota al sumar
      * la reserva solicitada, o null si todos caben.
      *
+     * Una reserva más larga que config('salas.duracion_maxima') solo la pudo hacer el
+     * personal con el permiso salas.sin_limite (validarTramo() la rechaza a todos los
+     * demás, y siempre en el portal): no se mide con la cuota. Así tampoco se traba al
+     * confirmar la llegada o corregir los integrantes, aunque lo haga otra persona.
+     *
      * @return array{0: string, 1: int}|null
      */
     public function participanteExcedeCuotaDiaria(array $ruts, string $fecha, string $horaInicio, string $horaFin, ?int $ignorarReservaId = null): ?array
     {
         $idPorRut = Usuario::whereIn('rut', $ruts)->pluck('id', 'rut');
         $duracionSolicitada = Carbon::parse($horaInicio)->diffInMinutes(Carbon::parse($horaFin));
+        if ($duracionSolicitada > config('salas.duracion_maxima')) {
+            return null;
+        }
         $cuota = config('salas.cuota_diaria', 240);
 
         foreach ($ruts as $rut) {
