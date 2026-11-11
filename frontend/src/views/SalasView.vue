@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import FondoSalas from '@/components/ui/FondoSalas.vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
@@ -705,9 +706,7 @@ const proximaConfirmacion = computed(() => {
         class="relative mb-6 overflow-hidden rounded-2xl shadow-md"
         style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
       >
-        <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
+        <FondoSalas />
         <!-- Del mismo alto que el de Préstamos: el horario y el largo de las reservas van junto al título. -->
         <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5 md:flex-nowrap">
           <div class="min-w-0">
