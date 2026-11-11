@@ -85,10 +85,18 @@ function textoFiltro(f: (typeof filtrosPildora.value)[number]) {
   return filtros[f.campo] === '' ? f.nombre : `${f.nombre}: ${elegido?.texto ?? ''}`
 }
 
+// Al escribir salen varias búsquedas seguidas y las de palabras comunes tardan más: si no se
+// cancela la anterior, su respuesta puede llegar última y reemplazar a la más nueva.
+let busquedaEnCurso: AbortController | undefined
+
 async function cargar() {
+  busquedaEnCurso?.abort()
+  const busqueda = new AbortController()
+  busquedaEnCurso = busqueda
   cargando.value = true
   try {
     const { data } = await api.get<Paginado<Libro>>('/libros', {
+      signal: busqueda.signal,
       params: {
         page: pagina.value,
         por_pagina: POR_PAGINA,
@@ -105,10 +113,11 @@ async function cargar() {
     meta.value = resto
     apiError.value = false
   } catch {
+    if (busqueda.signal.aborted) return
     apiError.value = true
     libros.value = []
   } finally {
-    cargando.value = false
+    if (busquedaEnCurso === busqueda) cargando.value = false
   }
 }
 
@@ -319,8 +328,7 @@ function copiaGuardada(actualizada: Ejemplar) {
           </div>
           <button
             type="submit"
-            :disabled="cargando"
-            class="h-11 shrink-0 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
+            class="h-11 shrink-0 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
           >
             Buscar
           </button>
@@ -554,7 +562,7 @@ function copiaGuardada(actualizada: Ejemplar) {
               </div>
             </div>
           </div>
-          <p v-if="!cargando && !filas.length" class="px-6 py-10 text-center text-sm text-gray-400">Sin libros que coincidan con la búsqueda.</p>
+          <p v-if="!cargando && !apiError && !filas.length" class="px-6 py-10 text-center text-sm text-gray-400">Sin libros que coincidan con la búsqueda.</p>
         </div>
       </div>
 
