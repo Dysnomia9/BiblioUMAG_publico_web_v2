@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import EditarCopia from '@/components/libros/EditarCopia.vue'
@@ -20,6 +19,11 @@ import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
+
 const auth = useAuthStore()
 
 const libros = ref<Libro[]>([])
@@ -179,6 +183,13 @@ function toggleExpandido(libroId: number) {
   expandidos.value = nuevo
 }
 
+function claseDelTipo(nombre = 'Libro', plantilla?: string) {
+  if (plantilla === 'publicacion_seriada') return 'bg-sky-50 text-sky-700'
+  if (plantilla === 'trabajo_titulacion') return 'bg-violet-50 text-violet-700'
+  if (nombre.toLowerCase().includes('electr')) return 'bg-emerald-50 text-emerald-700'
+  return nombre === 'Libro' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-800'
+}
+
 function filaDe(l: Libro) {
   const copias = l.ejemplares ?? []
   const situaciones = copias.map((e) => situacionCopia(e))
@@ -186,14 +197,7 @@ function filaDe(l: Libro) {
   return {
     autores: l.autores?.map((a) => a.nombre).join(', ') || (plantilla === 'publicacion_seriada' ? 'Publicación periódica' : 'Sin autor registrado'),
     categoria: l.categorias?.map((c) => c.nombre).join(', ') || '—',
-    tipoClase:
-      plantilla === 'publicacion_seriada'
-        ? 'bg-sky-50 text-sky-700 ring-sky-100'
-        : plantilla === 'trabajo_titulacion'
-          ? 'bg-violet-50 text-violet-700 ring-violet-100'
-          : plantilla === 'juego_educativo'
-            ? 'bg-amber-50 text-amber-800 ring-amber-100'
-            : 'bg-gray-100 text-gray-700 ring-gray-200',
+    tipoClase: claseDelTipo(l.tipo_material?.nombre, plantilla),
     // «Libro electrónico» y «Juego educativo» no caben en la columna Tipo (6rem) con la letra de los demás
     tipoTamano: (l.tipo_material?.nombre ?? 'Libro').length > 12 ? 'px-2 text-[11px]' : 'px-2.5 text-xs',
     barras: situaciones.map((s) => s.barra),
@@ -285,33 +289,47 @@ function copiaGuardada(actualizada: Ejemplar) {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catálogo" titulo="Listado de material">
-        <template #acciones>
-          <PestanasLibros actual="listado-libros" />
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
-            @click="exportarAbierto = true"
-          >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-4z" />
-            </svg>
-            Exportar
-          </button>
-          <router-link
-            v-if="puedeCatalogar"
-            :to="{ name: 'catalogacion-libros' }"
-            class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
-            style="background: linear-gradient(135deg, #3B28A3 0%, #4F46E5 100%);"
-          >
-            <span class="text-base leading-none">+</span> Catalogar libro
-          </router-link>
-        </template>
-      </EncabezadoGestion>
+      <!-- La caja de título con la textura de Salas y Préstamos; debajo, las pestañas y el buscador en la misma tarjeta. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
+          </div>
+          <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 pt-4">
+            <div class="min-w-0">
+              <nav class="text-xs text-white/75" aria-label="Ruta">
+                <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+                <span class="mx-1.5">›</span>
+                <span>Catálogo</span>
+              </nav>
+              <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Listado de material</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                @click="exportarAbierto = true"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Exportar
+              </button>
+              <router-link
+                v-if="puedeCatalogar"
+                :to="{ name: 'catalogacion-libros' }"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-gray-50"
+              >
+                <span class="text-base leading-none">+</span> Catalogar libro
+              </router-link>
+            </div>
+          </div>
+          <PestanasLibros actual="listado-libros" en-banda class="relative mt-3 px-5" />
+        </div>
 
-      <ApiErrorBanner v-if="apiError" />
-
-      <div class="mb-5 flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2 rounded-b-2xl p-3">
         <form class="flex min-w-[16rem] flex-1 gap-2" role="search" @submit.prevent="buscarAhora">
           <div class="relative min-w-0 flex-1">
             <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -322,20 +340,20 @@ function copiaGuardada(actualizada: Ejemplar) {
               type="text"
               placeholder="Título, autor, ISBN, Dewey, código de barras o N° de registro"
               aria-label="Buscar libros"
-              class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+              class="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
               @input="onBuscarInput"
             />
           </div>
           <button
             type="submit"
-            class="h-11 shrink-0 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+            class="h-10 shrink-0 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
           >
             Buscar
           </button>
         </form>
         <template v-for="f in filtrosPildora" :key="f.campo">
           <label
-            class="relative inline-flex h-11 items-center rounded-xl border bg-white pl-3.5 pr-9 text-sm shadow-sm transition-colors"
+            class="relative inline-flex h-10 items-center rounded-xl border bg-white pl-3.5 pr-9 text-sm transition-colors"
             :class="f.campo !== 'orden' && filtros[f.campo] !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'"
           >
             <span class="max-w-[12rem] truncate font-medium">{{ textoFiltro(f) }}</span>
@@ -354,15 +372,18 @@ function copiaGuardada(actualizada: Ejemplar) {
             todas="Todas las categorías"
             placeholder="Categoría"
             etiqueta="Filtrar por categoría"
-            :clase-campo="`h-11 w-56 rounded-xl border bg-white pl-3.5 pr-3 text-sm font-medium shadow-sm outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 ${filtros.categoria_id !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'}`"
+            :clase-campo="`h-10 w-48 rounded-xl border bg-white pl-3.5 pr-3 text-sm font-medium outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 ${filtros.categoria_id !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'}`"
             @elegir="elegirCategoria"
           />
         </template>
-      </div>
+        </div>
+      </section>
+
+      <ApiErrorBanner v-if="apiError" />
 
       <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div
-          class="hidden border-b border-gray-200 bg-gray-50/80 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-500 lg:grid lg:grid-cols-[2.75rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_6rem_minmax(0,1.3fr)_8.5rem] lg:gap-4"
+          class="hidden border-b border-gray-200 bg-gray-50/80 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 lg:grid lg:grid-cols-[2.25rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_7.5rem_minmax(0,1.1fr)_8.5rem] lg:gap-4"
         >
           <span></span>
           <span>Título y autor</span>
@@ -374,15 +395,15 @@ function copiaGuardada(actualizada: Ejemplar) {
         </div>
 
         <div class="divide-y divide-gray-100">
-          <div v-for="f in filas" :key="f.libro.id">
+          <div v-for="f in filas" :key="f.libro.id" class="even:bg-gray-50/50">
             <div
-              class="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-4 py-3.5 transition-colors lg:grid-cols-[2.75rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_6rem_minmax(0,1.3fr)_8.5rem] lg:items-center lg:gap-4 lg:px-5"
+              class="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-4 py-3.5 transition-colors lg:grid-cols-[2.25rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_7.5rem_minmax(0,1.1fr)_8.5rem] lg:items-center lg:gap-4 lg:px-5"
               :class="expandidos.has(f.libro.id) ? 'bg-indigo-50/40' : 'hover:bg-gray-50/70'"
             >
               <button
                 type="button"
-                class="row-span-3 flex h-9 w-9 items-center justify-center self-start rounded-lg transition-colors lg:row-span-1 lg:self-center"
-                :class="expandidos.has(f.libro.id) ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'"
+                class="row-span-3 flex h-8 w-8 items-center justify-center self-start rounded-lg border transition-colors lg:row-span-1 lg:self-center"
+                :class="expandidos.has(f.libro.id) ? 'border-indigo-200 bg-indigo-100 text-indigo-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700'"
                 :aria-expanded="expandidos.has(f.libro.id)"
                 :aria-label="`${expandidos.has(f.libro.id) ? 'Ocultar' : 'Ver'} ficha y ejemplares de ${f.libro.titulo}`"
                 @click="toggleExpandido(f.libro.id)"
@@ -394,6 +415,7 @@ function copiaGuardada(actualizada: Ejemplar) {
 
               <div class="flex min-w-0 items-center gap-3">
                 <PortadaMaterial
+                  class="shadow-sm"
                   tamano="sm"
                   :titulo="f.libro.titulo"
                   :tipo="f.libro.tipo_material?.nombre"
@@ -401,15 +423,16 @@ function copiaGuardada(actualizada: Ejemplar) {
                   :clave-tono="f.libro.categorias?.[0]?.nombre"
                 />
                 <div class="min-w-0">
-                  <p class="font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
+                  <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
                   <p class="truncate text-xs text-gray-500">{{ f.autores }}</p>
                 </div>
               </div>
 
               <div class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 lg:contents">
-                <p class="font-mono text-xs text-gray-600">{{ f.libro.clasificacion ?? '—' }}</p>
-                <p class="truncate text-sm text-gray-600">{{ f.categoria }}</p>
-                <span class="justify-self-start whitespace-nowrap rounded-full py-0.5 font-medium ring-1 ring-inset" :class="[f.tipoClase, f.tipoTamano]">
+                <p class="justify-self-start rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700">{{ f.libro.clasificacion ?? '—' }}</p>
+                <p class="truncate text-xs font-medium text-gray-700" :title="f.categoria">{{ f.categoria }}</p>
+                <span class="inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full py-0.5 font-semibold" :class="[f.tipoClase, f.tipoTamano]">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                   {{ f.libro.tipo_material?.nombre ?? 'Libro' }}
                 </span>
               </div>
@@ -420,7 +443,10 @@ function copiaGuardada(actualizada: Ejemplar) {
                     <span v-for="(b, i) in f.barras" :key="i" class="h-1.5 w-5 rounded-full" :class="b"></span>
                   </div>
                   <!-- Un libro electrónico no tiene copias: se lee en el enlace de su ficha (856) -->
-                  <p v-if="!f.total && f.libro.url_acceso" class="text-xs font-medium text-indigo-700">En línea</p>
+                  <p v-if="!f.total && f.libro.url_acceso" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5-2.3 3.75-5.3 3.75-9S14.5 5.3 12 3m0 18c-2.5-2.3-3.75-5.3-3.75-9S9.5 5.3 12 3M3.5 9h17m-17 6h17" /></svg>
+                    En línea
+                  </p>
                   <p v-else class="text-xs text-gray-500">
                     <strong class="text-gray-900">{{ f.disponibles }}</strong> de {{ f.total }} {{ f.total === 1 ? 'disponible' : 'disponibles' }}
                   </p>
@@ -429,15 +455,16 @@ function copiaGuardada(actualizada: Ejemplar) {
                   <button
                     v-if="puedeCatalogar"
                     type="button"
-                    class="rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 border-b-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50"
                     @click="libroAEditar = f.libro"
                   >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" /></svg>
                     Editar
                   </button>
                   <button
                     v-if="puedeCatalogar || puedeVerHistorial || puedeCambiarEstado"
                     type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
                     :aria-label="`Más acciones para ${f.libro.titulo}`"
                     :aria-expanded="menuAbierto === f.libro.id"
                     @click="alternarMenu(f.libro.id, $event)"

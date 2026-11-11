@@ -6,6 +6,8 @@ import { itemPorRuta } from '@/navegacion'
 /** Pestañas del módulo de catálogo; solo las que el rol puede abrir. En pantallas angostas se deslizan. */
 const props = defineProps<{
   actual: 'catalogacion-libros' | 'listado-libros' | 'historial-prestamos-libro' | 'estado-libro' | 'historial-estado-libro'
+  /** Sobre la caja de título: la activa se une con lo que viene debajo, como una carpeta. */
+  enBanda?: boolean
 }>()
 
 const auth = useAuthStore()
@@ -32,7 +34,19 @@ onMounted(() => {
 
 <template>
   <nav ref="barra" class="max-w-full overflow-x-auto" aria-label="Módulo de catálogo">
-    <div class="flex w-max rounded-xl bg-gray-200/60 p-1">
+    <div v-if="enBanda" class="flex w-max gap-1">
+      <router-link
+        v-for="p in visibles"
+        :key="p.name"
+        :to="{ name: p.name }"
+        class="whitespace-nowrap rounded-t-xl px-4 py-2 text-sm font-semibold transition-colors"
+        :class="p.name === actual ? 'bg-white text-indigo-700' : 'bg-white/10 text-white hover:bg-white/20'"
+        :aria-current="p.name === actual ? 'page' : undefined"
+      >
+        {{ p.label }}
+      </router-link>
+    </div>
+    <div v-else class="flex w-max rounded-xl bg-gray-200/60 p-1">
       <router-link
         v-for="p in visibles"
         :key="p.name"
