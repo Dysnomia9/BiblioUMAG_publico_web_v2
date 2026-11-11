@@ -21,9 +21,21 @@ const props = withDefaults(
     cerrarAlClicAfuera?: boolean
     /** Fondo suave en el pie fijo, para separarlo del contenido. */
     pieConFondo?: boolean
+    /**
+     * Formato de las tarjetas nuevas: borde de color arriba, encabezado con fondo suave y título
+     * serif, contenido desplazable y pie con fondo. El tono pinta el borde y el encabezado.
+     */
+    destacado?: boolean
+    tono?: 'primario' | 'peligro' | 'exito'
   }>(),
-  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true, pieConFondo: false },
+  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true, pieConFondo: false, destacado: false, tono: 'primario' },
 )
+
+const TONOS_DESTACADO = {
+  primario: { borde: 'border-t-indigo-600', cabecera: 'bg-indigo-50/50' },
+  peligro: { borde: 'border-t-red-600', cabecera: 'bg-red-50/60' },
+  exito: { borde: 'border-t-emerald-600', cabecera: 'bg-emerald-50/50' },
+}
 
 const emit = defineEmits<{ cerrar: [] }>()
 
@@ -88,6 +100,28 @@ onBeforeUnmount(() => {
       @click="onClicFondo"
     >
       <div
+        v-if="destacado"
+        class="flex w-full max-h-[92vh] flex-col overflow-hidden rounded-2xl border-t-[3px] bg-white shadow-2xl"
+        :class="[ANCHOS[ancho], TONOS_DESTACADO[tono].borde]"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="titulo"
+      >
+        <div class="shrink-0 border-b border-gray-100 px-5 pb-3 pt-4" :class="TONOS_DESTACADO[tono].cabecera">
+          <slot name="cabecera">
+            <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">{{ titulo }}</h3>
+            <p v-if="descripcion" class="mt-1 text-sm text-gray-500">{{ descripcion }}</p>
+          </slot>
+        </div>
+        <div class="overflow-y-auto overscroll-contain px-5 py-4">
+          <slot />
+        </div>
+        <div v-if="$slots.pie" class="flex shrink-0 flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3 sm:flex-row">
+          <slot name="pie" />
+        </div>
+      </div>
+      <div
+        v-else
         class="bg-white rounded-2xl shadow-2xl w-full max-h-[92vh]"
         :class="[ANCHOS[ancho], pieFijo ? 'flex flex-col' : 'p-6 overflow-y-auto overscroll-contain']"
         role="dialog"
