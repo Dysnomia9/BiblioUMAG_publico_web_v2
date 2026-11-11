@@ -108,40 +108,46 @@ function imprimir() {
   }
 }
 
-const claseInput = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm'
+const claseInput = 'w-full px-3 py-2 border border-gray-200 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm'
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="font-semibold text-gray-900 mb-1">Etiquetas de lomo</h3>
-      <p class="text-xs text-gray-500 mb-4">
-        Para pegar por fuera, en el lomo (donde se afirman las hojas): horizontal, con la clasificación apilada a la izquierda y el
-        <strong>código de lomo</strong> de la copia (8 dígitos) parado a la derecha. El lector lo reconoce igual que el código de 14 dígitos.
-      </p>
+  <div class="space-y-5">
+    <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-[#b08d57] bg-white shadow-sm">
+      <header class="flex flex-wrap items-center justify-between gap-4 border-b border-amber-100 bg-amber-50/60 px-5 py-3.5 sm:flex-nowrap">
+        <div class="border-l-[3px] border-[#b08d57] pl-3">
+          <h3 class="font-serif text-base font-bold text-gray-900">Etiquetas de lomo</h3>
+          <p class="mt-0.5 text-xs text-gray-600">
+            Para pegar por fuera, en el lomo (donde se afirman las hojas): horizontal, con la clasificación apilada a la izquierda y el
+            <strong>código de lomo</strong> de la copia (8 dígitos) parado a la derecha. El lector lo reconoce igual que el código de 14 dígitos.
+          </p>
+        </div>
+        <div class="tema-claro hidden h-14 w-32 shrink-0 items-stretch rounded border border-dashed border-gray-300 bg-white p-1 sm:flex" aria-hidden="true">
+          <div class="flex flex-1 flex-col justify-center pl-1 font-mono text-[9px] font-bold leading-tight text-gray-900">
+            <span>425</span><span>E13</span><span>1990</span><span class="text-dorado-600">c.2</span>
+          </div>
+          <span class="my-0.5 w-5" style="background: repeating-linear-gradient(0deg, #111 0 1.5px, transparent 1.5px 2.5px);"></span>
+          <span class="ml-0.5 flex items-center font-mono text-[8px] font-semibold text-gray-700 [writing-mode:vertical-rl] rotate-180">10118050</span>
+        </div>
+      </header>
 
-      <div class="grid gap-5 md:grid-cols-2">
-        <div>
-          <label for="lomo-codigos" class="block text-xs font-medium text-gray-600 mb-1">Por código (de 14 u 8 dígitos, uno por línea)</label>
+      <div class="grid gap-4 p-5 md:grid-cols-2">
+        <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <label for="lomo-codigos" class="mb-2 block text-xs text-gray-600"><strong class="text-sm font-semibold text-gray-900">Por código</strong> (de 14 u 8 dígitos, uno por línea)</label>
           <textarea
             id="lomo-codigos"
             v-model="codigosTexto"
-            rows="4"
+            rows="3"
             placeholder="30000000000901&#10;10000004"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono mb-2"
+            class="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <button
-            type="button"
-            :disabled="agregando"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-xs disabled:opacity-60"
-            @click="agregarCodigos"
-          >
+          <button type="button" :disabled="agregando" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 border-b-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60" @click="agregarCodigos">
             {{ agregando ? 'Buscando…' : 'Agregar estas copias' }}
           </button>
         </div>
 
-        <div>
-          <label for="lomo-titulo" class="block text-xs font-medium text-gray-600 mb-1">Por título (agrega todas sus copias)</label>
+        <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <label for="lomo-titulo" class="mb-2 block text-xs text-gray-600"><strong class="text-sm font-semibold text-gray-900">Por título</strong> (agrega todas sus copias)</label>
           <input id="lomo-titulo" v-model="busqueda" type="search" placeholder="Título, autor, ISBN o Dewey" :class="claseInput" @input="onBuscar" />
           <ul v-if="resultados.length" class="mt-2 max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
             <li v-for="l in resultados" :key="l.id" class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
@@ -157,51 +163,59 @@ const claseInput = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:rin
           <p v-else-if="busqueda.trim().length >= 2 && !buscando" class="mt-2 text-xs text-gray-400">Sin resultados.</p>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex flex-wrap items-end gap-3 mb-4">
-        <div class="w-28">
-          <label for="lomo-ancho" class="block text-xs font-medium text-gray-600 mb-1">Ancho (mm)</label>
-          <input id="lomo-ancho" v-model.number="opciones.anchoMm" type="number" min="20" max="150" :class="claseInput" />
-        </div>
-        <div class="w-28">
-          <label for="lomo-alto" class="block text-xs font-medium text-gray-600 mb-1">Alto (mm)</label>
-          <input id="lomo-alto" v-model.number="opciones.altoMm" type="number" min="10" max="80" :class="claseInput" />
+    <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+      <div class="flex flex-wrap items-end gap-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3.5">
+        <div>
+          <label for="lomo-ancho" class="mb-1 block text-xs font-medium text-gray-700">Ancho</label>
+          <div class="flex w-28 items-center overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+            <input id="lomo-ancho" v-model.number="opciones.anchoMm" type="number" min="20" max="150" class="w-full min-w-0 border-0 bg-transparent px-3 py-2 text-sm outline-none" />
+            <span class="border-l border-gray-200 bg-gray-50 px-2 py-2 text-xs text-gray-500">mm</span>
+          </div>
         </div>
         <div>
-          <label for="lomo-lectura" class="block text-xs font-medium text-gray-600 mb-1">El código se lee</label>
+          <label for="lomo-alto" class="mb-1 block text-xs font-medium text-gray-700">Alto</label>
+          <div class="flex w-28 items-center overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+            <input id="lomo-alto" v-model.number="opciones.altoMm" type="number" min="10" max="80" class="w-full min-w-0 border-0 bg-transparent px-3 py-2 text-sm outline-none" />
+            <span class="border-l border-gray-200 bg-gray-50 px-2 py-2 text-xs text-gray-500">mm</span>
+          </div>
+        </div>
+        <div>
+          <label for="lomo-lectura" class="mb-1 block text-xs font-medium text-gray-700">El código se lee</label>
           <select id="lomo-lectura" v-model="opciones.lectura" :class="claseInput">
             <option value="abajo-arriba">De abajo hacia arriba</option>
             <option value="arriba-abajo">De arriba hacia abajo</option>
           </select>
         </div>
-        <label class="flex items-center gap-2 pb-2 text-sm text-gray-700">
+        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
           <input v-model="opciones.conCopia" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-          Agregar volumen y n.º de copia (v.2, c.2)
+          Agregar volumen y n.º de copia
+          <code class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700">v.2, c.2</code>
         </label>
-        <label class="flex items-center gap-2 pb-2 text-sm text-gray-700">
+        <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
           <input v-model="opciones.bordeDeCorte" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           Línea de corte
         </label>
       </div>
 
-      <p v-if="sinClasificacion" class="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+      <div class="p-5">
+        <p v-if="sinClasificacion" class="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
         {{ sinClasificacion }} {{ sinClasificacion === 1 ? 'copia no tiene' : 'copias no tienen' }} clasificación: escríbela abajo (solo para esta
         impresión) o se imprimirá solo el código.
       </p>
 
-      <div class="rounded-lg border border-gray-200 overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-              <th class="px-3 py-2">Vista previa</th>
-              <th class="px-3 py-2">Libro</th>
-              <th class="px-3 py-2">Clasificación (una línea por espacio)</th>
-              <th class="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
+        <div class="overflow-x-auto rounded-xl border border-gray-200">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <th class="px-3 py-2.5">Vista previa</th>
+                <th class="px-3 py-2.5">Libro</th>
+                <th class="px-3 py-2.5">Clasificación (una línea por espacio)</th>
+                <th class="px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
             <tr v-for="e in etiquetas" :key="e.id" class="align-middle">
               <td class="px-3 py-2">
                 <!-- Miniatura: la clasificación apilada y el código parado a la derecha. -->
@@ -231,25 +245,31 @@ const claseInput = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:rin
                 <button type="button" class="text-xs font-medium text-red-600 hover:text-red-700" @click="quitar(e.id)">Quitar</button>
               </td>
             </tr>
-            <tr v-if="!etiquetas.length">
-              <td colspan="4" class="px-3 py-8 text-center text-sm text-gray-400">Agrega copias por código o por título.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              <tr v-if="!etiquetas.length">
+                <td colspan="4" class="px-3 py-8 text-center">
+                  <span class="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-dorado-600" aria-hidden="true">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5h18v9H3v-9zM7 10.5h4m-4 3h3m5-3v3m2.5-3v3" /></svg>
+                  </span>
+                  <span class="text-sm text-gray-500">Agrega copias por código o por título.</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
-          :disabled="!etiquetas.length"
-          @click="imprimir"
-        >
-          Generar e imprimir {{ etiquetas.length ? `(${etiquetas.length})` : '' }}
-        </button>
-        <button v-if="etiquetas.length" type="button" class="text-sm font-medium text-gray-600 hover:text-gray-900" @click="etiquetas = []">Vaciar lista</button>
-        <p class="text-xs text-gray-500">Cambiar la clasificación acá no modifica la ficha del libro: es solo para esta impresión.</p>
+        <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-dashed border-gray-200 pt-4">
+          <button
+            type="button"
+            class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            :disabled="!etiquetas.length"
+            @click="imprimir"
+          >
+            Generar e imprimir {{ etiquetas.length ? `(${etiquetas.length})` : '' }}
+          </button>
+          <button v-if="etiquetas.length" type="button" class="text-sm font-medium text-gray-600 hover:text-gray-900" @click="etiquetas = []">Vaciar lista</button>
+          <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-dorado-700">Cambiar la clasificación acá no modifica la ficha del libro: es solo para esta impresión.</p>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
