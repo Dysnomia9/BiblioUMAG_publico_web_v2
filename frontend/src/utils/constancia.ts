@@ -5,6 +5,9 @@ import type { ConfiguracionInstitucional, Usuario } from '@/types'
 
 type Segmento = { texto: string; negrita?: boolean; subrayado?: boolean }
 
+// Cómo se nombra cada documento dentro de la frase: «…, RUT 12.345.678-5, …», «…, pasaporte AY365072, …».
+const DOCUMENTO_EN_TEXTO = { rut: 'RUT', pasaporte: 'pasaporte', dni: 'DNI', otro: 'documento de identidad' } as const
+
 /**
  * Dibuja un párrafo con estilos mixtos (negrita/subrayado por tramo) y salto de línea
  * automático — jsPDF no soporta texto enriquecido dentro de un mismo doc.text() ni
@@ -124,7 +127,7 @@ export async function generarConstanciaNoMulta(usuario: Usuario, configuracion: 
     [
       { texto: `${configuracion.jefe_unidad_nombre}, ${configuracion.jefe_unidad_cargo}, deja constancia que Don(a) ` },
       { texto: nombreCompleto, negrita: true },
-      { texto: ', RUT ' },
+      { texto: `, ${DOCUMENTO_EN_TEXTO[usuario.tipo_documento ?? 'rut']} ` },
       { texto: usuario.rut, negrita: true },
       { texto: `, ${detalleLabel}` },
       { texto: detalleValor, negrita: true },
