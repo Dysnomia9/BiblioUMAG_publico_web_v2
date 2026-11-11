@@ -708,12 +708,11 @@ const proximaConfirmacion = computed(() => {
         <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
         <div class="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]" aria-hidden="true"></div>
         <div class="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
-        <!-- Del mismo alto que el de Préstamos: el horario y el largo de las reservas van en la línea del resumen. -->
-        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+        <!-- Del mismo alto que el de Préstamos: el horario y el largo de las reservas van junto al título. -->
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5 md:flex-nowrap">
           <div class="min-w-0">
-            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Salas de Estudio</h1>
-            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <p v-if="resumenSalas" class="text-sm text-white/75">{{ resumenSalas }}</p>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Salas de Estudio</h1>
               <span class="inline-flex items-center gap-1 rounded-full border border-white/25 bg-blanco/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                 <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -727,6 +726,7 @@ const proximaConfirmacion = computed(() => {
                 Reservas de hasta {{ formatMinutos(duracionMaxima) }}
               </span>
             </div>
+            <p v-if="resumenSalas" class="mt-1 text-sm text-white/75">{{ resumenSalas }}</p>
           </div>
           <button
             type="button"
@@ -798,13 +798,13 @@ const proximaConfirmacion = computed(() => {
         </div>
       </div>
 
-      <div v-if="selectedDate === hoy" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <div class="mb-4 flex items-start justify-between gap-3">
+      <div v-if="selectedDate === hoy" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="mb-3 flex items-start justify-between gap-3">
           <div class="flex items-stretch gap-3">
             <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
             <div>
-              <h2 class="text-lg font-serif font-bold text-gray-900">Menú de confirmación de asistencia</h2>
-              <p class="mt-1 text-sm text-gray-600">
+              <h2 class="text-base font-serif font-bold text-gray-900">Menú de confirmación de asistencia</h2>
+              <p class="mt-0.5 text-xs text-gray-600">
                 Cada reserva aparece aquí desde su hora de inicio y tiene {{ textoMinutos(minutosPresentarse) }} para confirmar que el grupo llegó.
                 Pasado ese plazo, la sala se libera sola.
               </p>
@@ -836,9 +836,9 @@ const proximaConfirmacion = computed(() => {
             Ver las {{ pendientesConfirmacion.length }} reservas por confirmar
           </button>
         </template>
-        <div v-else class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-5 text-center">
-          <span class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+        <div v-else class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-2.5 text-center">
+          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
           </span>
           <p class="text-sm text-gray-600">Sin reservas pendientes de confirmar por ahora.</p>
         </div>
