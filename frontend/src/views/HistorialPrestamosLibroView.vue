@@ -6,6 +6,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import Modal from '@/components/ui/Modal.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
+import FondoEstante from '@/components/libros/FondoEstante.vue'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
@@ -191,11 +192,7 @@ async function verFicha() {
       <!-- La caja de título con la textura de Salas y Préstamos; debajo, las pestañas y el buscador en la misma tarjeta. -->
       <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
         <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
-          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
-            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
-            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
-            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
-          </div>
+          <FondoEstante />
           <div class="relative min-w-0 px-6 pt-4">
             <nav class="text-xs text-white/75" aria-label="Ruta">
               <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
