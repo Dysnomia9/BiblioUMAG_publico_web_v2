@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import BitacoraPersonal from '@/components/registro/BitacoraPersonal.vue'
+import FondoRegistro from '@/components/registro/FondoRegistro.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -116,11 +117,11 @@ const TIPO_LABELS: Record<string, string> = {
 }
 
 const TIPO_BADGES: Record<string, string> = {
-  prestamo_libro: 'bg-purple-100 text-purple-700',
-  prestamo_equipo: 'bg-sky-100 text-sky-700',
-  reserva_sala: 'bg-amber-100 text-amber-700',
-  reserva_libro: 'bg-teal-100 text-teal-700',
-  entrada: 'bg-emerald-100 text-emerald-700',
+  prestamo_libro: 'bg-indigo-50 text-indigo-700',
+  prestamo_equipo: 'bg-sky-50 text-sky-700',
+  reserva_sala: 'bg-amber-50 text-amber-800',
+  reserva_libro: 'bg-purple-50 text-purple-700',
+  entrada: 'bg-emerald-50 text-emerald-700',
 }
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -133,6 +134,46 @@ const ESTADO_LABELS: Record<string, string> = {
   en_cola: 'En cola',
   retirado: 'Retirado',
   cancelada: 'Cancelada',
+}
+
+// Color de cada tipo: su etiqueta, el borde de la fila y la casilla del filtro.
+const TIPO_BORDE: Record<string, string> = {
+  prestamo_libro: 'border-l-indigo-500',
+  prestamo_equipo: 'border-l-sky-500',
+  reserva_sala: 'border-l-amber-500',
+  reserva_libro: 'border-l-purple-500',
+  entrada: 'border-l-emerald-500',
+}
+const TIPO_FILTRO: Record<string, string> = {
+  prestamo: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+  reserva_sala: 'border-amber-200 bg-amber-50 text-amber-800',
+  reserva_libro: 'border-purple-200 bg-purple-50 text-purple-800',
+  entrada: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+}
+const ESTADO_BADGES: Record<string, string> = {
+  activo: 'bg-emerald-50 text-emerald-700',
+  activa: 'bg-emerald-50 text-emerald-700',
+  devuelto: 'bg-sky-50 text-sky-700',
+  finalizada: 'bg-sky-50 text-sky-700',
+  retirado: 'bg-sky-50 text-sky-700',
+  pendiente: 'bg-amber-50 text-amber-800',
+  en_cola: 'bg-gray-100 text-gray-600',
+  no_show: 'bg-orange-50 text-orange-700',
+  cancelada: 'bg-red-50 text-red-700',
+}
+
+/** «11-11-2026» y «05:29 a. m.» por separado, para la columna de fecha. */
+function partesFecha(iso: string | null) {
+  if (!iso) return { fecha: '—', hora: '' }
+  const d = new Date(iso)
+  return {
+    fecha: d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    hora: d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+  }
+}
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
 }
 
 function estadoLabel(estado: string | null): string {
@@ -215,19 +256,26 @@ async function exportarExcel() {
 <template>
   <StaffLayout>
     <div class="max-w-6xl mx-auto">
+      <!-- La caja de título con motivo propio: un libro de registro y una línea de tiempo. -->
       <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
+        class="relative mb-5 overflow-hidden rounded-2xl shadow-md"
         style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
       >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Registro Absoluto</h1>
-          <p class="text-sm text-white/60 mt-1">
-            Las operaciones que pidieron los usuarios y cada acción del personal — quién prestó, devolvió, multó, cambió estados, creó o editó — en un solo lugar
+        <FondoRegistro />
+        <div class="relative px-6 py-4">
+          <nav class="text-xs text-white/75" aria-label="Ruta">
+            <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+            <span class="mx-1.5">›</span>
+            <span>Administración del sistema</span>
+          </nav>
+          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Registro absoluto</h1>
+          <p class="mt-0.5 max-w-xl text-sm text-white/75">
+            Las operaciones que pidieron los usuarios y cada acción del personal (quién prestó, devolvió, multó, cambió estados, creó o editó) en un solo lugar.
           </p>
         </div>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-1 mb-6 bg-white rounded-xl shadow-sm p-1" role="tablist">
+      <div class="flex flex-col sm:flex-row gap-1 mb-5 bg-white rounded-xl shadow-sm p-1" role="tablist">
         <button
           v-for="p in ([{ clave: 'operaciones', label: 'Operaciones de usuarios' }, { clave: 'personal', label: 'Acciones del personal' }] as const)"
           :key="p.clave"
@@ -247,99 +295,91 @@ async function exportarExcel() {
       <template v-else>
         <ApiErrorBanner v-if="apiError" />
 
-        <div class="bg-white rounded-xl shadow-md p-4 mb-6 space-y-3">
-          <div class="flex flex-wrap gap-3">
-            <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
-              <input
-                v-model="filtros.desde"
-                type="date"
-                class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div class="space-y-3 border-b border-gray-100 bg-indigo-50/40 p-4">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-[10rem_10rem_minmax(0,1fr)]">
+              <div>
+                <label for="reg-desde" class="mb-1 block text-xs font-medium text-gray-600">Desde</label>
+                <input id="reg-desde" v-model="filtros.desde" type="date" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label for="reg-hasta" class="mb-1 block text-xs font-medium text-gray-600">Hasta</label>
+                <input id="reg-hasta" v-model="filtros.hasta" type="date" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div class="col-span-2 sm:col-span-1">
+                <label for="reg-q" class="mb-1 block text-xs font-medium text-gray-600">Buscar por nombre o RUT</label>
+                <div class="relative">
+                  <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.350-4.350M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
+                  <input id="reg-q" v-model="filtros.q" type="text" placeholder="Ej: Fernanda Ríos, 11.111.111-1" class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
-              <input
-                v-model="filtros.hasta"
-                type="date"
-                class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <div class="flex-1 min-w-[200px]">
-              <label class="block text-xs font-medium text-gray-500 mb-1">Buscar por nombre o RUT</label>
-              <input
-                v-model="filtros.q"
-                type="text"
-                placeholder="Ej: Fernanda Ríos, 11.111.111-1"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1.5">Tipo de operación</label>
-            <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-              <label v-for="t in TIPOS_DISPONIBLES" :key="t.value" class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                <input v-model="filtros.tipos" type="checkbox" :value="t.value" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="mr-1 text-xs font-medium text-gray-600">Tipo de operación</span>
+              <label
+                v-for="t in TIPOS_DISPONIBLES"
+                :key="t.value"
+                class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors"
+                :class="filtros.tipos.includes(t.value) ? TIPO_FILTRO[t.value] : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'"
+              >
+                <input v-model="filtros.tipos" type="checkbox" :value="t.value" class="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                 {{ t.label }}
               </label>
             </div>
           </div>
-        </div>
 
-        <div class="flex items-center justify-between mb-2">
-          <p class="text-xs text-gray-500">
-            {{ cargando ? 'Cargando…' : `${total.toLocaleString('es-CL')} ${total === 1 ? 'operación encontrada' : 'operaciones encontradas'}` }}
-          </p>
-          <button
-            @click="pedirExportar"
-            :disabled="exportando || !operaciones.length"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-xs disabled:opacity-60"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-4z" />
-            </svg>
-            Exportar a Excel
-          </button>
-        </div>
+          <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-2">
+            <p class="text-xs text-gray-500">
+              <template v-if="cargando">Cargando…</template>
+              <template v-else><strong class="text-gray-900">{{ total.toLocaleString('es-CL') }}</strong> {{ total === 1 ? 'operación encontrada' : 'operaciones encontradas' }}</template>
+            </p>
+            <button
+              @click="pedirExportar"
+              :disabled="exportando || !operaciones.length"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50/60 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 disabled:opacity-60"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2-8H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V8l-4-4z" />
+              </svg>
+              Exportar a Excel
+            </button>
+          </div>
 
-        <div v-if="!filtros.tipos.length" class="bg-white rounded-xl shadow-md border border-gray-200 px-6 py-8 text-center text-sm text-gray-400">
-          Selecciona al menos un tipo de operación para ver resultados.
-        </div>
+          <div v-if="!filtros.tipos.length" class="px-6 py-8 text-center text-sm text-gray-400">
+            Selecciona al menos un tipo de operación para ver resultados.
+          </div>
 
-        <div v-else class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-          <div class="overflow-x-auto">
+          <div v-else class="overflow-x-auto">
             <table class="w-full">
               <thead>
-                <tr class="bg-gray-100 border-b-2 border-gray-200">
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Fecha / Hora</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Tipo</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Usuario</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Detalle</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Estado</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Atendido por</th>
+                <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-white" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+                  <th class="px-4 py-2.5">Fecha y hora</th>
+                  <th class="px-4 py-2.5">Tipo</th>
+                  <th class="px-4 py-2.5">Usuario</th>
+                  <th class="px-4 py-2.5">Detalle</th>
+                  <th class="px-4 py-2.5">Estado</th>
+                  <th class="px-4 py-2.5">Atendido por</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-200">
-                <tr
-                  v-for="(op, idx) in operaciones"
-                  :key="`${op.tipo}-${op.origen_id}`"
-                  class="hover:bg-indigo-50/40 transition-colors"
-                  :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'"
-                >
-                  <td class="px-6 py-3 text-sm font-mono text-gray-600 whitespace-nowrap">{{ formatFechaHora(op.fecha_hora) }}</td>
-                  <td class="px-6 py-3">
-                    <span class="text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap" :class="TIPO_BADGES[op.tipo]">
-                      {{ TIPO_LABELS[op.tipo] ?? op.tipo }}
-                    </span>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="op in operaciones" :key="`${op.tipo}-${op.origen_id}`" class="even:bg-gray-50/50">
+                  <td class="whitespace-nowrap border-l-[3px] px-4 py-2.5" :class="TIPO_BORDE[op.tipo] ?? 'border-l-gray-300'">
+                    <span class="block text-sm font-semibold text-gray-900">{{ partesFecha(op.fecha_hora).fecha }}</span>
+                    <span class="block font-mono text-xs text-gray-500">{{ partesFecha(op.fecha_hora).hora }}</span>
                   </td>
-                  <td class="px-6 py-3 text-sm text-gray-900">
-                    <div class="font-medium">{{ op.usuario_nombre ?? '—' }}</div>
-                    <div class="text-xs font-mono text-gray-500">{{ op.usuario_rut ?? '—' }}</div>
+                  <td class="px-4 py-2.5">
+                    <span class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="TIPO_BADGES[op.tipo]">{{ TIPO_LABELS[op.tipo] ?? op.tipo }}</span>
                   </td>
-                  <td class="px-6 py-3 text-sm text-gray-700">{{ op.detalle ?? '—' }}</td>
-                  <td class="px-6 py-3 text-sm text-gray-600">{{ estadoLabel(op.estado) }}</td>
-                  <td class="px-6 py-3 text-sm text-gray-600">{{ op.atendido_por ?? '—' }}</td>
+                  <td class="px-4 py-2.5">
+                    <span class="block text-sm font-semibold text-gray-900">{{ op.usuario_nombre ?? '—' }}</span>
+                    <span v-if="op.usuario_rut" class="mt-0.5 inline-block rounded border border-gray-200 bg-gray-50 px-1.5 py-px font-mono text-[11px] text-gray-700">{{ op.usuario_rut }}</span>
+                  </td>
+                  <td class="px-4 py-2.5 text-sm text-gray-700">{{ op.detalle ?? '—' }}</td>
+                  <td class="px-4 py-2.5">
+                    <span v-if="op.estado" class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="ESTADO_BADGES[op.estado] ?? 'bg-gray-100 text-gray-600'">{{ estadoLabel(op.estado) }}</span>
+                    <span v-else class="text-xs text-gray-400">Sin estado</span>
+                  </td>
+                  <td class="px-4 py-2.5 text-sm text-gray-700">{{ op.atendido_por ?? '—' }}</td>
                 </tr>
                 <tr v-if="!cargando && !operaciones.length">
                   <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin operaciones que coincidan con los filtros.</td>
@@ -347,19 +387,19 @@ async function exportarExcel() {
               </tbody>
             </table>
           </div>
-        </div>
 
-        <Paginador
-          class="mt-4"
-          :pagina="meta.current_page"
-          :paginas="meta.last_page"
-          :total="total"
-          :desde="meta.from"
-          :hasta="meta.to"
-          unidad="operaciones"
-          :cargando="cargando"
-          @update:pagina="irAPagina"
-        />
+          <Paginador
+            class="overflow-x-auto border-t border-gray-100 px-4 py-2"
+            :pagina="meta.current_page"
+            :paginas="meta.last_page"
+            :total="total"
+            :desde="meta.from"
+            :hasta="meta.to"
+            unidad="operaciones"
+            :cargando="cargando"
+            @update:pagina="irAPagina"
+          />
+        </section>
       </template>
     </div>
 
@@ -368,6 +408,7 @@ async function exportarExcel() {
       titulo="¿Exportar el registro?"
       confirmar="Confirmar y exportar"
       tono="exito"
+      destacado
       :cargando="exportando"
       @confirmar="exportarExcel"
       @cancelar="confirmandoExportar = false"
