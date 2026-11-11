@@ -696,6 +696,19 @@ const proximaConfirmacion = computed(() => {
   const hora = proximas[0].tramo.hora_inicio
   return { hora, sala: proximas[0].sala.nombre, otras: proximas.filter((p) => p.tramo.hora_inicio === hora).length - 1 }
 })
+
+// Botones de las ventanas del mesón: Cancelar en blanco y la acción con un borde más oscuro abajo.
+const BOTON_CANCELAR = 'flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-60'
+const BOTON_PRINCIPAL = 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors disabled:opacity-50'
+const FILA_INTEGRANTE = 'flex items-center gap-2.5 rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-white px-3 py-2'
+
+/** Reservada (aún sin el grupo), ocupada (con la llave) o con la llave devuelta. */
+function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_real?: string | null; vencida_sin_confirmar?: boolean }) {
+  if (t.hora_devolucion_real) return { texto: 'Llave devuelta', clase: 'border-emerald-300 bg-emerald-50/60 text-emerald-700' }
+  if (t.hora_prestamo_real) return { texto: 'Ocupada', clase: 'border-red-300 bg-red-50/60 text-red-700' }
+  if (t.vencida_sin_confirmar) return { texto: 'No llegó', clase: 'border-red-300 bg-red-50/60 text-red-700' }
+  return { texto: 'Reservada', clase: 'border-indigo-300 bg-indigo-50/60 text-indigo-700' }
+}
 </script>
 
 <template>
@@ -1125,90 +1138,91 @@ const proximaConfirmacion = computed(() => {
         <div class="flex items-center gap-1.5"><div class="w-1 h-3 rounded-full bg-indigo-600" /> Ahora</div>
       </div>
 
+      <!-- Ventanas del mesón de salas: borde de color arriba, encabezado suave, contenido y pie con fondo. -->
       <div
         v-if="modalOpen && selectedSala"
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="modalOpen = false"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <div class="mb-5 flex items-start justify-between gap-3">
+        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
+          <div class="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
             <div class="min-w-0">
-              <h3 class="text-lg font-bold text-gray-900 mb-1">Reservar {{ selectedSala.nombre }}</h3>
-              <p class="text-sm text-gray-500">
-                {{ formatFechaLarga(selectedDate) }}
-              </p>
+              <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">Reservar {{ selectedSala.nombre }}</h3>
+              <p class="mt-0.5 text-sm text-gray-500 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}</p>
             </div>
             <!-- La hora con la que valen las reservas, para no calcularla de memoria al reservar. -->
-            <div class="shrink-0 rounded-lg bg-indigo-50 px-3 py-1.5 text-right" aria-live="off">
-              <p class="text-[11px] font-medium text-indigo-700">Hora actual · Punta Arenas</p>
-              <p class="font-mono text-lg font-semibold tabular-nums text-indigo-900">{{ ahoraEnPuntaArenas.conSegundos }}</p>
+            <div class="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-right shadow-sm" aria-live="off">
+              <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Hora actual · Punta Arenas</p>
+              <p class="font-mono text-lg font-semibold leading-tight tabular-nums text-indigo-900">{{ ahoraEnPuntaArenas.conSegundos }}</p>
             </div>
           </div>
 
-          <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <template v-if="inicioAMano">
-                  <label for="reserva-hora-inicio" class="block text-sm font-medium text-gray-700 mb-1">Desde las</label>
-                  <CampoHora
-                    id="reserva-hora-inicio"
-                    ref="campoHoraInicio"
-                    v-model="modalHoraInicioEscrita"
-                    etiqueta="Hora de inicio"
-                    :invalida="!!modalHoraInicioEscrita && !!errorInicio"
-                  />
-                </template>
-                <template v-else>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
-                  <select
-                    v-model="modalHoraInicio"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
-                    <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
-                  </select>
-                </template>
-                <label class="mt-2 flex cursor-pointer items-start gap-2 text-xs text-gray-700">
-                  <input v-model="inicioAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                  Escribir la hora de inicio a mano
-                </label>
+          <div class="space-y-3.5 overflow-y-auto px-5 py-4">
+            <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <template v-if="inicioAMano">
+                    <label for="reserva-hora-inicio" class="mb-1 block text-xs font-medium text-gray-600">Desde las</label>
+                    <CampoHora
+                      id="reserva-hora-inicio"
+                      ref="campoHoraInicio"
+                      v-model="modalHoraInicioEscrita"
+                      etiqueta="Hora de inicio"
+                      :invalida="!!modalHoraInicioEscrita && !!errorInicio"
+                    />
+                  </template>
+                  <template v-else>
+                    <label class="mb-1 block text-xs font-medium text-gray-600">Hora de inicio</label>
+                    <select
+                      v-model="modalHoraInicio"
+                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
+                      <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
+                    </select>
+                  </template>
+                  <label class="mt-1.5 flex cursor-pointer items-start gap-1.5 text-[11px] text-gray-600">
+                    <input v-model="inicioAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    Escribir a mano
+                  </label>
+                </div>
+                <div>
+                  <template v-if="terminoAMano">
+                    <label for="reserva-hora-fin" class="mb-1 block text-xs font-medium text-gray-600">Hasta las</label>
+                    <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
+                  </template>
+                  <template v-else>
+                    <label class="mb-1 block text-xs font-medium text-gray-600">Duración</label>
+                    <select
+                      v-model.number="modalDuracion"
+                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
+                        {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
+                      </option>
+                    </select>
+                  </template>
+                  <label class="mt-1.5 flex cursor-pointer items-start gap-1.5 text-[11px] text-gray-600">
+                    <input v-model="terminoAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    Escribir término a mano
+                  </label>
+                </div>
               </div>
-              <div>
-                <template v-if="terminoAMano">
-                  <label for="reserva-hora-fin" class="block text-sm font-medium text-gray-700 mb-1">Hasta las</label>
-                  <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
-                </template>
-                <template v-else>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Duración</label>
-                  <select
-                    v-model.number="modalDuracion"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
-                      {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
-                    </option>
-                  </select>
-                </template>
-                <label class="mt-2 flex cursor-pointer items-start gap-2 text-xs text-gray-700">
-                  <input v-model="terminoAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                  Escribir la hora de término a mano
-                </label>
-              </div>
+              <p v-if="avisoHoras" class="mt-2 text-xs" :class="avisoHorasEsError ? 'text-red-600' : 'text-gray-500'">{{ avisoHoras }}</p>
+              <!-- Una reserva larga (permiso salas.sin_limite) es normal: solo se anota que pasa de las 2 h. -->
+              <p v-else-if="inicioAMano || terminoAMano" class="mt-2 text-xs text-gray-600">
+                {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}<template v-if="modalFinMin - modalInicioMin > duracionMaxima"> (más de {{ formatMinutos(duracionMaxima) }})</template>.
+              </p>
+              <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
+              <template v-if="!errorInicio">
+                <p v-if="modalDisponibleMin < duracionMinima" class="mt-2 text-xs text-red-600">
+                  Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
+                </p>
+                <p v-else class="mt-2">
+                  <span class="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-px text-[11px] font-semibold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</span>
+                </p>
+              </template>
             </div>
-            <p v-if="avisoHoras" class="text-xs" :class="avisoHorasEsError ? 'text-red-600' : 'text-gray-500'">{{ avisoHoras }}</p>
-            <!-- Una reserva larga (permiso salas.sin_limite) es normal: solo se anota que pasa de las 2 h. -->
-            <p v-else-if="inicioAMano || terminoAMano" class="text-xs text-gray-600">
-              {{ formatMinutos(modalFinMin - modalInicioMin) }}, de {{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}<template v-if="modalFinMin - modalInicioMin > duracionMaxima"> (más de {{ formatMinutos(duracionMaxima) }})</template>.
-            </p>
-            <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
-            <template v-if="!errorInicio">
-              <p v-if="modalDisponibleMin < duracionMinima" class="text-xs text-red-600">
-                Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
-              </p>
-              <p v-else class="text-xs text-gray-400">
-                Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
-              </p>
-            </template>
             <p v-if="modalEsAhora" class="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               El grupo está en el mesón: la reserva parte en este minuto, dura lo que elija (hasta {{ formatMinutos(duracionMaxima) }}) y queda con la
               llegada confirmada. Entregue la llave al reservar.
@@ -1218,10 +1232,10 @@ const proximaConfirmacion = computed(() => {
               {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
             </p>
             <div v-else>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad de personas</label>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Cantidad de personas</label>
               <select
                 v-model.number="cantidadPersonas"
-                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option v-for="n in cantidadMaxima - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
                   {{ cantidadMinima + n - 1 }} {{ cantidadMinima + n - 1 === 1 ? 'persona' : 'personas' }}
@@ -1229,40 +1243,32 @@ const proximaConfirmacion = computed(() => {
               </select>
             </div>
             <div class="space-y-2">
-              <label class="block text-sm font-medium text-gray-700">
+              <label class="block text-xs font-medium text-gray-600">
                 {{ selectedSala.solo_responsable ? 'RUT del docente o funcionario a cargo' : 'RUT de cada persona' }}
                 <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span>
               </label>
               <div v-for="(_, idx) in rutsReserva" :key="idx">
                 <div class="flex flex-wrap items-center gap-2">
+                  <span v-if="!selectedSala.solo_responsable" class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ idx + 1 }}</span>
                   <input
                     :value="rutsReserva[idx]"
                     @input="onRutInput(idx, $event)"
                     type="text"
                     :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                     :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
-                    class="min-w-0 flex-1 px-4 py-2.5 border rounded-lg focus:ring-2 outline-none"
+                    class="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                     :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
                   />
                   <SelectorDocumento :model-value="modosReserva[idx] ?? 'rut'" compacto :etiqueta="`Documento de la persona ${idx + 1}`" @update:model-value="cambiarModoFila(idx, $event)" />
                 </div>
-                <p v-if="rutErrores[idx]" class="text-xs text-red-600 mt-1">{{ rutErrores[idx] }}</p>
+                <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
               </div>
             </div>
           </div>
 
-          <div class="flex gap-3 mt-6">
-            <button
-              @click="modalOpen = false"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmarReserva"
-              :disabled="!puedeConfirmarReserva"
-              class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50"
-            >
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="modalOpen = false" :class="BOTON_CANCELAR">Cancelar</button>
+            <button @click="confirmarReserva" :disabled="!puedeConfirmarReserva" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
               Confirmar
             </button>
           </div>
@@ -1274,129 +1280,118 @@ const proximaConfirmacion = computed(() => {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="detalleOpen = false"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">{{ detalleSala.nombre }} — {{ detalleTramo.hora_devolucion_real ? 'Llave devuelta' : 'Ocupada' }}</h3>
-          <p class="text-sm text-gray-500 mb-5">
-            {{ labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }} · {{ detalleTramo.cantidad_personas }} persona(s) · {{ formatFechaLarga(selectedDate) }}
-          </p>
+        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
+          <div class="shrink-0 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
+            <h3 class="flex flex-wrap items-center gap-2 font-serif text-lg font-bold leading-snug text-gray-900">
+              {{ detalleSala.nombre }}
+              <span class="rounded border px-1.5 py-px font-sans text-[10px] font-bold uppercase tracking-widest" :class="estadoDetalle(detalleTramo).clase">{{ estadoDetalle(detalleTramo).texto }}</span>
+            </h3>
+            <p class="mt-0.5 text-sm text-gray-500">
+              {{ labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }} · {{ detalleTramo.cantidad_personas }} {{ detalleTramo.cantidad_personas === 1 ? 'persona' : 'personas' }} · {{ formatFechaLarga(selectedDate) }}
+            </p>
+          </div>
 
-          <div class="mb-6">
-            <div class="mb-2 flex items-center justify-between gap-3">
-              <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Integrantes ({{ detalleTramo.personas?.length ?? 0 }})</p>
-              <button
-                v-if="integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
-                @click="editandoIntegrantesDetalle = true"
-                class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+          <div class="space-y-3.5 overflow-y-auto px-5 py-4">
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ detalleTramo.personas?.length ?? 0 }})</p>
+                <button
+                  v-if="integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
+                  @click="editandoIntegrantesDetalle = true"
+                  class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                >
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  </svg>
+                  Modificar
+                </button>
+              </div>
+              <EditorIntegrantes
+                v-if="editandoIntegrantesDetalle"
+                :reserva-id="detalleTramo.reserva_id"
+                :personas="detalleTramo.personas ?? []"
+                :solo-responsable="!!detalleSala.solo_responsable"
+                @guardado="integrantesGuardados"
+                @cancelar="editandoIntegrantesDetalle = false"
+              />
+              <ul v-else class="space-y-2">
+                <li v-for="(persona, idx) in detalleTramo.personas ?? []" :key="idx" :class="FILA_INTEGRANTE">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ idx + 1 }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{{ persona.nombre ?? 'Sin registro en el sistema' }}</span>
+                  <span class="shrink-0 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{{ persona.rut }}</span>
+                </li>
+                <li v-if="!detalleTramo.personas?.length" class="text-sm text-gray-400">Sin integrantes registrados.</li>
+              </ul>
+            </div>
+
+            <dl v-if="detalleTramo.prestado_por || detalleTramo.devuelto_por" class="divide-y divide-emerald-100 overflow-hidden rounded-lg border border-emerald-100 bg-emerald-50/50 text-sm">
+              <div v-if="detalleTramo.prestado_por" class="flex justify-between gap-3 px-3 py-2">
+                <dt class="text-gray-600">Llave entregada por</dt>
+                <dd class="font-semibold text-emerald-800">{{ detalleTramo.prestado_por }}</dd>
+              </div>
+              <div v-if="detalleTramo.devuelto_por" class="flex justify-between gap-3 px-3 py-2">
+                <dt class="text-gray-600">Devuelta por</dt>
+                <dd class="font-semibold text-emerald-800">{{ detalleTramo.devuelto_por }}</dd>
+              </div>
+            </dl>
+
+            <div v-if="detalleTramo.hora_devolucion_real" class="space-y-2">
+              <p class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                Modificar
+                Devolución de llave confirmada<template v-if="detalleTramo.hora_fin_reservada"> · se liberó el resto del bloque (era hasta las {{ detalleTramo.hora_fin_reservada }})</template>
+              </p>
+              <!-- Devolvieron antes y el bloque sigue reservado: el aviso de la devolución se cerró o no salió. -->
+              <button
+                v-if="detalleTramo.tiempo_sin_usar"
+                type="button"
+                class="w-full rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+                @click="tiempoSinUsar = detalleTramo.tiempo_sin_usar"
+              >
+                Liberar el resto del bloque · {{ duracion(detalleTramo.tiempo_sin_usar.minutos) }} sin usar
               </button>
             </div>
-            <EditorIntegrantes
-              v-if="editandoIntegrantesDetalle"
-              :reserva-id="detalleTramo.reserva_id"
-              :personas="detalleTramo.personas ?? []"
-              :solo-responsable="!!detalleSala.solo_responsable"
-              @guardado="integrantesGuardados"
-              @cancelar="editandoIntegrantesDetalle = false"
-            />
-            <div v-else class="space-y-2">
-              <div
-                v-for="(persona, idx) in detalleTramo.personas ?? []"
-                :key="idx"
-                class="flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
-              >
-                <span class="text-sm text-gray-900">{{ persona.nombre ?? 'Sin registro en el sistema' }}</span>
-                <span class="text-xs font-mono text-gray-500">{{ persona.rut }}</span>
-              </div>
-              <p v-if="!detalleTramo.personas?.length" class="text-sm text-gray-400">Sin integrantes registrados.</p>
-            </div>
-          </div>
-
-          <div v-if="detalleTramo.prestado_por || detalleTramo.devuelto_por" class="space-y-1.5 mb-6 text-sm border-t border-gray-100 pt-4">
-            <div v-if="detalleTramo.prestado_por" class="flex justify-between">
-              <span class="text-gray-500">Entregada por</span>
-              <span class="text-gray-900 font-medium">{{ detalleTramo.prestado_por }}</span>
-            </div>
-            <div v-if="detalleTramo.devuelto_por" class="flex justify-between">
-              <span class="text-gray-500">Devuelta por</span>
-              <span class="text-gray-900 font-medium">{{ detalleTramo.devuelto_por }}</span>
-            </div>
-          </div>
-
-          <div v-if="detalleTramo.hora_devolucion_real" class="mb-6 space-y-2">
-            <div class="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            <!-- Reservada y esperando al grupo: qué falta, en una línea. -->
+            <p
+              v-else-if="!detalleTramo.hora_prestamo_real"
+              class="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+              :class="detalleTramo.vencida_sin_confirmar ? 'border-red-200 bg-red-50 text-red-700' : 'border-indigo-100 bg-indigo-50/60 text-indigo-900'"
+            >
+              <svg class="mt-px h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3.500 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Devolución de llave confirmada<template v-if="detalleTramo.hora_fin_reservada"> · se liberó el resto del bloque (era hasta las {{ detalleTramo.hora_fin_reservada }})</template>
-            </div>
-            <!-- Devolvieron antes y el bloque sigue reservado: el aviso de la devolución se cerró o no salió. -->
-            <button
-              v-if="detalleTramo.tiempo_sin_usar"
-              type="button"
-              class="w-full rounded-lg border border-emerald-300 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
-              @click="tiempoSinUsar = detalleTramo.tiempo_sin_usar"
-            >
-              Liberar el resto del bloque · {{ duracion(detalleTramo.tiempo_sin_usar.minutos) }} sin usar
-            </button>
-          </div>
-          <div
-            v-else-if="!detalleTramo.hora_prestamo_real"
-            class="mb-6 flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm"
-            :class="detalleTramo.vencida_sin_confirmar ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'"
-          >
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
-            {{
-              detalleTramo.vencida_sin_confirmar
-                ? 'Venció el plazo sin confirmar la llegada'
-                : selectedDate === hoy
-                  ? 'Todavía no se confirma la llegada del grupo'
-                  : 'La llegada se confirma el mismo día de la reserva'
-            }}
+              <span v-if="detalleTramo.vencida_sin_confirmar">Venció el plazo sin confirmar la llegada.</span>
+              <span v-else-if="selectedDate === hoy">Sala reservada para este bloque. Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong>.</span>
+              <span v-else>Sala reservada para este bloque. La llegada se confirma el día de la reserva.</span>
+            </p>
           </div>
 
-          <div class="flex gap-3">
-            <button
-              @click="detalleOpen = false"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cerrar
-            </button>
+          <div class="flex shrink-0 flex-wrap gap-2 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="detalleOpen = false" :class="BOTON_CANCELAR" class="!flex-none">Cerrar</button>
             <template v-if="!detalleTramo.hora_devolucion_real">
               <button
                 v-if="!detalleTramo.hora_prestamo_real && detalleTramo.vencida_sin_confirmar"
                 @click="pedirLiberacion(detalleSala, detalleTramo)"
                 :disabled="liberando === detalleTramo.reserva_id"
-                class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm disabled:opacity-60"
+                :class="BOTON_PRINCIPAL"
+                class="bg-red-600 hover:bg-red-700"
               >
                 {{ liberando === detalleTramo.reserva_id ? 'Liberando…' : 'Liberar (no llegó)' }}
               </button>
               <template v-else>
                 <button
                   @click="pedirCancelacion(detalleSala, detalleTramo)"
-                  class="flex-1 px-4 py-2.5 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
+                  class="flex-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
                 >
                   Cancelar reserva
                 </button>
                 <template v-if="!detalleTramo.hora_prestamo_real">
-                  <button
-                    v-if="selectedDate === hoy"
-                    @click="pedirLlegada(detalleSala, detalleTramo)"
-                    class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm"
-                  >
+                  <button v-if="selectedDate === hoy" @click="pedirLlegada(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
                     Confirmar llegada
                   </button>
                 </template>
-                <button
-                  v-else
-                  @click="pedirDevolucion(detalleSala, detalleTramo)"
-                  class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
-                >
+                <button v-else @click="pedirDevolucion(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="bg-emerald-600 hover:bg-emerald-700">
                   Confirmar devolución
                 </button>
               </template>
@@ -1410,25 +1405,20 @@ const proximaConfirmacion = computed(() => {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="liberando === null && (liberacionPendiente = null)"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">¿Liberar la sala?</h3>
-          <p class="text-sm text-gray-500 mb-6">
-            Se registrará que el grupo no se presentó a <strong>{{ liberacionPendiente.salaNombre }}</strong> en el tramo
-            <strong>{{ liberacionPendiente.label }}</strong>, y el bloque quedará libre para otras reservas. Esta acción no se puede deshacer.
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="liberacionPendiente = null"
-              :disabled="liberando !== null"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              No, mantener
-            </button>
-            <button
-              @click="confirmarLiberacion"
-              :disabled="liberando !== null"
-              class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
+        <div class="w-full max-w-sm overflow-hidden rounded-2xl border-t-[3px] border-t-red-600 bg-white shadow-2xl">
+          <div class="border-b border-gray-100 bg-red-50/60 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">¿Liberar la sala?</h3>
+          </div>
+          <div class="px-5 py-4 text-sm text-gray-500">
+            <p>
+              Se registrará que el grupo no se presentó a <strong class="text-gray-900">{{ liberacionPendiente.salaNombre }}</strong> en el tramo
+              <strong class="text-gray-900">{{ liberacionPendiente.label }}</strong>, y el bloque quedará libre para otras reservas.
+            </p>
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Esta acción no se puede deshacer.</p>
+          </div>
+          <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="liberacionPendiente = null" :disabled="liberando !== null" :class="BOTON_CANCELAR">No, mantener</button>
+            <button @click="confirmarLiberacion" :disabled="liberando !== null" :class="BOTON_PRINCIPAL" class="bg-red-600 hover:bg-red-700">
               {{ liberando !== null ? 'Liberando…' : 'Sí, liberar' }}
             </button>
           </div>
@@ -1440,25 +1430,20 @@ const proximaConfirmacion = computed(() => {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="cancelacionPendiente = null"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">¿Cancelar esta reserva?</h3>
-          <p class="text-sm text-gray-500 mb-6">
-            Se cancelará la reserva de <strong>{{ cancelacionPendiente.salaNombre }}</strong> para el tramo
-            <strong>{{ cancelacionPendiente.label }}</strong>. Esta acción no se puede deshacer.
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="cancelacionPendiente = null"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              No, mantener
-            </button>
-            <button
-              @click="confirmarCancelacion"
-              class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
-            >
-              Sí, cancelar
-            </button>
+        <div class="w-full max-w-sm overflow-hidden rounded-2xl border-t-[3px] border-t-red-600 bg-white shadow-2xl">
+          <div class="border-b border-gray-100 bg-red-50/60 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">¿Cancelar esta reserva?</h3>
+          </div>
+          <div class="px-5 py-4 text-sm text-gray-500">
+            <p>
+              Se cancelará la reserva de <strong class="text-gray-900">{{ cancelacionPendiente.salaNombre }}</strong> para el tramo
+              <strong class="text-gray-900">{{ cancelacionPendiente.label }}</strong>.
+            </p>
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Esta acción no se puede deshacer.</p>
+          </div>
+          <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="cancelacionPendiente = null" :class="BOTON_CANCELAR">No, mantener</button>
+            <button @click="confirmarCancelacion" :class="BOTON_PRINCIPAL" class="bg-red-600 hover:bg-red-700">Sí, cancelar</button>
           </div>
         </div>
       </div>
@@ -1468,25 +1453,20 @@ const proximaConfirmacion = computed(() => {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="devolucionPendiente = null"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">Confirmar devolución de llave</h3>
-          <p class="text-sm text-gray-500 mb-6">
-            Se registrará la devolución de <strong>{{ devolucionPendiente.salaNombre }}</strong> para el tramo
-            <strong>{{ devolucionPendiente.label }}</strong>. La reserva queda marcada como finalizada
-            (no se borra, a diferencia de cancelar).
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="devolucionPendiente = null"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmarDevolucion"
-              :disabled="devolviendo"
-              class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
+        <div class="w-full max-w-sm overflow-hidden rounded-2xl border-t-[3px] border-t-emerald-600 bg-white shadow-2xl">
+          <div class="border-b border-gray-100 bg-emerald-50/50 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">Confirmar devolución de llave</h3>
+          </div>
+          <div class="px-5 py-4 text-sm text-gray-500">
+            <p>
+              Se registrará la devolución de <strong class="text-gray-900">{{ devolucionPendiente.salaNombre }}</strong> para el tramo
+              <strong class="text-gray-900">{{ devolucionPendiente.label }}</strong>.
+            </p>
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">La reserva queda marcada como finalizada (no se borra, a diferencia de cancelar).</p>
+          </div>
+          <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="devolucionPendiente = null" :class="BOTON_CANCELAR">Cancelar</button>
+            <button @click="confirmarDevolucion" :disabled="devolviendo" :class="BOTON_PRINCIPAL" class="bg-emerald-600 hover:bg-emerald-700">
               {{ devolviendo ? 'Guardando…' : 'Confirmar' }}
             </button>
           </div>
@@ -1498,70 +1478,58 @@ const proximaConfirmacion = computed(() => {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="!confirmandoLlegada && cerrarLlegada()"
       >
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">Confirmar llegada</h3>
-          <p class="text-sm text-gray-500 mb-4">
-            Se registrará que el grupo se presentó en <strong>{{ llegadaPendiente.salaNombre }}</strong> para el tramo
-            <strong>{{ llegadaPendiente.label }}</strong>. Antes de entregar la llave, verifique que estén sus integrantes:
-            si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>. Quienes no hayan marcado su entrada
-            hoy quedarán presentes en la biblioteca.
-          </p>
-          <div class="mb-6">
-            <div class="mb-2 flex items-center justify-between gap-3">
-              <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Integrantes ({{ llegadaPendiente.personas.length }})
-              </p>
-              <button
-                v-if="!editandoIntegrantesLlegada"
-                @click="editandoIntegrantesLlegada = true"
-                :disabled="confirmandoLlegada"
-                class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                </svg>
-                Modificar
-              </button>
-            </div>
-            <EditorIntegrantes
-              v-if="editandoIntegrantesLlegada"
-              :reserva-id="llegadaPendiente.reservaId"
-              :personas="llegadaPendiente.personas"
-              :solo-responsable="llegadaPendiente.soloResponsable"
-              @guardado="integrantesGuardados"
-              @cancelar="editandoIntegrantesLlegada = false"
-            />
-            <div v-else class="space-y-2">
-              <div
-                v-for="(persona, idx) in llegadaPendiente.personas"
-                :key="persona.rut"
-                class="flex items-center gap-3 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg"
-              >
-                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
-                  {{ idx + 1 }}
-                </span>
-                <span class="flex-1 min-w-0 text-sm text-gray-900 truncate">{{ persona.nombre ?? 'Sin registro en el sistema' }}</span>
-                <span class="text-xs font-mono text-gray-600 shrink-0">{{ persona.rut }}</span>
-              </div>
-              <p v-if="!llegadaPendiente.personas.length" class="text-sm text-gray-400">Sin integrantes registrados.</p>
-            </div>
+        <div class="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
+          <div class="shrink-0 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">Confirmar llegada</h3>
           </div>
-          <p v-if="editandoIntegrantesLlegada" class="mb-3 text-xs text-amber-700">
-            Guarde o descarte los cambios de integrantes antes de confirmar la llegada.
-          </p>
-          <div class="flex gap-3">
-            <button
-              @click="cerrarLlegada"
-              :disabled="confirmandoLlegada"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmarLlegadaAction"
-              :disabled="confirmandoLlegada || editandoIntegrantesLlegada"
-              class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
-            >
+          <div class="space-y-3 overflow-y-auto px-5 py-4 text-sm text-gray-500">
+            <p>
+              Se registrará que el grupo se presentó en <strong class="text-gray-900">{{ llegadaPendiente.salaNombre }}</strong> para el tramo
+              <strong class="text-gray-900">{{ llegadaPendiente.label }}</strong>. Quienes no hayan marcado su entrada hoy quedarán presentes en la biblioteca.
+            </p>
+            <p class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <svg class="mt-px h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.250 11.250l.041-.020a.750.750 0 011.063.852l-.708 2.836a.750.750 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.750h.008v.008H12V8.250z" /></svg>
+              <span>Antes de entregar la llave, verifique que estén sus integrantes: si alguien no vino o se sumó otra persona, pulse <strong class="text-gray-800">Modificar</strong>.</span>
+            </p>
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ llegadaPendiente.personas.length }})</p>
+                <button
+                  v-if="!editandoIntegrantesLlegada"
+                  @click="editandoIntegrantesLlegada = true"
+                  :disabled="confirmandoLlegada"
+                  class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
+                >
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  </svg>
+                  Modificar
+                </button>
+              </div>
+              <EditorIntegrantes
+                v-if="editandoIntegrantesLlegada"
+                :reserva-id="llegadaPendiente.reservaId"
+                :personas="llegadaPendiente.personas"
+                :solo-responsable="llegadaPendiente.soloResponsable"
+                @guardado="integrantesGuardados"
+                @cancelar="editandoIntegrantesLlegada = false"
+              />
+              <ul v-else class="space-y-2">
+                <li v-for="(persona, idx) in llegadaPendiente.personas" :key="persona.rut" :class="FILA_INTEGRANTE">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ idx + 1 }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{{ persona.nombre ?? 'Sin registro en el sistema' }}</span>
+                  <span class="shrink-0 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{{ persona.rut }}</span>
+                </li>
+                <li v-if="!llegadaPendiente.personas.length" class="text-sm text-gray-400">Sin integrantes registrados.</li>
+              </ul>
+            </div>
+            <p v-if="editandoIntegrantesLlegada" class="text-xs text-amber-700">
+              Guarde o descarte los cambios de integrantes antes de confirmar la llegada.
+            </p>
+          </div>
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="cerrarLlegada" :disabled="confirmandoLlegada" :class="BOTON_CANCELAR">Cancelar</button>
+            <button @click="confirmarLlegadaAction" :disabled="confirmandoLlegada || editandoIntegrantesLlegada" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
               {{ confirmandoLlegada ? 'Guardando…' : 'Confirmar' }}
             </button>
           </div>

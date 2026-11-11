@@ -350,6 +350,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
     confirmar="Sí, cancelar reserva"
     cancelar="Volver"
     tono="peligro"
+    destacado
     :cargando="procesando"
     @confirmar="ejecutar"
     @cancelar="confirmando = null"
@@ -367,6 +368,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
     confirmar="Sí, registrar devolución"
     cancelar="Volver"
     tono="exito"
+    destacado
     :cargando="procesando"
     @confirmar="ejecutar"
     @cancelar="confirmando = null"

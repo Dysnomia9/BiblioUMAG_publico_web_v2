@@ -40,20 +40,24 @@ async function liberar() {
     confirmar="Sí, liberar"
     cancelar="No, dejarla reservada"
     tono="exito"
+    destacado
     :cargando="liberando"
     @confirmar="liberar"
     @cancelar="emit('cerrar')"
   >
     <template v-if="aviso">
       <p>
-        La llave de <strong class="text-gray-900">{{ aviso.sala }}</strong> volvió a las {{ aviso.devuelta }} y la reserva era hasta las
-        {{ aviso.hora_fin }}: aún quedan <strong class="text-emerald-700">{{ duracion(aviso.minutos) }}</strong> sin usar.
+        La llave de <strong class="text-gray-900">{{ aviso.sala }}</strong> volvió a las {{ aviso.devuelta }} y la reserva era hasta las {{ aviso.hora_fin }}.
       </p>
-      <p class="mt-3">
-        Horario: <span class="line-through">hasta las {{ aviso.hora_fin }}</span> →
-        <strong class="text-gray-900">libre desde las {{ aviso.devuelta }}</strong>
-      </p>
-      <p class="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs">
+        <span class="flex items-center gap-1.5">
+          <span class="text-gray-400 line-through">hasta las {{ aviso.hora_fin }}</span>
+          <span class="text-gray-400" aria-hidden="true">→</span>
+          <span class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-px font-semibold text-emerald-700">libre desde las {{ aviso.devuelta }}</span>
+        </span>
+        <span class="text-gray-500">quedan <strong class="text-emerald-700">{{ duracion(aviso.minutos) }}</strong> sin usar</span>
+      </div>
+      <p class="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
         Si lo liberas, otro grupo puede ocupar la sala desde ya. Devolver antes no tiene ninguna consecuencia para el grupo, y su
         cuota del día cuenta solo el tiempo que usó.
       </p>
