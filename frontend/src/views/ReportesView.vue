@@ -511,12 +511,18 @@ async function confirmarExportar() {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-7xl">
-      <div class="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl px-6 py-5 shadow-md" style="background: linear-gradient(135deg, #3B28A3 0%, #4338CA 55%, #4F46E5 100%)">
-        <div>
-          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
-          <p class="mt-0.5 text-sm text-white/70">Estadísticas de uso de la biblioteca</p>
+      <!-- Encabezado: el degradado con puntos tenues y dos anillos, como en Salas y Préstamos. Las capas se recortan aparte para que el menú de Exportar pueda salir de la caja. -->
+      <div class="relative mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-6 py-5 shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+        <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden="true">
+          <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+          <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+          <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="relative">
+          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
+          <p class="mt-1 text-sm text-white/75">Estadísticas de uso de la biblioteca</p>
+        </div>
+        <div class="relative flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-1 rounded-xl bg-white/15 p-1">
             <button
               v-for="v in VISTAS"
