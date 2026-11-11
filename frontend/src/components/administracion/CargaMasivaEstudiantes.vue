@@ -217,6 +217,20 @@ const filasVisibles = computed(() => {
   return filtro.value === 'todas' ? todas : todas.filter((f) => f.estado === filtro.value)
 })
 
+/** Las notas empiezan con «Obligatorio» u «Opcional»: de ahí sale la etiqueta, y la nota queda sin esa palabra. */
+const columnas = COLUMNAS_PLANTILLA.map((c) => {
+  const requisito = /^Obligatorio/.test(c.nota) ? 'obligatoria' : /^Opcional/.test(c.nota) ? 'opcional' : null
+  const nota = c.nota.replace(/^(Obligatorio|Opcional)[.,]?\s*/, '')
+  return { ...c, requisito, nota: nota.charAt(0).toUpperCase() + nota.slice(1) }
+})
+
+const PASOS: { clave: Paso; texto: string }[] = [
+  { clave: 'elegir', texto: 'Elegir archivo' },
+  { clave: 'revision', texto: 'Revisar' },
+  { clave: 'resultado', texto: 'Confirmar' },
+]
+const indicePaso = computed(() => PASOS.findIndex((p) => p.clave === paso.value))
+
 async function cargar() {
   if (!confirmado.value || !porGuardar.value) return
   if (usarFecha.value && !fechaPropia.value) {
@@ -263,17 +277,72 @@ function descargarDetalle() {
 </script>
 
 <template>
-  <Modal :abierto="abierto" titulo="Carga masiva de estudiantes" ancho="xl" pie-fijo :bloqueado="procesando" @cerrar="cerrar">
-    <!-- Solo el Administrador/a: otra fecha de vencimiento para toda esta carga -->
-    <div v-if="puedeElegirFecha && paso !== 'resultado'" class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-sm">
-      <label class="flex items-center gap-2 font-medium text-gray-800">
-        <input v-model="usarFecha" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-        Elegir otra fecha de vencimiento para esta carga
-      </label>
-      <p class="mt-1 text-xs text-gray-600">
-        Si no, cada cuenta vence según su tipo ({{ textoVigencia }}). La fecha que elijas vale para todas las filas que no traigan la suya en la columna «Vigente hasta».
+  <Modal :abierto="abierto" titulo="Carga masiva de estudiantes" ancho="xl" destacado :bloqueado="procesando" @cerrar="cerrar">
+    <template #cabecera>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">Carga masiva de estudiantes</h3>
+        <ol class="flex items-center gap-1.5 text-xs font-semibold" aria-label="Pasos">
+          <template v-for="(p, i) in PASOS" :key="p.clave">
+            <li v-if="i" class="h-px w-3 bg-gray-300" aria-hidden="true"></li>
+            <li
+              class="inline-flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5"
+              :class="i === indicePaso ? (p.clave === 'resultado' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : i < indicePaso ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-500'"
+              :aria-current="i === indicePaso ? 'step' : undefined"
+            >
+              <span class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]" :class="i === indicePaso ? 'bg-white/25' : 'bg-white'">{{ i + 1 }}</span>
+              {{ p.texto }}
+            </li>
+          </template>
+        </ol>
+      </div>
+    </template>
+
+    <!-- Paso 1: elegir el archivo -->
+    <div v-if="paso === 'elegir'" class="space-y-4 text-sm">
+      <p class="text-gray-600">
+        Sube una planilla <strong>Excel (.xlsx)</strong> o <strong>CSV</strong> con una fila por estudiante. Antes de guardar nada, el sistema te
+        mostrará quiénes son nuevos y quiénes <strong>ya existen</strong>: a ellos se les completan o corrigen los datos con los de la planilla (lo
+        que venga vacío no borra nada) y <strong>se renueva su cuenta</strong> ({{ textoVigencia }}; a los que no vienen en la planilla no se les toca nada: vencen solos en su fecha). Verás qué cambia en cada uno y tendrás que confirmar.
       </p>
-      <div v-if="usarFecha" class="mt-2 flex flex-wrap items-end gap-2">
+      <p class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/40 px-4 py-3 text-xs leading-relaxed text-gray-700">
+        <strong class="text-indigo-950">¿Tienes el reporte de matrícula de pregrado de la universidad?</strong> Súbelo tal cual (Excel o CSV, también el guardado en Mac). Se
+        toman solo el RUT, el nombre, los apellidos (Paterno y Materno), el sexo, la nacionalidad (para reconocer pasaportes y DNI extranjeros), la
+        carrera con su especialidad, el año de ingreso y el correo si viene; el resto de las columnas se ignora. Los nombres en mayúsculas se guardan
+        como nombre propio.
+      </p>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-[14rem_minmax(0,1fr)]">
+        <div class="flex flex-col justify-center rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3">
+          <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Descargar plantilla</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700 hover:bg-emerald-100" @click="descargarPlantilla('excel')">Excel</button>
+            <button type="button" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50" @click="descargarPlantilla('csv')">CSV</button>
+          </div>
+        </div>
+        <label
+          class="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-5 text-center transition hover:border-indigo-400"
+          :class="procesando ? 'pointer-events-none opacity-60' : ''"
+        >
+          <svg class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          </svg>
+          <span class="font-semibold text-indigo-800">{{ procesando ? 'Revisando el archivo…' : 'Elegir archivo (.xlsx o .csv)' }}</span>
+          <span class="text-xs text-gray-500">Hasta 10.000 filas por carga</span>
+          <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" @change="elegirArchivo" />
+        </label>
+      </div>
+      <p v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-red-700" role="alert">{{ error }}</p>
+    </div>
+
+    <!-- Solo el Administrador/a: otra fecha de vencimiento para toda esta carga -->
+    <div v-if="puedeElegirFecha && paso !== 'resultado'" class="mt-4 rounded-xl border border-gray-200 px-4 py-3 text-sm" :class="usarFecha ? 'border-indigo-300 bg-indigo-50/40' : ''">
+      <label class="flex cursor-pointer items-start gap-2.5">
+        <input v-model="usarFecha" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+        <span>
+          <span class="block font-semibold text-gray-900">Elegir otra fecha de vencimiento para esta carga</span>
+          <span class="block text-xs text-gray-500">Si no, cada cuenta vence según su tipo ({{ textoVigencia }}). La fecha que elijas vale para todas las filas que no traigan la suya en la columna «Vigente hasta».</span>
+        </span>
+      </label>
+      <div v-if="usarFecha" class="mt-2 flex flex-wrap items-end gap-2 pl-6">
         <div>
           <label for="carga-fecha" class="mb-1 block text-xs font-medium text-gray-600">Cuentas vigentes hasta</label>
           <input id="carga-fecha" v-model="fechaPropia" type="date" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
@@ -281,7 +350,7 @@ function descargarDetalle() {
         <button
           v-if="paso === 'revision'"
           type="button"
-          class="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
           :disabled="procesando || !fechaPropia"
           @click="revisarDeNuevo"
         >
@@ -291,59 +360,37 @@ function descargarDetalle() {
       </div>
     </div>
 
-    <!-- Paso 1: elegir el archivo -->
-    <div v-if="paso === 'elegir'" class="space-y-4 text-sm">
-      <ol class="flex flex-wrap gap-2 text-xs font-medium text-gray-500">
-        <li class="rounded-full bg-indigo-600 px-3 py-1 text-white">1. Elegir archivo</li>
-        <li class="rounded-full bg-gray-100 px-3 py-1">2. Revisar</li>
-        <li class="rounded-full bg-gray-100 px-3 py-1">3. Confirmar</li>
-      </ol>
-      <p class="text-gray-600">
-        Sube una planilla <strong>Excel (.xlsx)</strong> o <strong>CSV</strong> con una fila por estudiante. Antes de guardar nada, el sistema te
-        mostrará quiénes son nuevos y quiénes <strong>ya existen</strong>: a ellos se les completan o corrigen los datos con los de la planilla (lo
-        que venga vacío no borra nada) y <strong>se renueva su cuenta</strong> ({{ textoVigencia }}; a los que no vienen en la planilla no se les toca nada: vencen solos en su fecha). Verás qué cambia en cada uno y tendrás que confirmar.
-      </p>
-      <p class="rounded-lg bg-indigo-50/60 px-3 py-2 text-indigo-950 ring-1 ring-indigo-100">
-        <strong>¿Tienes el reporte de matrícula de pregrado de la universidad?</strong> Súbelo tal cual (Excel o CSV, también el guardado en Mac). Se
-        toman solo el RUT, el nombre, los apellidos (Paterno y Materno), el sexo, la nacionalidad (para reconocer pasaportes y DNI extranjeros), la
-        carrera con su especialidad, el año de ingreso y el correo si viene; el resto de las columnas se ignora. Los nombres en mayúsculas se guardan
-        como nombre propio.
-      </p>
-      <div class="rounded-lg border border-gray-200">
-        <p class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Columnas</p>
-        <ul class="divide-y divide-gray-100">
-          <li v-for="c in COLUMNAS_PLANTILLA" :key="c.campo" class="grid grid-cols-1 gap-1 px-4 py-2 sm:grid-cols-[10rem_1fr]">
-            <span class="font-medium text-gray-900">{{ c.encabezado }}</span>
-            <span class="text-gray-600">{{ c.nota }}</span>
-          </li>
-        </ul>
+    <!-- Columnas de la planilla -->
+    <div v-if="paso === 'elegir'" class="mt-4 overflow-hidden rounded-xl border border-gray-200 text-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Columnas de la planilla</p>
+        <p class="flex items-center gap-3 text-[11px] text-gray-500">
+          <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-indigo-600" aria-hidden="true"></span>Obligatoria</span>
+          <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-gray-300" aria-hidden="true"></span>Opcional</span>
+        </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-gray-600">Descargar plantilla:</span>
-        <button type="button" class="rounded-lg border border-emerald-300 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-50" @click="descargarPlantilla('excel')">Excel</button>
-        <button type="button" class="rounded-lg border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50" @click="descargarPlantilla('csv')">CSV</button>
-      </div>
-      <label
-        class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 px-4 py-8 text-center transition hover:border-indigo-400"
-        :class="procesando ? 'pointer-events-none opacity-60' : ''"
-      >
-        <svg class="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-        </svg>
-        <span class="font-semibold text-indigo-800">{{ procesando ? 'Revisando el archivo…' : 'Elegir archivo (.xlsx o .csv)' }}</span>
-        <span class="text-xs text-gray-500">Hasta 10.000 filas por carga</span>
-        <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" @change="elegirArchivo" />
-      </label>
-      <p v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-red-700" role="alert">{{ error }}</p>
+      <ul class="divide-y divide-gray-100">
+        <li
+          v-for="c in columnas"
+          :key="c.campo"
+          class="grid grid-cols-1 gap-1 border-l-[3px] px-4 py-2 even:bg-gray-50/50 sm:grid-cols-[11rem_1fr] sm:gap-4"
+          :class="c.requisito === 'obligatoria' ? 'border-l-indigo-600' : c.requisito === 'opcional' ? 'border-l-transparent' : 'border-l-gray-300'"
+        >
+          <span>
+            <span class="block font-semibold text-gray-900">{{ c.encabezado }}</span>
+            <span
+              v-if="c.requisito"
+              class="mt-0.5 inline-block rounded px-1.5 py-px text-[9px] font-bold uppercase tracking-widest"
+              :class="c.requisito === 'obligatoria' ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-500'"
+            >{{ c.requisito }}</span>
+          </span>
+          <span class="text-xs text-gray-600">{{ c.nota }}</span>
+        </li>
+      </ul>
     </div>
 
     <!-- Paso 2 y 3: revisión y resultado -->
     <div v-else class="space-y-4 text-sm">
-      <ol class="flex flex-wrap gap-2 text-xs font-medium text-gray-500">
-        <li class="rounded-full bg-gray-100 px-3 py-1">1. Elegir archivo</li>
-        <li class="rounded-full px-3 py-1" :class="paso === 'revision' ? 'bg-indigo-600 text-white' : 'bg-gray-100'">2. Revisar</li>
-        <li class="rounded-full px-3 py-1" :class="paso === 'resultado' ? 'bg-emerald-600 text-white' : 'bg-gray-100'">3. Confirmar</li>
-      </ol>
 
       <div v-if="paso === 'resultado' && resultado" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
         <p class="font-semibold">{{ fraseResultado }} desde «{{ archivo }}».</p>
@@ -453,20 +500,20 @@ function descargarDetalle() {
 
     <template #pie>
       <template v-if="paso === 'elegir'">
-        <button type="button" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm" @click="cerrar">
+        <button type="button" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm" @click="cerrar">
           Cancelar
         </button>
       </template>
       <template v-else-if="paso === 'revision'">
-        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm" :disabled="procesando" @click="reiniciar">
+        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm" :disabled="procesando" @click="reiniciar">
           Elegir otro archivo
         </button>
-        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm" :disabled="procesando" @click="descargarDetalle">
+        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm" :disabled="procesando" @click="descargarDetalle">
           Descargar detalle
         </button>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-50"
+          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-sm shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] disabled:opacity-50"
           :disabled="procesando || !confirmado || !porGuardar"
           @click="cargar"
         >
@@ -474,10 +521,10 @@ function descargarDetalle() {
         </button>
       </template>
       <template v-else>
-        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm" @click="descargarDetalle">
+        <button type="button" class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm" @click="descargarDetalle">
           Descargar detalle
         </button>
-        <button type="button" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="cerrar">
+        <button type="button" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-sm shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)]" @click="cerrar">
           Listo
         </button>
       </template>

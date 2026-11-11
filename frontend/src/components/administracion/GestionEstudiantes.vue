@@ -19,6 +19,13 @@ const opciones = ref<OpcionesUsuarios>({ carreras: [], tipos_documento: [], tipo
 const filtros = reactive({ q: '', tipo: 'estudiante', carrera: '' })
 
 const TIPO_LABEL: Record<Usuario['tipo'], string> = { estudiante: 'Estudiante', docente: 'Docente', funcionario: 'Funcionario' }
+const ETIQUETA_DOCUMENTO = { rut: 'RUT', pasaporte: 'Pasaporte', dni: 'DNI', otro: 'Otro' } as const
+
+function estadoDe(u: Usuario) {
+  if (u.activo) return { texto: 'Activo', clase: 'border-emerald-300 bg-emerald-50/60 text-emerald-700' }
+  if (u.inactividad === 'vencida') return { texto: 'Vencida', clase: 'border-amber-300 bg-amber-50/60 text-amber-800' }
+  return { texto: 'Inactivo', clase: 'border-red-300 bg-red-50/60 text-red-700' }
+}
 
 // El servidor entrega de a 25: con el reporte de matrícula son miles de estudiantes.
 // Tras guardar o tras una carga masiva se recarga la misma página.
@@ -129,6 +136,10 @@ function abrirNuevo(tipo: Usuario['tipo'] = 'estudiante') {
 const pideUnidad = computed(() => form.ficha.tipo !== 'estudiante' || !!form.ficha.unidad || !!form.ficha.cargo)
 const pideCarrera = computed(() => form.ficha.tipo === 'estudiante' || !!form.ficha.carrera || !!form.ficha.anio_ingreso)
 const NOMBRE_TIPO: Record<Usuario['tipo'], string> = { estudiante: 'estudiante', docente: 'docente', funcionario: 'funcionario' }
+
+/** Secciones de la ficha, numeradas según cuáles se muestran. */
+const secciones = computed(() => ['Identidad', 'Datos personales', 'Contacto', ...(pideCarrera.value ? ['Académico'] : []), ...(pideUnidad.value ? ['Trabajo'] : []), 'Cuenta'])
+const numero = (seccion: string) => secciones.value.indexOf(seccion) + 1
 
 // Correos adicionales: se agregan de a uno y se pueden quitar.
 const nuevoCorreo = ref('')
@@ -271,85 +282,100 @@ const clasesInput = (campo: string) =>
 </script>
 
 <template>
-  <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+  <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+    <header class="flex flex-col gap-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3 lg:flex-row lg:items-start lg:justify-between">
       <div>
-        <h3 class="font-semibold text-gray-900 mb-1">Usuarios: estudiantes, docentes y funcionarios</h3>
-        <p class="text-xs text-gray-500 max-w-xl">
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Usuarios: estudiantes, docentes y funcionarios
+        </h3>
+        <p class="mt-0.5 max-w-xl pl-3 text-xs text-gray-500">
           Registra estudiantes, docentes y funcionarios (con RUT o, si son extranjeros, con pasaporte o DNI), corrige sus datos o cárgalos en forma masiva
           desde una planilla Excel o CSV. Todo cambio pide confirmación y queda en el Registro absoluto.
         </p>
       </div>
-      <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
         <button
           type="button"
-          class="px-4 py-2.5 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50"
           @click="cargaAbierta = true"
         >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.500v2.250A2.250 2.250 0 005.250 21h13.500A2.250 2.250 0 0021 18.750V16.500m-13.500-9L12 3m0 0l4.500 4.500M12 3v13.500" /></svg>
           Carga masiva (Excel/CSV)
         </button>
-        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('estudiante')">
-          + Nuevo estudiante
-        </button>
-        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('docente')">
-          + Nuevo docente
-        </button>
-        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNuevo('funcionario')">
-          + Nuevo funcionario
-        </button>
+        <!-- Un solo bloque para crear: se elige el tipo de persona. -->
+        <div class="inline-flex overflow-hidden rounded-lg bg-indigo-600 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)]" role="group" aria-label="Crear usuario nuevo">
+          <span class="flex items-center whitespace-nowrap bg-indigo-700/60 px-2.5 text-xs" aria-hidden="true">+ Nuevo</span>
+          <button v-for="t in (['estudiante', 'docente', 'funcionario'] as const)" :key="t" type="button" class="border-l border-white/20 px-3 py-2 transition-colors first-of-type:border-l-0 hover:bg-indigo-700" :aria-label="`Nuevo ${NOMBRE_TIPO[t]}`" @click="abrirNuevo(t)">
+            {{ TIPO_LABEL[t] }}
+          </button>
+        </div>
       </div>
-    </div>
+    </header>
 
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4">
-      <input
-        v-model="filtros.q"
-        type="search"
-        placeholder="Buscar por nombre, RUT, pasaporte o carrera"
-        aria-label="Buscar estudiantes"
-        class="sm:col-span-2 w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-      />
-      <select v-model="filtros.tipo" aria-label="Filtrar por tipo" class="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+    <div class="grid grid-cols-1 gap-2 border-b border-gray-100 p-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div class="relative">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.350-4.350M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
+        <input
+          v-model="filtros.q"
+          type="search"
+          placeholder="Buscar por nombre, RUT, pasaporte o carrera"
+          aria-label="Buscar estudiantes"
+          class="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+      <select v-model="filtros.tipo" aria-label="Filtrar por tipo" class="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
         <option value="">Todos los tipos</option>
         <option v-for="t in opciones.tipos" :key="t" :value="t">{{ TIPO_LABEL[t] }}s</option>
       </select>
-      <select v-model="filtros.carrera" aria-label="Filtrar por carrera" class="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+      <select v-model="filtros.carrera" aria-label="Filtrar por carrera" class="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
         <option value="">Todas las carreras</option>
         <option v-for="c in opciones.carreras" :key="c" :value="c">{{ c }}</option>
       </select>
     </div>
 
-    <p class="text-xs text-gray-500 mb-2">{{ cargando ? 'Cargando…' : `${total.toLocaleString('es-CL')} ${total === 1 ? 'persona' : 'personas'}` }}</p>
+    <p class="border-b border-gray-100 px-4 py-2 text-xs text-gray-500">
+      <template v-if="cargando">Cargando…</template>
+      <template v-else><strong class="text-gray-900">{{ total.toLocaleString('es-CL') }}</strong> {{ total === 1 ? 'persona' : 'personas' }}</template>
+    </p>
 
-    <div class="rounded-lg border border-gray-200 overflow-x-auto">
-      <table class="w-full text-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full">
         <thead>
-          <tr class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+          <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
             <th class="px-4 py-2.5">Documento</th>
             <th class="px-4 py-2.5">Nombre</th>
-            <th class="px-4 py-2.5 hidden md:table-cell">Carrera</th>
-            <th class="px-4 py-2.5 hidden sm:table-cell">Estado</th>
+            <th class="hidden px-4 py-2.5 md:table-cell">Carrera</th>
+            <th class="hidden px-4 py-2.5 sm:table-cell">Estado</th>
             <th class="px-4 py-2.5 text-right">Acciones</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="u in usuarios" :key="u.id" class="hover:bg-indigo-50/40">
-            <td class="px-4 py-2.5 font-mono text-xs text-gray-700 whitespace-nowrap">
-              {{ describirDocumento(u.rut, u.tipo_documento, u.pais) }}
+          <tr v-for="u in usuarios" :key="u.id" class="even:bg-gray-50/50">
+            <td class="px-4 py-2.5 whitespace-nowrap">
+              <span class="mr-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="u.tipo_documento && u.tipo_documento !== 'rut' ? 'bg-amber-50 text-amber-800' : 'bg-indigo-50 text-indigo-700'">{{ ETIQUETA_DOCUMENTO[u.tipo_documento ?? 'rut'] }}</span>
+              <span class="font-mono text-xs text-gray-800">{{ u.rut }}</span>
+              <span v-if="u.pais && u.tipo_documento !== 'rut'" class="mt-0.5 block text-[11px] text-gray-500">{{ u.pais }}</span>
             </td>
             <td class="px-4 py-2.5">
-              <p class="font-medium text-gray-900">{{ u.nombre }} {{ u.apellido }}</p>
-              <p class="text-xs text-gray-500">{{ TIPO_LABEL[u.tipo] }}{{ u.email ? ` · ${u.email}` : '' }}<span v-if="u.correos?.length" class="ml-1 rounded bg-indigo-50 px-1 text-indigo-700" :title="u.correos.map((c) => c.email).join(', ')">+{{ u.correos.length }}</span></p>
-            </td>
-            <td class="px-4 py-2.5 text-gray-600 hidden md:table-cell">
-              {{ u.carrera ?? u.unidad ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
-            </td>
-            <td class="px-4 py-2.5 hidden sm:table-cell">
-              <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="u.activo ? 'bg-emerald-100 text-emerald-700' : u.inactividad === 'vencida' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
-                {{ u.activo ? 'Activo' : u.inactividad === 'vencida' ? 'Vencida' : 'Inactivo' }}
+              <span class="block text-sm font-bold leading-snug text-gray-900">{{ u.nombre }} {{ u.apellido }}</span>
+              <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                <span class="font-semibold text-gray-600">{{ TIPO_LABEL[u.tipo] }}</span>
+                <template v-if="u.email">
+                  <span class="h-3 w-px bg-gray-300" aria-hidden="true"></span>
+                  <span class="break-all text-indigo-700">{{ u.email }}</span>
+                </template>
+                <span v-if="u.correos?.length" class="rounded bg-indigo-50 px-1 text-indigo-700" :title="u.correos.map((c) => c.email).join(', ')">+{{ u.correos.length }}</span>
               </span>
             </td>
+            <td class="hidden px-4 py-2.5 text-sm text-gray-700 md:table-cell">
+              {{ u.carrera ?? u.unidad ?? '—' }}<span v-if="u.anio_ingreso" class="text-xs text-gray-400"> · {{ u.anio_ingreso }}</span>
+            </td>
+            <td class="hidden px-4 py-2.5 whitespace-nowrap sm:table-cell">
+              <span class="inline-block rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-widest" :class="estadoDe(u).clase">{{ estadoDe(u).texto }}</span>
+            </td>
             <td class="px-4 py-2.5 text-right">
-              <button type="button" class="font-medium text-indigo-700 hover:text-indigo-800" @click="abrirEdicion(u)">Editar</button>
+              <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50" @click="abrirEdicion(u)">Editar</button>
             </td>
           </tr>
           <tr v-if="!cargando && !usuarios.length">
@@ -359,21 +385,26 @@ const clasesInput = (campo: string) =>
       </table>
     </div>
 
-    <Paginacion v-model="pagina" class="mt-3" :total="total" :por-pagina="porPagina" singular="persona" plural="personas" />
+    <Paginacion v-model="pagina" class="border-t border-gray-100 px-4 py-2" :total="total" :por-pagina="porPagina" singular="persona" plural="personas" />
 
     <Modal
       :abierto="form.abierto"
       :titulo="form.id ? `Editar ${NOMBRE_TIPO[form.ficha.tipo]}` : `Nuevo ${NOMBRE_TIPO[form.ficha.tipo]}`"
       :descripcion="form.id ? 'Los cambios se guardan recién al confirmar.' : 'Quedará habilitado para entradas, préstamos, reservas y el portal.'"
       ancho="lg"
-      pie-fijo
+      destacado
       :bloqueado="form.guardando"
       @cerrar="form.abierto = false"
     >
-      <div class="space-y-4">
+      <div class="space-y-3">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Identidad') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Identidad</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
         <div>
-          <p class="block text-sm font-medium text-gray-700 mb-1">Documento de identidad</p>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de documento">
+          <p class="mb-1 block text-xs font-medium text-gray-600">Documento de identidad</p>
+          <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 sm:grid-cols-4" role="radiogroup" aria-label="Tipo de documento">
             <button
               v-for="(nombre, clave) in TIPOS_DOCUMENTO"
               :key="clave"
@@ -381,17 +412,16 @@ const clasesInput = (campo: string) =>
               role="radio"
               :aria-checked="form.ficha.tipo_documento === clave"
               class="rounded-md px-2 py-1.5 text-xs font-semibold transition-colors"
-              :class="form.ficha.tipo_documento === clave ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+              :class="form.ficha.tipo_documento === clave ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
               @click="elegirTipoDocumento(clave)"
             >
               {{ clave === 'dni' ? 'DNI / cédula' : nombre }}
             </button>
           </div>
         </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label for="est-rut" class="block text-xs font-medium text-gray-600 mb-1">
+            <label for="est-rut" class="mb-1 block text-xs font-medium text-gray-600">
               {{ form.ficha.tipo_documento === 'rut' ? 'RUT' : form.ficha.tipo_documento === 'pasaporte' ? 'N.º de pasaporte' : 'N.º de documento' }}
             </label>
             <input
@@ -403,93 +433,128 @@ const clasesInput = (campo: string) =>
               :class="clasesInput('rut')"
               @input="form.ficha.rut = formatearInputIdentificador($event, form.ficha.tipo_documento); limpiarError('rut')"
             />
-            <p v-if="form.errores.rut" class="text-xs text-red-600 mt-1">{{ form.errores.rut }}</p>
+            <p v-if="form.errores.rut" class="mt-1 text-xs text-red-600">{{ form.errores.rut }}</p>
           </div>
           <div v-if="form.ficha.tipo_documento !== 'rut'">
-            <label for="est-pais" class="block text-xs font-medium text-gray-600 mb-1">País (opcional)</label>
+            <label for="est-pais" class="mb-1 block text-xs font-medium text-gray-600">País (opcional)</label>
             <input id="est-pais" v-model="form.ficha.pais" maxlength="100" placeholder="Ej: Argentina" :class="clasesInput('pais')" />
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Datos personales') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Datos personales</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label for="est-nombre" class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+            <label for="est-nombre" class="mb-1 block text-xs font-medium text-gray-600">Nombre</label>
             <input id="est-nombre" v-model="form.ficha.nombre" maxlength="255" :class="clasesInput('nombre')" @input="limpiarError('nombre')" />
-            <p v-if="form.errores.nombre" class="text-xs text-red-600 mt-1">{{ form.errores.nombre }}</p>
+            <p v-if="form.errores.nombre" class="mt-1 text-xs text-red-600">{{ form.errores.nombre }}</p>
           </div>
           <div>
-            <label for="est-apellido" class="block text-xs font-medium text-gray-600 mb-1">Apellido</label>
+            <label for="est-apellido" class="mb-1 block text-xs font-medium text-gray-600">Apellido</label>
             <input id="est-apellido" v-model="form.ficha.apellido" maxlength="255" :class="clasesInput('apellido')" @input="limpiarError('apellido')" />
-            <p v-if="form.errores.apellido" class="text-xs text-red-600 mt-1">{{ form.errores.apellido }}</p>
+            <p v-if="form.errores.apellido" class="mt-1 text-xs text-red-600">{{ form.errores.apellido }}</p>
           </div>
           <div>
-            <label for="est-email" class="block text-xs font-medium text-gray-600 mb-1">Correo (opcional)</label>
-            <input id="est-email" v-model="form.ficha.email" type="email" maxlength="255" placeholder="nombre.apellido@umag.cl" :class="clasesInput('email')" @input="limpiarError('email')" />
-            <p v-if="form.errores.email" class="text-xs text-red-600 mt-1">{{ form.errores.email }}</p>
-          </div>
-          <div v-if="form.id">
-            <label for="est-tipo" class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
-            <select id="est-tipo" v-model="form.ficha.tipo" :class="clasesInput('tipo')">
-              <option v-for="t in opciones.tipos" :key="t" :value="t">{{ TIPO_LABEL[t] }}</option>
-            </select>
-          </div>
-          <div class="sm:col-span-2">
-            <p class="block text-xs font-medium text-gray-600 mb-1">Correos adicionales (opcional)</p>
-            <ul v-if="form.ficha.correos_adicionales.length" class="mb-2 flex flex-wrap gap-1.5">
-              <li v-for="c in form.ficha.correos_adicionales" :key="c" class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-900 ring-1 ring-indigo-100">
-                {{ c }}
-                <button type="button" class="text-indigo-500 hover:text-red-600" :aria-label="`Quitar ${c}`" @click="quitarCorreo(c)">×</button>
-              </li>
-            </ul>
-            <div class="flex gap-2">
-              <input
-                v-model="nuevoCorreo"
-                type="email"
-                maxlength="255"
-                placeholder="otro.correo@gmail.com"
-                aria-label="Correo adicional"
-                :class="clasesInput('correos_adicionales')"
-                @keydown.enter.prevent="agregarCorreo"
-                @input="limpiarError('correos_adicionales')"
-              />
-              <button type="button" class="shrink-0 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50" @click="agregarCorreo">Agregar</button>
-            </div>
-            <p v-if="form.errores.correos_adicionales" class="text-xs text-red-600 mt-1">{{ form.errores.correos_adicionales }}</p>
-            <p v-else class="mt-1 text-xs text-gray-500">Sirven para reconocerla al entrar con Google o el directorio. Las notificaciones van al correo principal.</p>
-          </div>
-          <template v-if="pideUnidad">
-            <div>
-              <label for="est-unidad" class="block text-xs font-medium text-gray-600 mb-1">Unidad o departamento (opcional)</label>
-              <input id="est-unidad" v-model="form.ficha.unidad" maxlength="255" placeholder="Ej: Departamento de Ciencias" :class="clasesInput('unidad')" />
-            </div>
-            <div>
-              <label for="est-cargo" class="block text-xs font-medium text-gray-600 mb-1">Cargo (opcional)</label>
-              <input id="est-cargo" v-model="form.ficha.cargo" maxlength="255" placeholder="Ej: Profesor adjunto" :class="clasesInput('cargo')" />
-            </div>
-          </template>
-          <div v-if="pideCarrera" class="sm:col-span-2">
-            <label for="est-carrera" class="block text-xs font-medium text-gray-600 mb-1">Carrera (opcional)</label>
-            <input id="est-carrera" v-model="form.ficha.carrera" list="est-carreras" maxlength="255" placeholder="Elige una o escribe una nueva" :class="clasesInput('carrera')" />
-            <datalist id="est-carreras">
-              <option v-for="c in opciones.carreras" :key="c" :value="c" />
-            </datalist>
-          </div>
-          <div v-if="pideCarrera">
-            <label for="est-anio" class="block text-xs font-medium text-gray-600 mb-1">Año de ingreso (opcional)</label>
-            <input id="est-anio" v-model="form.ficha.anio_ingreso" inputmode="numeric" maxlength="4" placeholder="2026" :class="clasesInput('anio_ingreso')" @input="limpiarError('anio_ingreso')" />
-            <p v-if="form.errores.anio_ingreso" class="text-xs text-red-600 mt-1">{{ form.errores.anio_ingreso }}</p>
-          </div>
-          <div>
-            <label for="est-sexo" class="block text-xs font-medium text-gray-600 mb-1">Sexo (opcional)</label>
+            <label for="est-sexo" class="mb-1 block text-xs font-medium text-gray-600">Sexo (opcional)</label>
             <select id="est-sexo" v-model="form.ficha.sexo" :class="clasesInput('sexo')">
               <option value="">Sin informar</option>
               <option v-for="s in opciones.sexos" :key="s" :value="s">{{ s }}</option>
             </select>
           </div>
-          <div class="sm:col-span-2">
-            <label for="est-password" class="block text-xs font-medium text-gray-600 mb-1">
-              Contraseña del portal (opcional)
-            </label>
+          <div v-if="form.id">
+            <label for="est-tipo" class="mb-1 block text-xs font-medium text-gray-600">Tipo</label>
+            <select id="est-tipo" v-model="form.ficha.tipo" :class="clasesInput('tipo')">
+              <option v-for="t in opciones.tipos" :key="t" :value="t">{{ TIPO_LABEL[t] }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Contacto') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Contacto</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
+        <div>
+          <label for="est-email" class="mb-1 block text-xs font-medium text-gray-600">Correo (opcional)</label>
+          <input id="est-email" v-model="form.ficha.email" type="email" maxlength="255" placeholder="nombre.apellido@umag.cl" :class="clasesInput('email')" @input="limpiarError('email')" />
+          <p v-if="form.errores.email" class="mt-1 text-xs text-red-600">{{ form.errores.email }}</p>
+        </div>
+        <div>
+          <p class="mb-1 block text-xs font-medium text-gray-600">Correos adicionales (opcional)</p>
+          <ul v-if="form.ficha.correos_adicionales.length" class="mb-2 flex flex-wrap gap-1.5">
+            <li v-for="c in form.ficha.correos_adicionales" :key="c" class="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-900">
+              {{ c }}
+              <button type="button" class="text-indigo-500 hover:text-red-600" :aria-label="`Quitar ${c}`" @click="quitarCorreo(c)">×</button>
+            </li>
+          </ul>
+          <div class="flex gap-2">
+            <input
+              v-model="nuevoCorreo"
+              type="email"
+              maxlength="255"
+              placeholder="otro.correo@gmail.com"
+              aria-label="Correo adicional"
+              :class="clasesInput('correos_adicionales')"
+              @keydown.enter.prevent="agregarCorreo"
+              @input="limpiarError('correos_adicionales')"
+            />
+            <button type="button" class="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-gray-50" @click="agregarCorreo">Agregar</button>
+          </div>
+          <p v-if="form.errores.correos_adicionales" class="mt-1 text-xs text-red-600">{{ form.errores.correos_adicionales }}</p>
+          <p v-else class="mt-1 text-[11px] text-gray-500">Sirven para reconocerla al entrar con Google o el directorio. Las notificaciones van al correo principal.</p>
+        </div>
+
+        <template v-if="pideCarrera">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Académico') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Académico</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
+          <div>
+            <label for="est-carrera" class="mb-1 block text-xs font-medium text-gray-600">Carrera (opcional)</label>
+            <input id="est-carrera" v-model="form.ficha.carrera" list="est-carreras" maxlength="255" placeholder="Elige una o escribe una nueva" :class="clasesInput('carrera')" />
+            <datalist id="est-carreras">
+              <option v-for="c in opciones.carreras" :key="c" :value="c" />
+            </datalist>
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label for="est-anio" class="mb-1 block text-xs font-medium text-gray-600">Año de ingreso (opcional)</label>
+              <input id="est-anio" v-model="form.ficha.anio_ingreso" inputmode="numeric" maxlength="4" placeholder="2026" :class="clasesInput('anio_ingreso')" @input="limpiarError('anio_ingreso')" />
+              <p v-if="form.errores.anio_ingreso" class="mt-1 text-xs text-red-600">{{ form.errores.anio_ingreso }}</p>
+            </div>
+          </div>
+        </template>
+
+        <template v-if="pideUnidad">
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Trabajo') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Trabajo</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label for="est-unidad" class="mb-1 block text-xs font-medium text-gray-600">Unidad o departamento (opcional)</label>
+              <input id="est-unidad" v-model="form.ficha.unidad" maxlength="255" placeholder="Ej: Departamento de Ciencias" :class="clasesInput('unidad')" />
+            </div>
+            <div>
+              <label for="est-cargo" class="mb-1 block text-xs font-medium text-gray-600">Cargo (opcional)</label>
+              <input id="est-cargo" v-model="form.ficha.cargo" maxlength="255" placeholder="Ej: Profesor adjunto" :class="clasesInput('cargo')" />
+            </div>
+          </div>
+        </template>
+
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-5 w-5 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ numero('Cuenta') }}</span>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-900/70">Cuenta</span>
+          <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div :class="form.id ? '' : 'sm:col-span-2'">
+            <label for="est-password" class="mb-1 block text-xs font-medium text-gray-600">Contraseña del portal (opcional)</label>
             <input
               id="est-password"
               v-model="form.ficha.password"
@@ -498,27 +563,30 @@ const clasesInput = (campo: string) =>
               :class="clasesInput('password')"
               @input="limpiarError('password')"
             />
-            <p v-if="form.errores.password" class="text-xs text-red-600 mt-1">{{ form.errores.password }}</p>
+            <p v-if="form.errores.password" class="mt-1 text-xs text-red-600">{{ form.errores.password }}</p>
           </div>
-          <div v-if="form.id" class="sm:col-span-1">
-            <label for="usuario-vigente" class="block text-xs font-medium text-gray-600 mb-1">Cuenta vigente hasta</label>
+          <div v-if="form.id">
+            <label for="usuario-vigente" class="mb-1 block text-xs font-medium text-gray-600">Cuenta vigente hasta</label>
             <input id="usuario-vigente" v-model="form.ficha.vigente_hasta" type="date" :class="clasesInput('vigente_hasta')" @input="limpiarError('vigente_hasta')" />
-            <p v-if="form.errores.vigente_hasta" class="text-xs text-red-600 mt-1">{{ form.errores.vigente_hasta }}</p>
-            <p v-else class="mt-1 text-xs text-gray-500">Último día en que la cuenta sirve. Pasada esa fecha queda vencida hasta que se renueve.</p>
+            <p v-if="form.errores.vigente_hasta" class="mt-1 text-xs text-red-600">{{ form.errores.vigente_hasta }}</p>
+            <p v-else class="mt-1 text-[11px] text-gray-500">Último día en que la cuenta sirve. Pasada esa fecha queda vencida hasta que se renueve.</p>
           </div>
-          <div v-if="form.id" class="sm:col-span-2">
-            <label class="flex items-center gap-2 text-sm text-gray-700" :class="{ 'opacity-60': bloqueaDesactivar }">
-              <input v-model="form.ficha.activo" type="checkbox" :disabled="bloqueaDesactivar" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-              Activo (si se desactiva, no puede registrar entradas, pedir préstamos ni entrar al portal)
-            </label>
-            <p v-if="bloqueaDesactivar" class="mt-1 text-xs text-gray-500">Solo un Administrador/a puede desactivar a un usuario.</p>
-          </div>
+        </div>
+        <div v-if="form.id">
+          <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 text-sm" :class="[form.ficha.activo ? 'border-indigo-300 bg-indigo-50/40' : '', bloqueaDesactivar ? 'opacity-60' : '']">
+            <input v-model="form.ficha.activo" type="checkbox" :disabled="bloqueaDesactivar" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            <span>
+              <span class="block font-semibold text-gray-900">Activo</span>
+              <span class="block text-xs text-gray-500">Si se desactiva, no puede registrar entradas, pedir préstamos ni entrar al portal.</span>
+            </span>
+          </label>
+          <p v-if="bloqueaDesactivar" class="mt-1 text-xs text-gray-500">Solo un Administrador/a puede desactivar a un usuario.</p>
         </div>
       </div>
       <template #pie>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm"
           :disabled="form.guardando"
           @click="form.abierto = false"
         >
@@ -526,7 +594,7 @@ const clasesInput = (campo: string) =>
         </button>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-sm shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] disabled:opacity-60"
           :disabled="form.guardando"
           @click="pedirConfirmacion"
         >
@@ -539,6 +607,7 @@ const clasesInput = (campo: string) =>
       :abierto="form.confirmando"
       :titulo="form.id ? '¿Guardar estos cambios?' : `¿Crear ${form.ficha.tipo === 'funcionario' ? 'este' : 'este'} ${NOMBRE_TIPO[form.ficha.tipo]}?`"
       :confirmar="form.id ? 'Sí, guardar cambios' : 'Sí, crear'"
+      destacado
       :cargando="form.guardando"
       @confirmar="guardar"
       @cancelar="form.confirmando = false"
@@ -576,5 +645,5 @@ const clasesInput = (campo: string) =>
     </DialogoConfirmacion>
 
     <CargaMasivaEstudiantes v-model:abierto="cargaAbierta" @cargado="cargar(); cargarOpciones()" />
-  </div>
+  </section>
 </template>
