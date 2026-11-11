@@ -200,6 +200,14 @@ const paisExterno = ref('')
 // Sin documento (a veces son muchas personas y no todas lo quieren dar): se registra a todas de una vez.
 const cantidadExterno = ref(1)
 const sinDocumento = computed(() => !rutExterno.value.trim())
+const TIPOS_INGRESO = [
+  { id: 'externo' as const, titulo: 'Externo', detalle: 'Persona que no es de la universidad', tono: 'bg-indigo-50 text-indigo-700', icono: 'M15.750 6a3.750 3.750 0 11-7.500 0 3.750 3.750 0 017.500 0zM4.500 20.118a7.500 7.500 0 0115 0A17.933 17.933 0 0112 21.750c-2.676 0-5.216-.584-7.500-1.632z' },
+  { id: 'visita' as const, titulo: 'Visita', detalle: 'Delegación o colegio; va aparte en reportes', tono: 'bg-emerald-50 text-emerald-700', icono: 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.750 0zm8.250 2.250a2.625 2.625 0 11-5.250 0 2.625 2.625 0 015.250 0z' },
+]
+
+function cambiarCantidadExterno(paso: 1 | -1) {
+  cantidadExterno.value = Math.min(200, Math.max(1, (Number(cantidadExterno.value) || 1) + paso))
+}
 const registrandoExterno = ref(false)
 
 function abrirModalExterno() {
@@ -807,112 +815,148 @@ function verSusPrestamos(e: Entrada) {
     <Modal
       :abierto="externoModalOpen"
       :titulo="tipoExterno === 'visita' ? 'Registrar visita' : 'Registrar visitante externo'"
-      descripcion="Para personas que no están en el sistema institucional. Se guarda directamente con los datos que declaren."
+      descripcion="Para personas que no están en el sistema institucional. Se guarda con los datos que declaren."
+      ancho="md"
       :bloqueado="registrandoExterno"
       @cerrar="externoModalOpen = false"
     >
+      <template #cabecera>
+        <div class="relative -mx-6 -mt-6 mb-4 flex items-center gap-3 overflow-hidden rounded-t-2xl px-6 py-4" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <svg class="pointer-events-none absolute -bottom-2 right-16 hidden h-[4.5rem] w-24 rotate-[-8deg] sm:block" viewBox="0 0 96 72" fill="none" stroke="rgb(255 255 255 / 0.16)" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+            <rect x="34" y="1" width="28" height="9" rx="2.500" fill="rgb(255 255 255 / 0.06)" />
+            <rect x="6" y="9" width="84" height="58" rx="6" fill="rgb(255 255 255 / 0.07)" />
+            <circle cx="28" cy="31" r="8" />
+            <path d="M15 58c1-10 7-15 13-15s12 5 13 15M50 28h30M50 39h24" />
+          </svg>
+          <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-blanco/15 text-white" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.750"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.500v3m0 0v3m0-3h3m-3 0h-3m-2.250-4.125a3.375 3.375 0 11-6.750 0 3.375 3.375 0 016.750 0zM3 19.235v-.11a6.375 6.375 0 0112.750 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" /></svg>
+          </span>
+          <div class="relative min-w-0 flex-1">
+            <h3 class="font-serif text-lg font-bold leading-tight text-white">{{ tipoExterno === 'visita' ? 'Registrar visita' : 'Registrar visitante externo' }}</h3>
+            <p class="mt-0.5 text-xs text-white/80">Para personas que no están en el sistema institucional. Se guarda con los datos que declaren.</p>
+          </div>
+          <button type="button" class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition-colors hover:bg-blanco/15 disabled:opacity-50" aria-label="Cerrar" :disabled="registrandoExterno" @click="externoModalOpen = false">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      </template>
+
       <div class="space-y-3">
         <div>
-          <p class="mb-1 block text-sm font-medium text-gray-700">Tipo de ingreso</p>
-          <div class="grid grid-cols-2 gap-2">
+          <p class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800"><span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-[11px] font-bold text-white">1</span> Tipo de ingreso</p>
+          <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de ingreso">
             <button
-              type="button"
-              class="rounded-lg border px-3 py-2 text-left transition-colors"
-              :class="tipoExterno === 'externo' ? 'border-indigo-500 bg-indigo-50 text-indigo-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
-              @click="tipoExterno = 'externo'"
-            >
-              <span class="block text-sm font-semibold">Externo</span>
-              <span class="block text-[11px] text-gray-500">Persona que no es de la universidad</span>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border px-3 py-2 text-left transition-colors"
-              :class="tipoExterno === 'visita' ? 'border-emerald-500 bg-emerald-50 text-emerald-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
-              @click="tipoExterno = 'visita'"
-            >
-              <span class="block text-sm font-semibold">Visita</span>
-              <span class="block text-[11px] text-gray-500">Delegación o colegio; va aparte en reportes</span>
-            </button>
-          </div>
-        </div>
-        <div>
-          <p class="mb-1 block text-sm font-medium text-gray-700">Documento <span class="font-normal text-gray-500">(opcional)</span></p>
-          <div class="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de documento">
-            <button
-              v-for="tipo in (['rut', 'pasaporte', 'dni'] as const)"
-              :key="tipo"
+              v-for="t in TIPOS_INGRESO"
+              :key="t.id"
               type="button"
               role="radio"
-              :aria-checked="documentoExterno === tipo"
-              class="rounded-md px-2 py-1.5 text-xs font-semibold transition-colors"
-              :class="documentoExterno === tipo ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
-              @click="elegirDocumentoExterno(tipo)"
+              :aria-checked="tipoExterno === t.id"
+              class="relative flex items-start gap-2 rounded-xl border-2 bg-white p-2.5 text-left transition-colors"
+              :class="tipoExterno === t.id ? 'border-indigo-600 bg-indigo-50/60' : 'border-gray-200 hover:border-gray-300'"
+              @click="tipoExterno = t.id"
             >
-              {{ tipo === 'dni' ? 'DNI / cédula' : TIPOS_DOCUMENTO[tipo] }}
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" :class="tipoExterno === t.id ? 'bg-indigo-600 text-white' : t.tono" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.750"><path stroke-linecap="round" stroke-linejoin="round" :d="t.icono" /></svg>
+              </span>
+              <span class="min-w-0 pr-3">
+                <span class="block text-sm font-bold" :class="tipoExterno === t.id ? 'text-indigo-700' : 'text-gray-900'">{{ t.titulo }}</span>
+                <span class="block text-[11px] leading-snug text-gray-500">{{ t.detalle }}</span>
+              </span>
+              <span class="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full" :class="tipoExterno === t.id ? 'bg-indigo-600 text-white' : 'border-2 border-gray-300'" aria-hidden="true">
+                <svg v-if="tipoExterno === t.id" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.500 12.750l6 6 9-13.500" /></svg>
+              </span>
             </button>
           </div>
         </div>
-        <div :class="documentoExterno === 'rut' ? '' : 'grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]'">
+
+        <div class="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="flex items-center gap-2 text-sm font-semibold text-gray-800">
+              <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-[11px] font-bold text-white">2</span> Identificación
+              <span class="rounded-full border border-gray-200 bg-white px-2 text-[11px] font-medium text-gray-500">opcional</span>
+            </p>
+            <div class="flex gap-0.5 rounded-lg border border-gray-200 bg-white p-0.5" role="radiogroup" aria-label="Tipo de documento">
+              <button
+                v-for="tipo in (['rut', 'pasaporte', 'dni'] as const)"
+                :key="tipo"
+                type="button"
+                role="radio"
+                :aria-checked="documentoExterno === tipo"
+                class="whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold transition-colors"
+                :class="documentoExterno === tipo ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'"
+                @click="elegirDocumentoExterno(tipo)"
+              >
+                {{ tipo === 'dni' ? 'DNI / cédula' : TIPOS_DOCUMENTO[tipo] }}
+              </button>
+            </div>
+          </div>
+          <div :class="documentoExterno === 'rut' ? '' : 'grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]'">
+            <div>
+              <label for="rut-externo" class="mb-1 block text-xs font-medium text-gray-700">
+                {{ documentoExterno === 'rut' ? 'RUT' : documentoExterno === 'pasaporte' ? 'N.º de pasaporte' : 'N.º de documento' }}
+              </label>
+              <input
+                id="rut-externo"
+                :value="rutExterno"
+                type="text"
+                :placeholder="documentoExterno === 'rut' ? '12.345.678-5' : documentoExterno === 'pasaporte' ? 'Ej: FT482913' : 'Ej: 38456123'"
+                :maxlength="documentoExterno === 'rut' ? 12 : 20"
+                class="w-full rounded-lg border border-gray-200 bg-white py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm px-3 font-mono"
+                @input="rutExterno = formatearInputIdentificador($event, documentoExterno)"
+                @keydown.enter="registrarExterno"
+              />
+            </div>
+            <div v-if="documentoExterno !== 'rut'">
+              <label for="pais-externo" class="mb-1 block text-xs font-medium text-gray-700">País</label>
+              <input
+                id="pais-externo"
+                v-model="paisExterno"
+                type="text"
+                placeholder="Ej: Argentina"
+                maxlength="100"
+                class="w-full rounded-lg border border-gray-200 bg-white py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm px-3"
+                @keydown.enter="registrarExterno"
+              />
+            </div>
+          </div>
           <div>
-            <label for="rut-externo" class="mb-1 block text-sm font-medium text-gray-700">
-              {{ documentoExterno === 'rut' ? 'RUT' : documentoExterno === 'pasaporte' ? 'N.º de pasaporte' : 'N.º de documento' }} (opcional)
-            </label>
+            <label for="nombre-externo" class="mb-1 block text-xs font-medium text-gray-700">Nombre</label>
             <input
-              id="rut-externo"
-              :value="rutExterno"
+              id="nombre-externo"
+              v-model="nombreExterno"
               type="text"
-              :placeholder="documentoExterno === 'rut' ? '12.345.678-5' : documentoExterno === 'pasaporte' ? 'Ej: FT482913' : 'Ej: 38456123'"
-              :maxlength="documentoExterno === 'rut' ? 12 : 20"
-              class="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
-              @input="rutExterno = formatearInputIdentificador($event, documentoExterno)"
-              @keydown.enter="registrarExterno"
-            />
-          </div>
-          <div v-if="documentoExterno !== 'rut'">
-            <label for="pais-externo" class="mb-1 block text-sm font-medium text-gray-700">País (opcional)</label>
-            <input
-              id="pais-externo"
-              v-model="paisExterno"
-              type="text"
-              placeholder="Ej: Argentina"
-              maxlength="100"
-              class="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nombre de la persona"
+              class="w-full rounded-lg border border-gray-200 bg-white py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm px-3"
               @keydown.enter="registrarExterno"
             />
           </div>
         </div>
-        <div>
-          <label for="nombre-externo" class="mb-1 block text-sm font-medium text-gray-700">Nombre (opcional)</label>
-          <input
-            id="nombre-externo"
-            v-model="nombreExterno"
-            type="text"
-            placeholder="Nombre (opcional)"
-            class="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
-            @keydown.enter="registrarExterno"
-          />
-        </div>
-        <div v-if="sinDocumento" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+
+        <div v-if="sinDocumento" class="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p class="text-xs text-amber-800">Sin documento queda anotada como «Sin documento»: cuenta como una persona más en el día, pero no se puede reconocer si vuelve a entrar.</p>
-          <div class="mt-2 flex items-center gap-2">
-            <label for="cantidad-externo" class="text-sm font-medium text-gray-700">Cantidad de personas</label>
-            <input
-              id="cantidad-externo"
-              v-model.number="cantidadExterno"
-              type="number"
-              min="1"
-              max="200"
-              inputmode="numeric"
-              class="w-24 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-center outline-none focus:ring-2 focus:ring-indigo-500"
-              @keydown.enter="registrarExterno"
-            />
+          <div class="mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-100 bg-white px-3 py-1.5">
+            <label for="cantidad-externo" class="text-sm font-semibold text-gray-800">Cantidad de personas</label>
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-300 bg-white text-amber-800 transition-colors hover:bg-amber-50" aria-label="Una persona menos" @click="cambiarCantidadExterno(-1)">−</button>
+              <input
+                id="cantidad-externo"
+                v-model.number="cantidadExterno"
+                type="number"
+                min="1"
+                max="200"
+                inputmode="numeric"
+                class="h-7 w-12 rounded-lg border border-amber-200 bg-white text-center text-sm font-bold outline-none [appearance:textfield] focus:ring-2 focus:ring-indigo-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                @keydown.enter="registrarExterno"
+              />
+              <button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#b08d57] text-white transition hover:brightness-110" aria-label="Una persona más" @click="cambiarCantidadExterno(1)">+</button>
+            </div>
           </div>
         </div>
       </div>
       <template #pie>
         <button
           type="button"
-          class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          class="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-100"
           :disabled="registrandoExterno"
           @click="externoModalOpen = false"
         >
@@ -920,11 +964,12 @@ function verSusPrestamos(e: Entrada) {
         </button>
         <button
           type="button"
-          class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+          class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
           :disabled="registrandoExterno"
           @click="registrarExterno"
         >
-          {{ registrandoExterno ? 'Registrando…' : 'Registrar' }}
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M5 5v14" /></svg>
+          {{ registrandoExterno ? 'Registrando…' : 'Registrar entrada' }}
         </button>
       </template>
     </Modal>
