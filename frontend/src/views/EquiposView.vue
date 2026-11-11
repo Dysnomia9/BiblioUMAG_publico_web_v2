@@ -27,7 +27,7 @@ const apiError = ref(false)
 // Las filas vacías no cuentan; con el lector, el Enter del código salta a la fila siguiente.
 type FilaNueva = { id: number; nombre: string; codigo: string; tipo: string }
 type Problema = { campo: 'nombre' | 'codigo' | 'tipo'; mensaje: string }
-const FILAS_INICIALES = 5
+const FILAS_INICIALES = 1
 const MAXIMO_FILAS = 50
 let siguienteFila = 0
 
