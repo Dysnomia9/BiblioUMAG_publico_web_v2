@@ -164,34 +164,42 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
 </script>
 
 <template>
-  <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+  <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+    <header class="flex flex-col gap-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h3 class="font-semibold text-gray-900 mb-1">Reglas de préstamo</h3>
-        <p class="text-xs text-gray-500 max-w-xl">
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Reglas de préstamo
+          <span class="rounded border border-indigo-200 bg-white px-1.5 font-sans text-[11px] font-bold text-indigo-700">{{ reglas.length }}</span>
+        </h3>
+        <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">
           Plazo, cuántos libros a la vez y multa según quién pide, qué material y de dónde. Un campo vacío vale para todos. Al prestar se usa la regla
           <strong>más específica</strong> que calce (la que fija más criterios; si empatan, manda el tipo de material, luego la ubicación y luego el
           tipo de usuario). Si ninguna calza:
-          <template v-if="sinRegla">un libro a la vez, {{ pesos(sinRegla.multa_por_dia) }} por día de atraso{{ sinRegla.tope_multa ? `, tope ${pesos(sinRegla.tope_multa)}` : '' }}, y la fecha la elige el mesón.</template>
+          <template v-if="sinRegla">{{ sinRegla.max_ejemplares === 1 ? 'un libro' : `${sinRegla.max_ejemplares} libros` }} a la vez, {{ pesos(sinRegla.multa_por_dia) }} por día de atraso{{ sinRegla.tope_multa ? `, tope ${pesos(sinRegla.tope_multa)}` : '' }}, y la fecha la elige el mesón.</template>
         </p>
       </div>
-      <button type="button" class="shrink-0 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNueva">
+      <button type="button" class="shrink-0 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="abrirNueva">
         + Nueva regla
       </button>
-    </div>
+    </header>
 
-    <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-      <div v-for="r in reglas" :key="r.id" class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" :class="r.prestable ? '' : 'bg-gray-50'">
+    <div class="space-y-2.5 p-4">
+      <div
+        v-for="r in reglas"
+        :key="r.id"
+        class="flex flex-col gap-2.5 rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-white px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div class="min-w-0">
-          <p class="text-sm font-medium text-gray-900">{{ aQuien(r) }}</p>
-          <p class="text-xs" :class="r.prestable ? 'text-gray-500' : 'text-red-600'">{{ condiciones(r) }}</p>
+          <p class="text-sm font-semibold text-gray-900">{{ aQuien(r) }}</p>
+          <p class="mt-0.5 text-xs" :class="r.prestable ? 'text-gray-500' : 'text-red-700'">{{ condiciones(r) }}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-3 text-sm">
-          <button type="button" class="font-medium text-indigo-700 hover:text-indigo-800" @click="abrirEdicion(r)">Editar</button>
-          <button type="button" class="font-medium text-red-600 hover:text-red-700" @click="aEliminar = r">Eliminar</button>
+        <div class="flex shrink-0 items-center gap-4">
+          <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50" @click="abrirEdicion(r)">Editar</button>
+          <button type="button" class="text-xs font-semibold text-red-700 hover:underline" @click="aEliminar = r">Eliminar</button>
         </div>
       </div>
-      <p v-if="!reglas.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin reglas: todos los préstamos siguen la regla general.</p>
+      <p v-if="!reglas.length" class="rounded-lg border border-gray-200 px-4 py-5 text-center text-sm text-gray-400">Sin reglas: todos los préstamos siguen la regla general.</p>
     </div>
 
     <Modal
@@ -199,68 +207,77 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
       :titulo="form.regla ? 'Editar regla de préstamo' : 'Nueva regla de préstamo'"
       descripcion="Deja vacío lo que no quieras distinguir: vale para todos."
       ancho="lg"
-      pie-fijo
+      destacado
       :bloqueado="form.guardando"
       @cerrar="form.abierto = false"
     >
       <div class="space-y-4 text-sm">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div>
-            <label for="regla-usuario" class="mb-1 block text-xs font-medium text-gray-600">Tipo de usuario</label>
-            <select id="regla-usuario" v-model="form.ficha.tipo_usuario" :class="CAMPO">
-              <option value="">Todos</option>
-              <option v-for="(nombre, clave) in TIPOS_USUARIO" :key="clave" :value="clave">{{ nombre }}</option>
-            </select>
+        <fieldset class="rounded-xl border border-gray-200 bg-gray-50/60 px-4 pb-4 pt-1">
+          <legend class="px-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">A qué se aplica</legend>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label for="regla-usuario" class="mb-1 block text-xs font-medium text-gray-600">Tipo de usuario</label>
+              <select id="regla-usuario" v-model="form.ficha.tipo_usuario" :class="CAMPO">
+                <option value="">Todos</option>
+                <option v-for="(nombre, clave) in TIPOS_USUARIO" :key="clave" :value="clave">{{ nombre }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="regla-material" class="mb-1 block text-xs font-medium text-gray-600">Tipo de material</label>
+              <select id="regla-material" v-model="form.ficha.tipo_material_id" :class="CAMPO">
+                <option value="">Todos</option>
+                <option v-for="t in tiposMaterial" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="regla-ubicacion" class="mb-1 block text-xs font-medium text-gray-600">Ubicación</label>
+              <select id="regla-ubicacion" v-model="form.ficha.ubicacion_id" :class="CAMPO">
+                <option value="">Todas</option>
+                <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label for="regla-material" class="mb-1 block text-xs font-medium text-gray-600">Tipo de material</label>
-            <select id="regla-material" v-model="form.ficha.tipo_material_id" :class="CAMPO">
-              <option value="">Todos</option>
-              <option v-for="t in tiposMaterial" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-            </select>
-          </div>
-          <div>
-            <label for="regla-ubicacion" class="mb-1 block text-xs font-medium text-gray-600">Ubicación</label>
-            <select id="regla-ubicacion" v-model="form.ficha.ubicacion_id" :class="CAMPO">
-              <option value="">Todas</option>
-              <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
-            </select>
-          </div>
-        </div>
+        </fieldset>
 
-        <label class="flex items-start gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5">
+        <label class="flex items-start gap-2.5 rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-3 py-2.5">
           <input v-model="form.ficha.prestable" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
-            <span class="font-medium text-gray-900">Se presta a domicilio</span>
+            <span class="font-semibold text-gray-900">Se presta a domicilio</span>
             <span class="block text-xs text-gray-500">Si lo desmarcas, queda solo para uso en sala: el mesón no podrá prestarlo para llevar ni se podrá reservar (por ejemplo, obras de referencia o juegos).</span>
           </span>
         </label>
 
         <div v-if="form.ficha.prestable" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label for="regla-dias" class="mb-1 block text-xs font-medium text-gray-600">Días de préstamo</label>
-            <input id="regla-dias" v-model="form.ficha.dias_prestamo" inputmode="numeric" maxlength="3" placeholder="El mesón elige la fecha" :class="CAMPO" />
-            <p class="mt-1 text-[11px] text-gray-500">Si la fecha cae en un día sin atención, se corre al siguiente.</p>
+          <div class="space-y-3 rounded-xl border border-gray-200 p-3.5">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-700">Plazo</p>
+            <div>
+              <label for="regla-dias" class="mb-1 block text-xs font-medium text-gray-600">Días de préstamo</label>
+              <input id="regla-dias" v-model="form.ficha.dias_prestamo" inputmode="numeric" maxlength="3" placeholder="El mesón elige la fecha" :class="CAMPO" />
+            </div>
+            <div>
+              <label for="regla-max" class="mb-1 block text-xs font-medium text-gray-600">Libros a la vez</label>
+              <input id="regla-max" v-model="form.ficha.max_ejemplares" inputmode="numeric" maxlength="3" :placeholder="`${sinRegla?.max_ejemplares ?? 1} (general)`" :class="CAMPO" />
+            </div>
+            <p class="text-[11px] text-gray-500">Si la fecha cae en un día sin atención, se corre al siguiente.</p>
           </div>
-          <div>
-            <label for="regla-max" class="mb-1 block text-xs font-medium text-gray-600">Libros a la vez</label>
-            <input id="regla-max" v-model="form.ficha.max_ejemplares" inputmode="numeric" maxlength="3" :placeholder="`${sinRegla?.max_ejemplares ?? 1} (general)`" :class="CAMPO" />
-          </div>
-          <div>
-            <label for="regla-multa" class="mb-1 block text-xs font-medium text-gray-600">Multa por día de atraso (CLP)</label>
-            <input id="regla-multa" v-model="form.ficha.multa_por_dia" inputmode="numeric" maxlength="7" :placeholder="sinRegla ? `${sinRegla.multa_por_dia} (general)` : ''" :class="CAMPO" />
-          </div>
-          <div>
-            <label for="regla-tope" class="mb-1 block text-xs font-medium text-gray-600">Tope de la multa (CLP)</label>
-            <input id="regla-tope" v-model="form.ficha.tope_multa" inputmode="numeric" maxlength="8" :placeholder="sinRegla?.tope_multa ? `${sinRegla.tope_multa} (general)` : 'Sin tope'" :class="CAMPO" />
+          <div class="space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-3.5">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-amber-800">Multa</p>
+            <div>
+              <label for="regla-multa" class="mb-1 block text-xs font-medium text-gray-600">Multa por día de atraso (CLP)</label>
+              <input id="regla-multa" v-model="form.ficha.multa_por_dia" inputmode="numeric" maxlength="7" :placeholder="sinRegla ? `${sinRegla.multa_por_dia} (general)` : ''" :class="CAMPO" />
+            </div>
+            <div>
+              <label for="regla-tope" class="mb-1 block text-xs font-medium text-gray-600">Tope de la multa (CLP)</label>
+              <input id="regla-tope" v-model="form.ficha.tope_multa" inputmode="numeric" maxlength="8" :placeholder="sinRegla?.tope_multa ? `${sinRegla.tope_multa} (general)` : 'Sin tope'" :class="CAMPO" />
+            </div>
+            <p class="text-[11px] text-gray-500">Los días que la biblioteca no atiende no se cobran como atraso.</p>
           </div>
         </div>
-        <p v-if="form.ficha.prestable" class="text-xs text-gray-500">Los días que la biblioteca no atiende no se cobran como atraso.</p>
       </div>
       <template #pie>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm"
           :disabled="form.guardando"
           @click="form.abierto = false"
         >
@@ -268,7 +285,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
         </button>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-sm shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] disabled:opacity-60"
           :disabled="form.guardando"
           @click="pedirConfirmacion"
         >
@@ -281,13 +298,17 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
       :abierto="form.confirmando"
       :titulo="form.regla ? '¿Guardar los cambios de la regla?' : '¿Crear esta regla?'"
       :confirmar="form.regla ? 'Sí, guardar' : 'Sí, crear'"
+      destacado
       :cargando="form.guardando"
       @confirmar="guardar"
       @cancelar="form.confirmando = false"
     >
-      <p><strong class="text-gray-900">{{ aQuien(datos) }}</strong></p>
-      <p class="mt-1">{{ condiciones({ ...datos, id: 0 } as ReglaPrestamo) }}</p>
-      <p class="mt-2">Se aplica a los préstamos que se hagan desde ahora y a las multas de las devoluciones que vienen.</p>
+      <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">{{ form.regla ? 'Regla' : 'Nueva regla' }}</p>
+        <p class="mt-0.5 font-bold text-gray-900">{{ aQuien(datos) }}</p>
+        <p class="mt-0.5" :class="datos.prestable ? 'text-gray-600' : 'text-red-700'">{{ condiciones({ ...datos, id: 0 } as ReglaPrestamo) }}</p>
+      </div>
+      <p class="mt-3">Se aplica a los préstamos que se hagan desde ahora y a las multas de las devoluciones que vienen.</p>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion
@@ -295,13 +316,15 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
       titulo="¿Eliminar esta regla?"
       confirmar="Sí, eliminar"
       tono="peligro"
+      destacado
       :cargando="eliminando"
       @confirmar="eliminar"
       @cancelar="aEliminar = null"
     >
-      <p v-if="aEliminar">
-        <strong class="text-gray-900">{{ aQuien(aEliminar) }}</strong>: esos préstamos pasarán a la siguiente regla que calce o, si no hay, a la general.
-      </p>
+      <template v-if="aEliminar">
+        <p><strong class="text-gray-900">{{ aQuien(aEliminar) }}</strong></p>
+        <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Esos préstamos pasarán a la siguiente regla que calce o, si no hay, a la general.</p>
+      </template>
     </DialogoConfirmacion>
-  </div>
+  </section>
 </template>
