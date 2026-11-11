@@ -6,7 +6,6 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
-import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
@@ -209,6 +208,7 @@ const seccionDe = (clave: string) => secciones.value.find((s) => s.clave === cla
 
 // La sección en pantalla se marca en el índice; las anteriores, con ✓ o con «!» si les falta algo obligatorio.
 const seccionActual = ref('identificacion')
+const numeroSeccionActual = computed(() => Math.max(0, secciones.value.findIndex((s) => s.clave === seccionActual.value)) + 1)
 let cuadro = 0
 function medirSeccionActual() {
   cuadro = 0
@@ -740,10 +740,14 @@ async function confirmarAgregarCopia() {
 }
 
 const MODOS = [
-  { id: 'nuevo' as const, label: 'Libro nuevo' },
-  { id: 'copia' as const, label: 'Agregar copia a libro existente' },
-  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario' },
+  { id: 'nuevo' as const, label: 'Libro nuevo', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700' },
+  { id: 'copia' as const, label: 'Agregar copia a libro existente', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700' },
+  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600' },
 ]
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
 
 function accionPrincipal() {
   if (modo.value === 'copia') pedirConfirmacionCopia()
@@ -766,28 +770,45 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catálogo" :titulo="modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material'">
-        <template #debajo>
-          <p v-if="modo === 'nuevo' && editandoId" class="mt-1 truncate text-sm text-gray-500">{{ libroEditado?.titulo }}</p>
-          <div class="mt-3 flex w-max max-w-full overflow-x-auto rounded-xl bg-gray-200/60 p-1" role="tablist" aria-label="Qué catalogar">
+      <!-- La caja de título con la textura de Salas y Préstamos, las pestañas del módulo y, debajo, qué se va a catalogar. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
+          </div>
+          <div class="relative min-w-0 px-6 pt-4">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Catálogo</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">{{ modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material' }}</h1>
+            <p v-if="modo === 'nuevo' && editandoId" class="truncate text-sm text-white/75">{{ libroEditado?.titulo }}</p>
+          </div>
+          <PestanasLibros actual="catalogacion-libros" en-banda class="relative mt-3 px-5" />
+        </div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-2xl p-3">
+          <div class="flex max-w-full flex-wrap gap-2" role="tablist" aria-label="Qué catalogar">
             <button
               v-for="m in MODOS"
               :key="m.id"
               type="button"
               role="tab"
               :aria-selected="modo === m.id"
-              class="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-              :class="modo === m.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+              class="inline-flex items-center gap-2 rounded-xl border py-1 pl-1 pr-3.5 text-sm font-semibold shadow-sm transition-colors"
+              :class="modo === m.id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
               @click="modo = m.id"
             >
+              <span class="flex h-7 w-7 items-center justify-center rounded-lg" :class="modo === m.id ? 'bg-blanco/20 text-white' : m.tono">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="m.icono" /></svg>
+              </span>
               {{ m.id === 'nuevo' && editandoId ? 'Editando ficha' : m.label }}
             </button>
           </div>
-        </template>
-        <template #acciones>
-          <PestanasLibros actual="catalogacion-libros" />
-        </template>
-      </EncabezadoGestion>
+        </div>
+      </section>
 
       <PrestamoInterbibliotecario
         v-if="modo === 'interbibliotecario'"
@@ -800,32 +821,52 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)_17rem] xl:grid-cols-[12.5rem_minmax(0,1fr)_19rem]">
         <!-- Índice de secciones -->
         <aside class="hidden lg:block">
-          <div class="sticky top-6">
-            <p class="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Secciones</p>
-            <ol class="space-y-1">
-              <li v-for="p in pasos" :key="p.clave">
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-colors"
-                  :class="p.estado === 'actual' ? 'bg-amber-50 font-semibold text-gray-900' : 'text-gray-600 hover:bg-white'"
-                  @click="irA(p.clave)"
-                >
-                  <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="claseNumeroPaso(p.estado, p.tono)">
-                    <svg v-if="p.estado === 'lista'" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    <template v-else-if="p.estado === 'pendiente'">!</template>
-                    <template v-else>{{ p.numero }}</template>
-                  </span>
-                  {{ p.titulo }}
-                </button>
-              </li>
-            </ol>
-            <p class="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-dorado-700">
-              Los números como
-              <span class="rounded bg-white px-1 py-0.5 font-mono text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-100">245</span>
-              son las etiquetas MARC 21 de cada campo.
-            </p>
+          <div class="sticky top-6 space-y-3">
+            <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div class="rounded-2xl bg-indigo-50/40 p-2.5">
+                <p class="mb-2 flex items-center justify-between px-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                  Secciones
+                  <span class="font-semibold normal-case tracking-normal text-gray-500">{{ numeroSeccionActual }} de {{ secciones.length }}</span>
+                </p>
+                <ol class="space-y-1">
+                  <li v-for="(p, i) in pasos" :key="p.clave" class="relative">
+                    <span v-if="i < pasos.length - 1" class="absolute -bottom-3 left-[1.125rem] h-5 border-l border-dashed border-gray-300" aria-hidden="true"></span>
+                    <button
+                      type="button"
+                      class="relative flex w-full items-center gap-2.5 rounded-xl px-1.5 py-2 text-left text-sm transition-colors"
+                      :class="p.estado === 'actual' ? 'bg-white font-semibold text-gray-900 shadow-sm ring-1 ring-amber-200' : 'text-gray-700 hover:bg-white/70'"
+                      :aria-current="p.estado === 'actual' ? 'step' : undefined"
+                      @click="irA(p.clave)"
+                    >
+                      <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="claseNumeroPaso(p.estado, p.tono)">
+                        <svg v-if="p.estado === 'lista'" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                        <template v-else-if="p.estado === 'pendiente'">!</template>
+                        <template v-else>{{ p.numero }}</template>
+                      </span>
+                      <span class="min-w-0">
+                        {{ p.titulo }}
+                        <span v-if="p.estado === 'actual'" class="block text-[10px] font-medium leading-tight text-dorado-600">En curso</span>
+                      </span>
+                    </button>
+                  </li>
+                </ol>
+                <div class="mx-1.5 mb-1 mt-3 h-1 overflow-hidden rounded-full bg-gray-200" aria-hidden="true">
+                  <div class="h-full rounded-full bg-[#b08d57] transition-all" :style="{ width: `${(numeroSeccionActual / secciones.length) * 100}%` }"></div>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-3 py-2.5 text-xs leading-relaxed text-dorado-700 shadow-sm">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#b08d57] text-white" aria-hidden="true">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
+              </span>
+              <p>
+                Los números como
+                <span class="rounded bg-white px-1 py-0.5 font-mono text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-100">245</span>
+                son las etiquetas MARC 21 de cada campo.
+              </p>
+            </div>
           </div>
         </aside>
 
@@ -1226,11 +1267,15 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
 
         <!-- Vista previa, obligatorios y acciones -->
         <aside class="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <span class="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700">Así se verá en el portal</span>
+          <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <p class="flex items-center gap-2 rounded-t-2xl border-b border-teal-100 bg-teal-50 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-teal-800">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              Así se verá en el portal
+            </p>
+            <div class="p-4">
             <template v-if="vista">
-              <div class="mt-3 flex items-start gap-3">
-                <PortadaMaterial :titulo="vista.titulo" :tipo="vista.tipo" :clave-tono="vista.claveTono" />
+              <div class="flex items-start gap-3">
+                <PortadaMaterial class="shadow-sm" :titulo="vista.titulo" :tipo="vista.tipo" :clave-tono="vista.claveTono" />
                 <div class="min-w-0">
                   <p class="text-sm font-semibold leading-snug" :class="vista.vacio ? 'text-gray-400' : 'text-gray-900'">{{ vista.titulo }}</p>
                   <p v-if="vista.autores" class="mt-0.5 truncate text-xs text-gray-600">{{ vista.autores }}</p>
@@ -1244,12 +1289,16 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <p class="mt-0.5 text-xs text-gray-500">{{ vista.estado.detalle }}</p>
               <p v-if="vista.estado.nota" class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-500">{{ vista.estado.nota }}</p>
             </template>
-            <p v-else class="mt-3 text-sm text-gray-400">Elige la obra para ver cómo aparece.</p>
+            <p v-else class="text-sm text-gray-400">Elige la obra para ver cómo aparece.</p>
+            </div>
           </div>
 
-          <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-dorado-600">Obligatorios</span>
-            <ul class="mt-3 space-y-2">
+          <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <p class="flex items-center justify-between gap-2 rounded-t-2xl border-b border-amber-100 bg-amber-50 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-dorado-700">
+              Obligatorios
+              <span class="rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] tabular-nums">{{ obligatorios.filter((o) => o.listo).length }} de {{ obligatorios.length }}</span>
+            </p>
+            <ul class="space-y-2 p-4">
               <li v-for="o in obligatorios" :key="o.texto">
                 <button
                   type="button"
