@@ -28,7 +28,7 @@ const partes = computed(() =>
 <template>
   <p v-if="!partes.length" class="py-6 text-center text-sm text-gray-400">Sin datos para mostrar.</p>
   <div v-else>
-    <div class="flex h-4 gap-0.5 overflow-hidden rounded-full">
+    <div class="flex h-3 gap-0.5 overflow-hidden rounded-full">
       <span
         v-for="p in partes"
         :key="p.label"
@@ -37,8 +37,8 @@ const partes = computed(() =>
         :title="`${p.nombre}: ${p.value} (${p.porcentaje}%)`"
       />
     </div>
-    <ul class="mt-4 space-y-2">
-      <li v-for="p in partes" :key="p.label" class="flex items-center gap-2 text-sm">
+    <ul class="mt-3 space-y-0.5">
+      <li v-for="(p, i) in partes" :key="p.label" class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm" :class="i === 0 && partes.length > 1 ? 'bg-gray-50' : ''">
         <span class="h-2.5 w-2.5 shrink-0 rounded-sm" :style="{ backgroundColor: p.color }"></span>
         <span class="flex-1 text-gray-700">{{ p.nombre }}</span>
         <span class="font-semibold tabular-nums text-gray-900">{{ p.value }}</span>

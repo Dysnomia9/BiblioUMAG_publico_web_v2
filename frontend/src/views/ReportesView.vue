@@ -5,6 +5,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import GraficoColumnas from '@/components/reportes/GraficoColumnas.vue'
 import BarrasRanking from '@/components/reportes/BarrasRanking.vue'
+import SeccionReporte from '@/components/reportes/SeccionReporte.vue'
 import BarraApilada from '@/components/reportes/BarraApilada.vue'
 import TablaReporte from '@/components/reportes/TablaReporte.vue'
 import Heatmap from '@/components/reportes/Heatmap.vue'
@@ -66,11 +67,11 @@ const resumenVacio: ReporteResumen = {
 const resumen = ref<ReporteResumen>({ ...resumenVacio })
 const cargando = ref(true)
 
-const TABS: { id: ReporteTab; label: string }[] = [
-  { id: 'prestamos', label: 'Préstamos' },
-  { id: 'ingresos', label: 'Ingresos' },
-  { id: 'logias', label: 'Uso de salas' },
-  { id: 'libros', label: 'Material más prestado' },
+const TABS: { id: ReporteTab; label: string; d: string }[] = [
+  { id: 'prestamos', label: 'Préstamos', d: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25' },
+  { id: 'ingresos', label: 'Ingresos', d: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75' },
+  { id: 'logias', label: 'Uso de salas', d: 'M5.25 21V4.5A1.5 1.5 0 016.75 3h10.5a1.5 1.5 0 011.5 1.5V21M3 21h18M14.25 12h.008v.008h-.008V12z' },
+  { id: 'libros', label: 'Material más prestado', d: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
 ]
 
 const PERIODOS: { id: Periodo; label: string }[] = [
@@ -83,12 +84,16 @@ const PERIODOS: { id: Periodo; label: string }[] = [
 
 const { oscuro } = useTema()
 
-const INDIGO = '#4F46E5'
-const DORADO = '#B08D57'
-const VERDE_AZULADO = '#0D9488'
+// Los tres colores de las series, validados contra daltonismo y contraste en cada modo.
+const INDIGO = computed(() => (oscuro.value ? '#7A78EE' : '#4F46E5'))
+const DORADO = '#B5883F'
+const VERDE_AZULADO = computed(() => (oscuro.value ? '#0FA090' : '#0D9488'))
 const PIZARRA = '#3F5F8A'
 // La primera barra del ranking resalta más oscura en modo claro y más clara en oscuro;
 // las columnas suaves (fines de semana, horas que no son pico) quedan apagadas en oscuro.
+// Columnas del período: las normales en un índigo medio y la del máximo en el fuerte.
+const INDIGO_COLUMNA = computed(() => (oscuro.value ? '#5650C9' : '#7F78EE'))
+const INDIGO_PICO = computed(() => (oscuro.value ? '#A5B4FC' : '#4338CA'))
 const INDIGO_DESTACADO = computed(() => (oscuro.value ? '#818CF8' : '#3730A3'))
 const INDIGO_SUAVE = computed(() => (oscuro.value ? '#34378a' : '#C7D2FE'))
 const DORADO_DESTACADO = computed(() => (oscuro.value ? '#D6B67C' : '#8A6A3B'))
@@ -104,13 +109,14 @@ const unidad = computed(() => UNIDAD[tab.value])
 
 const DEL_PERIODO: Record<Periodo, string> = { dia: 'del día', semana: 'de la semana', mes: 'del mes', semestre: 'del semestre', anio: 'del año' }
 const SUBUNIDAD: Record<Periodo, string> = { dia: 'hora', semana: 'día', mes: 'semana', semestre: 'mes', anio: 'mes' }
+const MAYOR_SUBUNIDAD: Record<Periodo, string> = { dia: 'la hora', semana: 'el día', mes: 'la semana', semestre: 'el mes', anio: 'el mes' }
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios' }
-const COLORES_TIPO: Record<string, string> = { estudiante: INDIGO, funcionario: DORADO, docente: VERDE_AZULADO }
-const COLORES_SEXO: Record<string, string> = { Femenino: INDIGO, Masculino: DORADO }
+const COLORES_TIPO = computed<Record<string, string>>(() => ({ estudiante: INDIGO.value, funcionario: DORADO, docente: VERDE_AZULADO.value }))
+const COLORES_SEXO = computed<Record<string, string>>(() => ({ Femenino: INDIGO.value, Masculino: DORADO }))
 // En el gráfico la colección va partida en lo que se llevan y lo que leen en la biblioteca.
 const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección a domicilio', en_sala: 'Colección en sala', recursos_apoyo: 'Recursos de apoyo' }
-const COLORES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: INDIGO, en_sala: PIZARRA, recursos_apoyo: DORADO }
+const COLORES_TIPO_PRESTAMO = computed<Record<string, string>>(() => ({ bibliografico: INDIGO.value, en_sala: VERDE_AZULADO.value, recursos_apoyo: DORADO }))
 // En el filtro, «Colección» es toda (a domicilio y en sala) y «Uso en sala» solo lo leído aquí.
 // «Interbibliotecario»: lo que otra biblioteca nos prestó (a domicilio o en sala), también lo que ya volvió a ella.
 const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo', interbibliotecario: 'Interbibliotecario' }
@@ -326,7 +332,7 @@ const agrupaciones = computed<Agrupacion[]>(() => {
   const r = resumen.value
   const porPersona = tab.value === 'logias'
   const lista: Agrupacion[] = [
-    { id: 'carrera', label: 'Carrera', color: INDIGO, datos: r.porCarrera, columna: 'Carrera', porPersona },
+    { id: 'carrera', label: 'Carrera', color: INDIGO.value, datos: r.porCarrera, columna: 'Carrera', porPersona },
     {
       id: 'tipo',
       label: 'Tipo de usuario',
@@ -336,7 +342,7 @@ const agrupaciones = computed<Agrupacion[]>(() => {
       porPersona,
     },
     { id: 'sexo', label: 'Sexo', color: DORADO, datos: r.porSexo, columna: 'Sexo', porPersona },
-    { id: 'anio', label: 'Año de ingreso', color: VERDE_AZULADO, datos: r.porAnioIngreso, columna: 'Año de ingreso', ordenPropio: true, porPersona },
+    { id: 'anio', label: 'Año de ingreso', color: VERDE_AZULADO.value, datos: r.porAnioIngreso, columna: 'Año de ingreso', ordenPropio: true, porPersona },
     {
       id: 'hora',
       label: 'Hora del día',
@@ -348,21 +354,21 @@ const agrupaciones = computed<Agrupacion[]>(() => {
   ]
   if (periodo.value !== 'dia') {
     const nombre = capital(SUBUNIDAD[periodo.value])
-    lista.push({ id: 'serie', label: nombre, color: INDIGO, datos: r.serie.map((d) => ({ label: etiquetaTramo(d.label), value: d.value })), columna: nombre, ordenPropio: true })
+    lista.push({ id: 'serie', label: nombre, color: INDIGO.value, datos: r.serie.map((d) => ({ label: etiquetaTramo(d.label), value: d.value })), columna: nombre, ordenPropio: true })
   }
   if (tab.value === 'prestamos') {
     lista.unshift(
       { id: 'tipoPrestamo', label: 'Tipo de préstamo', color: PIZARRA, datos: conNombres(r.porTipoPrestamo, NOMBRES_TIPO_PRESTAMO), columna: 'Tipo de préstamo' },
-      { id: 'tipoMaterial', label: 'Tipo de material', color: INDIGO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
+      { id: 'tipoMaterial', label: 'Tipo de material', color: INDIGO.value, datos: r.porTipoMaterial, columna: 'Tipo de material' },
       { id: 'recurso', label: 'Recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Recurso' },
-      { id: 'libro', label: 'Título', color: INDIGO, datos: r.porLibro, columna: 'Título' },
+      { id: 'libro', label: 'Título', color: INDIGO.value, datos: r.porLibro, columna: 'Título' },
     )
   }
   if (tab.value === 'logias') lista.push({ id: 'sala', label: 'Sala', color: DORADO, datos: r.porSala, columna: 'Sala' })
   if (tab.value === 'libros') {
     lista.push(
       { id: 'tipoMaterial', label: 'Tipo de material', color: DORADO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
-      { id: 'libro', label: 'Título', color: INDIGO, datos: r.porLibro, columna: 'Título' },
+      { id: 'libro', label: 'Título', color: INDIGO.value, datos: r.porLibro, columna: 'Título' },
     )
   }
   return lista
@@ -504,23 +510,24 @@ async function confirmarExportar() {
 
 <template>
   <StaffLayout>
-    <div class="max-w-6xl mx-auto">
-      <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+    <div class="mx-auto max-w-7xl">
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl px-6 py-5 shadow-md" style="background: linear-gradient(135deg, #3B28A3 0%, #4338CA 55%, #4F46E5 100%)">
         <div>
-          <h1 class="text-3xl font-serif font-bold tracking-tight text-gray-900">Reportes</h1>
-          <p class="mt-1 text-sm text-gray-500">Estadísticas de uso de la biblioteca</p>
+          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
+          <p class="mt-0.5 text-sm text-white/70">Estadísticas de uso de la biblioteca</p>
         </div>
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-1 rounded-xl bg-white/15 p-1">
             <button
               v-for="v in VISTAS"
               :key="v.id"
               type="button"
-              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
-              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+              class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-white/80 hover:text-white'"
+              :aria-pressed="vista === v.id"
               @click="vista = v.id"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" :d="v.d" />
               </svg>
               {{ v.label }}
@@ -529,17 +536,13 @@ async function confirmarExportar() {
           <div class="relative">
             <button
               type="button"
-              class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+              class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
               :aria-expanded="menuExportar"
               @click="menuExportar = !menuExportar"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
               Exportar
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
             </button>
             <template v-if="menuExportar">
               <div class="fixed inset-0 z-10" @click="menuExportar = false"></div>
@@ -558,210 +561,233 @@ async function confirmarExportar() {
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="mb-5 flex gap-6 border-b border-gray-200">
+      <div class="mb-5 grid grid-cols-2 gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm lg:grid-cols-4">
         <button
           v-for="t in TABS"
           :key="t.id"
           type="button"
-          class="-mb-px border-b-2 pb-2.5 text-sm font-semibold transition-colors"
-          :class="tab === t.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          class="flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors"
+          :class="tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-50'"
+          :aria-pressed="tab === t.id"
           @click="tab = t.id"
         >
+          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" :d="t.d" />
+          </svg>
           {{ t.label }}
         </button>
       </div>
 
-      <div class="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Quiénes">
-        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Quiénes</span>
-        <button
-          v-for="q in opcionesQuienes"
-          :key="q.valor"
-          type="button"
-          class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors"
-          :class="filtros.tipo_usuario === q.valor ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
-          :aria-pressed="filtros.tipo_usuario === q.valor"
-          @click="filtros.tipo_usuario = q.valor"
-        >
-          {{ q.texto }}
-        </button>
-      </div>
-
-      <div class="mb-5 flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
-          <button
-            v-for="p in PERIODOS"
-            :key="p.id"
-            type="button"
-            class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
-            :class="periodo === p.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
-            @click="periodo = p.id"
-          >
-            {{ p.label }}
-          </button>
-        </div>
-
-        <div class="flex items-center gap-1">
-          <button type="button" class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800" aria-label="Período anterior" @click="moverPeriodo(-1)">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span class="min-w-[9rem] text-center text-sm font-semibold text-gray-900">{{ etiquetaPeriodo }}</span>
-          <button
-            type="button"
-            class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30 disabled:hover:bg-transparent"
-            aria-label="Período siguiente"
-            :disabled="!hayPeriodoSiguiente"
-            @click="moverPeriodo(1)"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        <span class="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden="true"></span>
-
-        <div v-if="mostrarMaterial" class="flex flex-wrap items-center gap-1" role="group" aria-label="Tipo de material">
-          <span class="mr-1 text-xs text-gray-500">Material:</span>
-          <button
-            v-for="m in opcionesMaterial"
-            :key="m.valor"
-            type="button"
-            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
-            :class="filtros.tipo_material === m.valor ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
-            :aria-pressed="filtros.tipo_material === m.valor"
-            @click="filtros.tipo_material = m.valor"
-          >
-            {{ m.texto }}
-          </button>
-        </div>
-
-        <span v-if="mostrarMaterial" class="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden="true"></span>
-
-        <label
-          v-for="f in filtrosPildora"
-          :key="f.campo"
-          class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-7 text-xs text-gray-500 hover:border-gray-400 focus-within:ring-2 focus-within:ring-indigo-500"
-        >
-          {{ f.nombre }}:
-          <span class="max-w-[9rem] truncate font-semibold text-gray-900">
-            {{ f.valores.find((o) => o.valor === filtros[f.campo])?.texto ?? f.todos }}
+      <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-label="Filtros">
+        <header class="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-5 py-3">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-white">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg>
           </span>
-          <svg class="pointer-events-none absolute right-2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-          <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`">
-            <option value="">{{ f.todos }}</option>
-            <option v-for="o in f.valores" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
-          </select>
-        </label>
-      </div>
+          <h2 class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-700">Filtros</h2>
+        </header>
+        <div class="space-y-3.5 p-5">
+          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center" role="group" aria-label="Quiénes">
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Quiénes</span>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="q in opcionesQuienes"
+                :key="q.valor"
+                type="button"
+                class="rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors"
+                :class="filtros.tipo_usuario === q.valor ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
+                :aria-pressed="filtros.tipo_usuario === q.valor"
+                @click="filtros.tipo_usuario = q.valor"
+              >
+                {{ q.texto }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Período</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+                <button
+                  v-for="p in PERIODOS"
+                  :key="p.id"
+                  type="button"
+                  class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+                  :class="periodo === p.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+                  :aria-pressed="periodo === p.id"
+                  @click="periodo = p.id"
+                >
+                  {{ p.label }}
+                </button>
+              </div>
+              <div class="flex items-center gap-1 rounded-lg border border-gray-200 px-1 py-0.5">
+                <button type="button" class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800" aria-label="Período anterior" @click="moverPeriodo(-1)">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <span class="min-w-[5rem] px-1 text-center text-sm font-semibold text-gray-900">{{ etiquetaPeriodo }}</span>
+                <button
+                  type="button"
+                  class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30 disabled:hover:bg-transparent"
+                  aria-label="Período siguiente"
+                  :disabled="!hayPeriodoSiguiente"
+                  @click="moverPeriodo(1)"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="mostrarMaterial" class="flex flex-col gap-1.5 sm:flex-row sm:items-center" role="group" aria-label="Tipo de material">
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Material</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="m in opcionesMaterial"
+                :key="m.valor"
+                type="button"
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
+                :class="filtros.tipo_material === m.valor ? 'border-indigo-400 bg-indigo-50 font-semibold text-indigo-700' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'"
+                :aria-pressed="filtros.tipo_material === m.valor"
+                @click="filtros.tipo_material = m.valor"
+              >
+                {{ m.texto }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Detalle</span>
+            <div class="flex flex-wrap gap-2">
+            <label
+              v-for="f in filtrosPildora"
+              :key="f.campo"
+              class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-7 text-xs text-gray-500 hover:border-gray-400 focus-within:ring-2 focus-within:ring-indigo-500"
+            >
+              {{ f.nombre }}:
+              <span class="max-w-[9rem] truncate font-semibold text-gray-900">
+                {{ f.valores.find((o) => o.valor === filtros[f.campo])?.texto ?? f.todos }}
+              </span>
+              <svg class="pointer-events-none absolute right-2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+              <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`">
+                <option value="">{{ f.todos }}</option>
+                <option v-for="o in f.valores" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
+              </select>
+            </label>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div class="transition-opacity" :class="cargando ? 'opacity-60' : ''">
         <div class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: INDIGO }">
+          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white p-5 shadow-sm" :style="{ borderTopColor: INDIGO }">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-xs font-medium text-gray-600">{{ unidad.titulo }} {{ DEL_PERIODO[periodo] }}</p>
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                </svg>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">{{ unidad.titulo }} {{ DEL_PERIODO[periodo] }}</p>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: INDIGO }">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
               </span>
             </div>
-            <p class="mt-1 text-3xl font-serif font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
+            <p class="mt-2 font-serif text-4xl font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
             <p v-if="tab === 'logias'" class="text-xs text-gray-500">{{ totalPersonas }} {{ totalPersonas === 1 ? 'persona' : 'personas' }}, contando a los integrantes</p>
             <p v-if="resumen.usosHorizon" class="text-xs text-gray-500">
               {{ resumen.usosHorizon.toLocaleString('es-CL') }} de Horizon, antes de BiblioUMAG ({{ tab === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala' }})
             </p>
-            <p class="mt-1 text-xs text-gray-500">
-              <span class="font-semibold" :class="diferencia > 0 ? 'text-emerald-600' : diferencia < 0 ? 'text-red-600' : 'text-gray-500'">
-                {{ diferencia > 0 ? `+${diferencia}` : diferencia < 0 ? `−${-diferencia}` : '=' }}
+            <p class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span
+                class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold tabular-nums"
+                :class="diferencia > 0 ? 'bg-emerald-50 text-emerald-700' : diferencia < 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'"
+              >
+                <svg v-if="diferencia" class="h-3 w-3" :class="diferencia < 0 ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                <span class="sr-only">{{ diferencia > 0 ? 'Subió' : diferencia < 0 ? 'Bajó' : 'Igual' }}</span>
+                {{ diferencia ? Math.abs(diferencia) : '=' }}
               </span>
               vs. {{ etiquetaAnterior }} ({{ resumen.totalAnterior }})
             </p>
           </div>
 
-          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: DORADO }">
+          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-amber-50 p-5 shadow-sm" :style="{ borderTopColor: DORADO }">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-xs font-medium text-gray-600">{{ destacado.titulo }}</p>
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-dorado-600">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-                </svg>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">{{ destacado.titulo }}</p>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: DORADO }">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" /></svg>
               </span>
             </div>
-            <p class="mt-1 truncate text-2xl font-serif font-bold text-gray-900" :title="destacado.item?.label">
+            <p class="mt-2 truncate font-serif text-3xl font-bold text-gray-900" :title="destacado.item?.label">
               {{ destacado.item ? abreviar(destacado.item.label) : '—' }}
             </p>
-            <p class="mt-1 text-xs text-gray-500">
-              <template v-if="destacado.item">{{ destacado.item.value }} {{ unidad.plural }} · {{ porcentaje(destacado.item.value, resumen.total) }}%</template>
+            <p class="mt-2 text-xs text-gray-500">
+              <template v-if="destacado.item"><strong class="font-semibold text-gray-700">{{ destacado.item.value }} {{ unidad.plural }}</strong> · {{ porcentaje(destacado.item.value, resumen.total) }}%</template>
               <template v-else>Sin {{ unidad.plural }} en este período</template>
             </p>
           </div>
 
-          <div class="rounded-xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :style="{ borderTopColor: VERDE_AZULADO }">
+          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-teal-50 p-5 shadow-sm" :style="{ borderTopColor: VERDE_AZULADO }">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-xs font-medium text-gray-600">Horario de mayor uso</p>
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">Horario de mayor uso</p>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: VERDE_AZULADO }">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </span>
             </div>
-            <p class="mt-1 text-2xl font-serif font-bold tabular-nums text-gray-900">
-              {{ resumen.horarioPico ? `${resumen.horarioPico.desde}–${resumen.horarioPico.hasta}` : '—' }}
+            <p class="mt-2 font-serif text-3xl font-bold tabular-nums text-gray-900">
+              {{ resumen.horarioPico ? `${resumen.horarioPico.desde} a ${resumen.horarioPico.hasta}` : '—' }}
             </p>
-            <p class="mt-1 text-xs text-gray-500">
+            <p class="mt-2 text-xs text-gray-500">
               <template v-if="resumen.horarioPico">{{ resumen.horarioPico.value }} de {{ resumen.total }} {{ unidad.plural }}<template v-if="tab === 'logias'"> · más salas ocupadas a la vez</template></template>
               <template v-else>Sin {{ unidad.plural }} en este período</template>
             </p>
           </div>
         </div>
-
-        <template v-if="vista === 'grafico'">
-          <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">{{ unidad.titulo }} por {{ SUBUNIDAD[periodo] }}</h3>
-            <p class="mt-0.5 text-xs text-gray-500">
+        <div v-if="vista === 'grafico'" class="mb-5 space-y-5">
+          <SeccionReporte :titulo="`${unidad.titulo} por ${SUBUNIDAD[periodo]}`">
+            <template #subtitulo>
               {{ etiquetaPeriodo }}<template v-if="periodo === 'dia' && textoHorario"> · {{ textoHorario.toLowerCase() }}</template>
+              <template v-if="resumen.total"> · en color fuerte, {{ MAYOR_SUBUNIDAD[periodo] }} con más {{ unidad.plural }}</template>
               <template v-if="serieTieneFinesDeSemana"> · en tono claro, los fines de semana</template>
               <template v-if="serieTieneDiasCerrados"> · rayados, los días sin atención</template>
-            </p>
-            <div class="mt-4 h-56">
+            </template>
+            <div class="h-56">
               <GraficoColumnas
                 :datos="resumen.serie"
-                :color="INDIGO"
+                :color="INDIGO_COLUMNA"
                 :color-suave="INDIGO_SUAVE"
+                :color-pico="INDIGO_PICO"
                 :unidad="unidad.plural"
                 :mensaje-vacio="diaSinAtencion ? 'La biblioteca no atiende este día.' : undefined"
               />
             </div>
-          </section>
+          </SeccionReporte>
 
-          <section v-if="tab === 'prestamos'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Por tipo de préstamo</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Material de la colección (libros, tesis, revistas, juegos…) que se llevan o leen en la sala, o recursos de apoyo (notebooks, audífonos, bicicletas…)</p>
-            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
-              <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />
+          <SeccionReporte
+            v-if="tab === 'prestamos'"
+            titulo="Por tipo de préstamo"
+            subtitulo="Material de la colección (libros, tesis, revistas, juegos…) que se llevan o leen en la sala, o recursos de apoyo (notebooks, audífonos, bicicletas…)"
+          >
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
+              <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <p class="mb-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Modalidad</p>
+                <BarraApilada :datos="resumen.porTipoPrestamo" :colores="COLORES_TIPO_PRESTAMO" :nombres="NOMBRES_TIPO_PRESTAMO" />
+              </div>
+              <div>
+                <p class="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">Por tipo de material o recurso</p>
+                <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" />
+              </div>
             </div>
-          </section>
+          </SeccionReporte>
 
-          <section v-if="tab === 'prestamos' && resumen.porLibro.length" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Material más prestado</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">
+          <SeccionReporte v-if="tab === 'prestamos' && resumen.porLibro.length" titulo="Material más prestado">
+            <template #subtitulo>
               Libros, tesis, revistas, juegos y demás de la colección, sin los recursos de apoyo: % sobre {{ prestamosDeColeccion }}
               {{ prestamosDeColeccion === 1 ? 'préstamo' : 'préstamos' }} de la colección<template v-if="resumen.porLibro.length > 10"> · los 10 con más préstamos (todos en la vista Tabla)</template>
-            </p>
-            <BarrasRanking :datos="resumen.porLibro" :total="prestamosDeColeccion" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
-          </section>
+            </template>
+            <BarrasRanking :datos="resumen.porLibro" :total="prestamosDeColeccion" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" numerado />
+          </SeccionReporte>
 
-          <section v-if="tab === 'prestamos' && verInterbibliotecario && interbibliotecario" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Préstamo interbibliotecario</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">
+          <SeccionReporte v-if="tab === 'prestamos' && verInterbibliotecario && interbibliotecario" titulo="Préstamo interbibliotecario">
+            <template #subtitulo>
               Material que otras bibliotecas le prestaron a la nuestra: lo que llegó y lo que se les devolvió {{ DEL_PERIODO[periodo] }}, y cuántos de los préstamos
               del reporte fueron de ese material (con los filtros, y aunque ya haya vuelto a su biblioteca)
-            </p>
+            </template>
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <dl class="grid grid-cols-3 gap-3">
                 <div class="rounded-xl bg-gray-50 p-3">
@@ -789,43 +815,37 @@ async function confirmarExportar() {
                 <p v-else class="text-sm text-gray-400">No llegó material de otras bibliotecas {{ DEL_PERIODO[periodo] }}.</p>
               </div>
             </div>
-          </section>
+          </SeccionReporte>
 
-          <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
-              <h3 class="font-sans text-base font-bold text-gray-900">Por carrera</h3>
-              <p class="mt-0.5 mb-4 text-xs text-gray-500">
+          <div class="grid grid-cols-1 gap-5 lg:grid-cols-5">
+            <SeccionReporte class="lg:col-span-3" titulo="Por carrera">
+              <template #subtitulo>
                 <template v-if="tab === 'logias'">Cada integrante de la reserva, no solo quien la hizo · </template>Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ tab === 'logias' ? 'personas' : unidad.plural }} (todas en la vista Tabla)</template>
-              </p>
+              </template>
               <BarrasRanking :datos="resumen.porCarrera" :total="totalPersonas" :color="INDIGO" :color-primero="INDIGO_DESTACADO" />
-            </section>
+            </SeccionReporte>
 
             <div class="space-y-5 lg:col-span-2">
-              <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 class="mb-4 font-sans text-base font-bold text-gray-900">Por tipo de usuario</h3>
+              <SeccionReporte titulo="Por tipo de usuario">
                 <BarraApilada :datos="resumen.porTipoUsuario" :colores="COLORES_TIPO" :nombres="NOMBRES_TIPO" />
-              </section>
-              <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 class="mb-4 font-sans text-base font-bold text-gray-900">Por sexo</h3>
+              </SeccionReporte>
+              <SeccionReporte titulo="Por sexo">
                 <BarraApilada :datos="resumen.porSexo" :colores="COLORES_SEXO" />
-              </section>
+              </SeccionReporte>
             </div>
           </div>
 
-          <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
-              <h3 class="font-sans text-base font-bold text-gray-900">Por año de ingreso</h3>
-              <p class="mt-0.5 text-xs text-gray-500">Cohorte de quien {{ unidad.quien }}</p>
-              <div class="mt-4 h-48">
+          <div class="grid grid-cols-1 gap-5 lg:grid-cols-5">
+            <SeccionReporte class="lg:col-span-2" titulo="Por año de ingreso" :subtitulo="`Cohorte de quien ${unidad.quien}`">
+              <div class="h-48">
                 <GraficoColumnas :datos="resumen.porAnioIngreso" :color="VERDE_AZULADO" :color-suave="VERDE_AZULADO" mostrar-valores :unidad="tab === 'logias' ? 'personas' : unidad.plural" />
               </div>
-            </section>
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
-              <h3 class="font-sans text-base font-bold text-gray-900">Por hora del día</h3>
-              <p class="mt-0.5 text-xs text-gray-500">
+            </SeccionReporte>
+            <SeccionReporte class="lg:col-span-3" titulo="Por hora del día">
+              <template #subtitulo>
                 {{ textoHorario }}<template v-if="tab === 'logias'"> · cada reserva cuenta en todas las horas en que tuvo la sala</template><template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
-              </p>
-              <div class="mt-4 h-48">
+              </template>
+              <div class="h-48">
                 <GraficoColumnas
                   :datos="resumen.porHora"
                   :color="DORADO"
@@ -837,20 +857,17 @@ async function confirmarExportar() {
                   :mensaje-vacio="diaSinAtencion ? 'La biblioteca no atiende este día.' : undefined"
                 />
               </div>
-            </section>
+            </SeccionReporte>
           </div>
 
-          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Salas más usadas</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Ordenado de mayor a menor</p>
-            <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :limite="10" />
-          </section>
-          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Detalle por sala</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">
-              Cada sala por su código: cuántas reservas tuvo, a cuántas llegó el grupo, las horas que de verdad se usó y cuántos bloques
-              se liberaron porque devolvieron la llave antes
-            </p>
+          <SeccionReporte v-if="tab === 'logias'" titulo="Salas más usadas" subtitulo="Ordenado de mayor a menor">
+            <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" :limite="10" numerado />
+          </SeccionReporte>
+          <SeccionReporte
+            v-if="tab === 'logias'"
+            titulo="Detalle por sala"
+            subtitulo="Cada sala por su código: cuántas reservas tuvo, a cuántas llegó el grupo, las horas que de verdad se usó y cuántos bloques se liberaron porque devolvieron la llave antes"
+          >
             <div v-if="resumen.porSalaDetalle.length" class="-mx-5 overflow-x-auto px-5">
               <table class="w-full min-w-[640px] text-sm">
                 <thead>
@@ -881,21 +898,19 @@ async function confirmarExportar() {
               </table>
             </div>
             <p v-else class="py-6 text-center text-sm text-gray-400">Sin reservas en este período.</p>
-          </section>
-          <section v-if="tab === 'logias'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Horas más solicitadas por sala</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Reservas en curso en cada hora, en cada sala (una de 16:30 a 18:30 cuenta a las 16, 17 y 18)</p>
+          </SeccionReporte>
+          <SeccionReporte v-if="tab === 'logias'" titulo="Horas más solicitadas por sala" subtitulo="Reservas en curso en cada hora, en cada sala (una de 16:30 a 18:30 cuenta a las 16, 17 y 18)">
             <Heatmap :data="resumen.porHoraPorSala" />
-          </section>
-          <section v-if="tab === 'libros'" class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h3 class="font-sans text-base font-bold text-gray-900">Material más prestado</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Libros, tesis, revistas, juegos y demás: ranking por cantidad de préstamos (cada copia cuenta por separado)</p>
-            <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" />
-            <h3 class="mt-6 font-sans text-base font-bold text-gray-900">Por tipo de material</h3>
-            <p class="mt-0.5 mb-4 text-xs text-gray-500">Cuántos préstamos fueron de cada tipo de material</p>
-            <BarrasRanking :datos="resumen.porTipoMaterial" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" />
-          </section>
-        </template>
+          </SeccionReporte>
+          <template v-if="tab === 'libros'">
+            <SeccionReporte titulo="Material más prestado" subtitulo="Libros, tesis, revistas, juegos y demás: ranking por cantidad de préstamos (cada copia cuenta por separado)">
+              <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" numerado />
+            </SeccionReporte>
+            <SeccionReporte titulo="Por tipo de material" subtitulo="Cuántos préstamos fueron de cada tipo de material">
+              <BarrasRanking :datos="resumen.porTipoMaterial" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" />
+            </SeccionReporte>
+          </template>
+        </div>
 
         <div v-else class="mb-5 grid grid-cols-1 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:grid-cols-[13rem_minmax(0,1fr)]">
           <nav class="border-b border-gray-200 bg-gray-50/70 p-3 md:border-b-0 md:border-r" aria-label="Agrupar por">
