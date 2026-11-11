@@ -46,6 +46,7 @@ const today = new Date().toLocaleDateString('sv-SE')
 const codigoBarrasPrestamo = ref('')
 const libroEncontradoPrestamo = ref('')
 const libroDisponiblePrestamo = ref(true)
+const libroEnEstantePrestamo = ref(true)
 const ubicacionPrestamo = ref<number | null>(null)
 const fechaPrestamo = ref(today)
 const fechaDevolucion = ref('')
@@ -57,6 +58,7 @@ const enSala = computed(() => modoPrestamo.value === 'sala')
 const codigoBarras = ref('')
 const libroEncontrado = ref('')
 const libroDisponible = ref(true)
+const libroEnEstante = ref(true)
 const fechaReserva = ref(today)
 const fechaRetiro = ref('')
 
@@ -322,11 +324,13 @@ const subtituloItem = (p: Prestamo) => `${itemPrestamo(p.tipo_item).nombre} · $
  */
 const codigoCompleto = (codigo: string) => codigo.length === 8 || codigo.length >= 10
 
-async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; ubicacionId: number | null } | null> {
+async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; enEstante: boolean; ubicacionId: number | null } | null> {
   try {
     const { data } = await api.get(`/ejemplares/${codigo}`)
     const titulo = data.numero_copia > 0 ? `${data.libro?.titulo} (Copia ${data.numero_copia})` : data.libro?.titulo
-    return { titulo, disponible: data.disponible && data.estado_proceso === 'en_estante', ubicacionId: data.ubicacion_id ?? null }
+    // Solo una copia en estante puede estar prestada o reservada: la que está en inventario, procesos técnicos, etc. simplemente no está disponible.
+    const enEstante = data.estado_proceso === 'en_estante'
+    return { titulo, disponible: data.disponible && enEstante, enEstante, ubicacionId: data.ubicacion_id ?? null }
   } catch {
     return null
   }
@@ -337,6 +341,7 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
   codigoBarrasPrestamo.value = valor.replace(/\D/g, '')
   libroEncontradoPrestamo.value = ''
   libroDisponiblePrestamo.value = true
+  libroEnEstantePrestamo.value = true
   ubicacionPrestamo.value = null
   condiciones.value = null
   clearTimeout(buscarLibroPrestamoTimer)
@@ -347,6 +352,7 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
     if (codigo !== codigoBarrasPrestamo.value) return
     libroEncontradoPrestamo.value = libro?.titulo ?? ''
     libroDisponiblePrestamo.value = libro?.disponible ?? true
+    libroEnEstantePrestamo.value = libro?.enEstante ?? true
     ubicacionPrestamo.value = libro?.ubicacionId ?? null
     if (libro) {
       cargarCondiciones()
@@ -475,7 +481,8 @@ function pedirConfirmacionPrestamo() {
     return
   }
   if (!puedePrestarLibro.value) {
-    toast.error(enSala.value && reservaPropiaPrestamo.value ? 'Esta copia está apartada para esta persona: para entregársela use «Para llevar».' : 'Este libro ya está reservado/prestado por otra persona')
+    if (enSala.value && reservaPropiaPrestamo.value) toast.error('Esta copia está apartada para esta persona: para entregársela use «Para llevar».')
+    else toast.error(libroEnEstantePrestamo.value ? 'Este libro ya está reservado/prestado por otra persona' : 'Este libro no está disponible')
     return
   }
   if (rechazoRegla.value) {
@@ -640,6 +647,7 @@ function buscarLibroPorCodigo(valor: string) {
   codigoBarras.value = valor.replace(/\D/g, '')
   libroEncontrado.value = ''
   libroDisponible.value = true
+  libroEnEstante.value = true
   recursoEnReserva.value = ''
   clearTimeout(buscarLibroTimer)
   if (!codigoCompleto(codigoBarras.value)) return
@@ -649,6 +657,7 @@ function buscarLibroPorCodigo(valor: string) {
     if (codigo !== codigoBarras.value) return
     libroEncontrado.value = libro?.titulo ?? ''
     libroDisponible.value = libro?.disponible ?? true
+    libroEnEstante.value = libro?.enEstante ?? true
     if (!libro) {
       const recurso = await buscarRecursoApi(codigo)
       if (recurso && codigo === codigoBarras.value) recursoEnReserva.value = nombreRecurso(recurso)
@@ -952,7 +961,7 @@ function formatHora(iso: string | null) {
                 <strong>{{ libroEncontradoPrestamo }}</strong> estaba reservado para esta persona: al confirmar se entrega su reserva
               </span>
               <span v-else-if="libroEncontradoPrestamo && libroDisponiblePrestamo">Libro encontrado: <strong>{{ libroEncontradoPrestamo }}</strong></span>
-              <span v-else-if="libroEncontradoPrestamo && !libroDisponiblePrestamo"><strong>{{ libroEncontradoPrestamo }}</strong> ya está reservado/prestado por otra persona</span>
+              <span v-else-if="libroEncontradoPrestamo && !libroDisponiblePrestamo"><strong>{{ libroEncontradoPrestamo }}</strong> {{ libroEnEstantePrestamo ? 'ya está reservado/prestado por otra persona' : 'no está disponible' }}</span>
               <span v-else>Código de barras no encontrado en el sistema</span>
             </div>
             <div v-if="libroEncontradoPrestamo && rechazoRegla" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -1042,7 +1051,7 @@ function formatHora(iso: string | null) {
               :class="libroEncontrado && libroDisponible ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'"
             >
               <span v-if="libroEncontrado && libroDisponible">Libro encontrado: <strong>{{ libroEncontrado }}</strong></span>
-              <span v-else-if="libroEncontrado && !libroDisponible"><strong>{{ libroEncontrado }}</strong> ya está reservado/prestado por otra persona — se puede unir a la lista de espera</span>
+              <span v-else-if="libroEncontrado && !libroDisponible"><strong>{{ libroEncontrado }}</strong> {{ libroEnEstante ? 'ya está reservado/prestado por otra persona — se puede unir a la lista de espera' : 'no está disponible' }}</span>
               <span v-else-if="recursoEnReserva">Es un recurso de apoyo (<strong>{{ recursoEnReserva }}</strong>): los recursos no se reservan, se prestan desde la pestaña «Recursos de apoyo»</span>
               <span v-else>Código de barras no encontrado en el sistema</span>
             </div>
@@ -1073,6 +1082,7 @@ function formatHora(iso: string | null) {
                 </div>
               </template>
               <button
+                v-if="libroEnEstante"
                 type="button"
                 class="mt-5 rounded-lg px-5 py-2.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 :class="libroDisponible ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'"

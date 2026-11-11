@@ -208,6 +208,12 @@ class PrestamoController extends Controller
                     return [['message' => $rechazo], 409];
                 }
 
+                // Va antes de mirar si está libre: una copia que no está en estante (inventario,
+                // de baja…) no se presta, y decir que la tiene otra persona confunde al mesón.
+                if ($ejemplar->estado_proceso !== 'en_estante') {
+                    return [['message' => "Este libro no está disponible para préstamo (estado: {$ejemplar->estado_proceso})"], 409];
+                }
+
                 // En sala no se entrega una copia apartada: la reserva es para llevársela y,
                 // al devolverla en la tarde, ya no quedaría apartada para nadie.
                 if (! $ejemplar->disponible && $enSala) {
@@ -230,10 +236,6 @@ class PrestamoController extends Controller
 
                 if (! $ejemplar->disponible && ! $reservaPropia) {
                     return [['message' => 'Este libro ya está reservado/prestado por otra persona'], 409];
-                }
-
-                if ($ejemplar->estado_proceso !== 'en_estante') {
-                    return [['message' => "Este libro no está disponible para préstamo (estado: {$ejemplar->estado_proceso})"], 409];
                 }
 
                 // Lo de otra biblioteca se devuelve a más tardar un día hábil antes de que tenga que volver a ella.

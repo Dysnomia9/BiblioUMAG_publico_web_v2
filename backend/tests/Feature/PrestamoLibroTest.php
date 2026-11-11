@@ -47,6 +47,23 @@ class PrestamoLibroTest extends TestCase
         $response->assertStatus(409);
     }
 
+    public function test_copia_fuera_de_estante_no_se_informa_como_prestada_o_reservada(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['estado_proceso' => 'de_baja', 'disponible' => false]);
+
+        $response = $this->postJson('/api/prestamos', [
+            'usuario_id' => Usuario::factory()->create()->id,
+            'tipo_item' => 'libro',
+            'codigo_barras' => $ejemplar->codigo_barras,
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('message', 'Este libro no está disponible para préstamo (estado: de_baja)');
+    }
+
     public function test_prestamo_de_libro_que_no_esta_en_estante_devuelve_409(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
