@@ -159,53 +159,84 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
 </script>
 
 <template>
-  <div class="bg-white rounded-xl shadow-md p-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+  <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+    <header class="flex flex-col gap-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h3 class="font-semibold text-gray-900 mb-1">Categorías de recursos de apoyo</h3>
-        <p class="text-xs text-gray-500 max-w-xl">
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Categorías de recursos de apoyo
+        </h3>
+        <p class="mt-0.5 max-w-2xl pl-3 text-xs text-gray-500">
           Lo que se presta y no es un libro: notebooks, audífonos, cargadores, bicicletas… Cada categoría es un recuadro en
           <strong>Préstamos → Recursos de apoyo</strong> y una opción al registrar un recurso en <strong>Recursos de apoyo</strong>.
           Una categoría no se borra: si deja de prestarse, se desactiva y sus recursos y préstamos se conservan.
         </p>
       </div>
-      <button type="button" class="shrink-0 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="abrirNueva">
+      <button type="button" class="shrink-0 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700" @click="abrirNueva">
         + Nueva categoría
       </button>
-    </div>
+    </header>
 
-    <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-      <div v-for="c in categorias" :key="c.id" class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" :class="c.activo ? '' : 'bg-gray-50'">
-        <div class="flex min-w-0 items-center gap-3">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="[fondo(c.color), c.activo ? '' : 'opacity-50']">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="trazo(c.icono)" /></svg>
-          </span>
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-gray-900">
-              {{ c.nombre_plural }}
-              <span v-if="!c.activo" class="ml-1 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600">Inactiva</span>
-            </p>
-            <p class="text-xs text-gray-500">
-              {{ c.recursos_activos ?? 0 }} {{ c.recursos_activos === 1 ? 'recurso' : 'recursos' }} ({{ c.recursos_disponibles ?? 0 }} libres)
-              · {{ c.limite_por_persona ? `máximo ${c.limite_por_persona} por persona` : 'sin límite por persona' }}
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <th class="px-4 py-2.5">Categoría</th>
+            <th class="hidden px-4 py-2.5 md:table-cell">Recursos</th>
+            <th class="hidden px-4 py-2.5 md:table-cell">Reglas</th>
+            <th class="px-4 py-2.5 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr v-for="c in categorias" :key="c.id" :class="c.activo ? 'even:bg-gray-50/50' : 'bg-gray-50'">
+            <td class="px-4 py-2.5">
+              <span class="flex items-center gap-2.5">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="[fondo(c.color), c.activo ? '' : 'opacity-50']" aria-hidden="true">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="trazo(c.icono)" /></svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-sm font-semibold text-gray-900">{{ c.nombre_plural }}</span>
+                  <span class="mt-0.5 inline-block rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-widest" :class="c.activo ? 'border-emerald-300 bg-emerald-50/60 text-emerald-700' : 'border-gray-300 bg-gray-50 text-gray-500'">
+                    {{ c.activo ? 'Activa' : 'Inactiva' }}
+                  </span>
+                  <span class="mt-0.5 block text-xs text-gray-500 md:hidden">
+                    {{ c.recursos_activos ?? 0 }} {{ c.recursos_activos === 1 ? 'recurso' : 'recursos' }} ({{ c.recursos_disponibles ?? 0 }} libres)
+                  </span>
+                </span>
+              </span>
+            </td>
+            <td class="hidden px-4 py-2.5 whitespace-nowrap md:table-cell">
+              <span class="font-mono text-xs text-gray-800">{{ c.recursos_activos ?? 0 }}</span>
+              <span class="ml-1 text-xs text-gray-500">{{ c.recursos_activos === 1 ? 'recurso' : 'recursos' }}</span>
+              <span class="mt-0.5 block text-[11px] text-gray-500">{{ c.recursos_disponibles ?? 0 }} libres</span>
+            </td>
+            <td class="hidden px-4 py-2.5 text-xs text-gray-600 md:table-cell">
+              {{ c.limite_por_persona ? `Máximo ${c.limite_por_persona} por persona` : 'Sin límite por persona' }}
               · {{ c.horas_maximas ? `se presta por ${textoHoras(c.horas_maximas)}` : 'sin plazo de devolución' }}
-              <template v-if="c.indicaciones"> · {{ c.indicaciones }}</template>
-            </p>
-          </div>
-        </div>
-        <div class="flex shrink-0 items-center gap-3 text-sm">
-          <button type="button" class="font-medium text-indigo-700 hover:text-indigo-800" @click="abrirEdicion(c)">Editar</button>
-          <button
-            type="button"
-            class="font-medium"
-            :class="c.activo ? 'text-red-600 hover:text-red-700' : 'text-emerald-700 hover:text-emerald-800'"
-            @click="aCambiarEstado = c"
-          >
-            {{ c.activo ? 'Desactivar' : 'Reactivar' }}
-          </button>
-        </div>
-      </div>
-      <p v-if="!categorias.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin categorías todavía.</p>
+              <span v-if="c.indicaciones" class="mt-0.5 block text-[11px] text-gray-500">{{ c.indicaciones }}</span>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center justify-end gap-1.5">
+                <button type="button" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50" @click="abrirEdicion(c)">
+                  <svg class="h-3.5 w-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.820a4.500 4.500 0 01-1.897 1.130l-2.685.8.8-2.685a4.500 4.500 0 011.130-1.897L16.863 4.487z" /></svg>
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex w-[6.25rem] items-center justify-center whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-semibold shadow-sm transition-colors"
+                  :class="c.activo ? 'border-red-200 bg-white text-red-700 hover:bg-red-50' : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'"
+                  @click="aCambiarEstado = c"
+                >
+                  {{ c.activo ? 'Desactivar' : 'Reactivar' }}
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="!categorias.length">
+            <td colspan="4" class="px-4 py-6 text-center text-sm text-gray-400">Sin categorías todavía.</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <Modal
@@ -213,7 +244,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
       :titulo="form.categoria ? `Editar «${form.categoria.nombre}»` : 'Nueva categoría de recursos de apoyo'"
       :descripcion="form.categoria ? 'Los recursos y préstamos que ya tiene no cambian.' : 'Ej: Bicicleta, Calculadora científica, Tablet, Casillero.'"
       ancho="lg"
-      pie-fijo
+      destacado
       :bloqueado="form.guardando"
       @cerrar="form.abierto = false"
     >
@@ -243,6 +274,8 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
           </div>
         </div>
 
+        <fieldset class="rounded-xl border border-gray-200 bg-gray-50/60 px-4 pb-4 pt-1">
+          <legend class="px-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Apariencia</legend>
         <div>
           <p class="mb-1 text-xs font-medium text-gray-600">Ícono</p>
           <div class="grid grid-cols-6 gap-1.5 sm:grid-cols-11" role="radiogroup" aria-label="Ícono">
@@ -254,7 +287,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
               :aria-checked="form.ficha.icono === clave"
               :title="icono.nombre"
               class="flex h-10 items-center justify-center rounded-lg ring-1 transition"
-              :class="form.ficha.icono === clave ? 'bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500' : 'text-gray-500 ring-gray-200 hover:bg-gray-50'"
+              :class="form.ficha.icono === clave ? 'bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500' : 'bg-white text-gray-500 ring-gray-200 hover:bg-gray-50'"
               @click="form.ficha.icono = clave"
             >
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="icono.trazo" /></svg>
@@ -264,7 +297,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
         </div>
 
         <div>
-          <p class="mb-1 text-xs font-medium text-gray-600">Color</p>
+          <p class="mb-1 mt-3 text-xs font-medium text-gray-600">Color</p>
           <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Color">
             <button
               v-for="(color, clave) in COLORES_RECURSO"
@@ -281,6 +314,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
             </button>
           </div>
         </div>
+        </fieldset>
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_12rem_1fr]">
           <div>
@@ -320,8 +354,9 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
         </div>
 
         <div>
-          <p class="mb-1 text-xs font-medium text-gray-600">Así se verá en Préstamos</p>
-          <div class="flex items-start gap-3 rounded-2xl border border-gray-200 p-4">
+          <p class="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-700">Así se verá en Préstamos</p>
+          <div class="rounded-xl border border-gray-200 p-2.5" style="background-image: repeating-linear-gradient(135deg, rgb(99 102 241 / 0.06) 0 8px, transparent 8px 16px);">
+          <div class="flex items-start gap-3 rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-white p-3 shadow-sm">
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="fondo(form.ficha.color)">
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="trazo(form.ficha.icono)" /></svg>
             </span>
@@ -332,12 +367,13 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
               </p>
             </div>
           </div>
+          </div>
         </div>
       </div>
       <template #pie>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+          class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm"
           :disabled="form.guardando"
           @click="form.abierto = false"
         >
@@ -345,7 +381,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
         </button>
         <button
           type="button"
-          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+          class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-sm shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] disabled:opacity-60"
           :disabled="form.guardando"
           @click="pedirConfirmacion"
         >
@@ -358,6 +394,7 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
       :abierto="form.confirmando"
       :titulo="form.categoria ? '¿Guardar los cambios de la categoría?' : '¿Crear esta categoría?'"
       :confirmar="form.categoria ? 'Sí, guardar' : 'Sí, crear'"
+      destacado
       :cargando="form.guardando"
       @confirmar="guardar"
       @cancelar="form.confirmando = false"
@@ -382,15 +419,17 @@ const trazo = (icono: string) => (ICONOS_RECURSO[icono] ?? ICONOS_RECURSO.caja).
       :titulo="aCambiarEstado?.activo ? '¿Desactivar esta categoría?' : '¿Reactivar esta categoría?'"
       :confirmar="aCambiarEstado?.activo ? 'Sí, desactivar' : 'Sí, reactivar'"
       :tono="aCambiarEstado?.activo ? 'peligro' : 'exito'"
+      destacado
       :cargando="cambiandoEstado"
       @confirmar="confirmarCambioEstado"
       @cancelar="aCambiarEstado = null"
     >
       <p v-if="aCambiarEstado?.activo">
         <strong class="text-gray-900">{{ aCambiarEstado.nombre_plural }}</strong> dejará de aparecer en Préstamos y no se podrán registrar recursos nuevos de
-        esta categoría. Lo que esté prestado se sigue pudiendo devolver, y el historial se conserva.
+        esta categoría.
       </p>
+      <p v-if="aCambiarEstado?.activo" class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Lo que esté prestado se sigue pudiendo devolver, y el historial se conserva.</p>
       <p v-else><strong class="text-gray-900">{{ aCambiarEstado?.nombre_plural }}</strong> volverá a aparecer en Préstamos → Recursos de apoyo.</p>
     </DialogoConfirmacion>
-  </div>
+  </section>
 </template>
