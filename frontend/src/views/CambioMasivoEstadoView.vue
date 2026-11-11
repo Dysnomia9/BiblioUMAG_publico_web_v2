@@ -3,12 +3,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import LibrosModuloNav from '@/components/libros/LibrosModuloNav.vue'
+import FondoCambioMasivo from '@/components/libros/FondoCambioMasivo.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
+import { ESTADOS_EJEMPLAR } from '@/utils/estadosEjemplar'
 import type { CambioMasivoPreview, Categoria, EstadoLibroPersonalizado, EstadoProcesoEjemplar, TipoMaterial, Ubicacion } from '@/types'
 
 const toast = useToast()
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
 const apiError = ref(false)
 
 const filtro = reactive({
@@ -157,117 +163,148 @@ async function confirmarEjecucion() {
 <template>
   <StaffLayout>
     <LibrosModuloNav actual="cambio-masivo-estado">
-      <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
-        style="background: linear-gradient(135deg, #7C2D12 0%, #9A3412 50%, #B45309 100%);"
-      >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Cambio Masivo de Estado</h1>
-          <p class="text-sm text-white/70 mt-1">Cambia el estado de muchas copias a la vez (ej. inventario por ubicación) — con confirmación obligatoria</p>
+      <!-- La caja de título con motivo propio: un lote de libros que cambia de estado. -->
+      <div class="relative mb-5 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+        <FondoCambioMasivo />
+        <div class="relative min-w-0 px-6 py-4">
+          <nav class="text-xs text-white/75" aria-label="Ruta">
+            <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+            <span class="mx-1.5">›</span>
+            <span>Catálogo</span>
+          </nav>
+          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Cambio Masivo de Estado</h1>
+          <p class="mt-0.5 max-w-md text-sm text-white/75">Cambia el estado de muchas copias a la vez (ej. inventario por ubicación), con confirmación obligatoria</p>
         </div>
       </div>
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h3 class="font-semibold text-gray-900 mb-4">1. Filtrar los ejemplares a cambiar</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Ubicación</label>
-            <select v-model="filtro.ubicacion_id" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-              <option value="">Cualquiera</option>
-              <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Estado actual</label>
-            <select v-model="filtro.estado_proceso_actual" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-              <option value="">Cualquiera</option>
-              <option v-for="e in ESTADOS" :key="e.value" :value="e.value">{{ e.label }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de material</label>
-            <select v-model="filtro.tipo_material_id" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-              <option value="">Cualquiera</option>
-              <option v-for="t in tiposMaterial" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-            <SelectorBuscable
+      <section class="mb-5 overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+        <header class="flex items-center gap-2.5 border-b border-gray-100 bg-indigo-50/40 px-5 py-3">
+          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-xs font-bold text-white">1</span>
+          <h3 class="font-serif text-base font-bold text-gray-900">Filtrar los ejemplares a cambiar</h3>
+        </header>
+        <div class="p-5">
+          <div class="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label for="masivo-ubicacion" class="block text-xs font-medium text-gray-700 mb-1">Ubicación</label>
+              <select id="masivo-ubicacion" v-model="filtro.ubicacion_id" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option value="">Cualquiera</option>
+                <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="masivo-estado" class="block text-xs font-medium text-gray-700 mb-1">Estado actual</label>
+              <select id="masivo-estado" v-model="filtro.estado_proceso_actual" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option value="">Cualquiera</option>
+                <option v-for="e in ESTADOS" :key="e.value" :value="e.value">{{ e.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="masivo-tipo" class="block text-xs font-medium text-gray-700 mb-1">Tipo de material</label>
+              <select id="masivo-tipo" v-model="filtro.tipo_material_id" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option value="">Cualquiera</option>
+                <option v-for="t in tiposMaterial" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">Categoría</label>
+              <SelectorBuscable
               v-model="filtro.categoria_id"
               :buscar="buscarCategorias"
               todas="Cualquiera"
               placeholder="Cualquiera"
               etiqueta="Categoría"
-              clase-campo="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm placeholder:text-gray-900"
+              clase-campo="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm placeholder:text-gray-900"
               @elegir="categoriaElegida = $event"
             />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Búsqueda por título o código de barras</label>
-            <input v-model="filtro.q" placeholder="Opcional" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
-          </div>
-        </div>
-
-        <button
-          @click="buscarPreview"
-          :disabled="buscandoPreview || !tieneFiltro"
-          class="px-5 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ buscandoPreview ? 'Buscando…' : 'Vista previa' }}
-        </button>
-      </div>
-
-      <div v-if="preview" class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h3 class="font-semibold text-gray-900 mb-1">2. {{ preview.total }} ejemplar(es) coinciden con el filtro</h3>
-        <p class="text-xs text-gray-400 mb-4">Mostrando hasta 10 de ejemplo</p>
-
-        <div class="rounded-lg border border-gray-200 divide-y divide-gray-100 mb-6">
-          <div v-for="e in preview.muestra" :key="e.id" class="flex items-center justify-between px-3 py-2 text-xs">
-            <span class="text-gray-700">{{ e.libro?.titulo }} <span class="text-gray-400 font-mono">· {{ e.codigo_barras }}</span></span>
-            <span class="text-gray-500">{{ e.estado_proceso }}</span>
-          </div>
-          <p v-if="!preview.muestra.length" class="px-3 py-4 text-xs text-gray-400 text-center">Sin resultados.</p>
-        </div>
-
-        <div v-if="preview.total > 0">
-          <h4 class="text-sm font-semibold text-gray-900 mb-3">Nuevo estado para los {{ preview.total }} ejemplares</h4>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-            <button
-              v-for="e in ESTADOS"
-              :key="e.value"
-              @click="nuevoEstado = e.value"
-              class="text-left px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
-              :class="nuevoEstado === e.value ? 'border-amber-500 bg-amber-50 text-amber-900' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
-            >
-              {{ e.label }}
-            </button>
-          </div>
-
-          <div v-if="nuevoEstado === 'personalizado'" class="mb-3">
-            <select v-model="estadoPersonalizadoId" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-              <option :value="null" disabled>Selecciona un estado personalizado...</option>
-              <option v-for="ep in estadosPersonalizados" :key="ep.id" :value="ep.id">{{ ep.nombre }}</option>
-            </select>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-xs font-medium text-gray-600 mb-1">{{ nuevoEstado === 'de_baja' ? 'Motivo de la baja (obligatorio, queda en el historial)' : 'Motivo (opcional, queda en el historial)' }}</label>
-            <input v-model="motivo" :required="nuevoEstado === 'de_baja'" :placeholder="nuevoEstado === 'de_baja' ? 'Ej: deterioro, pérdida, descarte por inventario' : 'Ej: inventario anual'" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="masivo-q" class="block text-xs font-medium text-gray-700 mb-1">Búsqueda por título o código de barras</label>
+              <input id="masivo-q" v-model="filtro.q" placeholder="Opcional" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
           </div>
 
           <button
-            @click="abrirModalConfirmacion"
-            class="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+            type="button"
+            :disabled="buscandoPreview || !tieneFiltro"
+            class="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            @click="buscarPreview"
           >
-            Cambiar estado de {{ preview.total }} ejemplar(es)…
+            {{ buscandoPreview ? 'Buscando…' : 'Vista previa' }}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div v-if="resultado" class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
+      <section v-if="preview" class="mb-5 overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-[#b08d57] bg-white shadow-sm">
+        <header class="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50/60 px-5 py-3">
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-xs font-bold text-white">2</span>
+            <h3 class="font-serif text-base font-bold text-gray-900">{{ preview.total }} {{ preview.total === 1 ? 'ejemplar coincide' : 'ejemplares coinciden' }} con el filtro</h3>
+          </div>
+          <span class="text-xs text-gray-500">Mostrando hasta 10 de ejemplo</span>
+        </header>
+        <div class="p-5">
+          <div class="mb-5 divide-y divide-gray-100 rounded-xl border border-gray-200">
+            <div v-for="e in preview.muestra" :key="e.id" class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+              <span class="min-w-0 text-gray-900">
+                {{ e.libro?.titulo }}
+                <span class="ml-1 rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-600">{{ e.codigo_barras }}</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="ESTADOS_EJEMPLAR[e.estado_proceso as EstadoProcesoEjemplar]?.badge ?? 'bg-gray-100 text-gray-700'">
+                <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
+                {{ ESTADOS_EJEMPLAR[e.estado_proceso as EstadoProcesoEjemplar]?.label ?? e.estado_proceso }}
+              </span>
+            </div>
+            <p v-if="!preview.muestra.length" class="px-3 py-4 text-center text-sm text-gray-400">Sin resultados.</p>
+          </div>
+
+          <div v-if="preview.total > 0">
+            <p class="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+              <span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+              Nuevo estado para {{ preview.total === 1 ? 'el ejemplar' : `los ${preview.total} ejemplares` }}
+            </p>
+            <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Nuevo estado">
+              <button
+                v-for="e in ESTADOS"
+                :key="e.value"
+                type="button"
+                class="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left text-xs font-semibold shadow-sm transition-colors"
+                :class="nuevoEstado === e.value ? 'border-indigo-600 bg-indigo-50 text-indigo-800 ring-1 ring-indigo-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
+                :aria-pressed="nuevoEstado === e.value"
+                @click="nuevoEstado = e.value"
+              >
+                <span class="h-2 w-2 shrink-0 rounded-full" :class="ESTADOS_EJEMPLAR[e.value].punto" aria-hidden="true"></span>
+                {{ e.label }}
+              </button>
+            </div>
+
+            <div v-if="nuevoEstado === 'personalizado'" class="mb-3">
+              <select v-model="estadoPersonalizadoId" aria-label="Estado personalizado" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option :value="null" disabled>Selecciona un estado personalizado...</option>
+                <option v-for="ep in estadosPersonalizados" :key="ep.id" :value="ep.id">{{ ep.nombre }}</option>
+              </select>
+            </div>
+
+            <div class="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <label class="block text-xs font-medium text-gray-700 mb-1">{{ nuevoEstado === 'de_baja' ? 'Motivo de la baja (obligatorio, queda en el historial)' : 'Motivo (opcional, queda en el historial)' }}</label>
+              <input v-model="motivo" :required="nuevoEstado === 'de_baja'" :placeholder="nuevoEstado === 'de_baja' ? 'Ej: deterioro, pérdida, descarte por inventario' : 'Ej: inventario anual'" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+
+            <div class="border-t border-dashed border-gray-200 pt-4">
+              <button
+                type="button"
+                class="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+                @click="abrirModalConfirmacion"
+              >
+                Cambiar estado de {{ preview.total }} {{ preview.total === 1 ? 'ejemplar' : 'ejemplares' }}…
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div v-if="resultado" class="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
         Se actualizaron {{ resultado.total_actualizados }} ejemplar(es)<template v-if="resultado.apartadas">, y {{ resultado.apartadas === 1 ? '1 quedó apartado' : `${resultado.apartadas} quedaron apartados` }} para la lista de espera de su título</template>. Lote <span class="font-mono">{{ resultado.lote_id }}</span> —
         puedes verlo en <router-link :to="{ name: 'historial-estado-libro', query: { lote_id: resultado.lote_id } }" class="underline font-medium">Historial de Estado</router-link>.
       </div>
