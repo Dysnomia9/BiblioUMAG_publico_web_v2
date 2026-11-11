@@ -512,10 +512,11 @@ function copiaGuardada(actualizada: Ejemplar) {
             <div v-if="expandidos.has(f.libro.id)" class="border-t border-indigo-100/70 bg-indigo-50/30 px-4 pb-5 pt-4 lg:pl-[4.5rem] lg:pr-5">
               <div class="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
                 <div class="overflow-hidden rounded-xl border border-indigo-100 bg-white">
-                  <p class="bg-indigo-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">Ficha bibliográfica · MARC 21</p>
-                  <div class="px-4">
-                    <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas />
-                  </div>
+                  <p class="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2">
+                    <span class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-800"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Ficha bibliográfica</span>
+                    <span class="rounded-md border border-indigo-200 bg-white px-1.5 py-px font-mono text-[11px] font-semibold text-indigo-700">MARC 21</span>
+                  </p>
+                  <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas />
                   <p v-if="textoIngreso(f.libro)" class="border-t border-indigo-100 px-4 py-2.5 text-xs text-gray-500">{{ textoIngreso(f.libro) }}</p>
                 </div>
                 <div class="overflow-hidden rounded-xl border border-emerald-100 bg-white">

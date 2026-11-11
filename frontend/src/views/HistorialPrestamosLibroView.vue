@@ -339,7 +339,7 @@ async function verFicha() {
 
     <Modal :abierto="fichaAbierta" :titulo="elegido?.libro.titulo ?? 'Ficha'" ancho="lg" @cerrar="fichaAbierta = false">
       <p v-if="!ficha" class="py-6 text-center text-sm text-gray-400">Cargando ficha…</p>
-      <FichaBibliografica v-else :filas="ficha.ficha ?? []" con-etiquetas />
+      <div v-else class="overflow-hidden rounded-xl border border-gray-200"><FichaBibliografica :filas="ficha.ficha ?? []" con-etiquetas /></div>
       <template #pie>
         <button type="button" class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100" @click="fichaAbierta = false">
           Cerrar
