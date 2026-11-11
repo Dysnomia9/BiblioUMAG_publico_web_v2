@@ -3,10 +3,10 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
+import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
@@ -17,6 +17,10 @@ import type { Ejemplar, EjemplarEstadoHistorial, EstadoLibroPersonalizado, Estad
 const toast = useToast()
 const auth = useAuthStore()
 const route = useRoute()
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
 
 const busqueda = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const libros = ref<Libro[]>([])
@@ -240,62 +244,85 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catálogo" titulo="Estado de ejemplares">
-        <template #acciones>
-          <PestanasLibros actual="estado-libro" />
-        </template>
-      </EncabezadoGestion>
+      <!-- La caja de título con la textura de Salas y Préstamos; debajo, las pestañas, el buscador y el filtro por estado. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
+          </div>
+          <div class="relative min-w-0 px-6 pt-4">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Catálogo</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Estado de ejemplares</h1>
+          </div>
+          <PestanasLibros actual="estado-libro" en-banda class="relative mt-3 px-5" />
+        </div>
+        <div class="flex flex-wrap items-center gap-3 rounded-b-2xl p-3">
+          <div class="relative min-w-[16rem] max-w-xl flex-1">
+            <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" d="M4 5v14M7.5 5v14M11 5v14M14.5 5v14M17 5v14M20 5v14" />
+            </svg>
+            <input
+              v-model="busqueda"
+              type="text"
+              placeholder="Título o código de barras (o escanéalo)"
+              aria-label="Buscar ejemplar"
+              class="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+              @input="onBuscarInput"
+              @keydown.enter="pagina = 1; cargar()"
+            />
+          </div>
+          <div class="flex w-fit max-w-full flex-wrap gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Filtrar por estado">
+            <button
+              v-for="c in chips"
+              :key="c.valor"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors"
+              :class="filtroEstado === c.valor ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+              :aria-pressed="filtroEstado === c.valor"
+              @click="filtroEstado = c.valor"
+            >
+              <span class="h-1.5 w-1.5 rounded-full" :class="c.punto"></span>
+              {{ c.texto }}
+              <span class="rounded-full px-1.5 text-[11px] tabular-nums" :class="filtroEstado === c.valor ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'">{{ c.n }}</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       <ApiErrorBanner v-if="apiError" />
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start">
         <!-- Copias -->
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div class="space-y-3 border-b border-gray-100 p-4">
-            <div class="relative">
-              <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-              </svg>
-              <input
-                v-model="busqueda"
-                type="text"
-                placeholder="Título o código de barras (o escanéalo)"
-                aria-label="Buscar ejemplar"
-                class="h-11 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
-                @input="onBuscarInput"
-                @keydown.enter="pagina = 1; cargar()"
-              />
-            </div>
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                v-for="c in chips"
-                :key="c.valor"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="filtroEstado === c.valor ? 'border-gray-900 bg-gray-900 text-white dark:border-indigo-500 dark:bg-indigo-500' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
-                @click="filtroEstado = c.valor"
-              >
-                <span class="h-1.5 w-1.5 rounded-full" :class="c.punto"></span>
-                {{ c.texto }}
-                <span class="font-semibold">{{ c.n }}</span>
-              </button>
-            </div>
-          </div>
-          <ul class="max-h-[26rem] divide-y divide-gray-100 overflow-y-auto lg:max-h-[calc(100vh-17rem)]">
+          <p class="flex items-center justify-between border-b border-gray-100 bg-indigo-50/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+            Ejemplares
+            <span class="font-semibold normal-case tracking-normal text-gray-500">Estado</span>
+          </p>
+          <ul class="max-h-[26rem] space-y-0.5 overflow-y-auto p-2 lg:max-h-[calc(100vh-17rem)]">
             <li v-for="c in visibles" :key="c.id">
               <button
                 type="button"
-                class="flex w-full items-center justify-between gap-3 border-l-4 px-4 py-3 text-left transition-colors"
-                :class="seleccionadaId === c.id ? 'border-indigo-600 bg-indigo-50/60' : 'border-transparent hover:bg-gray-50'"
+                class="flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors"
+                :class="seleccionadaId === c.id ? 'bg-indigo-50/60 shadow-sm ring-1 ring-indigo-200' : 'hover:bg-gray-50'"
                 @click="seleccionar(c)"
               >
                 <span class="min-w-0">
-                  <span class="block truncate font-semibold text-gray-900">{{ c.libro.titulo }}</span>
-                  <span class="block font-mono text-xs text-gray-500">
-                    {{ c.codigo_barras }} · lomo {{ c.codigo_lomo }} · Copia {{ c.numero_copia }}<template v-if="c.prestado || c.reservado"> · <span class="font-sans font-semibold" :class="c.prestado ? 'text-amber-700' : 'text-violet-700'">{{ c.prestado ? 'Prestada' : 'Reservada' }}</span></template>
+                  <span class="block truncate text-sm text-gray-900" :class="seleccionadaId === c.id ? 'font-semibold' : 'font-medium'">{{ c.libro.titulo }}</span>
+                  <span class="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-600">
+                    <span class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono">{{ c.codigo_barras }}</span>
+                    <span class="rounded border border-gray-200 bg-white px-1.5">lomo {{ c.codigo_lomo }}</span>
+                    <span class="rounded border border-gray-200 bg-white px-1.5">Copia {{ c.numero_copia }}</span>
+                    <span v-if="c.prestado || c.reservado" class="rounded px-1.5 font-semibold" :class="c.prestado ? 'bg-amber-100 text-amber-800' : 'bg-violet-100 text-violet-700'">{{ c.prestado ? 'Prestada' : 'Reservada' }}</span>
                   </span>
                 </span>
-                <span class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="ESTADOS_EJEMPLAR[c.estado_proceso]?.badge">
+                <span class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="ESTADOS_EJEMPLAR[c.estado_proceso]?.badge">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                   {{ nombreEstado(c) }}
                 </span>
               </button>
@@ -317,24 +344,35 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
         </section>
 
         <!-- Copia elegida -->
-        <section ref="panel" class="scroll-mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:sticky lg:top-6">
+        <section ref="panel" class="scroll-mt-4 overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm lg:sticky lg:top-6">
           <p v-if="!seleccionada" class="px-6 py-16 text-center text-sm text-gray-400">Elige una copia de la lista para ver y cambiar su estado.</p>
           <template v-else>
-            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/60 px-6 py-5">
-              <div class="min-w-0">
-                <h2 class="font-serif text-xl font-bold text-gray-900 sm:text-2xl">{{ seleccionada.libro.titulo }}</h2>
-                <p class="mt-0.5 text-sm text-gray-500">
-                  Copia {{ seleccionada.numero_copia }} · <span class="font-mono">{{ seleccionada.codigo_barras }}</span>
-                  <span
-                    v-if="seleccionada.prestado || seleccionada.reservado"
-                    class="ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold"
-                    :class="seleccionada.prestado ? 'bg-amber-100 text-amber-800' : 'bg-violet-100 text-violet-700'"
-                  >{{ seleccionada.prestado ? 'Prestada ahora' : 'Reservada para retiro' }}</span>
-                </p>
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-indigo-50/40 px-6 py-4 sm:flex-nowrap">
+              <div class="flex min-w-0 items-center gap-4">
+                <PortadaMaterial
+                  class="shadow-sm"
+                  :titulo="seleccionada.libro.titulo"
+                  :tipo="seleccionada.libro.tipo_material?.nombre"
+                  :plantilla="seleccionada.libro.tipo_material?.plantilla"
+                  :clave-tono="seleccionada.libro.categorias?.[0]?.nombre"
+                />
+                <div class="min-w-0">
+                  <h2 class="font-serif text-xl font-bold text-gray-900 sm:text-2xl">{{ seleccionada.libro.titulo }}</h2>
+                  <p class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
+                    <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5">Copia {{ seleccionada.numero_copia }}</span>
+                    <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5 font-mono text-gray-800">{{ seleccionada.codigo_barras }}</span>
+                    <span
+                      v-if="seleccionada.prestado || seleccionada.reservado"
+                      class="rounded-full px-2 py-0.5 font-semibold"
+                      :class="seleccionada.prestado ? 'bg-amber-100 text-amber-800' : 'bg-violet-100 text-violet-700'"
+                    >{{ seleccionada.prestado ? 'Prestada ahora' : 'Reservada para retiro' }}</span>
+                  </p>
+                </div>
               </div>
-              <div class="text-right">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Estado actual</p>
-                <span class="mt-1 inline-block rounded-full px-3 py-1 text-sm font-semibold" :class="ESTADOS_EJEMPLAR[seleccionada.estado_proceso]?.badge">
+              <div class="shrink-0 sm:text-right">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Estado actual</p>
+                <span class="mt-1 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold" :class="ESTADOS_EJEMPLAR[seleccionada.estado_proceso]?.badge">
+                  <span class="h-2 w-2 rounded-full bg-current" aria-hidden="true"></span>
                   {{ nombreEstado(seleccionada) }}
                 </span>
               </div>
@@ -347,7 +385,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
               </p>
               <template v-else>
               <div>
-                <p class="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Flujo de proceso</p>
+                <p class="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-700"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Flujo de proceso</p>
                 <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
                   <button
                     v-for="e in FLUJO_PROCESO"
@@ -375,7 +413,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
               </div>
 
               <div>
-                <p class="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Otras ubicaciones</p>
+                <p class="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-700"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Otras ubicaciones</p>
                 <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   <button
                     v-for="e in (['estanteria_auxiliar', 'coleccion_movil', 'personalizado'] as const)"
@@ -408,6 +446,31 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                 </div>
               </div>
 
+              <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <label for="nota-estado" class="mb-1.5 block text-xs font-semibold text-gray-700">
+                  {{ objetivo === 'de_baja' ? 'Motivo de la baja (obligatorio)' : 'Nota (opcional)' }}
+                </label>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="nota-estado"
+                    v-model="nota"
+                    type="text"
+                    maxlength="500"
+                    :placeholder="objetivo === 'de_baja' ? 'Ej: pérdida, o daño que no se puede reparar' : 'Ej: se plastificó la portada'"
+                    class="h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 text-sm sm:flex-1 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                  <button
+                    type="button"
+                    class="h-11 shrink-0 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed"
+                    :class="!objetivo ? 'bg-gray-200 text-gray-500' : objetivo === 'de_baja' ? 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50' : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50'"
+                    :disabled="!listoParaCambiar"
+                    @click="confirmando = true"
+                  >
+                    {{ !objetivo ? 'Elige un estado' : objetivo === 'de_baja' ? 'Dar de baja' : `Cambiar a ${textoObjetivo}` }}
+                  </button>
+                </div>
+              </div>
+
               <div
                 class="flex flex-col gap-3 rounded-xl border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between"
                 :class="objetivo === 'de_baja' ? 'border-red-400 bg-red-50 ring-2 ring-red-500 ring-offset-1' : 'border-red-300 bg-red-50/50'"
@@ -431,45 +494,21 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                   Dar de baja
                 </button>
               </div>
-
-              <div>
-                <label for="nota-estado" class="mb-1.5 block text-xs font-semibold text-gray-700">
-                  {{ objetivo === 'de_baja' ? 'Motivo de la baja (obligatorio)' : 'Nota (opcional)' }}
-                </label>
-                <div class="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    id="nota-estado"
-                    v-model="nota"
-                    type="text"
-                    maxlength="500"
-                    :placeholder="objetivo === 'de_baja' ? 'Ej: pérdida, o daño que no se puede reparar' : 'Ej: se plastificó la portada'"
-                    class="h-11 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
-                  />
-                  <button
-                    type="button"
-                    class="h-11 shrink-0 rounded-lg px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed"
-                    :class="!objetivo ? 'bg-gray-200 text-gray-500' : objetivo === 'de_baja' ? 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50' : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50'"
-                    :disabled="!listoParaCambiar"
-                    @click="confirmando = true"
-                  >
-                    {{ !objetivo ? 'Elige un estado' : objetivo === 'de_baja' ? 'Dar de baja' : `Cambiar a ${textoObjetivo}` }}
-                  </button>
-                </div>
-              </div>
               </template>
 
-              <div v-if="puedeVerHistorial" class="border-t border-gray-100 pt-5">
-                <p class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Historial de cambios</p>
-                <ul v-if="historial.length" class="space-y-2.5">
-                  <li v-for="h in historial" :key="h.id" class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 text-sm">
-                    <span class="text-gray-500">{{ fechaCorta(h.created_at) }}</span>
-                    <span class="min-w-0">
-                      <span class="flex items-center gap-2">
-                        <span class="h-2 w-2 shrink-0 rounded-full" :class="ESTADOS_EJEMPLAR[h.estado_nuevo]?.punto"></span>
-                        <span><strong class="text-gray-900">{{ nombreEstadoHistorial(h) }}</strong><span class="text-gray-500"> · {{ h.staff?.nombre ?? 'Sin registro' }}</span></span>
+              <div v-if="puedeVerHistorial">
+                <p class="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-700"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Historial de cambios</p>
+                <ul v-if="historial.length" class="divide-y divide-gray-100 rounded-xl border border-gray-200">
+                  <li v-for="h in historial" :key="h.id" class="px-3 py-2.5 text-sm">
+                    <span class="flex flex-wrap items-center gap-2">
+                      <span class="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-700">{{ fechaCorta(h.created_at) }}</span>
+                      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="ESTADOS_EJEMPLAR[h.estado_nuevo]?.badge">
+                        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
+                        {{ nombreEstadoHistorial(h) }}
                       </span>
-                      <span v-if="h.motivo" class="mt-0.5 block pl-4 text-xs text-gray-500">«{{ h.motivo }}»</span>
+                      <span class="text-gray-500">{{ h.staff?.nombre ?? 'Sin registro' }}</span>
                     </span>
+                    <span v-if="h.motivo" class="mt-1 block text-xs text-gray-500">«{{ h.motivo }}»</span>
                   </li>
                 </ul>
                 <p v-else-if="!cargandoHistorial" class="text-sm text-gray-400">Sin cambios registrados todavía.</p>
