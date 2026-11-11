@@ -63,6 +63,13 @@ function fecha(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 }
 
+/** «Migración Horizon: estado DB…» se muestra con la causa en negrita y el detalle debajo. */
+function partesMotivo(motivo: string | null) {
+  if (!motivo) return { causa: 'Sin motivo registrado', detalle: '' }
+  const i = motivo.indexOf(':')
+  return i > 0 ? { causa: motivo.slice(0, i).trim(), detalle: motivo.slice(i + 1).trim() } : { causa: motivo, detalle: '' }
+}
+
 // --- Reincorporar ---
 const aReincorporar = ref<CopiaDeBaja | null>(null)
 const nota = ref('')
@@ -93,49 +100,62 @@ onMounted(cargar)
 </script>
 
 <template>
-  <section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div class="border-b border-gray-100 p-5">
-      <h2 class="text-base font-semibold text-gray-900">Eliminados</h2>
-      <p class="mt-0.5 text-sm text-gray-500">
-        Copias dadas de baja (por pérdida, daño u obsolescencia). No se borran: siguen en los historiales y se pueden reincorporar.
-      </p>
-      <input
-        v-model="busqueda"
-        type="search"
-        placeholder="Buscar por título, autor o código de barras"
-        aria-label="Buscar copias dadas de baja"
-        class="mt-4 h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 sm:max-w-md"
-        @input="buscar"
-      />
-    </div>
+  <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+    <header class="flex flex-col gap-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Eliminados
+        </h3>
+        <p class="mt-0.5 pl-3 text-xs text-gray-500">
+          Copias dadas de baja (por pérdida, daño u obsolescencia). No se borran: siguen en los historiales y se pueden reincorporar.
+        </p>
+      </div>
+      <div class="relative w-full shrink-0 lg:w-80">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.350-4.350M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
+        <input
+          v-model="busqueda"
+          type="search"
+          placeholder="Buscar por título, autor o código de barras"
+          aria-label="Buscar copias dadas de baja"
+          class="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500"
+          @input="buscar"
+        />
+      </div>
+    </header>
 
     <ApiErrorBanner v-if="apiError" class="m-5" />
 
     <div class="overflow-x-auto">
       <table class="w-full">
         <thead>
-          <tr class="border-b border-gray-200 bg-gray-50">
-            <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Material</th>
-            <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Motivo</th>
-            <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Baja</th>
-            <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Acción</th>
+          <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <th class="px-4 py-2.5">Material</th>
+            <th class="px-4 py-2.5">Motivo</th>
+            <th class="px-4 py-2.5">Baja</th>
+            <th class="px-4 py-2.5 text-right">Acción</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="c in copias" :key="c.id" class="align-top">
-            <td class="px-5 py-3 text-sm text-gray-900">
-              {{ c.libro.titulo }}
-              <p class="font-mono text-xs text-gray-500">
-                Copia {{ c.numero_copia }} · {{ c.codigo_barras }}<template v-if="c.libro.tipo_material"> · <span class="font-sans">{{ c.libro.tipo_material.nombre }}</span></template>
-              </p>
+          <tr v-for="c in copias" :key="c.id" class="even:bg-gray-50/50">
+            <td class="border-l-[3px] border-l-gray-300 px-4 py-2.5">
+              <span class="block text-sm font-semibold text-gray-900">{{ c.libro.titulo }}</span>
+              <span class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                Copia {{ c.numero_copia }}
+                <span class="rounded border border-gray-200 bg-white px-1.5 py-px font-mono text-gray-700">{{ c.codigo_barras }}</span>
+                <span v-if="c.libro.tipo_material" class="rounded bg-indigo-50 px-1.5 py-px font-semibold text-indigo-700">{{ c.libro.tipo_material.nombre }}</span>
+              </span>
             </td>
-            <td class="px-5 py-3 text-sm text-gray-700">{{ c.baja_motivo ?? 'Sin motivo registrado' }}</td>
-            <td class="whitespace-nowrap px-5 py-3 text-sm text-gray-600">
+            <td class="px-4 py-2.5">
+              <span class="block text-sm font-semibold text-gray-700">{{ partesMotivo(c.baja_motivo).causa }}</span>
+              <span v-if="partesMotivo(c.baja_motivo).detalle" class="block text-xs text-gray-500">{{ partesMotivo(c.baja_motivo).detalle }}</span>
+            </td>
+            <td class="whitespace-nowrap px-4 py-2.5 text-sm text-gray-700">
               {{ fecha(c.baja_en) }}
-              <p class="text-xs text-gray-400">{{ c.baja_por ?? '—' }}</p>
+              <span v-if="c.baja_por" class="block text-[11px] text-gray-500">{{ c.baja_por }}</span>
             </td>
-            <td class="px-5 py-3">
-              <button type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="pedirReincorporar(c)">Reincorporar</button>
+            <td class="px-4 py-2.5 text-right">
+              <button type="button" class="rounded-lg border border-emerald-300 bg-emerald-50/60 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100" @click="pedirReincorporar(c)">Reincorporar</button>
             </td>
           </tr>
           <tr v-if="!cargando && !copias.length">
@@ -147,7 +167,7 @@ onMounted(cargar)
       </table>
     </div>
     <Paginador
-      class="border-t border-gray-100 px-5 py-3"
+      class="border-t border-gray-100 px-4 py-2"
       :pagina="meta.current_page"
       :paginas="meta.last_page"
       :total="meta.total"
@@ -162,23 +182,35 @@ onMounted(cargar)
       :abierto="!!aReincorporar"
       titulo="¿Reincorporar esta copia?"
       confirmar="Sí, reincorporar"
+      destacado
       :cargando="reincorporando"
       @confirmar="reincorporar"
       @cancelar="aReincorporar = null"
     >
-      <p>
-        <strong class="text-gray-900">{{ aReincorporar?.libro.titulo }}</strong> (copia {{ aReincorporar?.numero_copia }} ·
-        <span class="font-mono">{{ aReincorporar?.codigo_barras }}</span>) vuelve a la colección en estado
-        <strong class="text-gray-900">Inventario</strong>; desde Estado de ejemplares se pasa a «En estante» cuando esté lista.
+      <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
+        <p class="font-bold text-gray-900">{{ aReincorporar?.libro.titulo }}</p>
+        <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+          Copia {{ aReincorporar?.numero_copia }}
+          <span class="rounded border border-gray-200 bg-white px-1.5 py-px font-mono text-gray-700">{{ aReincorporar?.codigo_barras }}</span>
+        </p>
+      </div>
+      <!-- Lo que hace este botón: la copia sale de baja y queda en Inventario. -->
+      <p class="mt-3 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+        <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-gray-500 line-through">De baja</span>
+        <span class="text-gray-400" aria-hidden="true">→</span>
+        <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-indigo-700">Inventario</span>
       </p>
-      <label for="nota-reincorporar" class="mt-3 block text-xs font-semibold text-gray-700">Nota (opcional)</label>
+      <p class="mt-2">
+        Vuelve a la colección en estado <strong class="text-gray-900">Inventario</strong>; desde Estado de ejemplares se pasa a «En estante» cuando esté lista.
+      </p>
+      <label for="nota-reincorporar" class="mt-3 block text-xs font-medium text-gray-600">Nota (opcional)</label>
       <input
         id="nota-reincorporar"
         v-model="nota"
         type="text"
         maxlength="500"
         placeholder="Ej: apareció en otra sala"
-        class="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+        class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500"
       />
     </DialogoConfirmacion>
   </section>
