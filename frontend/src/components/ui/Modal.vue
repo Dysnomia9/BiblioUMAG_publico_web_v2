@@ -19,8 +19,10 @@ const props = withDefaults(
     pieFijo?: boolean
     /** Con false, un clic en el fondo no cierra el cuadro: solo Esc o sus botones (formularios largos). */
     cerrarAlClicAfuera?: boolean
+    /** Fondo suave en el pie fijo, para separarlo del contenido. */
+    pieConFondo?: boolean
   }>(),
-  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true },
+  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true, pieConFondo: false },
 )
 
 const emit = defineEmits<{ cerrar: [] }>()
@@ -93,8 +95,10 @@ onBeforeUnmount(() => {
         :aria-label="titulo"
       >
         <div :class="pieFijo ? 'p-6 overflow-y-auto overscroll-contain' : ''">
-          <h3 class="text-lg font-bold text-gray-900 mb-1">{{ titulo }}</h3>
-          <p v-if="descripcion" class="text-sm text-gray-500 mb-5">{{ descripcion }}</p>
+          <slot name="cabecera">
+            <h3 class="text-lg font-bold text-gray-900 mb-1">{{ titulo }}</h3>
+            <p v-if="descripcion" class="text-sm text-gray-500 mb-5">{{ descripcion }}</p>
+          </slot>
           <div :class="descripcion ? '' : 'mt-4'">
             <slot />
           </div>
@@ -102,7 +106,7 @@ onBeforeUnmount(() => {
         <div
           v-if="$slots.pie"
           class="flex flex-col-reverse sm:flex-row gap-3"
-          :class="pieFijo ? 'shrink-0 px-6 py-4 border-t border-gray-100' : 'mt-6'"
+          :class="[pieFijo ? 'shrink-0 px-6 py-4 border-t border-gray-100' : 'mt-6', pieConFondo ? 'rounded-b-2xl bg-gray-50' : '']"
         >
           <slot name="pie" />
         </div>
