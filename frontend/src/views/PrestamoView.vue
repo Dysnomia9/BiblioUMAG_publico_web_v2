@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import FondoPrestamos from '@/components/ui/FondoPrestamos.vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
@@ -160,14 +161,42 @@ const fondoCategoria = (c: CategoriaRecurso) => (COLORES_RECURSO[c.color] ?? COL
 const puntoCategoria = (c: CategoriaRecurso) => (COLORES_RECURSO[c.color] ?? COLORES_RECURSO.slate).punto
 const iconoCategoria = (c: CategoriaRecurso) => (ICONOS_RECURSO[c.icono] ?? ICONOS_RECURSO.caja).trazo
 
+// Al ir a Multas desde la ficha, se recuerda a la persona para retomarla al volver a Préstamos.
+// Sirve una sola vez y por poco rato: quien viene después en el mesón parte con la pantalla limpia.
+const CLAVE_FICHA_PENDIENTE = 'prestamo:ficha-pendiente'
+const MINUTOS_FICHA_PENDIENTE = 15
+
+function recordarFichaAlIrAMultas() {
+  if (!usuario.value) return
+  try {
+    sessionStorage.setItem(CLAVE_FICHA_PENDIENTE, JSON.stringify({ rut: usuario.value.rut, hasta: Date.now() + MINUTOS_FICHA_PENDIENTE * 60_000 }))
+  } catch {
+    // Sin almacenamiento, simplemente no se retoma.
+  }
+}
+
+function tomarFichaPendiente(): string | null {
+  try {
+    const guardada = sessionStorage.getItem(CLAVE_FICHA_PENDIENTE)
+    sessionStorage.removeItem(CLAVE_FICHA_PENDIENTE)
+    if (!guardada) return null
+    const { rut: rutGuardado, hasta } = JSON.parse(guardada) as { rut: string; hasta: number }
+    return Date.now() < hasta ? rutGuardado : null
+  } catch {
+    return null
+  }
+}
+
 onMounted(() => {
   cargarRecursosDisponibles()
   cargarCategorias()
   cargarHorario()
+  const pendiente = tomarFichaPendiente()
   // Se puede llegar con ?rut=… (ej. desde Multas o Entradas) para abrir directo los préstamos de esa persona.
-  if (typeof route.query.rut === 'string' && route.query.rut) {
-    modoRut.value = modoSegunValor(route.query.rut)
-    rut.value = formatearSegunModo(route.query.rut, modoRut.value)
+  const rutInicial = typeof route.query.rut === 'string' && route.query.rut ? route.query.rut : pendiente
+  if (rutInicial) {
+    modoRut.value = modoSegunValor(rutInicial)
+    rut.value = formatearSegunModo(rutInicial, modoRut.value)
     buscarUsuario()
   } else {
     rutInput.value?.focus()
@@ -752,9 +781,7 @@ function formatHora(iso: string | null) {
     <div class="mx-auto max-w-5xl">
       <!-- Encabezado: el degradado con puntos tenues y dos anillos a la derecha, como en Salas -->
       <div class="relative mb-6 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
-        <div class="pointer-events-none absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]" aria-hidden="true"></div>
+        <FondoPrestamos />
         <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5">
           <div>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Préstamos, devoluciones y reservas</h1>
@@ -1104,7 +1131,7 @@ function formatHora(iso: string | null) {
           Este usuario tiene
           {{ usuario.multas_pendientes.cantidad === 1 ? '1 multa pendiente' : `${usuario.multas_pendientes.cantidad} multas pendientes` }}
           por {{ formatMonto(usuario.multas_pendientes.monto_total) }}: no puede llevarse ni reservar material hasta pagar.
-          <router-link v-if="auth.puede('multas.ver')" :to="{ name: 'multas', query: { rut: usuario.rut } }" class="font-semibold underline">
+          <router-link v-if="auth.puede('multas.ver')" :to="{ name: 'multas', query: { rut: usuario.rut } }" class="font-semibold underline" @click="recordarFichaAlIrAMultas">
             {{ puedeCobrar ? 'Registrar el pago' : 'Ver detalle de sus multas' }}
           </router-link>
         </span>
