@@ -6,6 +6,7 @@ import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import GraficoColumnas from '@/components/reportes/GraficoColumnas.vue'
 import BarrasRanking from '@/components/reportes/BarrasRanking.vue'
 import SeccionReporte from '@/components/reportes/SeccionReporte.vue'
+import FondoReportes from '@/components/reportes/FondoReportes.vue'
 import BarraApilada from '@/components/reportes/BarraApilada.vue'
 import TablaReporte from '@/components/reportes/TablaReporte.vue'
 import Heatmap from '@/components/reportes/Heatmap.vue'
@@ -514,11 +515,7 @@ async function confirmarExportar() {
       <!-- Caja de título con la textura de Salas y Préstamos: las pestañas van sobre ella, como en el Listado, y los filtros unidos debajo. Las capas se recortan aparte para que el menú de Exportar pueda salir de la caja. -->
       <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
         <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
-          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
-            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
-            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
-            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
-          </div>
+          <FondoReportes />
           <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 pt-4">
             <div>
               <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
