@@ -3,7 +3,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
@@ -13,6 +12,13 @@ import { copiarTexto } from '@/utils/portapapeles'
 import type { EjemplarEstadoHistorial, EstadoProcesoEjemplar } from '@/types'
 
 const route = useRoute()
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
+
+/** Lo que sigue a «Migración Horizon:» en el motivo; null si no vino de la migración. */
+const motivoHorizon = (motivo: string) => motivo.match(/^Migración Horizon:\s*(.*)$/)?.[1] ?? null
 const toast = useToast()
 
 const historial = ref<EjemplarEstadoHistorial[]>([])
@@ -180,59 +186,75 @@ const CAMPO =
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catálogo" titulo="Historial de estado" descripcion="Todos los cambios de estado de ejemplares, individuales y por lote">
-        <template #acciones>
-          <PestanasLibros actual="historial-estado-libro" />
-        </template>
-      </EncabezadoGestion>
+      <!-- La caja de título con la textura de Salas y Préstamos; debajo, las pestañas y los filtros en la misma tarjeta. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
+          </div>
+          <div class="relative min-w-0 px-6 pt-4">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Catálogo</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Historial de estado</h1>
+            <p class="mt-0.5 text-sm text-white/75">Todos los cambios de estado de ejemplares, individuales y por lote</p>
+          </div>
+          <PestanasLibros actual="historial-estado-libro" en-banda class="relative mt-3 px-5" />
+        </div>
+        <div class="rounded-b-2xl p-4">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)]">
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold text-gray-700">Libro o código</span>
+              <input v-model="filtros.q" type="text" placeholder="Título o código de barras" :class="CAMPO" @input="onFiltroInput" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold text-gray-700">Lote</span>
+              <input v-model="filtros.lote_id" type="text" placeholder="ID de lote (cambio masivo)" :class="[CAMPO, 'font-mono']" @input="onFiltroInput" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold text-gray-700">Desde</span>
+              <input v-model="filtros.desde" type="date" :class="CAMPO" @change="cargar" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-semibold text-gray-700">Hasta</span>
+              <input v-model="filtros.hasta" type="date" :class="CAMPO" @change="cargar" />
+            </label>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por estado al que pasó la copia">
+            <span class="text-xs font-semibold text-gray-700">Estado</span>
+            <!-- Una línea entre cada opción, para que se distinga que son botones. -->
+            <div class="flex max-w-full flex-wrap overflow-hidden rounded-xl border border-gray-300 bg-gray-50">
+              <button
+                type="button"
+                class="border-r border-gray-300 px-3.5 py-1.5 text-xs font-semibold transition-colors"
+                :class="filtros.estado === '' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-white/70'"
+                :aria-pressed="filtros.estado === ''"
+                @click="elegirEstado('')"
+              >
+                Todos
+              </button>
+              <button
+                v-for="e in CHIPS_ESTADO"
+                :key="e"
+                type="button"
+                class="inline-flex items-center gap-1.5 border-r border-gray-300 px-3 py-1.5 text-xs font-semibold transition-colors last:border-r-0"
+                :class="filtros.estado === e ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-white/70'"
+                :aria-pressed="filtros.estado === e"
+                @click="elegirEstado(e)"
+              >
+                <span class="h-1.5 w-1.5 rounded-full" :class="ESTADOS_EJEMPLAR[e].punto"></span>
+                {{ ESTADOS_EJEMPLAR[e].label }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <ApiErrorBanner v-if="apiError" />
-
-      <!-- Filtros -->
-      <div class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)]">
-          <label class="block">
-            <span class="mb-1 block text-xs font-semibold text-gray-700">Libro o código</span>
-            <input v-model="filtros.q" type="text" placeholder="Título o código de barras" :class="CAMPO" @input="onFiltroInput" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-semibold text-gray-700">Lote</span>
-            <input v-model="filtros.lote_id" type="text" placeholder="ID de lote (cambio masivo)" :class="[CAMPO, 'font-mono']" @input="onFiltroInput" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-semibold text-gray-700">Desde</span>
-            <input v-model="filtros.desde" type="date" :class="CAMPO" @change="cargar" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-semibold text-gray-700">Hasta</span>
-            <input v-model="filtros.hasta" type="date" :class="CAMPO" @change="cargar" />
-          </label>
-        </div>
-        <div class="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por estado al que pasó la copia">
-          <span class="text-xs font-semibold text-gray-700">Estado:</span>
-          <button
-            type="button"
-            class="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors"
-            :class="filtros.estado === '' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-            :aria-pressed="filtros.estado === ''"
-            @click="elegirEstado('')"
-          >
-            Todos
-          </button>
-          <button
-            v-for="e in CHIPS_ESTADO"
-            :key="e"
-            type="button"
-            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
-            :class="filtros.estado === e ? 'bg-indigo-600 text-white shadow-sm' : [ESTADOS_EJEMPLAR[e].badge, 'hover:brightness-95']"
-            :aria-pressed="filtros.estado === e"
-            @click="elegirEstado(e)"
-          >
-            <span class="h-1.5 w-1.5 rounded-full" :class="filtros.estado === e ? 'bg-white' : ESTADOS_EJEMPLAR[e].punto"></span>
-            {{ ESTADOS_EJEMPLAR[e].label }}
-          </button>
-        </div>
-      </div>
 
       <!-- Cambios -->
       <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -240,8 +262,7 @@ const CAMPO =
           <table class="w-full min-w-[56rem]">
             <thead>
               <tr
-                class="text-left text-[11px] font-bold uppercase tracking-wider text-white"
-                style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
+                class="bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500"
               >
                 <th class="px-4 py-3.5">Fecha</th>
                 <th class="px-4 py-3.5">Libro · Copia</th>
@@ -251,9 +272,14 @@ const CAMPO =
               </tr>
             </thead>
             <tbody v-for="g in grupos" :key="g.clave">
-              <tr class="border-t border-indigo-100 bg-indigo-50/70">
+              <tr class="border-t border-gray-200 bg-indigo-50/50">
                 <td colspan="5" class="px-4 py-2">
-                  <span class="text-xs font-bold text-indigo-950">{{ g.titulo }}</span>
+                  <span class="inline-flex items-center gap-2 align-middle">
+                    <span class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-white" aria-hidden="true">
+                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    </span>
+                    <span class="text-sm font-bold text-gray-900">{{ g.titulo }}</span>
+                  </span>
                   <span class="ml-2 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100">
                     {{ g.filas.length }} {{ g.filas.length === 1 ? 'cambio' : 'cambios' }}
                   </span>
@@ -268,7 +294,7 @@ const CAMPO =
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
                       <span
-                        class="flex h-9 w-7 shrink-0 items-end rounded-sm border-l-[3px] px-1 pb-0.5 font-serif text-[11px] font-bold"
+                        class="flex h-9 w-7 shrink-0 items-end rounded-sm border-l-[3px] px-1 pb-0.5 font-serif text-[11px] font-bold shadow-sm"
                         :class="tonoPortada(h.ejemplar?.libro?.titulo ?? '')"
                         aria-hidden="true"
                       >
@@ -276,25 +302,33 @@ const CAMPO =
                       </span>
                       <div class="min-w-0">
                         <p class="text-sm font-semibold leading-snug text-gray-900">{{ h.ejemplar?.libro?.titulo ?? 'Libro eliminado' }}</p>
-                        <p class="text-xs text-gray-500">Copia {{ h.ejemplar?.numero_copia }} · <span class="font-mono">{{ h.ejemplar?.codigo_barras }}</span></p>
+                        <p class="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-600">
+                          <span class="rounded border border-gray-200 bg-white px-1.5">Copia {{ h.ejemplar?.numero_copia }}</span>
+                          <span class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono">{{ h.ejemplar?.codigo_barras }}</span>
+                        </p>
                       </div>
                     </div>
                   </td>
                   <td class="px-4 py-3">
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-black/5" :class="ESTADOS_EJEMPLAR[h.estado_anterior]?.badge">
+                    <div class="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 p-0.5">
+                      <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="ESTADOS_EJEMPLAR[h.estado_anterior]?.badge">
+                        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                         {{ etiquetaEstado(h, 'anterior') }}
                       </span>
                       <span class="text-gray-400" aria-label="pasó a">→</span>
-                      <span class="whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-black/5" :class="ESTADOS_EJEMPLAR[h.estado_nuevo]?.badge">
+                      <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold" :class="ESTADOS_EJEMPLAR[h.estado_nuevo]?.badge">
+                        <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                         {{ etiquetaEstado(h, 'nuevo') }}
                       </span>
                     </div>
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
-                      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-[10px] font-bold text-[#1a2430]" aria-hidden="true">
-                        {{ iniciales(h.staff?.nombre) }}
+                      <span v-if="h.staff" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-[10px] font-bold text-[#1a2430]" aria-hidden="true">
+                        {{ iniciales(h.staff.nombre) }}
+                      </span>
+                      <span v-else class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400" aria-hidden="true">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.118a7.5 7.5 0 0115 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.5-1.632z" /></svg>
                       </span>
                       <span class="text-sm text-gray-700">{{ h.staff?.nombre ?? 'Sin registro' }}</span>
                     </div>
@@ -305,7 +339,10 @@ const CAMPO =
                       <span v-if="h.motivo && h.estado_nuevo === 'de_baja'" class="inline-block rounded-md bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
                         {{ h.motivo }}
                       </span>
-                      <p v-else-if="h.motivo" class="text-sm text-gray-700">{{ h.motivo }}</p>
+                      <template v-else-if="h.motivo">
+                        <p v-if="motivoHorizon(h.motivo)" class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Migración Horizon</p>
+                        <p class="text-sm text-gray-700">{{ motivoHorizon(h.motivo) ?? h.motivo }}</p>
+                      </template>
                       <p v-else class="text-xs text-gray-400">Sin motivo</p>
                       <button
                         v-if="h.lote_id"
