@@ -123,29 +123,19 @@ const tipoLabel: Record<string, string> = {
   funcionario: 'Funcionario',
 }
 
-const tipoBadge: Record<string, string> = {
-  estudiante: 'bg-indigo-100 text-indigo-700',
-  docente: 'bg-amber-100 text-amber-800',
-  funcionario: 'bg-sky-100 text-sky-700',
-}
-
 const hayResultados = computed(() => usuarios.value.length > 0)
 
 function abrirMenuGestion() {
   window.dispatchEvent(new Event('abrir-menu-gestion'))
 }
 
-const iniciales = (u: Usuario) => `${u.nombre.trim().charAt(0)}${u.apellido.trim().charAt(0)}`.toUpperCase()
-const TONOS_AVATAR = ['bg-indigo-50 text-indigo-700', 'bg-amber-50 text-amber-800', 'bg-teal-50 text-teal-700', 'bg-violet-50 text-violet-700']
-const tonoAvatar = (texto: string) => TONOS_AVATAR[[...texto].reduce((suma, letra) => suma + letra.charCodeAt(0), 0) % TONOS_AVATAR.length]
-
 const ETIQUETAS_DOCUMENTO = { rut: 'RUT', pasaporte: 'Pasaporte', dni: 'DNI', otro: 'Otro' } as const
 const etiquetaDocumento = (u: Usuario) => ETIQUETAS_DOCUMENTO[u.tipo_documento ?? 'rut']
 
 function estadoDe(u: Usuario) {
-  if (u.activo) return { texto: 'Activo', clase: 'bg-emerald-50 text-emerald-700', punto: 'bg-emerald-500' }
-  if (u.inactividad === 'vencida') return { texto: 'Vencida', clase: 'bg-amber-50 text-amber-800', punto: 'bg-amber-500' }
-  return { texto: 'Inactivo', clase: 'bg-red-50 text-red-700', punto: 'bg-red-500' }
+  if (u.activo) return { texto: 'Activo', clase: 'border-emerald-300 bg-emerald-50/60 text-emerald-700' }
+  if (u.inactividad === 'vencida') return { texto: 'Vencida', clase: 'border-amber-300 bg-amber-50/60 text-amber-800' }
+  return { texto: 'Inactivo', clase: 'border-red-300 bg-red-50/60 text-red-700' }
 }
 
 function vigenciaDe(u: Usuario) {
@@ -230,19 +220,12 @@ function vigenciaDe(u: Usuario) {
             <tbody class="divide-y divide-gray-100">
               <tr v-for="u in usuarios" :key="u.id" class="even:bg-gray-50/50">
                 <td class="px-4 py-2.5">
-                  <span class="flex items-center gap-2.5">
-                    <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="tonoAvatar(u.nombre + u.apellido)" aria-hidden="true">
-                      {{ iniciales(u) }}
-                      <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white" :class="estadoDe(u).punto"></span>
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block text-sm font-semibold leading-snug text-gray-900">{{ u.nombre }} {{ u.apellido }}</span>
-                      <span class="mt-0.5 flex flex-wrap items-center gap-x-1.5">
-                        <span class="rounded-full px-2 py-px text-[10px] font-semibold" :class="tipoBadge[u.tipo]">{{ tipoLabel[u.tipo] }}</span>
-                        <a v-if="u.email" :href="`mailto:${u.email}`" class="break-all text-xs text-indigo-700 hover:underline">{{ u.email }}</a>
-                        <span v-else class="text-xs italic text-gray-400">Sin correo</span>
-                      </span>
-                    </span>
+                  <span class="block text-sm font-bold leading-snug text-gray-900">{{ u.nombre }} {{ u.apellido }}</span>
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                    <span class="font-semibold text-gray-600">{{ tipoLabel[u.tipo] }}</span>
+                    <span class="h-3 w-px bg-gray-300" aria-hidden="true"></span>
+                    <a v-if="u.email" :href="`mailto:${u.email}`" class="break-all text-indigo-700 hover:underline">{{ u.email }}</a>
+                    <span v-else class="italic text-gray-400">Sin correo</span>
                   </span>
                 </td>
                 <td class="px-4 py-2.5 whitespace-nowrap">
@@ -252,50 +235,49 @@ function vigenciaDe(u: Usuario) {
                 </td>
                 <td class="px-4 py-2.5 text-sm text-gray-700">{{ u.carrera ?? '—' }}</td>
                 <td class="px-4 py-2.5 whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="estadoDe(u).clase">
-                    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
-                    {{ estadoDe(u).texto }}
-                  </span>
+                  <span class="inline-block rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-widest" :class="estadoDe(u).clase">{{ estadoDe(u).texto }}</span>
                   <span v-if="vigenciaDe(u)" class="mt-0.5 block text-[11px] text-gray-500">{{ vigenciaDe(u) }}</span>
                 </td>
                 <td class="px-4 py-2.5">
-                  <div class="flex items-center justify-end gap-1.5">
-                    <router-link
-                      v-if="auth.puede('prestamos.gestionar')"
-                      :to="{ name: 'prestamo', query: { rut: u.rut } }"
-                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition-colors bg-sky-50 text-sky-700 hover:bg-sky-100"
-                      :aria-label="`Ver préstamos de ${u.nombre} ${u.apellido}`"
-                    >
-                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.500 5c1.747 0 3.332.477 4.500 1.253v13C19.832 18.477 18.247 18 16.500 18c-1.746 0-3.332.477-4.500 1.253" /></svg>
-                      Préstamos
-                    </router-link>
-                    <button
-                      type="button"
-                      :disabled="generandoConstanciaRut === u.rut"
-                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition-colors bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-                      title="Constancia de No Multa"
-                      :aria-label="`Constancia de No Multa de ${u.nombre} ${u.apellido}`"
-                      @click="pedirConfirmacionConstancia(u)"
-                    >
-                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.500 14.250v-2.625a3.375 3.375 0 00-3.375-3.375h-1.500A1.125 1.125 0 0113.500 7.125v-1.500a3.375 3.375 0 00-3.375-3.375H6.750A1.125 1.125 0 005.625 3.375v17.250c0 .621.504 1.125 1.125 1.125h10.500c.621 0 1.125-.504 1.125-1.125V14.250zM9 15l2 2 4-4" /></svg>
-                      {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia' }}
-                    </button>
+                  <div class="flex items-center justify-end gap-2">
+                    <!-- Consulta: un solo bloque neutro; solo los íconos llevan color. -->
+                    <div class="inline-flex divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                      <router-link
+                        v-if="auth.puede('prestamos.gestionar')"
+                        :to="{ name: 'prestamo', query: { rut: u.rut } }"
+                        class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-gray-800 transition-colors hover:bg-gray-50"
+                        :aria-label="`Ver préstamos de ${u.nombre} ${u.apellido}`"
+                      >
+                        <svg class="h-3.5 w-3.5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.500 5c1.747 0 3.332.477 4.500 1.253v13C19.832 18.477 18.247 18 16.500 18c-1.746 0-3.332.477-4.500 1.253" /></svg>
+                        Préstamos
+                      </router-link>
+                      <button
+                        type="button"
+                        :disabled="generandoConstanciaRut === u.rut"
+                        class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                        title="Constancia de No Multa"
+                        :aria-label="`Constancia de No Multa de ${u.nombre} ${u.apellido}`"
+                        @click="pedirConfirmacionConstancia(u)"
+                      >
+                        <svg class="h-3.5 w-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.500 14.250v-2.625a3.375 3.375 0 00-3.375-3.375h-1.500A1.125 1.125 0 0113.500 7.125v-1.500a3.375 3.375 0 00-3.375-3.375H6.750A1.125 1.125 0 005.625 3.375v17.250c0 .621.504 1.125 1.125 1.125h10.500c.621 0 1.125-.504 1.125-1.125V14.250zM9 15l2 2 4-4" /></svg>
+                        {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia' }}
+                      </button>
+                    </div>
+                    <!-- Acción principal aparte, del mismo ancho sea Renovar o Desactivar. -->
                     <button
                       v-if="!u.activo && auth.puede('usuarios.habilitar')"
                       type="button"
-                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                      class="inline-flex w-[6.25rem] items-center justify-center whitespace-nowrap rounded-lg border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                       @click="pedirCambioEstado(u, true)"
                     >
-                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356M4.984 19.644v-4.992h4.992m-5.356-.598a8.250 8.250 0 0013.803 3.181l3.181-3.183M3.003 9.750l3.181-3.183a8.250 8.250 0 0113.803 3.181" /></svg>
                       Renovar
                     </button>
                     <button
                       v-else-if="u.activo && auth.puede('usuarios.desactivar')"
                       type="button"
-                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      class="inline-flex w-[6.25rem] items-center justify-center whitespace-nowrap rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-50"
                       @click="pedirCambioEstado(u, false)"
                     >
-                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                       Desactivar
                     </button>
                   </div>
@@ -313,62 +295,59 @@ function vigenciaDe(u: Usuario) {
         <!-- Cards mobile/tablet -->
         <div class="divide-y divide-gray-100 lg:hidden">
           <div v-for="u in usuarios" :key="u.id" class="p-3.5">
-            <div class="flex items-start gap-2.5">
-              <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="tonoAvatar(u.nombre + u.apellido)" aria-hidden="true">
-                {{ iniciales(u) }}
-                <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white" :class="estadoDe(u).punto"></span>
-              </span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-gray-900">{{ u.nombre }} {{ u.apellido }}</p>
+            <div class="flex items-start justify-between gap-2.5">
+              <div class="min-w-0">
+                <p class="text-sm font-bold text-gray-900">{{ u.nombre }} {{ u.apellido }}</p>
                 <p class="font-mono text-xs text-gray-600">{{ describirDocumento(u.rut, u.tipo_documento, u.pais) }}</p>
               </div>
-              <span class="shrink-0 rounded-full px-2 py-px text-[10px] font-semibold" :class="tipoBadge[u.tipo]">{{ tipoLabel[u.tipo] }}</span>
+              <span class="shrink-0 rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-widest" :class="estadoDe(u).clase">{{ estadoDe(u).texto }}</span>
             </div>
-            <p class="mt-2 text-xs text-gray-500">{{ u.carrera ?? 'Sin carrera' }} · {{ u.email ?? 'Sin correo' }}</p>
-            <p class="mt-2">
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="estadoDe(u).clase">
-                <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
-                {{ estadoDe(u).texto }}
-              </span>
-              <span v-if="vigenciaDe(u)" class="ml-2 text-[11px] text-gray-500">{{ vigenciaDe(u) }}</span>
+            <p class="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs">
+              <span class="font-semibold text-gray-600">{{ tipoLabel[u.tipo] }}</span>
+              <span class="h-3 w-px bg-gray-300" aria-hidden="true"></span>
+              <span class="text-gray-500">{{ u.carrera ?? 'Sin carrera' }}</span>
             </p>
-            <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <router-link
-                v-if="auth.puede('prestamos.gestionar')"
-                :to="{ name: 'prestamo', query: { rut: u.rut } }"
-                class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition-colors bg-sky-50 text-sky-700 hover:bg-sky-100"
-                :aria-label="`Ver préstamos de ${u.nombre} ${u.apellido}`"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.500 5c1.747 0 3.332.477 4.500 1.253v13C19.832 18.477 18.247 18 16.500 18c-1.746 0-3.332.477-4.500 1.253" /></svg>
-                Préstamos
-              </router-link>
-              <button
-                type="button"
-                :disabled="generandoConstanciaRut === u.rut"
-                class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition-colors bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-                title="Constancia de No Multa"
-                :aria-label="`Constancia de No Multa de ${u.nombre} ${u.apellido}`"
-                @click="pedirConfirmacionConstancia(u)"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.500 14.250v-2.625a3.375 3.375 0 00-3.375-3.375h-1.500A1.125 1.125 0 0113.500 7.125v-1.500a3.375 3.375 0 00-3.375-3.375H6.750A1.125 1.125 0 005.625 3.375v17.250c0 .621.504 1.125 1.125 1.125h10.500c.621 0 1.125-.504 1.125-1.125V14.250zM9 15l2 2 4-4" /></svg>
-                {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia' }}
-              </button>
+            <p class="mt-0.5 break-all text-xs" :class="u.email ? 'text-indigo-700' : 'italic text-gray-400'">{{ u.email ?? 'Sin correo' }}</p>
+            <p v-if="vigenciaDe(u)" class="mt-0.5 text-[11px] text-gray-500">{{ vigenciaDe(u) }}</p>
+            <div class="mt-2.5 flex flex-wrap items-center gap-2">
+              <!-- Consulta: un solo bloque neutro; solo los íconos llevan color. -->
+              <div class="inline-flex divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <router-link
+                  v-if="auth.puede('prestamos.gestionar')"
+                  :to="{ name: 'prestamo', query: { rut: u.rut } }"
+                  class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-gray-800 transition-colors hover:bg-gray-50"
+                  :aria-label="`Ver préstamos de ${u.nombre} ${u.apellido}`"
+                >
+                  <svg class="h-3.5 w-3.5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.500 5c1.747 0 3.332.477 4.500 1.253v13C19.832 18.477 18.247 18 16.500 18c-1.746 0-3.332.477-4.500 1.253" /></svg>
+                  Préstamos
+                </router-link>
+                <button
+                  type="button"
+                  :disabled="generandoConstanciaRut === u.rut"
+                  class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  title="Constancia de No Multa"
+                  :aria-label="`Constancia de No Multa de ${u.nombre} ${u.apellido}`"
+                  @click="pedirConfirmacionConstancia(u)"
+                >
+                  <svg class="h-3.5 w-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.500 14.250v-2.625a3.375 3.375 0 00-3.375-3.375h-1.500A1.125 1.125 0 0113.500 7.125v-1.500a3.375 3.375 0 00-3.375-3.375H6.750A1.125 1.125 0 005.625 3.375v17.250c0 .621.504 1.125 1.125 1.125h10.500c.621 0 1.125-.504 1.125-1.125V14.250zM9 15l2 2 4-4" /></svg>
+                  {{ generandoConstanciaRut === u.rut ? 'Generando…' : 'Constancia' }}
+                </button>
+              </div>
+              <!-- Acción principal aparte, del mismo ancho sea Renovar o Desactivar. -->
               <button
                 v-if="!u.activo && auth.puede('usuarios.habilitar')"
                 type="button"
-                class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                class="inline-flex w-[6.25rem] items-center justify-center whitespace-nowrap rounded-lg border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                 @click="pedirCambioEstado(u, true)"
               >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356M4.984 19.644v-4.992h4.992m-5.356-.598a8.250 8.250 0 0013.803 3.181l3.181-3.183M3.003 9.750l3.181-3.183a8.250 8.250 0 0113.803 3.181" /></svg>
                 Renovar
               </button>
               <button
                 v-else-if="u.activo && auth.puede('usuarios.desactivar')"
                 type="button"
-                class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                class="inline-flex w-[6.25rem] items-center justify-center whitespace-nowrap rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-50"
                 @click="pedirCambioEstado(u, false)"
               >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                 Desactivar
               </button>
             </div>
