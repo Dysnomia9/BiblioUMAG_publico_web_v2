@@ -3,10 +3,10 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import EncabezadoGestion from '@/components/ui/EncabezadoGestion.vue'
 import Modal from '@/components/ui/Modal.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
+import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
 import { inicialesPortada, tonoPortada } from '@/utils/portada'
@@ -142,16 +142,28 @@ const indicadores = computed(() => {
   const promedio = devueltos.length ? Math.round(devueltos.reduce((s, p) => s + p.dias!, 0) / devueltos.length) : null
   const ultimo = prestamos.value[0]?.fechaPrestamo
   return [
-    { titulo: 'Préstamos', valor: String(prestamos.value.length), clase: 'bg-indigo-50 text-indigo-800' },
-    { titulo: 'Duración promedio', valor: promedio === null ? '—' : `${promedio} ${promedio === 1 ? 'día' : 'días'}`, clase: 'bg-teal-50 text-teal-800' },
-    { titulo: 'Devueltos con atraso', valor: String(prestamos.value.filter((p) => p.conAtraso).length), clase: 'bg-red-50 text-red-800' },
+    { titulo: 'Préstamos', valor: String(prestamos.value.length), clase: 'border-indigo-100 bg-indigo-50 text-indigo-800' },
+    { titulo: 'Duración promedio', valor: promedio === null ? '—' : `${promedio} ${promedio === 1 ? 'día' : 'días'}`, clase: 'border-teal-100 bg-teal-50 text-teal-800' },
+    { titulo: 'Devueltos con atraso', valor: String(prestamos.value.filter((p) => p.conAtraso).length), clase: 'border-red-100 bg-red-50 text-red-800' },
     {
       titulo: 'Último préstamo',
       valor: ultimo ? fecha(ultimo).slice(0, 5) : '—',
-      clase: 'bg-amber-50 text-amber-900',
+      clase: 'border-amber-100 bg-amber-50 text-amber-900',
     },
   ]
 })
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
+
+/** Primer nombre y primer apellido: «María José Soto Pérez» → MS. */
+function inicialesPersona(nombre: string) {
+  const partes = nombre.trim().split(/\s+/)
+  return (partes[0][0] + (partes.length > 1 ? partes[Math.ceil(partes.length / 2)][0] : '')).toUpperCase()
+}
+const TONOS_AVATAR = ['bg-indigo-50 text-indigo-700', 'bg-amber-50 text-dorado-700', 'bg-teal-50 text-teal-700']
+const tonoAvatar = (nombre: string) => TONOS_AVATAR[[...nombre].reduce((suma, letra) => suma + letra.charCodeAt(0), 0) % TONOS_AVATAR.length]
 
 function detalle(r: LibroHistorialItem) {
   return `${r.libro.isbn ? `ISBN ${r.libro.isbn}` : 'Sin ISBN'} · ${r.copias} ${r.copias === 1 ? 'copia' : 'copias'}`
@@ -176,48 +188,71 @@ async function verFicha() {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-[88rem]">
-      <EncabezadoGestion seccion="Catálogo" titulo="Historial de material">
-        <template #acciones>
-          <PestanasLibros actual="historial-prestamos-libro" />
-        </template>
-      </EncabezadoGestion>
+      <!-- La caja de título con la textura de Salas y Préstamos; debajo, las pestañas y el buscador en la misma tarjeta. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
+          </div>
+          <div class="relative min-w-0 px-6 pt-4">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Catálogo</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Historial de material</h1>
+          </div>
+          <PestanasLibros actual="historial-prestamos-libro" en-banda class="relative mt-3 px-5" />
+        </div>
+        <div class="flex flex-wrap items-center gap-3 rounded-b-2xl p-3">
+          <div class="relative min-w-[16rem] max-w-2xl flex-1">
+            <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+            <input
+              v-model="busqueda"
+              type="text"
+              placeholder="Título, ISBN o código de barras"
+              aria-label="Buscar libro"
+              class="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+              @input="onBuscarInput"
+            />
+          </div>
+          <p class="text-sm text-gray-500">
+            <span class="mr-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{{ total.toLocaleString('es-CL') }} {{ total === 1 ? 'libro' : 'libros' }}</span>
+            de la A a la Z
+          </p>
+        </div>
+      </section>
 
       <ApiErrorBanner v-if="apiError" />
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[23rem_minmax(0,1fr)] lg:items-start">
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div class="space-y-3 border-b border-gray-100 p-4">
-            <div class="relative">
-              <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-              </svg>
-              <input
-                v-model="busqueda"
-                type="text"
-                placeholder="Título, ISBN o código de barras"
-                aria-label="Buscar libro"
-                class="h-11 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
-                @input="onBuscarInput"
-              />
-            </div>
-            <p class="text-sm text-gray-500">{{ total.toLocaleString('es-CL') }} {{ total === 1 ? 'libro' : 'libros' }} · de la A a la Z</p>
-          </div>
-          <ul class="max-h-[26rem] divide-y divide-gray-100 overflow-y-auto lg:max-h-[calc(100vh-17rem)]">
+          <p class="flex items-center justify-between border-b border-gray-100 bg-indigo-50/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+            Libros
+            <span class="font-semibold normal-case tracking-normal text-gray-500">Préstamos</span>
+          </p>
+          <ul class="max-h-[26rem] space-y-0.5 overflow-y-auto p-2 lg:max-h-[calc(100vh-17rem)]">
             <li v-for="r in lista" :key="r.libro.id">
               <button
                 type="button"
-                class="w-full border-l-4 px-4 py-3 text-left transition-colors"
-                :class="elegidoId === r.libro.id ? 'border-indigo-600 bg-indigo-50/60' : 'border-transparent hover:bg-gray-50'"
+                class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors"
+                :class="elegidoId === r.libro.id ? 'bg-indigo-50/60 shadow-sm ring-1 ring-indigo-200' : 'hover:bg-gray-50'"
                 @click="elegir(r.libro.id)"
               >
-                <span class="flex items-start justify-between gap-3">
-                  <span class="min-w-0">
-                    <span class="block font-semibold text-gray-900">{{ r.libro.titulo }}</span>
-                    <span class="block text-xs text-gray-500">{{ detalle(r) }}</span>
-                  </span>
-                  <span class="flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-indigo-50 px-2 text-sm font-bold text-indigo-700">
-                    {{ r.total_prestamos }}
-                  </span>
+                <PortadaMaterial class="shadow-sm" tamano="sm" :titulo="r.libro.titulo" />
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm leading-snug text-gray-900" :class="elegidoId === r.libro.id ? 'font-semibold' : 'font-medium'">{{ r.libro.titulo }}</span>
+                  <span class="block text-xs text-gray-500">{{ detalle(r) }}</span>
+                </span>
+                <span
+                  class="flex h-7 min-w-[2rem] shrink-0 items-center justify-center rounded-lg px-2 text-xs font-bold tabular-nums"
+                  :class="r.total_prestamos ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'"
+                >
+                  {{ r.total_prestamos }}
                 </span>
               </button>
             </li>
@@ -237,15 +272,15 @@ async function verFicha() {
           />
         </section>
 
-        <section ref="panel" class="scroll-mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:sticky lg:top-6">
+        <section ref="panel" class="scroll-mt-4 overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm lg:sticky lg:top-6">
           <p v-if="!elegido" class="px-6 py-16 text-center text-sm text-gray-400">
             {{ cargandoDetalle ? 'Cargando el historial…' : 'Elige un libro de la lista para ver su historial de préstamos.' }}
           </p>
           <template v-else>
-            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/60 px-6 py-5">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-indigo-50/40 px-6 py-4 sm:flex-nowrap">
               <div class="flex min-w-0 items-center gap-4">
                 <div
-                  class="flex h-16 w-12 shrink-0 items-end rounded-sm border-l-4 px-1.5 pb-1 font-serif text-base font-bold"
+                  class="flex h-16 w-12 shrink-0 items-end rounded-sm border-l-4 px-1.5 pb-1 font-serif text-base font-bold shadow-sm"
                   :class="tonoPortada(elegido.libro.titulo)"
                   aria-hidden="true"
                 >
@@ -253,28 +288,29 @@ async function verFicha() {
                 </div>
                 <div class="min-w-0">
                   <h2 class="font-serif text-xl font-bold text-gray-900 sm:text-2xl">{{ elegido.libro.titulo }}</h2>
-                  <p class="mt-0.5 text-sm text-gray-500">
-                    {{ elegido.libro.isbn ? `ISBN ${elegido.libro.isbn}` : 'Sin ISBN' }}<template v-if="elegido.libro.clasificacion"> · Dewey {{ elegido.libro.clasificacion }}</template>
-                    · {{ elegido.ejemplares.length }} {{ elegido.ejemplares.length === 1 ? 'copia' : 'copias' }}
+                  <p class="mt-1.5 flex flex-wrap gap-1.5 text-xs text-gray-600">
+                    <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5">{{ elegido.libro.isbn ? `ISBN ${elegido.libro.isbn}` : 'Sin ISBN' }}</span>
+                    <span v-if="elegido.libro.clasificacion" class="rounded-md border border-gray-200 bg-white px-2 py-0.5">Dewey <span class="font-mono text-gray-800">{{ elegido.libro.clasificacion }}</span></span>
+                    <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5">{{ elegido.ejemplares.length }} {{ elegido.ejemplares.length === 1 ? 'copia' : 'copias' }}</span>
                   </p>
                 </div>
               </div>
-              <button type="button" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50" @click="verFicha">
+              <button type="button" class="shrink-0 rounded-lg border border-gray-200 border-b-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50" @click="verFicha">
                 Ver ficha
               </button>
             </div>
 
             <div class="px-6 py-5">
               <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <div v-for="k in indicadores" :key="k.titulo" class="rounded-xl px-4 py-3" :class="k.clase">
+                <div v-for="k in indicadores" :key="k.titulo" class="rounded-xl border px-4 py-3" :class="k.clase">
                   <p class="text-xs font-semibold">{{ k.titulo }}</p>
                   <p class="mt-1 font-serif text-2xl font-bold tabular-nums text-gray-900">{{ k.valor }}</p>
                 </div>
               </div>
 
-              <div class="mt-5 overflow-hidden rounded-xl border border-gray-100">
-                <div class="hidden bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_6.5rem_6.5rem_3.5rem_7rem] md:gap-3">
-                  <span>Copia</span><span>Usuario</span><span>Prestado</span><span>Devuelto</span><span>Días</span><span>Resultado</span>
+              <div class="mt-5 overflow-hidden rounded-xl border border-gray-200">
+                <div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_6.5rem_6.5rem_3.5rem_7rem] md:gap-3">
+                  <span>Copia</span><span>Usuario</span><span>Prestado</span><span>Devuelto</span><span class="text-right">Días</span><span>Resultado</span>
                 </div>
                 <ul class="divide-y divide-gray-100">
                   <li
@@ -284,13 +320,16 @@ async function verFicha() {
                   >
                     <span class="min-w-0">
                       <span class="block font-medium text-gray-900">Copia {{ p.copia }}</span>
-                      <span class="block font-mono text-xs text-gray-500">{{ p.codigo }}</span>
+                      <span class="mt-0.5 inline-block rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-600">{{ p.codigo }}</span>
                     </span>
-                    <span class="truncate font-medium text-gray-900 md:font-semibold">{{ p.usuario }}</span>
+                    <span class="flex min-w-0 items-center gap-2">
+                      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" :class="tonoAvatar(p.usuario)" aria-hidden="true">{{ inicialesPersona(p.usuario) }}</span>
+                      <span class="truncate font-medium text-gray-900 md:font-semibold">{{ p.usuario }}</span>
+                    </span>
                     <span class="text-gray-600"><span class="text-xs text-gray-400 md:hidden">Prestado </span>{{ p.prestado }}</span>
                     <span class="text-gray-600"><span class="text-xs text-gray-400 md:hidden">Devuelto </span>{{ p.devuelto }}</span>
-                    <span class="tabular-nums text-gray-600"><span class="text-xs text-gray-400 md:hidden">Días </span>{{ p.dias ?? '—' }}</span>
-                    <span><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="p.resultado.clase">{{ p.resultado.texto }}</span></span>
+                    <span class="tabular-nums text-gray-600 md:text-right md:font-semibold md:text-gray-900"><span class="text-xs text-gray-400 md:hidden">Días </span>{{ p.dias ?? '—' }}</span>
+                    <span><span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="p.resultado.clase"><span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>{{ p.resultado.texto }}</span></span>
                   </li>
                   <li v-if="!prestamos.length" class="px-4 py-8 text-center text-sm text-gray-400">Este libro todavía no se ha prestado.</li>
                 </ul>
