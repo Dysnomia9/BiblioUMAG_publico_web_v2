@@ -510,7 +510,7 @@ async function confirmarExportar() {
 
 <template>
   <StaffLayout>
-    <div class="mx-auto max-w-7xl">
+    <div class="mx-auto max-w-6xl">
       <!-- Encabezado: el degradado con puntos tenues y dos anillos, como en Salas y Préstamos. Las capas se recortan aparte para que el menú de Exportar pueda salir de la caja. -->
       <div class="relative mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-6 py-5 shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
         <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden="true">
@@ -572,7 +572,7 @@ async function confirmarExportar() {
           v-for="t in TABS"
           :key="t.id"
           type="button"
-          class="flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors"
+          class="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors"
           :class="tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-50'"
           :aria-pressed="tab === t.id"
           @click="tab = t.id"
@@ -585,13 +585,13 @@ async function confirmarExportar() {
       </div>
 
       <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-label="Filtros">
-        <header class="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-5 py-3">
+        <header class="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
           <span class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-white">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg>
           </span>
           <h2 class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-700">Filtros</h2>
         </header>
-        <div class="space-y-3.5 p-5">
+        <div class="space-y-3 p-4">
           <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center" role="group" aria-label="Quiénes">
             <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Quiénes</span>
             <div class="flex flex-wrap gap-2">
@@ -687,58 +687,58 @@ async function confirmarExportar() {
 
       <div class="transition-opacity" :class="cargando ? 'opacity-60' : ''">
         <div class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white p-5 shadow-sm" :style="{ borderTopColor: INDIGO }">
+          <div class="rounded-xl border border-t-[3px] border-gray-200 bg-white p-4 shadow-sm" :style="{ borderTopColor: INDIGO }">
             <div class="flex items-start justify-between gap-3">
               <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">{{ unidad.titulo }} {{ DEL_PERIODO[periodo] }}</p>
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: INDIGO }">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" :style="{ backgroundColor: INDIGO }">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
               </span>
             </div>
-            <p class="mt-2 font-serif text-4xl font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
+            <p class="mt-1 font-serif text-3xl font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
             <p v-if="tab === 'logias'" class="text-xs text-gray-500">{{ totalPersonas }} {{ totalPersonas === 1 ? 'persona' : 'personas' }}, contando a los integrantes</p>
             <p v-if="resumen.usosHorizon" class="text-xs text-gray-500">
               {{ resumen.usosHorizon.toLocaleString('es-CL') }} de Horizon, antes de BiblioUMAG ({{ tab === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala' }})
             </p>
-            <p class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+            <p class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
               <span
-                class="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold tabular-nums"
+                class="inline-flex items-center gap-0.5 rounded-full px-2 font-semibold tabular-nums"
                 :class="diferencia > 0 ? 'bg-emerald-50 text-emerald-700' : diferencia < 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'"
               >
                 <svg v-if="diferencia" class="h-3 w-3" :class="diferencia < 0 ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
-                <span class="sr-only">{{ diferencia > 0 ? 'Subió' : diferencia < 0 ? 'Bajó' : 'Igual' }}</span>
+                <span class="sr-only">{{ diferencia > 0 ? 'Subió ' : diferencia < 0 ? 'Bajó ' : 'Igual ' }}</span>
                 {{ diferencia ? Math.abs(diferencia) : '=' }}
               </span>
               vs. {{ etiquetaAnterior }} ({{ resumen.totalAnterior }})
             </p>
           </div>
 
-          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-amber-50 p-5 shadow-sm" :style="{ borderTopColor: DORADO }">
+          <div class="rounded-xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-amber-50 p-4 shadow-sm" :style="{ borderTopColor: DORADO }">
             <div class="flex items-start justify-between gap-3">
               <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">{{ destacado.titulo }}</p>
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: DORADO }">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" :style="{ backgroundColor: DORADO }">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" /></svg>
               </span>
             </div>
-            <p class="mt-2 truncate font-serif text-3xl font-bold text-gray-900" :title="destacado.item?.label">
+            <p class="mt-1 truncate font-serif text-2xl font-bold text-gray-900" :title="destacado.item?.label">
               {{ destacado.item ? abreviar(destacado.item.label) : '—' }}
             </p>
-            <p class="mt-2 text-xs text-gray-500">
+            <p class="mt-1 text-xs text-gray-500">
               <template v-if="destacado.item"><strong class="font-semibold text-gray-700">{{ destacado.item.value }} {{ unidad.plural }}</strong> · {{ porcentaje(destacado.item.value, resumen.total) }}%</template>
               <template v-else>Sin {{ unidad.plural }} en este período</template>
             </p>
           </div>
 
-          <div class="rounded-2xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-teal-50 p-5 shadow-sm" :style="{ borderTopColor: VERDE_AZULADO }">
+          <div class="rounded-xl border border-t-[3px] border-gray-200 bg-white bg-gradient-to-br from-white to-teal-50 p-4 shadow-sm" :style="{ borderTopColor: VERDE_AZULADO }">
             <div class="flex items-start justify-between gap-3">
               <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">Horario de mayor uso</p>
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" :style="{ backgroundColor: VERDE_AZULADO }">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" :style="{ backgroundColor: VERDE_AZULADO }">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </span>
             </div>
-            <p class="mt-2 font-serif text-3xl font-bold tabular-nums text-gray-900">
+            <p class="mt-1 font-serif text-2xl font-bold tabular-nums text-gray-900">
               {{ resumen.horarioPico ? `${resumen.horarioPico.desde} a ${resumen.horarioPico.hasta}` : '—' }}
             </p>
-            <p class="mt-2 text-xs text-gray-500">
+            <p class="mt-1 text-xs text-gray-500">
               <template v-if="resumen.horarioPico">{{ resumen.horarioPico.value }} de {{ resumen.total }} {{ unidad.plural }}<template v-if="tab === 'logias'"> · más salas ocupadas a la vez</template></template>
               <template v-else>Sin {{ unidad.plural }} en este período</template>
             </p>
