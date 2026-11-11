@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, toRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import EncabezadoPagina from '@/components/ui/EncabezadoPagina.vue'
+import FondoMultas from '@/components/multas/FondoMultas.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -26,6 +26,19 @@ const toast = useToast()
 const route = useRoute()
 
 const pestana = ref<'deudas' | 'listado'>('deudas')
+const guiaAbierta = ref(false)
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
+
+const iniciales = (nombre: string, apellido: string) => `${nombre.trim().charAt(0)}${apellido.trim().charAt(0)}`.toUpperCase()
+const TONOS_AVATAR = ['bg-indigo-50 text-indigo-700', 'bg-amber-50 text-amber-800', 'bg-teal-50 text-teal-700', 'bg-violet-50 text-violet-700']
+const tonoAvatar = (texto: string) => TONOS_AVATAR[[...texto].reduce((suma, letra) => suma + letra.charCodeAt(0), 0) % TONOS_AVATAR.length]
+function diaSemana(iso: string) {
+  const dia = new Date(iso).toLocaleDateString('es-CL', { weekday: 'long' })
+  return dia.charAt(0).toUpperCase() + dia.slice(1)
+}
 const errorResumen = ref(false)
 
 const resumen = ref<MultasResumen | null>(null)
@@ -332,28 +345,53 @@ async function guardarNueva() {
 
 <template>
   <StaffLayout>
-    <div class="max-w-5xl mx-auto">
-      <EncabezadoPagina titulo="Multas" descripcion="Deudas de los usuarios con la biblioteca: pendientes, pagadas y anuladas">
-        <template #acciones>
-          <button
-            type="button"
-            :disabled="exportando"
-            class="px-4 py-2 bg-white text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-60"
-            @click="pedirExportar"
-          >
-            Exportar a Excel
-          </button>
-          <button
-            v-if="auth.puede('multas.crear')"
-            @click="abrirNueva"
-            class="px-4 py-2 bg-white text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm shadow-sm"
-          >
-            + Cursar multa
-          </button>
-        </template>
-      </EncabezadoPagina>
+    <div class="max-w-6xl mx-auto">
+      <!-- La caja de título con motivo propio: boletas y una moneda. -->
+      <div class="relative mb-5 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+        <FondoMultas />
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <div class="min-w-0">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Atención de público</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Multas</h1>
+            <p class="mt-0.5 text-sm text-white/75">Deudas de los usuarios con la biblioteca: pendientes, pagadas y anuladas</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-blanco/10 text-white transition-colors hover:bg-blanco/20"
+              :aria-label="guiaAbierta ? 'Ocultar la ayuda' : '¿Cómo se usa esta pantalla?'"
+              :aria-expanded="guiaAbierta"
+              :title="guiaAbierta ? 'Ocultar la ayuda' : '¿Cómo se usa esta pantalla?'"
+              @click="guiaAbierta = !guiaAbierta"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" /></svg>
+            </button>
+            <button
+              type="button"
+              :disabled="exportando"
+              class="rounded-xl border border-white/30 bg-blanco/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blanco/20 disabled:opacity-60"
+              @click="pedirExportar"
+            >
+              Exportar a Excel
+            </button>
+            <button
+              v-if="auth.puede('multas.crear')"
+              class="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50"
+              @click="abrirNueva"
+            >
+              + Cursar multa
+            </button>
+          </div>
+        </div>
+      </div>
 
       <GuiaUso
+        v-model:abierta="guiaAbierta"
+        :con-boton="false"
         :pasos="[
           'Las multas por <strong>atraso</strong> se generan solas al registrar una devolución fuera de plazo.',
           'En «Deuda por usuario», <strong>Ver detalle</strong> muestra cada multa de la persona (fecha, motivo y si se importó de Horizon) y permite pagarla o anularla ahí mismo.',
@@ -366,167 +404,195 @@ async function guardarNueva() {
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div v-if="resumen" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Usuarios con deuda</p>
-          <p class="text-2xl font-bold text-gray-900">{{ resumen.total_usuarios }}</p>
+      <div v-if="resumen" class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-2xl border border-t-[3px] border-gray-200 border-t-indigo-600 bg-white p-4 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">Usuarios con deuda</p>
+          <p class="mt-1 font-serif text-3xl font-bold tabular-nums text-gray-900">{{ resumen.total_usuarios }}</p>
         </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Multas pendientes</p>
-          <p class="text-2xl font-bold text-gray-900">{{ resumen.total_multas }}</p>
+        <div class="rounded-2xl border border-t-[3px] border-gray-200 border-t-amber-500 bg-white bg-gradient-to-br from-white to-amber-50 p-4 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">Multas pendientes</p>
+          <p class="mt-1 font-serif text-3xl font-bold tabular-nums text-gray-900">{{ resumen.total_multas }}</p>
         </div>
-        <div class="bg-white rounded-xl shadow-md p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Monto total pendiente</p>
-          <p class="text-2xl font-bold text-red-700">{{ formatMonto(resumen.monto_total) }}</p>
+        <div class="rounded-2xl border border-t-[3px] border-gray-200 border-t-red-600 bg-white bg-gradient-to-br from-white to-red-50 p-4 shadow-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">Monto total pendiente</p>
+          <p class="mt-1 font-serif text-3xl font-bold tabular-nums text-red-700">{{ formatMonto(resumen.monto_total) }}</p>
         </div>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-1 mb-4 bg-white rounded-xl shadow-sm p-1">
-        <button
-          @click="pestana = 'deudas'"
-          class="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors"
-          :class="pestana === 'deudas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-        >
-          Deuda por usuario
-        </button>
-        <button
-          @click="pestana = 'listado'"
-          class="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors"
-          :class="pestana === 'listado' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-        >
-          Todas las multas
-        </button>
-      </div>
+      <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-indigo-50/40 p-3">
+          <div class="flex flex-wrap gap-1.5 rounded-xl bg-gray-200 p-1.5" role="tablist" aria-label="Vista de multas">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="pestana === 'deudas'"
+              class="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors"
+              :class="pestana === 'deudas' ? 'border-indigo-700 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-800 hover:border-indigo-300 hover:text-indigo-700'"
+              @click="pestana = 'deudas'"
+            >
+              Deuda por usuario
+              <span v-if="resumen" class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="pestana === 'deudas' ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ resumen.total_usuarios }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="pestana === 'listado'"
+              class="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors"
+              :class="pestana === 'listado' ? 'border-indigo-700 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-800 hover:border-indigo-300 hover:text-indigo-700'"
+              @click="pestana = 'listado'"
+            >
+              Todas las multas
+              <span v-if="resumen" class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="pestana === 'listado' ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ resumen.total_multas }}</span>
+            </button>
+          </div>
 
-      <!-- Deuda por usuario -->
-      <template v-if="pestana === 'deudas'">
-        <div class="bg-white rounded-xl shadow-md p-4 mb-4">
           <input
+            v-if="pestana === 'deudas'"
             v-model="busquedaDeudas"
             type="text"
             placeholder="Buscar por nombre o RUT"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            aria-label="Buscar por nombre o RUT"
+            class="h-10 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
           />
-        </div>
-        <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="bg-gray-100 border-b-2 border-gray-200">
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Usuario</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">RUT</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Correo</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide"># Multas</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Monto pendiente</th>
-                  <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Acción</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200">
-                <tr v-for="(u, idx) in deudasVisibles" :key="u.usuario_id" :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
-                  <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ u.nombre }} {{ u.apellido }}</td>
-                  <td class="px-6 py-3 text-sm font-mono text-gray-600 whitespace-nowrap">{{ u.rut }}</td>
-                  <td class="px-6 py-3 text-sm">
-                    <a v-if="u.email" :href="`mailto:${u.email}`" class="text-indigo-700 hover:underline break-all">{{ u.email }}</a>
-                    <span v-else class="text-gray-400">Sin correo</span>
-                  </td>
-                  <td class="px-6 py-3 text-sm text-gray-600">{{ u.cantidad_multas }}</td>
-                  <td class="px-6 py-3 text-sm font-semibold text-red-700 whitespace-nowrap">{{ formatMonto(u.monto_total) }}</td>
-                  <td class="px-6 py-3">
-                    <button @click="deudaAbierta = u" class="text-sm text-indigo-700 hover:text-indigo-800 font-medium whitespace-nowrap">Ver detalle</button>
-                  </td>
-                </tr>
-                <tr v-if="!deudasFiltradas.length">
-                  <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin multas pendientes.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else class="flex w-full flex-wrap gap-2 sm:w-auto">
+            <input
+              v-model="filtros.q"
+              type="text"
+              placeholder="Buscar por RUT o nombre"
+              aria-label="Buscar por RUT o nombre"
+              class="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 sm:w-64 sm:flex-none"
+            />
+            <select v-model="filtros.estado" aria-label="Filtrar por estado" class="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="pendiente">Pendientes</option>
+              <option value="pagada">Pagadas</option>
+              <option value="anulada">Anuladas</option>
+              <option value="">Todos los estados</option>
+            </select>
+            <select v-model="filtros.tipo" aria-label="Filtrar por motivo" class="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">Todos los motivos</option>
+              <option v-for="(label, clave) in TIPOS" :key="clave" :value="clave">{{ label }}</option>
+            </select>
           </div>
         </div>
-        <Paginacion
-          v-model="paginaDeudas"
-          class="mt-4"
-          :total="deudasFiltradas.length"
-          :por-pagina="DEUDAS_POR_PAGINA"
-          singular="persona con deuda"
-          plural="personas con deuda"
-        />
-      </template>
 
-      <!-- Todas las multas -->
-      <template v-else>
-        <div class="bg-white rounded-xl shadow-md p-4 mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
-            v-model="filtros.q"
-            type="text"
-            placeholder="Buscar por RUT o nombre"
-            class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-          />
-          <select v-model="filtros.estado" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="pendiente">Pendientes</option>
-            <option value="pagada">Pagadas</option>
-            <option value="anulada">Anuladas</option>
-            <option value="">Todos los estados</option>
-          </select>
-          <select v-model="filtros.tipo" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="">Todos los motivos</option>
-            <option v-for="(label, clave) in TIPOS" :key="clave" :value="clave">{{ label }}</option>
-          </select>
+        <!-- Deuda por usuario -->
+        <div v-if="pestana === 'deudas'" class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <th class="px-5 py-2.5">Usuario</th>
+                <th class="px-5 py-2.5">RUT</th>
+                <th class="px-5 py-2.5">Correo</th>
+                <th class="px-5 py-2.5 text-center">Multas</th>
+                <th class="px-5 py-2.5">Monto pendiente</th>
+                <th class="px-5 py-2.5 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="u in deudasVisibles" :key="u.usuario_id" class="even:bg-gray-50/50">
+                <td class="px-5 py-2.5">
+                  <span class="flex items-center gap-2.5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="tonoAvatar(u.nombre + u.apellido)" aria-hidden="true">{{ iniciales(u.nombre, u.apellido) }}</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ u.nombre }} {{ u.apellido }}</span>
+                  </span>
+                </td>
+                <td class="px-5 py-2.5 whitespace-nowrap"><span class="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700">{{ u.rut }}</span></td>
+                <td class="px-5 py-2.5 text-sm">
+                  <a v-if="u.email" :href="`mailto:${u.email}`" class="break-all text-indigo-700 hover:underline">{{ u.email }}</a>
+                  <span v-else class="italic text-gray-400">Sin correo</span>
+                </td>
+                <td class="px-5 py-2.5 text-center">
+                  <span class="inline-block min-w-[2rem] rounded-full px-2 py-0.5 text-xs font-bold tabular-nums" :class="u.cantidad_multas > 1 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-700'">{{ u.cantidad_multas }}</span>
+                </td>
+                <td class="px-5 py-2.5 whitespace-nowrap text-sm font-bold tabular-nums text-red-700">{{ formatMonto(u.monto_total) }}</td>
+                <td class="px-5 py-2.5 text-right">
+                  <button type="button" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-indigo-50 py-1 pl-3 pr-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100" @click="deudaAbierta = u">
+                    Ver detalle
+                    <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white" aria-hidden="true">
+                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                    </span>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!deudasFiltradas.length">
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin multas pendientes.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="bg-gray-100 border-b-2 border-gray-200">
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Fecha</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Usuario</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Motivo</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Monto</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Estado</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Acción</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200">
-                <tr v-for="(m, idx) in multas" :key="m.id" class="align-top" :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
-                  <td class="px-4 py-3 text-sm font-mono text-gray-600 whitespace-nowrap">{{ formatFecha(m.created_at) }}</td>
-                  <td class="px-4 py-3 text-sm text-gray-900">
-                    <div class="font-medium">{{ m.usuario?.nombre }} {{ m.usuario?.apellido }}</div>
-                    <div class="text-xs font-mono text-gray-500">{{ m.usuario?.rut }}</div>
-                    <a
-                      v-if="m.usuario?.email"
-                      :href="`mailto:${m.usuario.email}`"
-                      class="block text-xs text-indigo-700 hover:underline break-all"
-                    >
-                      {{ m.usuario.email }}
-                    </a>
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-700 max-w-xs">
-                    <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700">{{ TIPOS[m.tipo] }}</span>
-                    <p class="text-xs text-gray-500 mt-1">{{ m.detalle }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-sm font-semibold whitespace-nowrap" :class="m.estado === 'pendiente' ? 'text-red-700' : 'text-gray-500'">{{ formatMonto(m.monto) }}</td>
-                  <td class="px-4 py-3 text-sm">
-                    <span class="text-xs px-2.5 py-1 rounded-full font-medium" :class="ESTADOS[m.estado].cls">{{ ESTADOS[m.estado].label }}</span>
-                    <p v-if="m.estado === 'pagada'" class="text-xs text-gray-500 mt-1">{{ formatFecha(m.pagada_en) }} · {{ m.pagada_por?.nombre ?? '—' }}</p>
-                    <p v-if="m.estado === 'anulada'" class="text-xs text-gray-500 mt-1">{{ m.anulada_por?.nombre ?? '—' }}: «{{ m.motivo_anulacion }}»</p>
-                  </td>
-                  <td class="px-4 py-3 text-sm whitespace-nowrap">
-                    <template v-if="m.estado === 'pendiente'">
-                      <button v-if="auth.puede('multas.cobrar')" @click="multaAPagar = m" class="block text-indigo-700 hover:text-indigo-800 font-medium">Marcar pagada</button>
-                      <button v-if="auth.puede('multas.anular')" @click="pedirAnulacion(m)" class="block text-red-600 hover:text-red-700 font-medium mt-1">Anular</button>
-                      <span v-if="!auth.puede('multas.cobrar') && !auth.puede('multas.anular')" class="text-xs text-gray-400">—</span>
-                    </template>
-                  </td>
-                </tr>
-                <tr v-if="!cargandoListado && !multas.length">
-                  <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin multas que coincidan con los filtros.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Todas las multas -->
+        <div v-else class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <th class="px-5 py-2.5">Fecha</th>
+                <th class="px-5 py-2.5">Usuario</th>
+                <th class="px-5 py-2.5">Motivo</th>
+                <th class="px-5 py-2.5 text-right">Monto</th>
+                <th class="px-5 py-2.5">Estado</th>
+                <th class="px-5 py-2.5 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="m in multas" :key="m.id" class="align-top even:bg-gray-50/50">
+                <td class="px-5 py-2.5 whitespace-nowrap">
+                  <span class="block text-sm font-bold tabular-nums text-gray-900">{{ formatFecha(m.created_at) }}</span>
+                  <span class="block text-xs text-gray-500">{{ diaSemana(m.created_at) }}</span>
+                </td>
+                <td class="px-5 py-2.5 text-sm text-gray-900">
+                  <div class="font-semibold">{{ m.usuario?.nombre }} {{ m.usuario?.apellido }}</div>
+                  <span class="mt-0.5 inline-block rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-700">{{ m.usuario?.rut }}</span>
+                  <a
+                    v-if="m.usuario?.email"
+                    :href="`mailto:${m.usuario.email}`"
+                    class="mt-0.5 block break-all text-xs text-indigo-700 hover:underline"
+                  >
+                    {{ m.usuario.email }}
+                  </a>
+                </td>
+                <td class="px-5 py-2.5 max-w-xs text-sm text-gray-700">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
+                    {{ TIPOS[m.tipo] }}
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500">{{ m.detalle }}</p>
+                </td>
+                <td class="px-5 py-2.5 whitespace-nowrap text-right text-sm font-bold tabular-nums" :class="m.estado === 'pendiente' ? 'text-red-700' : 'text-gray-500'">{{ formatMonto(m.monto) }}</td>
+                <td class="px-5 py-2.5 text-sm">
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="ESTADOS[m.estado].cls">
+                    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
+                    {{ ESTADOS[m.estado].label }}
+                  </span>
+                  <p v-if="m.estado === 'pagada'" class="mt-1 text-xs text-gray-500">{{ formatFecha(m.pagada_en) }} · {{ m.pagada_por?.nombre ?? '—' }}</p>
+                  <p v-if="m.estado === 'anulada'" class="mt-1 text-xs text-gray-500">{{ m.anulada_por?.nombre ?? '—' }}: «{{ m.motivo_anulacion }}»</p>
+                </td>
+                <td class="px-5 py-2.5 text-right">
+                  <div v-if="m.estado === 'pendiente'" class="flex flex-wrap justify-end gap-1.5">
+                    <button v-if="auth.puede('multas.cobrar')" type="button" class="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700" @click="multaAPagar = m">Marcar pagada</button>
+                    <button v-if="auth.puede('multas.anular')" type="button" class="whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50" @click="pedirAnulacion(m)">Anular</button>
+                    <span v-if="!auth.puede('multas.cobrar') && !auth.puede('multas.anular')" class="text-xs text-gray-400">—</span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!cargandoListado && !multas.length">
+                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin multas que coincidan con los filtros.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <Paginacion v-model="paginaMultas" class="mt-4" :total="totalMultas" :por-pagina="multasPorPagina" singular="multa" plural="multas" />
-      </template>
+      </section>
+
+      <Paginacion
+        v-if="pestana === 'deudas'"
+        v-model="paginaDeudas"
+        class="mt-4"
+        :total="deudasFiltradas.length"
+        :por-pagina="DEUDAS_POR_PAGINA"
+        singular="persona con deuda"
+        plural="personas con deuda"
+      />
+      <Paginacion v-else v-model="paginaMultas" class="mt-4" :total="totalMultas" :por-pagina="multasPorPagina" singular="multa" plural="multas" />
     </div>
 
     <!-- Antes que los diálogos de pagar y anular, para que se abran encima del detalle. -->
@@ -596,10 +662,29 @@ async function guardarNueva() {
       :bloqueado="nueva.guardando"
       @cerrar="nueva.abierto = false"
     >
+      <template #cabecera>
+        <div class="relative -mx-6 -mt-6 mb-4 flex items-center gap-3 overflow-hidden rounded-t-2xl px-6 py-4" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <svg class="pointer-events-none absolute -top-2 right-12 h-24 w-20 rotate-[8deg]" viewBox="0 0 80 100" fill="rgb(255 255 255 / 0.07)" stroke="rgb(255 255 255 / 0.28)" stroke-linejoin="round" aria-hidden="true"><path d="M8 0h64v92l-8-6-8 6-8-6-8 6-8-6-8 6-8-6-8 6z" /></svg>
+          <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-blanco/15 text-white" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8h6m-6 4h6m-6 4h3M5 3h14v18l-2.300-1.500L14.300 21 12 19.500 9.700 21l-2.400-1.500L5 21z" /></svg>
+          </span>
+          <div class="relative min-w-0 flex-1">
+            <h3 class="font-serif text-lg font-bold text-white">Cursar una multa</h3>
+            <p class="text-xs text-white/80">Para deterioro, pérdida de material u otro motivo</p>
+          </div>
+          <button type="button" class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition-colors hover:bg-blanco/15 disabled:opacity-50" aria-label="Cerrar" :disabled="nueva.guardando" @click="nueva.abierto = false">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <p class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-dorado-700">Las multas por atraso se generan solas al devolver.</p>
+      </template>
       <div class="space-y-3">
-        <div>
-          <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <label class="block text-sm font-medium text-gray-700" for="multa-rut">{{ modoRutMulta === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}</label>
+        <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <label class="flex items-center gap-2 text-sm font-semibold text-gray-800" for="multa-rut">
+              <span class="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-600 text-[11px] font-bold text-white">1</span>
+              {{ modoRutMulta === 'rut' ? 'RUT del usuario' : 'Pasaporte o DNI del usuario' }}
+            </label>
             <SelectorDocumento v-model="modoRutMulta" compacto />
           </div>
           <div class="flex gap-2">
@@ -608,11 +693,11 @@ async function guardarNueva() {
               :value="nueva.rut"
               :placeholder="placeholderSegunModo(modoRutMulta)"
               :maxlength="largoSegunModo(modoRutMulta)"
-              class="flex-1 min-w-0 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              class="flex-1 min-w-0 px-3 py-2 bg-white border border-gray-200 rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               @input="escribirRutMulta($event); nueva.usuario = null; nueva.errorRut = ''"
               @keydown.enter.prevent="buscarUsuarioMulta"
             />
-            <button @click="buscarUsuarioMulta" :disabled="nueva.buscando" class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm">
+            <button @click="buscarUsuarioMulta" :disabled="nueva.buscando" class="px-4 py-2 border border-gray-200 border-b-indigo-200 bg-white rounded-lg text-indigo-700 shadow-sm hover:bg-gray-50 transition-colors font-semibold text-sm">
               {{ nueva.buscando ? 'Buscando…' : 'Buscar' }}
             </button>
           </div>
@@ -621,18 +706,27 @@ async function guardarNueva() {
             {{ nueva.usuario.nombre }} {{ nueva.usuario.apellido }} · {{ nueva.usuario.carrera ?? nueva.usuario.tipo }}
           </p>
         </div>
+        <div class="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+        <p class="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <span class="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-600 text-[11px] font-bold text-white">2</span>
+          Detalle de la multa
+        </p>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1" for="multa-tipo">Motivo</label>
-            <select id="multa-tipo" v-model="nueva.tipo" :disabled="!nueva.usuario" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50">
+            <select id="multa-tipo" v-model="nueva.tipo" :disabled="!nueva.usuario" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50">
               <option value="deterioro">Deterioro</option>
               <option value="perdida">Pérdida</option>
               <option value="otro">Otro motivo</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1" for="multa-monto">Monto (CLP)</label>
-            <input id="multa-monto" v-model.number="nueva.monto" :disabled="!nueva.usuario" type="number" min="1" step="1" placeholder="25000" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50" />
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="multa-monto">Monto</label>
+            <div class="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+              <span class="border-r border-gray-200 bg-gray-50 px-2.5 py-2 text-sm font-semibold text-gray-500" aria-hidden="true">$</span>
+              <input id="multa-monto" v-model.number="nueva.monto" :disabled="!nueva.usuario" type="number" min="1" step="1" placeholder="25000" class="w-full min-w-0 border-0 bg-transparent px-2.5 py-2 text-sm outline-none" />
+              <span class="border-l border-gray-200 bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500">CLP</span>
+            </div>
           </div>
         </div>
         <div>
@@ -644,8 +738,9 @@ async function guardarNueva() {
             rows="3"
             maxlength="500"
             placeholder="Ej: Pérdida del libro «Cálculo de una variable»"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50"
+            class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50"
           />
+        </div>
         </div>
       </div>
       <template #pie>
