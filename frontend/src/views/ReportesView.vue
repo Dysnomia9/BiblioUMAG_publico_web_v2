@@ -511,96 +511,91 @@ async function confirmarExportar() {
 <template>
   <StaffLayout>
     <div class="mx-auto max-w-6xl">
-      <!-- Encabezado: el degradado con puntos tenues y dos anillos, como en Salas y Préstamos. Las capas se recortan aparte para que el menú de Exportar pueda salir de la caja. -->
-      <div class="relative mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-6 py-5 shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
-        <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden="true">
-          <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
-          <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
-          <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
-        </div>
-        <div class="relative">
-          <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
-          <p class="mt-1 text-sm text-white/75">Estadísticas de uso de la biblioteca</p>
-        </div>
-        <div class="relative flex flex-wrap items-center gap-3">
-          <div class="flex items-center gap-1 rounded-xl bg-white/15 p-1">
-            <button
-              v-for="v in VISTAS"
-              :key="v.id"
-              type="button"
-              class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-white/80 hover:text-white'"
-              :aria-pressed="vista === v.id"
-              @click="vista = v.id"
-            >
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" :d="v.d" />
-              </svg>
-              {{ v.label }}
-            </button>
+      <!-- Caja de título con la textura de Salas y Préstamos: las pestañas van sobre ella, como en el Listado, y los filtros unidos debajo. Las capas se recortan aparte para que el menú de Exportar pueda salir de la caja. -->
+      <section class="mb-5 rounded-2xl border border-gray-200 bg-white shadow-md">
+        <div class="relative rounded-t-2xl" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+          <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-t-2xl" aria-hidden="true">
+            <div class="absolute inset-0" style="background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px); background-size: 18px 18px;"></div>
+            <div class="absolute -right-20 -top-28 h-72 w-72 rounded-full border-[44px] border-white/[0.05]"></div>
+            <div class="absolute -bottom-28 right-36 h-56 w-56 rounded-full bg-blanco/[0.04]"></div>
           </div>
-          <div class="relative">
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
-              :aria-expanded="menuExportar"
-              @click="menuExportar = !menuExportar"
-            >
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-              Exportar
-              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
-            </button>
-            <template v-if="menuExportar">
-              <div class="fixed inset-0 z-10" @click="menuExportar = false"></div>
-              <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
-                <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('excel')">
-                  Excel (.xlsx)
-                </button>
-                <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('csv')">
-                  CSV
-                </button>
-              </div>
-            </template>
+          <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 pt-4">
+            <div>
+              <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Reportes</h1>
+              <p class="mt-0.5 text-sm text-white/75">Estadísticas de uso de la biblioteca</p>
+            </div>
+            <div class="relative flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-1 rounded-xl bg-white/15 p-1">
+              <button
+                v-for="v in VISTAS"
+                :key="v.id"
+                type="button"
+                class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-white/80 hover:text-white'"
+                :aria-pressed="vista === v.id"
+                @click="vista = v.id"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="v.d" />
+                </svg>
+                {{ v.label }}
+              </button>
+            </div>
+            <div class="relative">
+              <button
+                type="button"
+                class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50"
+                :aria-expanded="menuExportar"
+                @click="menuExportar = !menuExportar"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                Exportar
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              <template v-if="menuExportar">
+                <div class="fixed inset-0 z-10" @click="menuExportar = false"></div>
+                <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                  <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('excel')">
+                    Excel (.xlsx)
+                  </button>
+                  <button type="button" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="pedirExportar('csv')">
+                    CSV
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+          </div>
+          <div class="relative mt-3 max-w-full overflow-x-auto px-5">
+            <div class="flex w-max gap-1">
+              <button
+                v-for="t in TABS"
+                :key="t.id"
+                type="button"
+                class="flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-2 text-sm font-semibold transition-colors"
+                :class="tab === t.id ? 'bg-white text-indigo-700' : 'bg-white/10 text-white hover:bg-white/20'"
+                :aria-pressed="tab === t.id"
+                @click="tab = t.id"
+              >
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="t.d" />
+                </svg>
+                {{ t.label }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <ApiErrorBanner v-if="apiError" />
-
-      <div class="mb-5 grid grid-cols-2 gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm lg:grid-cols-4">
-        <button
-          v-for="t in TABS"
-          :key="t.id"
-          type="button"
-          class="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors"
-          :class="tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-50'"
-          :aria-pressed="tab === t.id"
-          @click="tab = t.id"
-        >
-          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" :d="t.d" />
-          </svg>
-          {{ t.label }}
-        </button>
-      </div>
-
-      <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-label="Filtros">
-        <header class="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-white">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg>
-          </span>
-          <h2 class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-700">Filtros</h2>
-        </header>
-        <div class="space-y-3 p-4">
-          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center" role="group" aria-label="Quiénes">
-            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Quiénes</span>
-            <div class="flex flex-wrap gap-2">
+        <div class="grid grid-cols-1 gap-x-8 gap-y-3 rounded-b-2xl p-4 lg:grid-cols-2">
+          <div :class="mostrarMaterial ? 'border-b border-dashed border-gray-200 pb-3' : ''" role="group" aria-label="Quiénes">
+            <p class="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-600"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg> Quiénes</p>
+            <div class="flex w-fit max-w-full flex-wrap gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-1">
               <button
                 v-for="q in opcionesQuienes"
                 :key="q.valor"
                 type="button"
-                class="rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors"
-                :class="filtros.tipo_usuario === q.valor ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
+                class="rounded-lg px-3 py-1 text-xs font-semibold transition-colors"
+                :class="filtros.tipo_usuario === q.valor ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
                 :aria-pressed="filtros.tipo_usuario === q.valor"
                 @click="filtros.tipo_usuario = q.valor"
               >
@@ -609,49 +604,49 @@ async function confirmarExportar() {
             </div>
           </div>
 
-          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Período</span>
+          <div :class="mostrarMaterial ? 'border-b border-dashed border-gray-200 pb-3' : ''" role="group" aria-label="Período">
+            <p class="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-600"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg> Período</p>
             <div class="flex flex-wrap items-center gap-2">
-              <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
+              <div class="flex w-fit max-w-full flex-wrap gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-1">
                 <button
                   v-for="p in PERIODOS"
                   :key="p.id"
                   type="button"
-                  class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
-                  :class="periodo === p.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'"
+                  class="rounded-lg px-3 py-1 text-xs font-semibold transition-colors"
+                  :class="periodo === p.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
                   :aria-pressed="periodo === p.id"
                   @click="periodo = p.id"
                 >
                   {{ p.label }}
                 </button>
               </div>
-              <div class="flex items-center gap-1 rounded-lg border border-gray-200 px-1 py-0.5">
-                <button type="button" class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800" aria-label="Período anterior" @click="moverPeriodo(-1)">
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+              <div class="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
+                <button type="button" class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800" aria-label="Período anterior" @click="moverPeriodo(-1)">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <span class="min-w-[5rem] px-1 text-center text-sm font-semibold text-gray-900">{{ etiquetaPeriodo }}</span>
                 <button
                   type="button"
-                  class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30 disabled:hover:bg-transparent"
+                  class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30 disabled:hover:bg-transparent"
                   aria-label="Período siguiente"
                   :disabled="!hayPeriodoSiguiente"
                   @click="moverPeriodo(1)"
                 >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                 </button>
               </div>
             </div>
           </div>
 
-          <div v-if="mostrarMaterial" class="flex flex-col gap-1.5 sm:flex-row sm:items-center" role="group" aria-label="Tipo de material">
-            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Material</span>
-            <div class="flex flex-wrap gap-1.5">
+          <div v-if="mostrarMaterial" role="group" aria-label="Tipo de material">
+            <p class="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-600"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg> Material</p>
+            <div class="flex w-fit max-w-full flex-wrap gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-1">
               <button
                 v-for="m in opcionesMaterial"
                 :key="m.valor"
                 type="button"
-                class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
-                :class="filtros.tipo_material === m.valor ? 'border-indigo-400 bg-indigo-50 font-semibold text-indigo-700' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'"
+                class="rounded-lg px-3 py-1 text-xs font-semibold transition-colors"
+                :class="filtros.tipo_material === m.valor ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
                 :aria-pressed="filtros.tipo_material === m.valor"
                 @click="filtros.tipo_material = m.valor"
               >
@@ -660,30 +655,32 @@ async function confirmarExportar() {
             </div>
           </div>
 
-          <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-            <span class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-gray-500 sm:w-24">Detalle</span>
+          <div>
+            <p class="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-600"><svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg> Detalle</p>
             <div class="flex flex-wrap gap-2">
-            <label
-              v-for="f in filtrosPildora"
-              :key="f.campo"
-              class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-7 text-xs text-gray-500 hover:border-gray-400 focus-within:ring-2 focus-within:ring-indigo-500"
-            >
-              {{ f.nombre }}:
-              <span class="max-w-[9rem] truncate font-semibold text-gray-900">
-                {{ f.valores.find((o) => o.valor === filtros[f.campo])?.texto ?? f.todos }}
-              </span>
-              <svg class="pointer-events-none absolute right-2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-              <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`">
-                <option value="">{{ f.todos }}</option>
-                <option v-for="o in f.valores" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
-              </select>
-            </label>
+              <label
+                v-for="f in filtrosPildora"
+                :key="f.campo"
+                class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-200 bg-white py-1.5 pl-3 pr-7 text-xs text-gray-500 hover:border-gray-400 focus-within:ring-2 focus-within:ring-indigo-500"
+              >
+                {{ f.nombre }}:
+                <span class="max-w-[9rem] truncate font-semibold text-gray-900">
+                  {{ f.valores.find((o) => o.valor === filtros[f.campo])?.texto ?? f.todos }}
+                </span>
+                <svg class="pointer-events-none absolute right-2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+                <select v-model="filtros[f.campo]" class="absolute inset-0 cursor-pointer opacity-0" :aria-label="`Filtrar por ${f.nombre.toLowerCase()}`">
+                  <option value="">{{ f.todos }}</option>
+                  <option v-for="o in f.valores" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
+                </select>
+              </label>
             </div>
           </div>
         </div>
       </section>
+
+      <ApiErrorBanner v-if="apiError" />
 
       <div class="transition-opacity" :class="cargando ? 'opacity-60' : ''">
         <div class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
