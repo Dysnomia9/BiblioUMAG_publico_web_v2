@@ -186,24 +186,40 @@ class MultaTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_asistente_de_meson_ve_multas_pero_no_puede_cobrar_anular_ni_cursar(): void
+    public function test_asistente_de_meson_cobra_y_anula_multas_pero_no_las_cursa(): void
     {
         Sanctum::actingAs(Staff::factory()->asistente()->create());
 
-        $multa = Multa::factory()->create();
+        $aPagar = Multa::factory()->create();
+        $aAnular = Multa::factory()->create();
 
         $this->getJson('/api/multas')->assertStatus(200);
         $this->getJson('/api/multas/resumen')->assertStatus(200);
-        $this->patchJson("/api/multas/{$multa->id}/pagar")->assertStatus(403);
-        $this->patchJson("/api/multas/{$multa->id}/anular", ['motivo' => 'Quiero borrarla'])->assertStatus(403);
+        $this->patchJson("/api/multas/{$aPagar->id}/pagar")->assertStatus(200);
+        $this->patchJson("/api/multas/{$aAnular->id}/anular", ['motivo' => 'Cursada por error'])->assertStatus(200);
         $this->postJson('/api/multas', [
-            'usuario_id' => $multa->usuario_id,
+            'usuario_id' => $aPagar->usuario_id,
             'tipo' => 'otro',
             'monto' => 1000,
             'detalle' => 'Prueba de permiso',
         ])->assertStatus(403);
 
-        $this->assertSame('pendiente', $multa->fresh()->estado);
+        $this->assertSame('pagada', $aPagar->fresh()->estado);
+        $this->assertSame('anulada', $aAnular->fresh()->estado);
+    }
+
+    public function test_bibliotecario_cobra_y_anula_multas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'bibliotecario']));
+
+        $aPagar = Multa::factory()->create();
+        $aAnular = Multa::factory()->create();
+
+        $this->patchJson("/api/multas/{$aPagar->id}/pagar")->assertStatus(200);
+        $this->patchJson("/api/multas/{$aAnular->id}/anular", ['motivo' => 'Cursada por error'])->assertStatus(200);
+
+        $this->assertSame('pagada', $aPagar->fresh()->estado);
+        $this->assertSame('anulada', $aAnular->fresh()->estado);
     }
 
     public function test_pagar_y_anular_bloquean_la_multa_mientras_la_cambian(): void
