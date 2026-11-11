@@ -140,83 +140,106 @@ const NOTA = 'Vale para las reservas que se hagan desde ahora. Las que ya están
   <ApiErrorBanner v-if="apiError" />
 
   <template v-else-if="!cargando">
-    <div class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="font-semibold text-gray-900 mb-1">Tiempo para presentarse a una sala</h3>
-      <p class="text-xs text-gray-500 mb-4 max-w-xl">
-        Cuánto tiene un grupo, desde la hora de inicio de su reserva, para presentarse en el mesón. Si no llega, la sala se libera sola y queda registrada la inasistencia.
-      </p>
+    <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+      <header class="border-b border-gray-100 bg-indigo-50/40 px-5 py-3">
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Tiempo para presentarse a una sala
+        </h3>
+        <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">Cuánto tiene un grupo, desde la hora de inicio de su reserva, para presentarse en el mesón. Si no llega, la sala se libera sola y queda registrada la inasistencia.</p>
+      </header>
 
-      <p class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
-        Hoy rige: <strong>{{ textoMinutos(minutosDeHoy) }}</strong><template v-if="periodoDeHoy"> ({{ periodoDeHoy.motivo ?? 'fechas con otro tiempo' }})</template>.
-      </p>
-
-      <div class="flex flex-wrap items-end gap-3">
-        <div class="w-40">
+      <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-[16rem_minmax(0,1fr)] sm:items-start">
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+          <p class="text-xs text-gray-600">Hoy rige</p>
+          <p class="font-serif text-2xl font-bold leading-tight text-indigo-900">{{ textoMinutos(minutosDeHoy) }}</p>
+          <p v-if="periodoDeHoy" class="text-xs text-indigo-800">{{ periodoDeHoy.motivo ?? 'fechas con otro tiempo' }}</p>
+        </div>
+        <div>
           <label for="plazo-general" class="mb-1 block text-xs font-medium text-gray-600">Tiempo general (minutos)</label>
-          <input id="plazo-general" v-model.number="formGeneral.minutos" type="number" :min="minimo" :max="maximo" :class="CAMPO" />
-        </div>
-        <button type="button" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="pedirCambioGeneral">Guardar</button>
-      </div>
-      <p class="mt-2 text-xs text-gray-500">{{ NOTA }}</p>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-md p-6">
-      <h3 class="font-semibold text-gray-900 mb-1">Fechas con otro tiempo</h3>
-      <p class="text-xs text-gray-500 mb-4 max-w-xl">
-        Para las semanas en que las salas se usan más, como las de pruebas: las reservas de esos días tienen este tiempo y, al terminar, vuelve solo el tiempo general.
-      </p>
-
-      <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[10rem_10rem_6rem_minmax(0,1fr)_auto] sm:items-end">
-        <div>
-          <label for="plazo-desde" class="mb-1 block text-xs font-medium text-gray-600">Desde</label>
-          <input id="plazo-desde" v-model="nuevo.desde" type="date" :class="CAMPO" />
-        </div>
-        <div>
-          <label for="plazo-hasta" class="mb-1 block text-xs font-medium text-gray-600">Hasta</label>
-          <input id="plazo-hasta" v-model="nuevo.hasta" type="date" :min="nuevo.desde || hoy" :class="CAMPO" />
-        </div>
-        <div>
-          <label for="plazo-minutos" class="mb-1 block text-xs font-medium text-gray-600">Minutos</label>
-          <input id="plazo-minutos" v-model.number="nuevo.minutos" type="number" :min="minimo" :max="maximo" :class="CAMPO" />
-        </div>
-        <div>
-          <label for="plazo-motivo" class="mb-1 block text-xs font-medium text-gray-600">Motivo</label>
-          <input id="plazo-motivo" v-model="nuevo.motivo" maxlength="255" placeholder="Ej: Semana de pruebas" :class="CAMPO" />
-        </div>
-        <button type="button" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm" @click="pedirPeriodo">Agregar</button>
-      </div>
-
-      <div class="rounded-lg border border-gray-200 divide-y divide-gray-100">
-        <div v-for="p in periodos" :key="p.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-gray-900">
-              {{ textoMinutos(p.minutos) }}
-              <span v-if="p.id === periodoDeHoy?.id" class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Rige hoy</span>
-            </p>
-            <p class="text-xs text-gray-500">{{ rangoDe(p) }}<template v-if="p.motivo"> · {{ p.motivo }}</template></p>
+          <div class="flex items-center gap-2.5">
+            <input id="plazo-general" v-model.number="formGeneral.minutos" type="number" :min="minimo" :max="maximo" :class="CAMPO" class="!w-28" />
+            <button type="button" class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="pedirCambioGeneral">Guardar</button>
           </div>
-          <button type="button" class="shrink-0 text-sm font-medium text-red-600 hover:text-red-700" @click="aQuitar = p">Quitar</button>
+          <p class="mt-1.5 text-[11px] text-gray-500">{{ NOTA }}</p>
         </div>
-        <p v-if="!periodos.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin fechas con otro tiempo: rige el tiempo general.</p>
       </div>
-    </div>
+    </section>
 
-    <DialogoConfirmacion :abierto="formGeneral.confirmando" titulo="¿Cambiar el tiempo general?" confirmar="Sí, cambiar" :cargando="formGeneral.guardando" @confirmar="guardarGeneral" @cancelar="formGeneral.confirmando = false">
-      <p>De {{ textoMinutos(general) }} a <strong class="text-gray-900">{{ textoMinutos(Number(formGeneral.minutos)) }}</strong>. {{ NOTA }}</p>
+    <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+      <header class="border-b border-gray-100 bg-indigo-50/40 px-5 py-3">
+        <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+          <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+          Fechas con otro tiempo
+        </h3>
+        <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">Para las semanas en que las salas se usan más, como las de pruebas: las reservas de esos días tienen este tiempo y, al terminar, vuelve solo el tiempo general.</p>
+      </header>
+
+      <div class="space-y-3 p-4">
+        <div class="grid grid-cols-1 gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/20 p-3 sm:grid-cols-[10rem_10rem_6rem_minmax(0,1fr)_auto] sm:items-end">
+          <div>
+            <label for="plazo-desde" class="mb-1 block text-xs font-medium text-gray-600">Desde</label>
+            <input id="plazo-desde" v-model="nuevo.desde" type="date" :class="CAMPO" />
+          </div>
+          <div>
+            <label for="plazo-hasta" class="mb-1 block text-xs font-medium text-gray-600">Hasta</label>
+            <input id="plazo-hasta" v-model="nuevo.hasta" type="date" :min="nuevo.desde || hoy" :class="CAMPO" />
+          </div>
+          <div>
+            <label for="plazo-minutos" class="mb-1 block text-xs font-medium text-gray-600">Minutos</label>
+            <input id="plazo-minutos" v-model.number="nuevo.minutos" type="number" :min="minimo" :max="maximo" :class="CAMPO" />
+          </div>
+          <div>
+            <label for="plazo-motivo" class="mb-1 block text-xs font-medium text-gray-600">Motivo</label>
+            <input id="plazo-motivo" v-model="nuevo.motivo" maxlength="255" placeholder="Ej: Semana de pruebas" :class="CAMPO" />
+          </div>
+          <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="pedirPeriodo">Agregar</button>
+        </div>
+
+        <div v-if="periodos.length" class="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          <div v-for="p in periodos" :key="p.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
+            <div class="min-w-0">
+              <p class="flex flex-wrap items-center gap-2 text-sm font-bold text-gray-900">
+                {{ textoMinutos(p.minutos) }}
+                <span v-if="p.id === periodoDeHoy?.id" class="rounded border border-emerald-300 bg-emerald-50/60 px-1.5 py-px text-[10px] font-bold uppercase tracking-widest text-emerald-700">Rige hoy</span>
+              </p>
+              <p class="mt-0.5 text-xs text-gray-500">{{ rangoDe(p) }}<template v-if="p.motivo"> · {{ p.motivo }}</template></p>
+            </div>
+            <button type="button" class="shrink-0 text-xs font-semibold text-red-700 hover:underline" @click="aQuitar = p">Quitar</button>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center gap-2 rounded-lg border border-gray-200 px-4 py-5 text-center">
+          <svg class="h-9 w-9 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3.500 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <p class="text-sm text-gray-500">Sin fechas con otro tiempo: rige el tiempo general.</p>
+        </div>
+      </div>
+    </section>
+
+    <DialogoConfirmacion :abierto="formGeneral.confirmando" titulo="¿Cambiar el tiempo general?" confirmar="Sí, cambiar" destacado :cargando="formGeneral.guardando" @confirmar="guardarGeneral" @cancelar="formGeneral.confirmando = false">
+      <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Tiempo general</p>
+        <p class="mt-0.5 text-gray-700"><span class="text-gray-400 line-through">{{ textoMinutos(general) }}</span> → <strong class="text-gray-900">{{ textoMinutos(Number(formGeneral.minutos)) }}</strong></p>
+      </div>
+      <p class="mt-3">{{ NOTA }}</p>
       <p v-if="periodoDeHoy" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
         Hoy rigen otras fechas con {{ textoMinutos(periodoDeHoy.minutos) }}: este cambio se notará cuando terminen.
       </p>
     </DialogoConfirmacion>
 
-    <DialogoConfirmacion :abierto="nuevo.confirmando" titulo="¿Agregar estas fechas?" confirmar="Sí, agregar" :cargando="nuevo.guardando" @confirmar="crearPeriodo" @cancelar="nuevo.confirmando = false">
-      <p>
-        {{ rangoDe(nuevo) }}: <strong class="text-gray-900">{{ textoMinutos(Number(nuevo.minutos)) }}</strong> para presentarse<template v-if="nuevo.motivo.trim()"> ({{ nuevo.motivo.trim() }})</template>.
-      </p>
-      <p class="mt-2">{{ NOTA }}</p>
+    <DialogoConfirmacion :abierto="nuevo.confirmando" titulo="¿Agregar estas fechas?" confirmar="Sí, agregar" destacado :cargando="nuevo.guardando" @confirmar="crearPeriodo" @cancelar="nuevo.confirmando = false">
+      <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
+        <p class="font-bold text-gray-900">{{ rangoDe(nuevo) }}</p>
+        <p class="mt-0.5 text-gray-700"><strong class="text-gray-900">{{ textoMinutos(Number(nuevo.minutos)) }}</strong> para presentarse</p>
+        <span v-if="nuevo.motivo.trim()" class="mt-1.5 inline-block rounded border border-amber-200 bg-amber-50 px-1.5 py-px text-xs text-amber-800">{{ nuevo.motivo.trim() }}</span>
+      </div>
+      <p class="mt-3">{{ NOTA }}</p>
     </DialogoConfirmacion>
 
-    <DialogoConfirmacion :abierto="!!aQuitar" titulo="¿Quitar estas fechas?" confirmar="Sí, quitar" tono="peligro" :cargando="quitando" @confirmar="quitar" @cancelar="aQuitar = null">
-      <p v-if="aQuitar">{{ rangoDe(aQuitar) }}: las reservas que se hagan para esos días tendrán {{ textoMinutos(general) }}. Las que ya están hechas conservan el tiempo que tenían.</p>
+    <DialogoConfirmacion :abierto="!!aQuitar" titulo="¿Quitar estas fechas?" confirmar="Sí, quitar" tono="peligro" destacado :cargando="quitando" @confirmar="quitar" @cancelar="aQuitar = null">
+      <template v-if="aQuitar">
+        <p><strong class="text-gray-900">{{ rangoDe(aQuitar) }}</strong>: las reservas que se hagan para esos días tendrán {{ textoMinutos(general) }}.</p>
+        <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Las que ya están hechas conservan el tiempo que tenían.</p>
+      </template>
     </DialogoConfirmacion>
   </template>
 </template>
