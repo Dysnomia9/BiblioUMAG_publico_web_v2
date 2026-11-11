@@ -58,29 +58,29 @@ onMounted(async () => {
   <StaffLayout>
     <div class="max-w-6xl mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
       <!-- Encabezado: título, fecha y rol, y las dos cifras del día -->
-      <section class="mb-6 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/60 shadow-sm">
+      <section class="mb-4 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/60 shadow-sm">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
-        <div class="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col gap-4 p-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 class="font-serif text-2xl font-bold text-gray-900 sm:text-3xl">Menú Inicio</h1>
-            <p class="mt-2 max-w-xl text-[15px] text-gray-600">Desde aquí puedes gestionar los módulos principales de la Biblioteca UMAG.</p>
-            <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px]">
+            <h1 class="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Menú Inicio</h1>
+            <p class="mt-1 max-w-xl text-sm text-gray-600">Desde aquí puedes gestionar los módulos principales de la Biblioteca UMAG.</p>
+            <div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
               <span class="flex items-center gap-2 font-medium text-indigo-700">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 {{ fechaHoy }}
               </span>
-              <span v-if="auth.staff?.rol_nombre" class="rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700">
+              <span v-if="auth.staff?.rol_nombre" class="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                 Tu rol: {{ auth.staff.rol_nombre }}
               </span>
             </div>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2 lg:flex lg:shrink-0">
-            <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-l-4 border-l-emerald-400 bg-white px-5 py-4 shadow-sm lg:w-56">
-              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+            <div class="flex items-center gap-3 rounded-2xl border border-gray-200 border-l-4 border-l-emerald-400 bg-white px-4 py-3 shadow-sm lg:w-52">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87M9 12a4 4 0 100-8 4 4 0 000 8z" />
                 </svg>
               </span>
@@ -89,21 +89,21 @@ onMounted(async () => {
                   <span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true"></span>
                   Personas en biblioteca
                 </p>
-                <p class="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">
+                <p class="mt-0.5 text-xl font-bold tabular-nums text-gray-900">
                   {{ resumen.personasEnSala }} <span v-if="resumen.aforo" class="text-sm font-normal text-gray-400">/ {{ resumen.aforo }}</span>
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center gap-4 rounded-2xl border border-gray-200 border-l-4 border-l-indigo-400 bg-white px-5 py-4 shadow-sm lg:w-56">
-              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+            <div class="flex items-center gap-3 rounded-2xl border border-gray-200 border-l-4 border-l-indigo-400 bg-white px-4 py-3 shadow-sm lg:w-52">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14M5 5v14" />
                 </svg>
               </span>
               <div class="min-w-0">
                 <p class="text-[11px] font-semibold uppercase leading-snug tracking-wider text-gray-600">Entradas hoy</p>
-                <p class="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">{{ resumen.entradasHoy }}</p>
+                <p class="mt-0.5 text-xl font-bold tabular-nums text-gray-900">{{ resumen.entradasHoy }}</p>
               </div>
             </div>
           </div>
@@ -113,36 +113,36 @@ onMounted(async () => {
       <ApiErrorBanner v-if="apiError" />
 
       <!-- Accesos rápidos: los módulos de F1 a F4 que el rol puede abrir -->
-      <section v-if="shortcuts.length" class="mb-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-[0_12px_32px_-16px_rgb(67_56_202/0.25)]">
+      <section v-if="shortcuts.length" class="mb-4 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-[0_12px_32px_-16px_rgb(67_56_202/0.25)]">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
-        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-4 sm:px-6">
+        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-3 sm:px-5">
           <div class="flex items-center gap-3">
             <span class="h-6 w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
-            <h2 class="font-serif text-xl font-bold text-gray-900">Accesos rápidos</h2>
+            <h2 class="font-serif text-lg font-bold text-gray-900">Accesos rápidos</h2>
           </div>
-          <p class="ml-4 mt-0.5 text-sm text-gray-600">Selecciona un módulo para comenzar</p>
+          <p class="ml-4 text-xs text-gray-600">Selecciona un módulo para comenzar</p>
         </div>
 
-        <div class="p-4 sm:p-5">
-          <div class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+        <div class="p-3 sm:p-4">
+          <div class="grid grid-cols-1 gap-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-2.5 sm:grid-cols-2 xl:grid-cols-4">
             <router-link
               v-for="s in shortcuts"
               :key="s.key"
               :to="{ name: s.name }"
-              class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-b to-white to-60% p-5 pt-6 shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+              class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-b to-white to-60% p-4 pt-5 shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
               :class="[COLORES_ACCESO[s.color].tinte, COLORES_ACCESO[s.color].borde]"
             >
               <span class="absolute inset-x-0 top-0 h-1" :class="COLORES_ACCESO[s.color].franja" aria-hidden="true"></span>
               <span class="flex items-start justify-between gap-3">
-                <span class="flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg" :class="COLORES_ACCESO[s.color].icono">
-                  <svg class="h-[22px] w-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                <span class="flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg" :class="COLORES_ACCESO[s.color].icono">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="s.icon" />
                   </svg>
                 </span>
-                <kbd class="min-w-[2.25rem] rounded-md border border-gray-200 bg-white px-2.5 py-1 text-center font-sans text-xs font-semibold text-gray-700 shadow-[0_2px_0_rgb(15_23_42/0.07)]">{{ s.key }}</kbd>
+                <kbd class="min-w-[2rem] rounded-md border border-gray-200 bg-white px-2 py-0.5 text-center font-sans text-[11px] font-semibold text-gray-700 shadow-[0_2px_0_rgb(15_23_42/0.07)]">{{ s.key }}</kbd>
               </span>
-              <span class="mt-4 text-lg font-semibold text-gray-900">{{ s.label }}</span>
-              <span class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold" :class="COLORES_ACCESO[s.color].enlace">
+              <span class="mt-2.5 text-base font-semibold text-gray-900">{{ s.label }}</span>
+              <span class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold" :class="COLORES_ACCESO[s.color].enlace">
                 Abrir módulo
                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />

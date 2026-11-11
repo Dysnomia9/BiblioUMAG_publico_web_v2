@@ -425,7 +425,7 @@ function verSusPrestamos(e: Entrada) {
 
 <template>
   <StaffLayout>
-    <div class="mx-auto max-w-7xl">
+    <div class="mx-auto max-w-6xl">
       <GuiaUso
         v-model:abierta="guiaAbierta"
         :con-boton="false"
@@ -440,22 +440,22 @@ function verSusPrestamos(e: Entrada) {
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+      <div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         <!-- Registrar -->
         <section class="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div class="h-1 shrink-0" :style="{ background: FRANJA }" aria-hidden="true"></div>
-          <div class="flex flex-1 flex-col justify-center p-4 sm:p-5">
+          <div class="flex flex-1 flex-col justify-center p-4">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-stretch gap-3">
               <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Control de acceso</p>
-                <h1 class="mt-0.5 font-serif text-xl font-bold tracking-tight text-gray-900">Registro de entrada</h1>
+                <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Control de acceso</p>
+                <h1 class="font-serif text-lg font-bold leading-tight tracking-tight text-gray-900">Registro de entrada</h1>
               </div>
             </div>
             <button
               type="button"
-              class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
               :aria-expanded="guiaAbierta"
               @click="guiaAbierta = !guiaAbierta"
             >
@@ -468,14 +468,14 @@ function verSusPrestamos(e: Entrada) {
           <!-- El registro, en un recuadro suave -->
           <div class="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <label for="rut-entrada" class="block text-sm text-gray-500">
+            <label for="rut-entrada" class="block text-xs text-gray-500">
               {{ modoRut === 'rut' ? 'Ingresa el RUT para registrar el acceso.' : 'Ingresa el pasaporte o DNI del estudiante extranjero.' }}
             </label>
             <SelectorDocumento v-model="modoRut" />
           </div>
-          <div class="mt-3 flex flex-col gap-3 sm:flex-row">
+          <div class="mt-2 flex flex-col gap-2 sm:flex-row">
             <div class="relative flex-1">
-              <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
               </svg>
               <input
@@ -486,7 +486,7 @@ function verSusPrestamos(e: Entrada) {
                 autocomplete="off"
                 :placeholder="placeholderSegunModo(modoRut)"
                 :maxlength="largoSegunModo(modoRut)"
-                class="h-11 w-full rounded-xl border-2 bg-white pl-12 pr-4 text-base font-medium tracking-wide text-gray-900 outline-none transition placeholder:font-normal placeholder:text-gray-400 focus:ring-4"
+                class="h-10 w-full rounded-xl border-2 bg-white pl-10 pr-4 text-sm font-medium tracking-wide text-gray-900 outline-none transition placeholder:font-normal placeholder:text-gray-400 focus:ring-4"
                 :class="errorRut ? 'border-red-400 focus:ring-red-100' : 'border-indigo-200 focus:border-indigo-500 focus:ring-indigo-100'"
                 @input="onRutInput"
                 @keydown.enter="registrarEntrada"
@@ -494,12 +494,12 @@ function verSusPrestamos(e: Entrada) {
             </div>
             <button
               type="button"
-              class="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-5 text-[15px] font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:opacity-60"
+              class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
               style="background: linear-gradient(135deg, #4338CA 0%, #4F46E5 100%);"
               :disabled="registrando"
               @click="registrarEntrada"
             >
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
               {{ registrando ? 'Registrando…' : 'Registrar' }}
@@ -509,7 +509,7 @@ function verSusPrestamos(e: Entrada) {
           <p v-if="errorRut" class="mt-2.5 text-sm text-red-600" role="alert">{{ errorRut }}</p>
           <p v-else-if="yaPresente" class="mt-2.5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200" role="status">{{ yaPresente }}</p>
           </div>
-          <p class="mt-3 text-center text-sm text-gray-500">
+          <p class="mt-2 text-center text-xs text-gray-500">
             ¿No es de la universidad?
             <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="abrirModalExterno">Registrar visitante externo →</button>
             <template v-if="MOSTRAR_CONVENIO">
@@ -523,33 +523,33 @@ function verSusPrestamos(e: Entrada) {
         <!-- Hoy -->
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div class="h-1 bg-emerald-400" aria-hidden="true"></div>
-          <div class="p-4 sm:p-5">
+          <div class="p-3.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Hoy en la biblioteca</p>
             <PildoraHorario v-if="horario" :horario="horario" />
           </div>
-          <div class="mt-4 flex items-end justify-between gap-4">
-            <div class="flex items-center gap-4">
-              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+          <div class="mt-2 flex items-end justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                 </svg>
               </span>
               <p>
-                <span class="font-serif text-3xl font-bold tabular-nums text-gray-900">{{ resumenHoy.personas }}</span>
-                <span v-if="aforo" class="ml-1.5 text-lg text-gray-500">de {{ aforo }}</span>
+                <span class="font-serif text-2xl font-bold tabular-nums text-gray-900">{{ resumenHoy.personas }}</span>
+                <span v-if="aforo" class="ml-1 text-sm text-gray-500">de {{ aforo }}</span>
               </p>
             </div>
             <p v-if="aforo" class="text-right leading-tight">
-              <span class="block text-base font-semibold tabular-nums text-gray-900">{{ porcentajeAforo }}%</span>
-              <span class="text-xs text-gray-500">del aforo</span>
+              <span class="block text-sm font-semibold tabular-nums text-gray-900">{{ porcentajeAforo }}%</span>
+              <span class="text-[11px] text-gray-500">del aforo</span>
             </p>
           </div>
-          <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
             <div class="h-full rounded-full bg-emerald-600 transition-all" :style="{ width: `${Math.min(100, porcentajeAforo)}%` }" />
           </div>
-          <p class="mt-2 text-xs text-gray-500">Personas distintas que marcaron su entrada hoy.</p>
-          <div class="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-gray-100 bg-gray-50/70 p-2">
+          <p class="mt-1 text-[11px] text-gray-500">Personas distintas que marcaron su entrada hoy.</p>
+          <div class="mt-2 grid grid-cols-2 gap-1.5">
             <div
               v-for="k in [
                 { valor: resumenHoy.entradas, texto: 'Entradas hoy', tono: 'bg-indigo-50 text-indigo-600', icono: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25' },
@@ -558,16 +558,16 @@ function verSusPrestamos(e: Entrada) {
                 { valor: resumenHoy.manuales + resumenHoy.sala, texto: resumenHoy.sala ? `Manuales · ${resumenHoy.sala} al llegar a sala` : 'Manuales', tono: 'bg-amber-50 text-amber-600', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
               ]"
               :key="k.texto"
-              class="flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 shadow-sm"
+              class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1"
             >
-              <span class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:flex" :class="k.tono">
-                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+              <span class="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md sm:flex" :class="k.tono">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
                   <path stroke-linecap="round" stroke-linejoin="round" :d="k.icono" />
                 </svg>
               </span>
               <span class="min-w-0">
-                <span class="block text-base font-bold tabular-nums leading-tight text-gray-900">{{ k.valor }}</span>
-                <span class="block truncate text-xs text-gray-500">{{ k.texto }}</span>
+                <span class="block text-sm font-bold tabular-nums leading-tight text-gray-900">{{ k.valor }}</span>
+                <span class="block truncate text-[11px] leading-tight text-gray-500">{{ k.texto }}</span>
               </span>
             </div>
           </div>
@@ -578,30 +578,30 @@ function verSusPrestamos(e: Entrada) {
       <!-- Entradas: línea morada, encabezado en lavanda con el día, el buscador y la vía -->
       <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
-        <div class="flex flex-col gap-3 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-3 sm:px-5 xl:flex-row xl:items-center xl:justify-between">
-          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <h2 class="flex items-center gap-3 font-serif text-lg font-bold text-gray-900">
-              <span class="h-6 w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
+        <div class="flex flex-col gap-2 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-2.5 xl:flex-row xl:items-center xl:justify-between">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h2 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+              <span class="h-5 w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
               {{ titulo }}
             </h2>
-            <div v-if="modo === 'dia'" class="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <div v-if="modo === 'dia'" class="flex items-center gap-0.5 rounded-lg border border-gray-200 bg-white p-0.5">
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                class="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 aria-label="Día anterior"
                 @click="moverDia(-1)"
               >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
               </button>
               <span class="relative">
-                <button type="button" class="rounded-lg px-2 py-1 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100" title="Elegir otro día" @click="abrirCalendario">
+                <button type="button" class="rounded-md px-1.5 py-0.5 text-xs font-semibold text-gray-900 transition-colors hover:bg-gray-100" title="Elegir otro día" @click="abrirCalendario">
                   {{ etiquetaFecha }}
                 </button>
                 <input ref="calendario" v-model="fecha" type="date" :max="hoy" class="pointer-events-none absolute inset-0 opacity-0" tabindex="-1" aria-hidden="true" />
               </span>
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:pointer-events-none disabled:opacity-30"
+                class="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:pointer-events-none disabled:opacity-30"
                 aria-label="Día siguiente"
                 :disabled="fecha >= hoy"
                 @click="moverDia(1)"
@@ -623,7 +623,7 @@ function verSusPrestamos(e: Entrada) {
             </div>
           </div>
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div class="relative sm:w-72">
+            <div class="relative sm:w-52">
               <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
               </svg>
@@ -635,12 +635,12 @@ function verSusPrestamos(e: Entrada) {
                 class="h-9 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
               />
             </div>
-            <div class="flex overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="group" aria-label="Vía de entrada">
+            <div class="flex overflow-x-auto rounded-lg border border-gray-200 bg-white p-0.5" role="group" aria-label="Vía de entrada">
               <button
                 v-for="v in VIAS"
                 :key="v.id"
                 type="button"
-                class="flex-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-medium transition-colors sm:px-3"
+                class="flex-1 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium transition-colors"
                 :class="via === v.id ? 'bg-indigo-600 font-semibold text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'"
                 :aria-pressed="via === v.id"
                 @click="via = v.id"
@@ -657,7 +657,7 @@ function verSusPrestamos(e: Entrada) {
         </div>
 
         <div
-          class="hidden border-b border-gray-100 bg-gray-50/70 px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 lg:grid lg:gap-4"
+          class="hidden border-b border-gray-100 bg-gray-50/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 lg:grid lg:gap-3"
           :class="modo === 'dia' ? 'lg:grid-cols-[4rem_minmax(0,1.7fr)_8rem_7.5rem_7.5rem_minmax(0,1.6fr)_2.25rem]' : 'lg:grid-cols-[6.5rem_minmax(0,1.7fr)_8rem_7.5rem_7.5rem_2.25rem]'"
         >
           <span>{{ modo === 'dia' ? 'Hora' : 'Fecha' }}</span>
@@ -673,21 +673,21 @@ function verSusPrestamos(e: Entrada) {
           <li v-for="(e, i) in visibles" :key="e.id" class="transition-colors hover:bg-gray-50/70">
             <!-- Computador -->
             <div
-              class="hidden items-center gap-4 px-6 py-3 lg:grid"
+              class="hidden items-center gap-3 px-4 py-1.5 lg:grid"
               :class="modo === 'dia' ? 'lg:grid-cols-[4rem_minmax(0,1.7fr)_8rem_7.5rem_7.5rem_minmax(0,1.6fr)_2.25rem]' : 'lg:grid-cols-[6.5rem_minmax(0,1.7fr)_8rem_7.5rem_7.5rem_2.25rem]'"
             >
               <span class="text-sm tabular-nums text-gray-800">
                 <template v-if="modo === 'dia'">{{ hora(e) }}</template>
                 <template v-else>{{ fechaCorta(e) }} <span class="block text-xs text-gray-500">{{ hora(e) }}</span></template>
               </span>
-              <span class="flex min-w-0 items-center gap-3">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" :class="tipo(e).avatar">{{ iniciales(e) }}</span>
-                <span class="truncate text-sm font-medium text-gray-900">{{ nombre(e) }}</span>
+              <span class="flex min-w-0 items-center gap-2.5">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" :class="tipo(e).avatar">{{ iniciales(e) }}</span>
+                <span class="truncate text-sm font-semibold text-gray-900">{{ nombre(e) }}</span>
               </span>
               <span class="truncate text-sm tabular-nums text-gray-600">{{ documentoDe(e) }}</span>
-              <span><span class="inline-block whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" :class="tipo(e).badge">{{ tipo(e).texto }}</span></span>
+              <span><span class="inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset" :class="tipo(e).badge">{{ tipo(e).texto }}</span></span>
               <span>
-                <span class="inline-block whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" :class="etiquetaVia(e).clase">{{ etiquetaVia(e).texto }}</span>
+                <span class="inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset" :class="etiquetaVia(e).clase">{{ etiquetaVia(e).texto }}</span>
               </span>
               <span v-if="modo === 'dia'" class="truncate text-sm" :class="nota(e).clase">{{ nota(e).texto }}</span>
               <span class="relative justify-self-end" data-menu-entrada>
@@ -717,7 +717,7 @@ function verSusPrestamos(e: Entrada) {
             </div>
 
             <!-- Teléfono y tablet -->
-            <div class="flex items-start gap-3 px-4 py-3 sm:px-6 lg:hidden">
+            <div class="flex items-start gap-2.5 px-4 py-2.5 lg:hidden">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold" :class="tipo(e).avatar">{{ iniciales(e) }}</span>
               <div class="min-w-0 flex-1">
                 <p class="flex items-baseline justify-between gap-2">
@@ -772,15 +772,15 @@ function verSusPrestamos(e: Entrada) {
           </li>
         </ul>
 
-        <div v-if="filtradas.length" class="flex flex-col gap-3 border-t border-gray-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p class="text-sm text-gray-500">
+        <div v-if="filtradas.length" class="flex flex-col gap-2 border-t border-gray-100 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-xs text-gray-500">
             Mostrando {{ (pagina - 1) * POR_PAGINA + 1 }} a {{ Math.min(pagina * POR_PAGINA, filtradas.length) }} de {{ filtradas.length }}
             {{ filtradas.length === 1 ? 'entrada' : 'entradas' }}
           </p>
-          <nav v-if="totalPaginas > 1" class="flex items-center gap-1.5" aria-label="Páginas">
+          <nav v-if="totalPaginas > 1" class="flex items-center gap-1" aria-label="Páginas">
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
+              class="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
               aria-label="Página anterior"
               :disabled="pagina === 1"
               @click="pagina--"
@@ -791,7 +791,7 @@ function verSusPrestamos(e: Entrada) {
               v-for="n in paginas"
               :key="n"
               type="button"
-              class="h-9 min-w-[2.25rem] rounded-lg px-2 text-sm font-semibold transition-colors"
+              class="h-7 min-w-[1.75rem] rounded-lg px-1.5 text-xs font-semibold transition-colors"
               :class="n === pagina ? 'bg-indigo-600 text-white shadow-sm' : 'border border-gray-200 text-gray-700 hover:bg-gray-50'"
               :aria-current="n === pagina ? 'page' : undefined"
               @click="pagina = n"
@@ -800,7 +800,7 @@ function verSusPrestamos(e: Entrada) {
             </button>
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
+              class="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
               aria-label="Página siguiente"
               :disabled="pagina === totalPaginas"
               @click="pagina++"
@@ -925,7 +925,7 @@ function verSusPrestamos(e: Entrada) {
               id="nombre-externo"
               v-model="nombreExterno"
               type="text"
-              placeholder="Nombre de la persona"
+              placeholder="Nombre del visitante"
               class="w-full rounded-lg border border-gray-200 bg-white py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm px-3"
               @keydown.enter="registrarExterno"
             />
