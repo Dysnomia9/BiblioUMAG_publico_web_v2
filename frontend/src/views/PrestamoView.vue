@@ -780,9 +780,9 @@ function formatHora(iso: string | null) {
   <StaffLayout>
     <div class="mx-auto max-w-5xl">
       <!-- Encabezado: el degradado con puntos tenues y dos anillos a la derecha, como en Salas -->
-      <div class="relative mb-6 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+      <div class="relative mb-4 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
         <FondoPrestamos />
-        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-4">
           <div>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Préstamos, devoluciones y reservas</h1>
             <p class="mt-1 text-sm text-white/75">Gestionar préstamos y reservas de material bibliográfico</p>
@@ -816,7 +816,7 @@ function formatHora(iso: string | null) {
       />
 
       <!-- Buscar al usuario: línea morada arriba y barra junto al título -->
-      <div class="relative mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <div class="relative mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <span class="absolute inset-x-0 top-0 h-1" :style="{ background: FRANJA }" aria-hidden="true"></span>
         <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div class="flex items-stretch gap-3">
@@ -844,7 +844,7 @@ function formatHora(iso: string | null) {
               autocomplete="off"
               :placeholder="placeholderSegunModo(modoRut)"
               :maxlength="largoSegunModo(modoRut)"
-              class="h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-base text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4"
+              class="h-10 w-full rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4"
               :class="errorRut ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-100'"
               @input="onRutInput"
               @keydown.enter="buscarUsuario"
@@ -852,7 +852,7 @@ function formatHora(iso: string | null) {
           </div>
           <button
             type="button"
-            class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 font-semibold text-white shadow-md shadow-indigo-600/20 transition-colors hover:bg-indigo-700 disabled:opacity-60"
+            class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
             :disabled="buscando"
             @click="buscarUsuario"
           >
@@ -871,10 +871,10 @@ function formatHora(iso: string | null) {
       <!-- Ficha -->
       <div
         v-if="!usuario"
-        class="mb-5 flex flex-col gap-4 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-5 sm:flex-row sm:items-center sm:justify-between"
+        class="mb-4 flex flex-col gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-3 sm:flex-row sm:items-center sm:justify-between"
       >
-        <div class="flex items-center gap-4">
-          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-gray-300 text-gray-400">
+        <div class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-gray-300 text-gray-400">
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
@@ -890,14 +890,14 @@ function formatHora(iso: string | null) {
         </div>
       </div>
 
-      <div v-else class="relative mb-5 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-white p-5 shadow-sm">
+      <div v-else class="relative mb-4 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-white p-3.5 shadow-sm">
         <span class="absolute inset-x-0 top-0 h-1 bg-emerald-400" aria-hidden="true"></span>
-        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div class="flex min-w-0 items-center gap-4">
-            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-lg font-bold text-[#1a2430]">{{ inicialesUsuario }}</span>
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-sm font-bold text-[#1a2430]">{{ inicialesUsuario }}</span>
             <div class="min-w-0">
               <p class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <span class="font-serif text-xl font-bold text-gray-900">{{ usuario.nombre }} {{ usuario.apellido }}</span>
+                <span class="font-serif text-lg font-bold text-gray-900">{{ usuario.nombre }} {{ usuario.apellido }}</span>
                 <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="estadoCuenta.clase">{{ estadoCuenta.texto }}</span>
               </p>
               <p class="mt-0.5 text-sm text-gray-500">RUT {{ usuario.rut }} · {{ TIPOS_USUARIO[usuario.tipo] }} · {{ usuario.email ?? 'sin email' }}</p>
@@ -935,9 +935,9 @@ function formatHora(iso: string | null) {
           </div>
         </div>
 
-        <RenovarCuenta v-if="usuario.activo === false" class="mt-4" :usuario="usuario" @renovada="usuario = $event" />
+        <RenovarCuenta v-if="usuario.activo === false" class="mt-3" :usuario="usuario" @renovada="usuario = $event" />
 
-        <div v-if="showForm && !bloqueadoPorMultas" class="mt-5 border-t border-indigo-100 pt-4">
+        <div v-if="showForm && !bloqueadoPorMultas" class="mt-3 border-t border-indigo-100 pt-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h4 class="text-sm font-semibold text-gray-800">Nuevo préstamo por código de barras</h4>
             <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de préstamo">
@@ -1011,7 +1011,7 @@ function formatHora(iso: string | null) {
             <div v-if="enSala" class="flex justify-end">
               <button
                 type="button"
-                class="rounded-lg bg-sky-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!libroEncontradoPrestamo || !puedePrestarLibro || !!rechazoRegla"
                 @click="pedirConfirmacionPrestamo"
               >
@@ -1046,7 +1046,7 @@ function formatHora(iso: string | null) {
               </div>
               <button
                 type="button"
-                class="mt-5 rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                class="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!libroEncontradoPrestamo || !puedePrestarLibro || !fechaPrestamo || !fechaDevolucion || !!rechazoRegla || !!avisoDevolucion"
                 @click="pedirConfirmacionPrestamo"
               >
@@ -1056,7 +1056,7 @@ function formatHora(iso: string | null) {
           </div>
         </div>
 
-        <div v-if="showReservaForm && !bloqueadoPorMultas" class="mt-5 border-t border-indigo-100 pt-4">
+        <div v-if="showReservaForm && !bloqueadoPorMultas" class="mt-3 border-t border-indigo-100 pt-3">
           <h4 class="text-sm font-semibold text-gray-800">Nueva reserva por código de barras</h4>
           <p class="mb-3 mt-0.5 text-xs text-gray-500">Si el libro está disponible queda apartado hasta la fecha límite; si está prestado, la persona entra a la lista de espera y se le reserva sola cuando se devuelva.</p>
           <div class="space-y-3">
@@ -1111,7 +1111,7 @@ function formatHora(iso: string | null) {
               <button
                 v-if="libroEnEstante"
                 type="button"
-                class="mt-5 rounded-lg px-5 py-2.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                class="mt-5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 :class="libroDisponible ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'"
                 :disabled="!libroEncontrado || (libroDisponible && (!fechaReserva || !fechaRetiro || !!avisoRetiro))"
                 @click="pedirConfirmacionReserva"
@@ -1123,7 +1123,7 @@ function formatHora(iso: string | null) {
         </div>
       </div>
 
-      <div v-if="usuario?.multas_pendientes?.cantidad" class="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <div v-if="usuario?.multas_pendientes?.cantidad" class="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm text-red-700">
         <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
@@ -1138,9 +1138,9 @@ function formatHora(iso: string | null) {
       </div>
 
       <!-- Préstamos y reservas -->
-      <div class="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div class="mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
-        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-3 py-3 sm:px-4">
+        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-3 py-2">
         <div class="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist">
           <button
             v-for="t in [
@@ -1170,12 +1170,12 @@ function formatHora(iso: string | null) {
         </div>
 
         <template v-if="!usuario || activeTab === 'prestamos'">
-          <div class="hidden border-b border-gray-100 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] md:gap-3">
+          <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] md:gap-3">
             <span>Libro</span><span>Préstamo</span><span>Devolución</span><span>Estado</span><span>Multa</span><span>Acción</span>
           </div>
 
-          <div v-if="!usuario" class="px-5 pb-6 pt-4">
-            <div class="hidden space-y-4 md:block" aria-hidden="true">
+          <div v-if="!usuario" class="px-4 pb-3 pt-3">
+            <div class="hidden space-y-3 md:block" aria-hidden="true">
               <div v-for="n in 2" :key="n" class="grid grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] gap-3 border-b border-gray-50 pb-4">
                 <span class="h-2.5 rounded-full bg-gray-100" :class="n === 1 ? 'w-3/4' : 'w-1/2'"></span>
                 <span class="h-2.5 w-16 rounded-full bg-gray-100"></span>
@@ -1193,11 +1193,11 @@ function formatHora(iso: string | null) {
               <li
                 v-for="p in filasPrestamos"
                 :key="p.id"
-                class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-5 py-3.5 md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] md:items-center"
+                class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-2 md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] md:items-center"
                 :class="p.estado === 'devuelto' ? 'bg-gray-50/50' : ''"
               >
                 <div class="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo(p.tipo_item).icono" />
                     </svg>
@@ -1256,16 +1256,16 @@ function formatHora(iso: string | null) {
                   </button>
                 </div>
               </li>
-              <li v-if="!filasPrestamos.length" class="p-4 sm:p-5">
-                <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
-                  <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+              <li v-if="!filasPrestamos.length" class="p-3">
+                <div class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-2.5 text-center">
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
                   </span>
                   <p class="text-sm text-gray-600">No tiene préstamos activos.</p>
                 </div>
               </li>
             </ul>
-            <div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
               <p class="text-gray-500">
                 {{ librosEnPrestamo }} {{ librosEnPrestamo === 1 ? 'libro' : 'libros' }} en préstamo · {{ condiciones ? `máximo ${condiciones.max_ejemplares} a la vez` : 'el máximo a la vez depende de la regla de préstamo' }}
                 <template v-if="devueltosOcultables">
@@ -1283,18 +1283,18 @@ function formatHora(iso: string | null) {
         </template>
 
         <template v-else-if="activeTab === 'reservas'">
-          <div class="hidden border-b border-gray-100 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_minmax(0,1.3fr)_9.5rem] md:gap-3">
+          <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_minmax(0,1.3fr)_9.5rem] md:gap-3">
             <span>Libro</span><span>Reservada</span><span>Retiro hasta</span><span>Estado</span><span>Acción</span>
           </div>
           <ul class="divide-y divide-gray-100">
             <li
               v-for="r in filasReservas"
               :key="r.id"
-              class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-5 py-3.5 md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_minmax(0,1.3fr)_9.5rem] md:items-center"
+              class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-2 md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_minmax(0,1.3fr)_9.5rem] md:items-center"
               :class="r.estado === 'retirado' || r.estado === 'cancelado' ? 'bg-gray-50/50' : ''"
             >
               <div class="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo('libro').fondo">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo('libro').fondo">
                   <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                     <path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo('libro').icono" />
                   </svg>
@@ -1334,16 +1334,16 @@ function formatHora(iso: string | null) {
                 </button>
               </div>
             </li>
-            <li v-if="!filasReservas.length" class="p-4 sm:p-5">
-              <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
-                <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+            <li v-if="!filasReservas.length" class="p-3">
+              <div class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-2.5 text-center">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
                   <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
                 </span>
                 <p class="text-sm text-gray-600">No tiene reservas vigentes.</p>
               </div>
             </li>
           </ul>
-          <div v-if="terminadasOcultables" class="border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm">
+          <div v-if="terminadasOcultables" class="border-t border-gray-100 bg-gray-50/60 px-4 py-2 text-xs">
             <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarTerminadas = !mostrarTerminadas">
               {{ mostrarTerminadas ? 'Ocultar retiradas y canceladas' : `Ver retiradas y canceladas (${terminadasOcultables})` }}
             </button>
@@ -1359,11 +1359,11 @@ function formatHora(iso: string | null) {
               <li
                 v-for="p in filasRecursos"
                 :key="p.id"
-                class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-5 py-3.5 md:grid-cols-[minmax(0,2.2fr)_8.5rem_9.5rem_6.5rem_7rem] md:items-center"
+                class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-2 md:grid-cols-[minmax(0,2.2fr)_8.5rem_9.5rem_6.5rem_7rem] md:items-center"
                 :class="p.estado === 'devuelto' ? 'bg-gray-50/50' : ''"
               >
                 <div class="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo(p.tipo_item).icono" />
                     </svg>
@@ -1394,22 +1394,22 @@ function formatHora(iso: string | null) {
                   </button>
                 </div>
               </li>
-              <li v-if="!filasRecursos.length" class="p-4 sm:p-5">
-                <div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-6 text-center">
-                  <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
+              <li v-if="!filasRecursos.length" class="p-3">
+                <div class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 px-4 py-2.5 text-center">
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600" aria-hidden="true">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-8.25 4.5L3.75 7.5M3.75 7.5l8.25-4.5 8.25 4.5M3.75 7.5v9l8.25 4.5m0-9v9m0-9l8.25-4.5m-8.25 4.5l8.25 4.5m0 0v-9" /></svg>
                   </span>
                   <p class="text-sm text-gray-600">No tiene recursos de apoyo prestados.</p>
                 </div>
               </li>
             </ul>
-            <div v-if="recursosDevueltos" class="border-t border-gray-100 bg-gray-50/60 px-5 py-3 text-sm">
+            <div v-if="recursosDevueltos" class="border-t border-gray-100 bg-gray-50/60 px-4 py-2 text-xs">
               <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarRecursosDevueltos = !mostrarRecursosDevueltos">
                 {{ mostrarRecursosDevueltos ? 'Ocultar devueltos' : `Ver devueltos (${recursosDevueltos})` }}
               </button>
             </div>
           </template>
-          <div class="p-5" :class="usuario ? 'border-t border-gray-100' : ''">
+          <div class="p-3.5" :class="usuario ? 'border-t border-gray-100' : ''">
             <p class="mb-4 text-sm text-gray-500">
               Préstamo de recursos no bibliográficos: escanee el código de barras del recurso en el recuadro de su categoría.
               <router-link
@@ -1418,15 +1418,15 @@ function formatHora(iso: string | null) {
                 class="font-semibold text-indigo-700 hover:underline"
               >Administrar categorías</router-link>
             </p>
-            <div v-for="(grupo, i) in gruposCategorias" :key="i" class="grid grid-cols-1 gap-4 md:grid-cols-3" :class="i ? 'mt-4' : ''">
+            <div v-for="(grupo, i) in gruposCategorias" :key="i" class="grid grid-cols-1 gap-3 md:grid-cols-3" :class="i ? 'mt-3' : ''">
               <div
                 v-for="c in grupo"
                 :key="c.clave"
-                class="rounded-2xl border bg-white p-5 shadow-sm transition-shadow"
+                class="rounded-xl border bg-white p-3 shadow-sm transition-shadow"
                 :class="recursoResaltado === c.clave ? 'border-indigo-400 ring-2 ring-indigo-300' : 'border-gray-200'"
               >
                 <div class="flex items-start gap-3">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(c)">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(c)">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(c)" />
                     </svg>
@@ -1438,7 +1438,7 @@ function formatHora(iso: string | null) {
                     </p>
                   </div>
                 </div>
-                <div class="mt-4 flex gap-2">
+                <div class="mt-2 flex gap-2">
                   <CampoSugerencias
                     v-model="codigos[c.clave]"
                     class="min-w-0 flex-1"
@@ -1666,23 +1666,55 @@ function formatHora(iso: string | null) {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
         @click.self="!prestandoRecurso && (prestamoRecursoPendiente = null)"
       >
-        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-          <h3 class="mb-1 text-lg font-bold text-gray-900">¿Confirmar préstamo?</h3>
-          <p class="text-sm text-gray-500" :class="prestamoRecursoPendiente.categoria.indicaciones || prestamoRecursoPendiente.categoria.horas_maximas ? 'mb-3' : 'mb-6'">
-            Se prestará {{ prestamoRecursoPendiente.inventario ?? `${prestamoRecursoPendiente.categoria.nombre.toLowerCase()}` }} (código
-            <strong class="font-mono">{{ prestamoRecursoPendiente.codigo }}</strong>) a <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong>.
-          </p>
-          <p v-if="prestamoRecursoPendiente.categoria.indicaciones || prestamoRecursoPendiente.categoria.horas_maximas" class="mb-6 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div class="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div class="relative flex items-center gap-3 overflow-hidden px-5 py-3.5" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+            <svg class="pointer-events-none absolute -bottom-3 right-10 h-[4.5rem] w-[4.5rem] rotate-[-8deg] text-white/[0.14]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(prestamoRecursoPendiente.categoria)" /></svg>
+            <span class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-blanco/15 text-white" aria-hidden="true">
+              <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.750"><path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(prestamoRecursoPendiente.categoria)" /></svg>
+            </span>
+            <div class="relative min-w-0 flex-1">
+              <h3 class="font-serif text-lg font-bold leading-tight text-white">¿Confirmar préstamo?</h3>
+              <p class="text-xs text-white/80">{{ prestamoRecursoPendiente.categoria.nombre }} · recurso de apoyo</p>
+            </div>
+            <button type="button" class="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition-colors hover:bg-blanco/15 disabled:opacity-50" aria-label="Cerrar" :disabled="prestandoRecurso" @click="prestamoRecursoPendiente = null">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
+          <div class="space-y-2.5 p-4">
+          <dl class="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-gray-50 text-sm">
+            <div class="flex items-center gap-2.5 px-3 py-2">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="fondoCategoria(prestamoRecursoPendiente.categoria)" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.750"><path stroke-linecap="round" stroke-linejoin="round" :d="iconoCategoria(prestamoRecursoPendiente.categoria)" /></svg>
+              </span>
+              <div class="min-w-0 flex-1">
+                <dt class="text-[11px] text-gray-500">Se prestará</dt>
+                <dd class="truncate font-semibold text-gray-900">{{ prestamoRecursoPendiente.inventario ?? prestamoRecursoPendiente.categoria.nombre }}</dd>
+              </div>
+              <span class="shrink-0 rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{{ prestamoRecursoPendiente.codigo }}</span>
+            </div>
+            <div class="flex items-center gap-2.5 px-3 py-2">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#b08d57] text-[11px] font-bold text-[#1a2430]" aria-hidden="true">{{ inicialesUsuario }}</span>
+              <div class="min-w-0 flex-1">
+                <dt class="text-[11px] text-gray-500">Para</dt>
+                <dd class="font-semibold leading-snug text-gray-900">{{ usuario?.nombre }} {{ usuario?.apellido }}</dd>
+              </div>
+            </div>
+          </dl>
+          <p v-if="prestamoRecursoPendiente.categoria.indicaciones || prestamoRecursoPendiente.categoria.horas_maximas" class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <svg class="mt-px h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.500m4.500 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>
             Recuérdele:
             <template v-if="prestamoRecursoPendiente.categoria.horas_maximas">
               se devuelve a más tardar {{ devolucionRecurso(prestamoRecursoPendiente.categoria.horas_maximas) }} ({{ textoHoras(prestamoRecursoPendiente.categoria.horas_maximas) }})<template v-if="prestamoRecursoPendiente.categoria.indicaciones">. </template>
             </template>
             <template v-if="prestamoRecursoPendiente.categoria.indicaciones">{{ prestamoRecursoPendiente.categoria.indicaciones }}</template>.
+            </span>
           </p>
-          <div class="flex gap-3">
+          <div class="flex gap-2.5 pt-1">
             <button
               type="button"
-              class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              class="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-100"
               :disabled="prestandoRecurso"
               @click="prestamoRecursoPendiente = null"
             >
@@ -1690,12 +1722,13 @@ function formatHora(iso: string | null) {
             </button>
             <button
               type="button"
-              class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+              class="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
               :disabled="prestandoRecurso"
               @click="confirmarPrestamoRecurso"
             >
               {{ prestandoRecurso ? 'Confirmando…' : 'Sí, prestar' }}
             </button>
+          </div>
           </div>
         </div>
       </div>

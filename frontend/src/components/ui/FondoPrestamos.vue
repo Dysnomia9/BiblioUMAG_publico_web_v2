@@ -39,7 +39,7 @@ const BARRAS = [352, 355, 357, 361, 364, 366, 370]
 
 <template>
   <svg
-    class="pointer-events-none absolute bottom-0 right-48 hidden h-24 w-[25rem] xl:block"
+    class="pointer-events-none absolute bottom-0 right-44 hidden h-[5.25rem] w-[21.875rem] xl:block"
     style="-webkit-mask-image: linear-gradient(to right, transparent, black 12%); mask-image: linear-gradient(to right, transparent, black 12%);"
     viewBox="0 0 400 96"
     fill="none"
