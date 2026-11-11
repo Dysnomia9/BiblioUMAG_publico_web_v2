@@ -39,6 +39,18 @@ const aFila = (p: PoliticaVigencia): Fila => ({
 })
 const firma = (f: Fila[]) => JSON.stringify(f.map(({ tipo, modo, mes, dia, anios }) => [tipo, modo, modo === 'fecha_fija' ? [mes, dia] : null, modo === 'duracion' ? anios : null]))
 const hayCambios = computed(() => firma(filas.value) !== original.value)
+// Cómo estaba cada tipo al cargar, para resaltar en la confirmación los que cambian.
+const originales = ref<Record<string, string>>({})
+const recordarOriginales = () => (originales.value = Object.fromEntries(filas.value.map((f) => [f.tipo, firma([f])])))
+const cambio = (f: Fila) => originales.value[f.tipo] !== firma([f])
+
+/** Cada tipo con su color, como en el resto de la app. */
+const TONOS: Record<string, { borde: string; cabecera: string }> = {
+  estudiante: { borde: 'border-l-indigo-600', cabecera: 'bg-indigo-50/40' },
+  docente: { borde: 'border-l-sky-600', cabecera: 'bg-sky-50/40' },
+  funcionario: { borde: 'border-l-amber-600', cabecera: 'bg-amber-50/40' },
+}
+const tono = (tipo: string) => TONOS[tipo] ?? TONOS.estudiante
 
 async function cargar() {
   cargando.value = true
@@ -46,6 +58,7 @@ async function cargar() {
     const { data } = await api.get<PoliticaVigencia[]>('/vigencia')
     filas.value = data.map(aFila)
     original.value = firma(filas.value)
+    recordarOriginales()
     apiError.value = false
   } catch {
     apiError.value = true
@@ -86,6 +99,7 @@ async function guardar() {
     })
     filas.value = data.map(aFila)
     original.value = firma(filas.value)
+    recordarOriginales()
     await vigencia.cargar(true)
     toast.success('Vigencia de las cuentas actualizada')
     confirmando.value = false
@@ -103,67 +117,76 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-
 </script>
 
 <template>
-  <section class="rounded-xl bg-white p-6 shadow-md">
-    <h2 class="text-lg font-semibold text-gray-900">Vigencia de las cuentas</h2>
-    <p class="mt-1 text-sm text-gray-500">
-      Cuánto dura la cuenta de cada tipo de usuario al renovarla. Los docentes y funcionarios rotan menos que los estudiantes: pueden vencer más lejos o no
-      vencer. Cambiar esto <strong>no toca las cuentas que ya existen</strong>: solo la fecha que reciben de ahora en adelante al renovarse (a mano o en una
-      carga masiva).
-    </p>
+  <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+    <header class="border-b border-gray-100 bg-indigo-50/40 px-5 py-3">
+      <h3 class="flex items-center gap-2 font-serif text-base font-bold text-gray-900">
+        <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
+        Vigencia de las cuentas
+      </h3>
+      <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">
+        Cuánto dura la cuenta de cada tipo de usuario al renovarla. Los docentes y funcionarios rotan menos que los estudiantes: pueden vencer más lejos o no
+        vencer. Cambiar esto <strong>no toca las cuentas que ya existen</strong>: solo la fecha que reciben de ahora en adelante al renovarse (a mano o en una
+        carga masiva).
+      </p>
+    </header>
 
-    <ApiErrorBanner v-if="apiError" class="mt-4" />
+    <ApiErrorBanner v-if="apiError" class="m-4" />
 
-    <div v-if="!cargando && filas.length" class="mt-5 space-y-4">
-      <div v-for="(f, i) in filas" :key="f.tipo" class="rounded-xl border border-gray-200 p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 class="font-semibold text-gray-900">{{ NOMBRES[f.tipo] }}</h3>
-          <p class="text-xs text-gray-500">
-            {{ f.cuentas_vigentes.toLocaleString('es-CL') }} cuentas vigentes<template v-if="f.por_vencer_60_dias"> · {{ f.por_vencer_60_dias.toLocaleString('es-CL') }} vencen en 60 días</template>
+    <div v-if="!cargando && filas.length" class="space-y-3 p-4">
+      <div v-for="(f, i) in filas" :key="f.tipo" class="overflow-hidden rounded-xl border border-l-[3px] border-gray-200" :class="tono(f.tipo).borde">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-2" :class="tono(f.tipo).cabecera">
+          <h4 class="font-serif text-sm font-bold text-gray-900">{{ NOMBRES[f.tipo] }}</h4>
+          <p class="flex flex-wrap gap-1.5 text-[11px]">
+            <span class="rounded border border-gray-200 bg-white px-1.5 py-px text-gray-600"><strong class="text-gray-900">{{ f.cuentas_vigentes.toLocaleString('es-CL') }}</strong> cuentas vigentes</span>
+            <span v-if="f.por_vencer_60_dias" class="rounded border border-amber-200 bg-amber-50 px-1.5 py-px text-amber-800"><strong>{{ f.por_vencer_60_dias.toLocaleString('es-CL') }}</strong> vencen en 60 días</span>
           </p>
         </div>
 
-        <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div>
-            <label :for="`modo-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Cómo vence</label>
-            <select :id="`modo-${f.tipo}`" v-model="f.modo" :class="CAMPO">
-              <option v-for="m in MODOS" :key="m.id" :value="m.id">{{ m.texto }}</option>
-            </select>
-            <p class="mt-1 text-xs text-gray-500">{{ MODOS.find((m) => m.id === f.modo)?.ayuda }}</p>
+        <div class="space-y-2.5 px-4 py-3">
+          <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div>
+              <label :for="`modo-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Cómo vence</label>
+              <select :id="`modo-${f.tipo}`" v-model="f.modo" :class="CAMPO">
+                <option v-for="m in MODOS" :key="m.id" :value="m.id">{{ m.texto }}</option>
+              </select>
+              <p class="mt-1 text-[11px] text-gray-500">{{ MODOS.find((m) => m.id === f.modo)?.ayuda }}</p>
+            </div>
+
+            <div v-if="f.modo === 'fecha_fija'" class="flex gap-2">
+              <div>
+                <label :for="`dia-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Día</label>
+                <input :id="`dia-${f.tipo}`" v-model.number="f.dia" type="number" min="1" max="31" class="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
+              </div>
+              <div class="w-36">
+                <label :for="`mes-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Mes</label>
+                <select :id="`mes-${f.tipo}`" v-model.number="f.mes" :class="CAMPO">
+                  <option v-for="(m, k) in MESES" :key="m" :value="k + 1">{{ m }}</option>
+                </select>
+              </div>
+            </div>
+            <div v-else-if="f.modo === 'duracion'">
+              <label :for="`anios-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Años</label>
+              <input :id="`anios-${f.tipo}`" v-model.number="f.anios" type="number" min="1" max="10" class="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
+            </div>
           </div>
 
-          <div v-if="f.modo === 'fecha_fija'" class="flex gap-2">
-            <div>
-              <label :for="`dia-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Día</label>
-              <input :id="`dia-${f.tipo}`" v-model.number="f.dia" type="number" min="1" max="31" class="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
-            </div>
-            <div>
-              <label :for="`mes-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Mes</label>
-              <select :id="`mes-${f.tipo}`" v-model.number="f.mes" :class="CAMPO">
-                <option v-for="(m, k) in MESES" :key="m" :value="k + 1">{{ m }}</option>
-              </select>
-            </div>
-          </div>
-          <div v-else-if="f.modo === 'duracion'">
-            <label :for="`anios-${f.tipo}`" class="mb-1 block text-xs font-medium text-gray-600">Años</label>
-            <input :id="`anios-${f.tipo}`" v-model.number="f.anios" type="number" min="1" max="10" class="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" />
+          <p v-if="errores[`politicas.${i}.dia`] || errores[`politicas.${i}.anios`]" class="text-xs text-red-600">
+            {{ errores[`politicas.${i}.dia`] || errores[`politicas.${i}.anios`] }}
+          </p>
+          <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <span>{{ resumen(f) }}.</span>
+            <span v-if="!hayCambios" class="flex items-center gap-2 text-xs text-gray-500">
+              Si se renueva hoy:
+              <span class="rounded border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-xs font-semibold text-indigo-900">{{ f.proximo ? fechaVigencia(f.proximo) : 'sin vencimiento' }}</span>
+            </span>
           </div>
         </div>
-
-        <p v-if="errores[`politicas.${i}.dia`] || errores[`politicas.${i}.anios`]" class="mt-2 text-xs text-red-600">
-          {{ errores[`politicas.${i}.dia`] || errores[`politicas.${i}.anios`] }}
-        </p>
-        <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
-          {{ resumen(f) }}.
-          <span v-if="!hayCambios">
-            Si se renueva hoy: <strong>{{ f.proximo ? fechaVigencia(f.proximo) : 'sin vencimiento' }}</strong>.
-          </span>
-        </p>
       </div>
 
       <div class="flex justify-end">
         <button
           type="button"
-          class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="!hayCambios"
           @click="pedirConfirmacion"
         >
@@ -176,14 +199,18 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-
       :abierto="confirmando"
       titulo="¿Cambiar la vigencia de las cuentas?"
       confirmar="Sí, guardar"
+      destacado
       :cargando="guardando"
       @confirmar="guardar"
       @cancelar="confirmando = false"
     >
-      <ul class="space-y-1">
-        <li v-for="f in filas" :key="f.tipo"><strong class="text-gray-900">{{ NOMBRES[f.tipo] }}:</strong> {{ resumen(f) }}</li>
+      <ul class="overflow-hidden rounded-lg border border-gray-200">
+        <li v-for="f in filas" :key="f.tipo" class="grid grid-cols-[7rem_1fr] gap-2 border-l-[3px] border-t border-t-gray-100 px-3 py-2 first:border-t-0" :class="[tono(f.tipo).borde, cambio(f) ? 'bg-indigo-50/40' : '']">
+          <strong class="text-gray-900">{{ NOMBRES[f.tipo] }}</strong>
+          <span :class="cambio(f) ? 'font-semibold text-indigo-800' : 'text-gray-600'">{{ resumen(f) }}</span>
+        </li>
       </ul>
-      <p class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+      <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
         No cambia las cuentas que ya existen: aplica a las renovaciones y cargas masivas que se hagan desde ahora. Queda registrado en la bitácora.
       </p>
     </DialogoConfirmacion>
