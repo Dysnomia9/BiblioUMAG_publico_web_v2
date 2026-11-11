@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import FondoRecursos from '@/components/ui/FondoRecursos.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +12,10 @@ import { fechaCorta } from '@/utils/prestamos'
 import type { Equipo } from '@/types'
 
 const toast = useToast()
+
+function abrirMenuGestion() {
+  window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
 const auth = useAuthStore()
 
 // Las categorías (notebook, bicicleta…) se administran en Administración → Catálogos.
@@ -239,33 +244,55 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
 
 <template>
   <StaffLayout>
-    <div class="max-w-4xl mx-auto">
-      <div
-        class="rounded-xl shadow-md mb-6 overflow-hidden"
-        style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);"
-      >
-        <div class="px-6 py-5">
-          <h1 class="text-2xl font-serif font-bold tracking-tight text-white">Recursos de apoyo</h1>
-          <p class="text-sm text-white/60 mt-1">Inventario de recursos no bibliográficos para préstamo: notebooks, audífonos, cargadores, bicicletas…</p>
+    <div class="max-w-6xl mx-auto">
+      <!-- La caja de título con la textura de Salas y Préstamos, con los totales a la derecha. -->
+      <div class="relative mb-5 overflow-hidden rounded-2xl shadow-md" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);">
+        <FondoRecursos />
+        <div class="relative flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <div class="min-w-0">
+            <nav class="text-xs text-white/75" aria-label="Ruta">
+              <button type="button" class="font-medium text-white hover:underline" @click="abrirMenuGestion">Gestión</button>
+              <span class="mx-1.5">›</span>
+              <span>Catálogo</span>
+            </nav>
+            <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Recursos de apoyo</h1>
+            <p class="mt-0.5 text-sm text-white/75">Inventario de recursos no bibliográficos para préstamo: notebooks, audífonos, cargadores, bicicletas…</p>
+          </div>
+          <div class="flex shrink-0 gap-2">
+            <div class="rounded-xl border border-white/20 bg-blanco/10 px-4 py-1.5 text-center text-white">
+              <p class="font-serif text-xl font-bold tabular-nums leading-tight">{{ equipos.filter((e) => e.activo).length }}</p>
+              <p class="text-[11px] text-white/75">recursos</p>
+            </div>
+            <div class="rounded-xl border border-white/20 bg-blanco/10 px-4 py-1.5 text-center text-white">
+              <p class="font-serif text-xl font-bold tabular-nums leading-tight">{{ categorias.length }}</p>
+              <p class="text-[11px] text-white/75">categorías</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-        <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-          <h4 class="text-sm font-semibold text-gray-700">Registrar recursos nuevos</h4>
+      <section class="mb-5 rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
+        <header class="flex flex-wrap items-center justify-between gap-3 rounded-t-2xl border-b border-gray-100 bg-indigo-50/40 px-5 py-3.5">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white" aria-hidden="true">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            </span>
+            <div class="min-w-0">
+              <h2 class="text-sm font-bold text-gray-900">Registrar recursos nuevos</h2>
+              <p class="mt-0.5 text-xs text-gray-500">Una fila por recurso; las que quedan vacías no se registran. Con el lector, al escanear el código se pasa solo a la fila siguiente.</p>
+            </div>
+          </div>
           <router-link
             v-if="auth.puede('catalogos.gestionar')"
             :to="{ name: 'administracion', query: { seccion: 'catalogos' } }"
-            class="text-xs font-semibold text-indigo-700 hover:underline"
+            class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
           >¿Falta una categoría? Créala en Administración →</router-link>
-        </div>
-        <p class="mb-4 text-xs text-gray-500">
-          Una fila por recurso; las que quedan vacías no se registran. Con el lector, al escanear el código se pasa solo a la fila siguiente.
-        </p>
+        </header>
 
-        <div ref="grilla">
+        <div class="p-5">
+        <div ref="grilla" class="rounded-xl border border-gray-100 bg-gray-50 p-3">
           <div class="hidden sm:flex items-end gap-2 pb-1.5 text-xs font-medium text-gray-600">
-            <span class="w-5 shrink-0"></span>
+            <span class="w-7 shrink-0"></span>
             <div class="grid flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem] gap-2">
               <span>Nombre / identificador</span>
               <span>Código de barras</span>
@@ -276,7 +303,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
           <div class="space-y-3 sm:space-y-2">
             <div v-for="(f, i) in filas" :key="f.id" :class="i ? 'border-t border-gray-100 pt-3 sm:border-0 sm:pt-0' : ''">
               <div class="flex items-start gap-2">
-                <span class="mt-3 w-5 shrink-0 text-right text-xs font-semibold tabular-nums text-gray-400">{{ i + 1 }}</span>
+                <span class="mt-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-bold tabular-nums text-indigo-700">{{ i + 1 }}</span>
                 <div class="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
                   <input
                     v-model="f.nombre"
@@ -289,6 +316,8 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                     :class="bordeDe(f, 'nombre')"
                     @keydown.enter.prevent="siguienteCampo(i, 'nombre')"
                   />
+                  <span class="relative block">
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 5v14M7.5 5v14M11 5v14M14.5 5v14M17 5v14M20 5v14" /></svg>
                   <input
                     v-model="f.codigo"
                     :data-fila="i"
@@ -296,10 +325,11 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                     :aria-label="`Fila ${i + 1}: código de barras`"
                     :placeholder="i ? 'Código de barras' : 'Escanee o escriba el código'"
                     maxlength="255"
-                    class="w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500"
+                    class="w-full rounded-lg border py-2 pl-9 pr-3 font-mono text-sm outline-none placeholder:font-sans focus:ring-2 focus:ring-indigo-500"
                     :class="bordeDe(f, 'codigo')"
                     @keydown.enter.prevent="siguienteCampo(i, 'codigo')"
                   />
+                  </span>
                   <select
                     v-model="f.tipo"
                     :aria-label="`Fila ${i + 1}: categoría`"
@@ -312,7 +342,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                 </div>
                 <button
                   type="button"
-                  class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                   :aria-label="`Quitar la fila ${i + 1}`"
                   title="Quitar esta fila"
                   @click="quitarFila(i)"
@@ -330,7 +360,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
-            class="text-sm font-semibold text-indigo-700 hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"
+            class="rounded-lg border border-dashed border-indigo-300 px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
             :disabled="filas.length >= MAXIMO_FILAS"
             :title="filas.length >= MAXIMO_FILAS ? `Hasta ${MAXIMO_FILAS} recursos de una vez` : undefined"
             @click="agregarYEnfocar"
@@ -340,74 +370,80 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
           <button
             @click="pedirConfirmacionCrear"
             :disabled="creando || !llenas.length"
-            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            class="px-5 py-2 bg-indigo-600 text-white text-sm rounded-lg shadow-sm hover:bg-indigo-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ textoRegistrar }}
           </button>
         </div>
-      </div>
+        </div>
+      </section>
 
       <ApiErrorBanner v-if="apiError" />
 
-      <div class="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por categoría">
+      <div class="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoría">
         <button
           type="button"
-          class="rounded-full px-3 py-1 text-xs font-medium ring-1 transition"
-          :class="!filtroCategoria ? 'bg-indigo-600 text-white ring-transparent' : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'"
+          class="inline-flex items-center gap-2 rounded-xl border py-1 pl-1 pr-2.5 text-sm font-semibold shadow-sm transition-colors"
+          :class="!filtroCategoria ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
+          :aria-pressed="!filtroCategoria"
           @click="filtroCategoria = ''"
         >
-          Todas ({{ equipos.filter((e) => e.activo).length }})
+          <span class="flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold" :class="!filtroCategoria ? 'bg-blanco/20 text-white' : 'bg-indigo-50 text-indigo-700'" aria-hidden="true">Σ</span>
+          Todas
+          <span class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="!filtroCategoria ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ equipos.filter((e) => e.activo).length }}</span>
         </button>
         <button
           v-for="c in categorias"
           :key="c.clave"
           type="button"
-          class="rounded-full px-3 py-1 text-xs font-medium ring-1 transition"
-          :class="filtroCategoria === c.clave ? 'bg-indigo-600 text-white ring-transparent' : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'"
+          class="inline-flex items-center gap-2 rounded-xl border py-1 pl-1 pr-2.5 text-sm font-semibold shadow-sm transition-colors"
+          :class="filtroCategoria === c.clave ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
+          :aria-pressed="filtroCategoria === c.clave"
           @click="filtroCategoria = c.clave"
         >
-          {{ c.nombre_plural }} ({{ cuantos(c.clave) }}){{ c.activo ? '' : ' · inactiva' }}
+          <span class="flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold" :class="filtroCategoria === c.clave ? 'bg-blanco/20 text-white' : fondoDe(c.clave)" aria-hidden="true">{{ c.nombre.slice(0, 2).toUpperCase() }}</span>
+          {{ c.nombre_plural }}{{ c.activo ? '' : ' · inactiva' }}
+          <span class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="filtroCategoria === c.clave ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ cuantos(c.clave) }}</span>
         </button>
       </div>
 
-      <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead>
-              <tr class="bg-gray-100 border-b-2 border-gray-200">
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Nombre</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Código de barras</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Categoría</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Disponible</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Estado</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Acción</th>
+              <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                <th class="px-5 py-2.5">Nombre</th>
+                <th class="px-5 py-2.5">Código de barras</th>
+                <th class="px-5 py-2.5">Categoría</th>
+                <th class="px-5 py-2.5">Disponible</th>
+                <th class="px-5 py-2.5">Estado</th>
+                <th class="px-5 py-2.5 text-right">Acción</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200">
-              <tr v-for="(e, idx) in visibles" :key="e.id" :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
-                <td class="px-6 py-3 text-sm font-mono text-gray-900">{{ e.codigo_inventario }}</td>
-                <td class="px-6 py-3 text-sm font-mono text-gray-500">{{ e.codigo_barras }}</td>
-                <td class="px-6 py-3 text-sm text-gray-600">
-                  <span class="inline-flex items-center gap-2">
-                    <span class="flex h-6 w-6 items-center justify-center rounded-md" :class="fondoDe(e.tipo)">
-                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="iconoDe(e.tipo)" /></svg>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="e in visibles" :key="e.id" class="even:bg-gray-50/50">
+                <td class="px-5 py-2.5">
+                  <span class="flex items-center gap-2.5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="fondoDe(e.tipo)" aria-hidden="true">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="iconoDe(e.tipo)" /></svg>
                     </span>
-                    {{ nombreCategoria(e.tipo) }}
+                    <span class="text-sm font-semibold text-gray-900">{{ e.codigo_inventario }}</span>
                   </span>
                 </td>
-                <td class="px-6 py-3">
-                  <span
-                    class="text-xs px-2.5 py-1 rounded-full font-medium"
-                    :class="e.disponible ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'"
-                  >
+                <td class="px-5 py-2.5">
+                  <span class="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700">{{ e.codigo_barras }}</span>
+                </td>
+                <td class="px-5 py-2.5">
+                  <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="fondoDe(e.tipo)">{{ nombreCategoria(e.tipo) }}</span>
+                </td>
+                <td class="px-5 py-2.5">
+                  <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="e.disponible ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'">
                     {{ e.disponible ? 'Sí' : 'No' }}
                   </span>
                 </td>
-                <td class="px-6 py-3">
-                  <span
-                    class="text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap"
-                    :class="e.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'"
-                  >
+                <td class="px-5 py-2.5">
+                  <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="e.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'">
+                    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                     {{ e.activo ? 'Activo' : 'De baja' }}
                   </span>
                   <template v-if="!e.activo && (e.motivo_baja || e.dado_de_baja_el)">
@@ -415,20 +451,21 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                     <p v-if="e.dado_de_baja_el" class="mt-0.5 text-[11px] text-gray-400">Desde el {{ fechaCorta(e.dado_de_baja_el) }}</p>
                   </template>
                 </td>
-                <td class="px-6 py-3">
+                <td class="px-5 py-2.5 text-right">
                   <button
-                    @click="pedirCambioActivo(e)"
                     :disabled="e.activo && !e.disponible"
                     :title="e.activo && !e.disponible ? 'No se puede dar de baja un recurso que está prestado' : ''"
-                    class="text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                    :class="e.activo ? 'text-red-600 hover:text-red-700' : 'text-indigo-700 hover:text-indigo-800'"
+                    class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    :class="e.activo ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'"
+                    @click="pedirCambioActivo(e)"
                   >
+                    <svg v-if="e.activo" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M18.16 19.673A2.25 2.25 0 0115.916 21.75H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                     {{ e.activo ? 'Dar de baja' : 'Reactivar' }}
                   </button>
                 </td>
               </tr>
               <tr v-if="!cargando && !visibles.length">
-                <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">Sin recursos registrados{{ filtroCategoria ? ' en esta categoría' : '' }}.</td>
+                <td colspan="6" class="px-5 py-8 text-center text-sm text-gray-400">Sin recursos registrados{{ filtroCategoria ? ' en esta categoría' : '' }}.</td>
               </tr>
             </tbody>
           </table>
