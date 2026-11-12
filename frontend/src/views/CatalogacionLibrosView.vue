@@ -663,7 +663,7 @@ async function confirmarGuardar() {
     } else {
       const { data } = await api.post<Libro>('/libros', { ...payload, codigo_barras: null })
       if (desdeBorrador.value) descartarBorrador()
-      toast.success(`Ficha creada: agregue ahora los ejemplares de «${data.titulo}»`)
+      toast.success(`Ficha N.º ${data.numero_ficha} creada: agregue ahora los ejemplares de «${data.titulo}»`)
       confirmandoGuardar.value = false
       resetForm()
       await Promise.all([cargar(), cargarCatalogos()])
@@ -896,7 +896,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               Volver al listado
             </router-link>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">{{ modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material' }}</h1>
-            <p v-if="modo === 'nuevo' && editandoId" class="truncate text-sm text-white/75">{{ libroEditado?.titulo }}</p>
+            <p v-if="modo === 'nuevo' && editandoId" class="truncate text-sm text-white/75"><template v-if="libroEditado?.numero_ficha">Ficha N.º <span class="font-mono font-semibold text-white">{{ libroEditado.numero_ficha }}</span> · </template>{{ libroEditado?.titulo }}</p>
           </div>
           <PestanasLibros actual="catalogacion-libros" en-banda class="relative mt-3 px-5" />
         </div>
@@ -1328,7 +1328,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           <template v-else>
             <!-- 1. Obra -->
             <SeccionFicha id="seccion-obra" :numero="1" titulo="Obra" detalle="Busca el título ya catalogado" tono="indigo">
-              <label for="cat-buscar-obra" :class="ETIQUETA">Título, autor, ISBN o código de barras</label>
+              <label for="cat-buscar-obra" :class="ETIQUETA">Título, autor, ISBN, código de barras o N.º de ficha</label>
               <div class="relative">
                 <input autocomplete="off"
                   id="cat-buscar-obra"
@@ -1348,6 +1348,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   >
                     <p class="font-medium text-gray-900">{{ l.titulo }}</p>
                     <p class="text-xs text-gray-500">
+                      <span class="font-mono text-gray-700">Ficha N.º {{ l.numero_ficha }}</span> ·
                       <template v-if="l.autores?.length">{{ l.autores.map((a) => a.nombre).join('; ') }} · </template>{{ l.ejemplares_count ?? l.ejemplares?.length ?? 0 }} copia(s)
                     </p>
                     <p v-if="l.ejemplares?.length" class="mt-0.5 truncate font-mono text-[11px] text-gray-400">
@@ -1359,6 +1360,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div v-if="libroParaCopia" class="mt-4 flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-gray-900">{{ libroParaCopia.titulo }}</p>
+                  <p class="mt-0.5 text-xs font-semibold text-indigo-800">Ficha N.º <span class="font-mono">{{ libroParaCopia.numero_ficha }}</span></p>
                   <p class="text-xs text-gray-500">{{ libroParaCopia.ejemplares_count ?? libroParaCopia.ejemplares?.length ?? 0 }} copia(s) ya catalogada(s)</p>
                   <div v-if="libroParaCopia.ejemplares?.length" class="mt-2 flex flex-wrap gap-1">
                     <span
@@ -1568,7 +1570,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             <input autocomplete="off"
               v-model="busqueda"
               type="text"
-              placeholder="Título, autor o código de barras"
+              placeholder="Título, autor, código o N.º de ficha"
               :class="[CAMPO, 'pl-10']"
               aria-label="Buscar títulos catalogados"
               @input="onBuscarInput"
@@ -1579,6 +1581,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           <table class="w-full">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50">
+                <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">N.º ficha</th>
                 <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Título</th>
                 <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Clasificación</th>
                 <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Copias</th>
@@ -1587,6 +1590,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="l in libros" :key="l.id" class="align-top transition-colors hover:bg-indigo-50/40" :class="editandoId === l.id ? 'bg-amber-50/60' : ''">
+                <td class="px-5 py-3 font-mono text-sm font-semibold text-gray-700">{{ l.numero_ficha }}</td>
                 <td class="px-5 py-3 text-sm text-gray-900">
                   {{ l.titulo }}
                   <p v-if="l.autores?.length" class="text-xs text-gray-500">{{ l.autores.map((a) => a.nombre).join(' · ') }}</p>
@@ -1613,7 +1617,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </td>
               </tr>
               <tr v-if="!cargando && !libros.length">
-                <td colspan="4" class="px-6 py-8 text-center text-sm text-gray-400">Sin títulos que coincidan con la búsqueda.</td>
+                <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-400">Sin títulos que coincidan con la búsqueda.</td>
               </tr>
             </tbody>
           </table>

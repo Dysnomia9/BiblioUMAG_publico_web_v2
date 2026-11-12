@@ -37,6 +37,9 @@ class Libro extends Model
     {
         return [
             'anio_publicacion' => 'integer',
+            // Lo pone la base (secuencia libros_numero_ficha_seq; las de Horizon, su bib#):
+            // no está en $fillable, nadie lo elige ni lo cambia.
+            'numero_ficha' => 'integer',
             // Solo la escribe la migración desde Horizon: no está en $fillable.
             'fecha_ingreso_horizon' => 'date:Y-m-d',
         ];

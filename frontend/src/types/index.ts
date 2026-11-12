@@ -304,6 +304,8 @@ export type Ejemplar = {
 /** Registro bibliográfico (la "obra") — puede tener una o varias copias físicas (`Ejemplar`). */
 export type Libro = {
   id: number
+  /** N.º de ficha: único, lo pone el sistema (las de Horizon conservan su bib#). Sirve para buscarla. */
+  numero_ficha: number
   titulo: string
   isbn: string | null
   /** Los demás ISBN del título, separados por «; » (el de la colección, el de otros tomos). */
@@ -915,7 +917,7 @@ export type Paginado<T> = {
 
 /** Historial de libros: una fila de la lista (el detalle de préstamos se pide aparte). */
 export type LibroHistorialItem = {
-  libro: Pick<Libro, 'id' | 'titulo' | 'isbn' | 'clasificacion'>
+  libro: Pick<Libro, 'id' | 'numero_ficha' | 'titulo' | 'isbn' | 'clasificacion'>
   copias: number
   total_prestamos: number
 }

@@ -223,11 +223,13 @@ class LibroController extends Controller
 
             return $libro;
         });
+        // El N.º de ficha lo pone la base al insertar: se lee para devolverlo.
+        $libro->refresh();
 
         $codigo = $data['codigo_barras'] ?? null;
         Bitacora::registrar(
             'libros.catalogar',
-            $codigo ? "Catalogó «{$libro->titulo}» con su primera copia ({$codigo})" : "Creó la ficha de «{$libro->titulo}», todavía sin ejemplares",
+            $codigo ? "Catalogó «{$libro->titulo}» (ficha N.º {$libro->numero_ficha}) con su primera copia ({$codigo})" : "Creó la ficha N.º {$libro->numero_ficha}, «{$libro->titulo}», todavía sin ejemplares",
             entidad: $libro,
             datos: ['codigo_barras' => $codigo, 'isbn' => $libro->isbn],
         );
@@ -275,16 +277,16 @@ class LibroController extends Controller
         $busqueda = $request->query('q');
 
         $query = Libro::query()
-            ->select(['id', 'titulo', 'isbn', 'clasificacion'])
+            ->select(['id', 'numero_ficha', 'titulo', 'isbn', 'clasificacion'])
             ->withCount(['ejemplares as copias', 'prestamos as total_prestamos']);
 
         if ($busqueda) {
-            $query->whereIn('libros.id', BusquedaLibros::ids($busqueda, ['titulo', 'isbn', 'codigos']));
+            $query->whereIn('libros.id', BusquedaLibros::ids($busqueda, ['titulo', 'isbn', 'codigos', 'numero_ficha']));
         }
 
         return response()->json(
             OrdenAlfabetico::porTitulo($query)->orderBy('id')->paginate(Paginacion::porPagina($request, 30, 200))->through(fn (Libro $libro) => [
-                'libro' => $libro->only(['id', 'titulo', 'isbn', 'clasificacion']),
+                'libro' => $libro->only(['id', 'numero_ficha', 'titulo', 'isbn', 'clasificacion']),
                 'copias' => $libro->copias,
                 'total_prestamos' => $libro->total_prestamos,
             ])

@@ -16,7 +16,7 @@ final class BusquedaLibros
 {
     // isbn_sin_guiones también en el personal: el lector lee el código de barras del libro sin
     // guiones («9789564006062») y el ISBN pudo catalogarse con ellos («978-956-400-606-2»).
-    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'clasificacion', 'isbn', 'isbn_sin_guiones', 'issn', 'autores', 'profesor_guia', 'codigos'];
+    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'clasificacion', 'isbn', 'isbn_sin_guiones', 'issn', 'autores', 'profesor_guia', 'codigos', 'numero_ficha'];
 
     public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'autores', 'categorias', 'isbn_sin_guiones'];
 
@@ -61,7 +61,7 @@ final class BusquedaLibros
         // índice). La clasificación se busca siempre: ~1.250 revistas se ubican por un nombre
         // sin dígitos («Memoria anualFulbright», «Acanthus»), y tiene su índice de trigramas.
         if (! Busqueda::tieneDigito($texto)) {
-            $campos = array_diff($campos, ['codigos', 'isbn', 'issn', 'isbn_sin_guiones']);
+            $campos = array_diff($campos, ['codigos', 'isbn', 'issn', 'isbn_sin_guiones', 'numero_ficha']);
         }
 
         $partes = [];
@@ -90,6 +90,11 @@ final class BusquedaLibros
                     ->whereRaw(Busqueda::sinTildes('categorias.nombre').' ilike ?', [$sinTildes]),
                 // El código de 14 dígitos o el de lomo de cualquiera de sus copias, o su número
                 // de registro de Horizon (exacto: «307» no trae todos los que lo contienen).
+                // El N.º de ficha, exacto: «307» es la ficha 307, no todas las que lo contienen.
+                // También escrito con puntos o con «#»/«N.º» delante («64.534», «#64534»).
+                'numero_ficha' => ctype_digit($numero = preg_replace('/^(n\.?º?|#)\s*|\./iu', '', trim($texto))) && strlen($numero) <= 12
+                    ? $libros()->where('numero_ficha', (int) $numero)
+                    : null,
                 'codigos' => DB::table('ejemplares')->select('libro_id as id')
                     ->where(fn ($q) => $q->where('codigo_barras', 'ilike', $tal)->orWhere('codigo_lomo', 'like', $tal)->orWhere('numero_registro', trim($texto))),
             };
