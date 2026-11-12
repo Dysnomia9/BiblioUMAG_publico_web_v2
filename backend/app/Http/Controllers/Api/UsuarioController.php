@@ -34,16 +34,19 @@ class UsuarioController extends Controller
 
         if ($busqueda = $request->query('q')) {
             $documento = Documento::normalizar($busqueda);
-            $query->where(function ($q) use ($busqueda, $documento) {
-                // Las palabras del nombre en cualquier orden, aunque se salten segundos nombres.
-                $q->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
-                    ->orWhere('rut', 'ilike', "%{$busqueda}%")
-                    ->orWhereSinTildes('carrera', $busqueda)
-                    ->orWhere('email', 'ilike', "%{$busqueda}%")
-                    ->orWhereHas('correos', fn ($c) => $c->where('email', 'ilike', "%{$busqueda}%"))
-                    // RUT sin puntos ni guion, pasaporte o DNI.
-                    ->when(strlen($documento) >= 3, fn ($q) => $q->orWhereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
-            });
+            // Cada parte por separado (con su índice) y unidas en una sola lista de ids: con un
+            // OR y el whereHas de los correos, se revisaba usuario por usuario.
+            $usuarios = fn () => DB::table('usuarios')->select('id');
+            $ids = $usuarios()->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)   // en cualquier orden, aunque se salten segundos nombres
+                ->unionAll($usuarios()->where('rut', 'ilike', "%{$busqueda}%"))
+                ->unionAll($usuarios()->whereSinTildes('carrera', $busqueda))
+                ->unionAll($usuarios()->where('email', 'ilike', "%{$busqueda}%"))
+                ->unionAll(DB::table('usuario_correos')->select('usuario_id as id')->where('email', 'ilike', "%{$busqueda}%"));
+            if (strlen($documento) >= 3) {
+                // RUT sin puntos ni guion, pasaporte o DNI.
+                $ids->unionAll($usuarios()->whereRaw(Documento::sql('rut').' like ?', ["%{$documento}%"]));
+            }
+            $query->whereIn('usuarios.id', $ids);
         }
 
         if ($tipo = $request->query('tipo')) {
