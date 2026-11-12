@@ -48,9 +48,9 @@ class PortalController extends Controller
             'usuario' => $request->user(),
             // Horizon (el sistema legado) no distingue "quién sigue adentro": cada ingreso
             // se cierra en el mismo instante en que se registra (ver registrarEntrada()).
-            // "Personas en sala" es, en la práctica, el total de ingresos del día.
+            // "Personas en sala" es, en la práctica, el total de ingresos del día; por eso
+            // no se compara con un aforo.
             'personasEnSala' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
-            'capacidad' => config('biblioteca.aforo'),
             'horario' => HorarioBiblioteca::semana(),
         ]);
     }

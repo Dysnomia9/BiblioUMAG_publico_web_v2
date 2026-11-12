@@ -11,8 +11,6 @@ import type { ResumenDashboard } from '@/types'
 const resumenVacio: ResumenDashboard = {
   usuariosActivos: 0,
   entradasHoy: 0,
-  personasEnSala: 0,
-  aforo: 0,
   prestamosActivos: 0,
   prestamosAtrasados: 0,
   ultimasEntradas: [],
@@ -57,7 +55,7 @@ onMounted(async () => {
 <template>
   <StaffLayout>
     <div class="max-w-6xl mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
-      <!-- Encabezado: título, fecha y rol, y las dos cifras del día -->
+      <!-- Encabezado: título, fecha y rol, y los ingresos del día -->
       <section class="mb-4 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/60 shadow-sm">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
         <div class="flex flex-col gap-4 p-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
@@ -77,24 +75,8 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-2 lg:flex lg:shrink-0">
-            <div class="flex items-center gap-3 rounded-2xl border border-gray-200 border-l-4 border-l-emerald-400 bg-white px-4 py-3 shadow-sm lg:w-52">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87M9 12a4 4 0 100-8 4 4 0 000 8z" />
-                </svg>
-              </span>
-              <div class="min-w-0">
-                <p class="flex items-start gap-1.5 text-[11px] font-semibold uppercase leading-snug tracking-wider text-gray-600">
-                  <span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true"></span>
-                  Personas en biblioteca
-                </p>
-                <p class="mt-0.5 text-xl font-bold tabular-nums text-gray-900">
-                  {{ resumen.personasEnSala }} <span v-if="resumen.aforo" class="text-sm font-normal text-gray-400">/ {{ resumen.aforo }}</span>
-                </p>
-              </div>
-            </div>
-
+          <div class="sm:w-64 lg:w-auto lg:shrink-0">
+            <!-- Sin «personas en biblioteca» ni aforo: no se marca la salida, solo los ingresos. -->
             <div class="flex items-center gap-3 rounded-2xl border border-gray-200 border-l-4 border-l-indigo-400 bg-white px-4 py-3 shadow-sm lg:w-52">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">

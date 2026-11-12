@@ -16,7 +16,6 @@ const router = useRouter()
 const { confirmando: confirmandoConstancia, generando: generandoConstancia, generar: generarConstancia } = useConstancia()
 
 const personasEnSala = ref(0)
-const capacidad = ref(220)
 const horario = ref<HorarioBiblioteca | null>(null)
 const apiError = ref(false)
 const actividad = ref<ActividadPortal | null>(null)
@@ -64,7 +63,6 @@ async function cargar() {
   try {
     const { data } = await apiUsuario.get<EstadoPortal>('/mi/estado')
     personasEnSala.value = data.personasEnSala
-    capacidad.value = data.capacidad
     horario.value = data.horario
     apiError.value = false
   } catch {
@@ -228,12 +226,10 @@ function buscarEnCatalogo() {
           <p class="text-sm font-medium text-gray-500">Ingresos de hoy</p>
           <p class="mt-2 flex items-baseline gap-2">
             <span class="text-4xl font-serif font-bold text-gray-900">{{ personasEnSala }}</span>
-            <span class="text-sm text-gray-500">de un aforo de {{ capacidad }}</span>
+            <span class="text-sm text-gray-500">{{ personasEnSala === 1 ? 'ingreso' : 'ingresos' }}</span>
           </p>
-          <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
-            <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: `${Math.min(100, (personasEnSala / capacidad) * 100)}%` }" />
-          </div>
-          <p class="mt-2.5 text-xs text-gray-500">Personas que marcaron su entrada hoy.</p>
+          <!-- Sin aforo: no se marca la salida, así que no se sabe cuántos siguen adentro. -->
+          <p class="mt-2.5 text-xs text-gray-500">Entradas marcadas hoy en la biblioteca.</p>
         </section>
       </div>
 

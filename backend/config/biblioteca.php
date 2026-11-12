@@ -14,7 +14,4 @@ return [
         6 => ['09:00', '14:00'],
         7 => null,
     ],
-
-    // Capacidad de la biblioteca: el "de 220" de Entradas, el inicio del personal y el portal.
-    'aforo' => 220,
 ];

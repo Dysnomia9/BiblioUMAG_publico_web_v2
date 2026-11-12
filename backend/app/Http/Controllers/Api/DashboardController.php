@@ -17,12 +17,9 @@ class DashboardController extends Controller
         return response()->json([
             // Las que sirven hoy: una cuenta vencida guarda activo = true y su fecha ya pasada.
             'usuariosActivos' => Usuario::vigentes()->count(),
+            // Solo ingresos: no se marca la salida (como en Horizon), así que no se sabe
+            // cuántos siguen adentro ni tiene sentido compararlo con un aforo.
             'entradasHoy' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
-            // Horizon (el sistema legado) no distingue "quién sigue adentro": cada ingreso
-            // se cierra en el mismo instante en que se registra (ver EntradaController::
-            // store()). "Personas en sala" es, en la práctica, el total de ingresos del día.
-            'personasEnSala' => Entrada::whereDate('fecha_hora_entrada', $hoy)->count(),
-            'aforo' => config('biblioteca.aforo'),
             'prestamosActivos' => Prestamo::where('estado', '!=', 'devuelto')->count(),
             // El que vence hoy todavía no está atrasado, igual que en el Listado de préstamos.
             'prestamosAtrasados' => Prestamo::vencidos()->count(),

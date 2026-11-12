@@ -192,8 +192,6 @@ export type Multa = {
 export type ResumenDashboard = {
   usuariosActivos: number
   entradasHoy: number
-  personasEnSala: number
-  aforo: number
   prestamosActivos: number
   prestamosAtrasados: number
   ultimasEntradas: Entrada[]
@@ -428,7 +426,6 @@ export type ConfiguracionInstitucional = {
 export type EstadoPortal = {
   usuario: Usuario
   personasEnSala: number
-  capacidad: number
   horario: HorarioBiblioteca
 }
 
