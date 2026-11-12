@@ -326,20 +326,22 @@ const ordenPrestamos = (a: Prestamo, b: Prestamo) => Number(a.estado === 'devuel
 // Pestaña Recientes: todo lo de la persona (libros y recursos), del más nuevo al más viejo.
 const filasRecientes = computed(() => [...prestamos.value].sort((a, b) => b.fecha_prestamo.localeCompare(a.fecha_prestamo) || b.id - a.id))
 
-// Sin usuario: todo lo prestado ahora en la biblioteca.
+// Sin usuario: la actividad reciente, los últimos préstamos sin devolver (el resto, en el
+// Listado de préstamos).
+const RECIENTES = 10
 const prestadosAhora = ref<Prestamo[]>([])
 const totalPrestadosAhora = ref(0)
 const cargandoPrestados = ref(false)
 const textoPrestadosAhora = computed(() => {
   if (cargandoPrestados.value) return 'Cargando…'
   const n = totalPrestadosAhora.value
-  const extra = n > prestadosAhora.value.length ? ` · se muestran los ${prestadosAhora.value.length} más recientes` : ''
+  const extra = n > prestadosAhora.value.length ? ` · los ${prestadosAhora.value.length} más recientes` : ''
   return `${n} sin devolver${extra}`
 })
 async function cargarPrestadosAhora() {
   cargandoPrestados.value = true
   try {
-    const { data } = await api.get<{ data: Prestamo[]; total: number }>('/prestamos', { params: { vista: 'activos', por_pagina: 100 } })
+    const { data } = await api.get<{ data: Prestamo[]; total: number }>('/prestamos', { params: { vista: 'activos', por_pagina: RECIENTES } })
     prestadosAhora.value = data.data
     totalPrestadosAhora.value = data.total
   } catch {
@@ -1323,8 +1325,11 @@ function formatHora(iso: string | null) {
 
         <template v-if="!usuario">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
-            <h3 class="font-semibold text-gray-900">Todo lo prestado ahora</h3>
-            <span class="text-xs text-gray-500">{{ textoPrestadosAhora }}</span>
+            <h3 class="font-semibold text-gray-900">Actividad reciente</h3>
+            <span class="flex items-center gap-3 text-xs text-gray-500">
+              {{ textoPrestadosAhora }}
+              <router-link v-if="totalPrestadosAhora > prestadosAhora.length" :to="{ name: 'listado-prestamos' }" class="font-semibold text-indigo-700 hover:underline">Ver todos</router-link>
+            </span>
           </div>
           <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_6.5rem_8.5rem_6.5rem_7rem] md:gap-3">
             <span>Material</span><span>Usuario</span><span>Préstamo</span><span>Devolución</span><span>Estado</span><span>Acción</span>
