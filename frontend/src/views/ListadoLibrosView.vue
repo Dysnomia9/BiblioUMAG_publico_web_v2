@@ -12,6 +12,7 @@ import Paginador from '@/components/ui/Paginador.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import api from '@/services/api'
+import { esBusquedaCorta } from '@/utils/busqueda'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
@@ -217,6 +218,8 @@ function filtrarPorAutor(a: Autor | null) {
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
 function onBuscarInput() {
   clearTimeout(buscarTimer)
+  // 1 o 2 letras recorren todo el catálogo: se busca al seguir escribiendo o con Enter
+  if (esBusquedaCorta(filtros.q) || esBusquedaCorta(filtros.materia)) return
   buscarTimer = setTimeout(filtrar, 350)
 }
 
@@ -524,6 +527,7 @@ function copiaGuardada(actualizada: Ejemplar) {
               class="h-10 w-52 rounded-xl border bg-white pl-8 pr-3 text-sm font-medium outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
               :class="filtros.materia.trim() ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'"
               @input="onBuscarInput"
+              @keydown.enter.prevent="buscarAhora"
             />
           </div>
         </template>

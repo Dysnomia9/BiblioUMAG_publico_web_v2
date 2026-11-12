@@ -15,6 +15,7 @@ import PasosCatalogacion from '@/components/libros/PasosCatalogacion.vue'
 import { normalizarMateria } from '@/utils/materia'
 import { TONOS_FICHA, type TonoFicha } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
+import { esBusquedaCorta } from '@/utils/busqueda'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
@@ -502,6 +503,8 @@ onBeforeUnmount(() => {
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
 function onBuscarInput() {
   clearTimeout(buscarTimer)
+  // 1 o 2 letras recorren todo el catálogo: se busca al seguir escribiendo
+  if (esBusquedaCorta(busqueda.value)) return
   buscarTimer = setTimeout(() => {
     paginaLibros.value = 1
     cargar()
@@ -772,6 +775,7 @@ function onBuscarCopiaInput() {
       resultadosCopia.value = []
       return
     }
+    if (esBusquedaCorta(texto)) return
     try {
       const { data } = await api.get<Paginado<Libro>>('/libros', { params: { q: texto, por_pagina: 15 } })
       // Si mientras tanto se siguió escribiendo o se eligió una obra, esta respuesta ya no sirve.

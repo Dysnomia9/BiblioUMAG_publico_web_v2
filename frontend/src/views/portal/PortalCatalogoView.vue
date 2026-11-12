@@ -9,6 +9,7 @@ import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import apiUsuario from '@/services/apiUsuario'
+import { esBusquedaCorta } from '@/utils/busqueda'
 import { useToast } from '@/composables/useToast'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { CondicionesReservaLibro, LibroCatalogo, Paginado, ReservaLibro } from '@/types'
@@ -130,6 +131,8 @@ async function cargarCondiciones() {
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 watch(busqueda, () => {
   clearTimeout(debounceTimer)
+  // 1 o 2 letras recorren todo el catálogo: se busca al seguir escribiendo
+  if (esBusquedaCorta(busqueda.value)) return
   debounceTimer = setTimeout(() => cargar(), 350)
 })
 onUnmounted(() => clearTimeout(debounceTimer))
