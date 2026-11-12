@@ -294,9 +294,9 @@ function irA(clave: string) {
 // ---------- Obligatorios ----------
 type Requisito = { texto: string; listo: boolean; seccion: string }
 
+// El título no es obligatorio: sin él la ficha queda «Sin título» (lo pone el servidor).
 const obligatoriosNuevo = computed<Requisito[]>(() => {
   const lista: Requisito[] = []
-  lista.push({ texto: `Título (${etiqueta('titulo') || '245'})`, listo: !!form.titulo.trim(), seccion: 'titulo' })
   if (tiene('autor_principal')) {
     lista.push({
       texto: tiene('entidad_corporativa') ? 'Autor principal (100) o entidad (110)' : 'Autor principal (100)',
@@ -593,6 +593,8 @@ watch(
 )
 
 const confirmandoGuardar = ref(false)
+/** El título con que queda guardada la ficha: vacío es «Sin título», como lo guarda el servidor. */
+const tituloAGuardar = computed(() => form.titulo.trim() || 'Sin título')
 const ubicacionElegida = computed(() => ubicacionesOpciones.value.find((u) => u.id === form.ubicacion_id)?.nombre ?? null)
 
 function pedirConfirmacionGuardar() {
@@ -1074,8 +1076,8 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             <SeccionFicha id="seccion-titulo" :numero="numeroDe('titulo')" titulo="Título y autoría" :detalle="seccionDe('titulo')?.detalle ?? ''" tono="dorado">
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div :class="tiene('edicion') ? 'sm:col-span-4' : 'sm:col-span-6'">
-                  <label for="cat-titulo" :class="ETIQUETA"><Marc :codigo="etiqueta('titulo') || '245'" tono="dorado" /> Título <span class="text-red-600">*</span></label>
-                  <input autocomplete="off" id="cat-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
+                  <label for="cat-titulo" :class="ETIQUETA"><Marc :codigo="etiqueta('titulo') || '245'" tono="dorado" /> Título</label>
+                  <input autocomplete="off" id="cat-titulo" v-model="form.titulo" placeholder="Título de la obra (si se deja vacío, queda «Sin título»)" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('edicion')" class="sm:col-span-2">
                   <label for="cat-edicion" :class="ETIQUETA"><Marc :codigo="etiqueta('edicion')" tono="dorado" /> Edición</label>
@@ -1495,7 +1497,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </div>
           </div>
 
-          <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div v-if="obligatorios.length" class="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <p class="flex items-center justify-between gap-2 rounded-t-2xl border-b border-amber-100 bg-amber-50 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-dorado-700">
               Obligatorios
               <span class="rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] tabular-nums">{{ obligatorios.filter((o) => o.listo).length }} de {{ obligatorios.length }}</span>
@@ -1685,15 +1687,15 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
     >
       <template v-if="!editandoId" #antesDelTitulo><PasosCatalogacion :actual="1" /></template>
       <p v-if="editandoId" class="text-[15px] text-gray-600">
-        Se guardarán los cambios de <strong class="text-gray-900">{{ form.titulo.trim() }}</strong>. Se ven de inmediato en el listado y, si tiene
+        Se guardarán los cambios de <strong class="text-gray-900">{{ tituloAGuardar }}</strong>. Se ven de inmediato en el listado y, si tiene
         copias en estante, en el portal.
       </p>
       <template v-else>
         <p class="text-[15px] text-gray-600">Se creará la ficha bibliográfica:</p>
         <div class="mt-3 flex items-start gap-3.5 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-          <PortadaMaterial class="shadow-sm" :titulo="form.titulo.trim()" :tipo="tipoActual?.nombre ?? null" :clave-tono="vista?.claveTono ?? null" />
+          <PortadaMaterial class="shadow-sm" :titulo="tituloAGuardar" :tipo="tipoActual?.nombre ?? null" :clave-tono="vista?.claveTono ?? null" />
           <div class="min-w-0">
-            <p class="text-base font-bold leading-snug text-gray-900">{{ form.titulo.trim() }}</p>
+            <p class="text-base font-bold leading-snug text-gray-900">{{ tituloAGuardar }}</p>
             <p v-if="form.autores.length" class="mt-0.5 truncate text-[15px] text-gray-600">{{ form.autores.join(' · ') }}</p>
             <p class="mt-2 flex flex-wrap gap-1.5 text-[13px] font-semibold">
               <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700">{{ tipoActual?.nombre ?? 'Libro' }}</span>

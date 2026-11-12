@@ -28,6 +28,27 @@ class FichaSinEjemplaresTest extends TestCase
         $this->assertSame(0, $libro->ejemplares()->count());
     }
 
+    public function test_se_cataloga_sin_titulo_y_queda_sin_titulo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+
+        $this->postJson('/api/libros', ['titulo' => '', 'codigo_barras' => null])
+            ->assertStatus(201)
+            ->assertJsonPath('titulo', Libro::SIN_TITULO);
+        $this->postJson('/api/libros', ['codigo_barras' => null])
+            ->assertStatus(201)
+            ->assertJsonPath('titulo', Libro::SIN_TITULO);
+
+        $libro = Libro::factory()->create(['titulo' => 'Con nombre']);
+        $this->patchJson("/api/libros/{$libro->id}", ['titulo' => ''])
+            ->assertOk()
+            ->assertJsonPath('titulo', Libro::SIN_TITULO);
+        // Lo que no se manda no se toca
+        $otro = Libro::factory()->create(['titulo' => 'Se queda']);
+        $this->patchJson("/api/libros/{$otro->id}", ['edicion' => '2a. ed.'])->assertOk();
+        $this->assertSame('Se queda', $otro->fresh()->titulo);
+    }
+
     public function test_una_ficha_sin_ejemplares_no_se_ve_en_el_portal(): void
     {
         $sinCopias = Libro::factory()->create(['titulo' => 'Sin copias']);

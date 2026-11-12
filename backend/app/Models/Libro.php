@@ -17,6 +17,9 @@ class Libro extends Model
 
     protected $table = 'libros';
 
+    /** Lo que se guarda cuando se cataloga sin título (lo mismo que pone el ETL a un registro de Horizon sin 245). */
+    public const SIN_TITULO = 'Sin título';
+
     /** Campos bibliográficos que se catalogan (ver App\Support\FichaBibliografica). */
     public const CAMPOS_BIBLIOGRAFICOS = [
         'titulo', 'isbn', 'otros_isbn', 'clasificacion', 'coleccion', 'editorial',

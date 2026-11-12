@@ -192,6 +192,8 @@ class LibroController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate($this->reglasCatalogacion());
+        // Se puede catalogar sin título: queda «Sin título», para corregirlo después.
+        $data['titulo'] = filled($data['titulo'] ?? null) ? $data['titulo'] : Libro::SIN_TITULO;
 
         $libro = DB::transaction(function () use ($data, $request) {
             $libro = Libro::create([
@@ -236,6 +238,9 @@ class LibroController extends Controller
     public function update(Request $request, Libro $libro)
     {
         $data = $request->validate($this->reglasCatalogacion($libro->id));
+        if (array_key_exists('titulo', $data) && blank($data['titulo'])) {
+            $data['titulo'] = Libro::SIN_TITULO;
+        }
 
         $antes = $libro->only(Libro::CAMPOS_BIBLIOGRAFICOS);
 
@@ -392,7 +397,8 @@ class LibroController extends Controller
                 // Sin código se crea solo la ficha (el registro bibliográfico, como en Horizon);
                 // las copias se agregan después desde «Nuevo ejemplar».
                 : ['nullable', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
-            'titulo' => ['required', 'string', 'max:1000'],
+            // Opcional: sin título la ficha queda como «Sin título» (Libro::SIN_TITULO).
+            'titulo' => ['nullable', 'string', 'max:1000'],
             'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn,' . ($ignorarLibroId ?? 'NULL') . ',id'],
             // Varios, separados por «;», y se pueden repetir entre títulos (el de la colección)
             'otros_isbn' => ['nullable', 'string', 'max:500'],
