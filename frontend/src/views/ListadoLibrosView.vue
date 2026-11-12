@@ -13,6 +13,7 @@ import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
+import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
 import { textoIngreso } from '@/utils/ingreso'
@@ -21,6 +22,7 @@ import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Autor, Carrera, Categoria, Ejemplar, ItemFicha, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
+const toast = useToast()
 const route = useRoute()
 
 function abrirMenuGestion() {
@@ -344,6 +346,13 @@ function restaurarDondeEstaba(): number | undefined {
 
 onMounted(async () => {
   filtroDesdeLaDireccion()
+  // Abierta en otra pestaña desde el «Editar» de una copia: el listado buscado en ese código
+  const codigoCopia = typeof route.query.editar_copia === 'string' ? route.query.editar_copia : ''
+  if (codigoCopia) {
+    filtros.q = codigoCopia
+    router.replace({ name: 'listado-libros' })
+    abrirCopiaPorCodigo(codigoCopia)
+  }
   const libroVuelto = restaurarDondeEstaba()
   cargarCatalogos()
   await cargar()
@@ -380,6 +389,19 @@ function irAEditar() {
   router.push({ name: 'catalogacion-libros', query: { editar: libro.id, desde: 'listado' } })
 }
 
+/** «Agregar copia» como enlace: Catalogación con la obra elegida, para abrirlo en otra pestaña. */
+const hrefAgregarCopia = (l: Libro) => router.resolve({ name: 'catalogacion-libros', query: { copia: l.id } }).href
+
+/** Clic normal: Catalogación aquí, recordando dónde estaba. Cmd/Ctrl/Mayús + clic o la rueda: otra pestaña. */
+function clicAgregarCopia(evento: MouseEvent, l: Libro) {
+  if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) {
+    menuAbierto.value = null
+    return
+  }
+  evento.preventDefault()
+  agregarCopia(l)
+}
+
 function agregarCopia(l: Libro) {
   guardarDondeEstaba(l.id)
   router.push({ name: 'catalogacion-libros', query: { copia: l.id, desde: 'listado' } })
@@ -387,6 +409,25 @@ function agregarCopia(l: Libro) {
 
 // ---------- Editar una copia (ubicación, volumen, colección y notas) ----------
 const copiaAEditar = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
+
+/** El «Editar» de una copia como enlace: el listado con esa copia y su cuadro de edición abierto. */
+const hrefEditarCopia = (e: Ejemplar) => router.resolve({ name: 'listado-libros', query: { editar_copia: e.codigo_barras } }).href
+
+/** Clic normal: el cuadro aquí mismo. Cmd/Ctrl/Mayús + clic o la rueda: el navegador lo abre en otra pestaña. */
+function clicEditarCopia(evento: MouseEvent, copia: Ejemplar, libro: Libro) {
+  if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
+  evento.preventDefault()
+  copiaAEditar.value = { copia, libro }
+}
+
+async function abrirCopiaPorCodigo(codigo: string) {
+  try {
+    const { data } = await api.get<Ejemplar & { libro: Libro }>(`/ejemplares/${encodeURIComponent(codigo)}`)
+    copiaAEditar.value = { copia: data, libro: data.libro }
+  } catch {
+    toast.error(`No se encontró la copia ${codigo}`)
+  }
+}
 
 function copiaGuardada(actualizada: Ejemplar) {
   const libro = copiaAEditar.value?.libro
@@ -626,9 +667,21 @@ function copiaGuardada(actualizada: Ejemplar) {
                         Editar en otra pestaña
                         <svg class="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
                       </a>
-                      <button v-if="puedeCatalogar" type="button" role="menuitem" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="agregarCopia(f.libro)">
+                      <a v-if="puedeCatalogar" role="menuitem" :href="hrefAgregarCopia(f.libro)" class="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="clicAgregarCopia($event, f.libro)">
                         Agregar copia
-                      </button>
+                      </a>
+                      <a
+                        v-if="puedeCatalogar"
+                        role="menuitem"
+                        :href="hrefAgregarCopia(f.libro)"
+                        target="_blank"
+                        rel="noopener"
+                        class="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        @click="menuAbierto = null"
+                      >
+                        Agregar copia en otra pestaña
+                        <svg class="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                      </a>
                       <router-link
                         v-if="puedeCatalogar"
                         role="menuitem"
@@ -701,15 +754,16 @@ function copiaGuardada(actualizada: Ejemplar) {
                       </div>
                       <div class="flex shrink-0 items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="situacionCopia(e).badge">{{ situacionCopia(e).texto }}</span>
-                        <button
+                        <a
                           v-if="puedeCatalogar"
-                          type="button"
+                          :href="hrefEditarCopia(e)"
+                          title="Cmd/Ctrl + clic: abrir en otra pestaña"
                           class="rounded-lg px-2 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-50"
                           :aria-label="`Editar la copia ${e.codigo_barras}`"
-                          @click="copiaAEditar = { copia: e, libro: f.libro }"
+                          @click="clicEditarCopia($event, e, f.libro)"
                         >
                           Editar
-                        </button>
+                        </a>
                         <!-- Abre Estado de ejemplares con esta copia ya elegida (la reconoce por su código). -->
                         <router-link
                           v-if="puedeCambiarEstado"
@@ -729,13 +783,14 @@ function copiaGuardada(actualizada: Ejemplar) {
                     </li>
                   </ul>
                   <div v-if="puedeCatalogar" class="px-4 pb-4 pt-2">
-                    <button
-                      type="button"
-                      class="rounded-lg border border-dashed border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
-                      @click="agregarCopia(f.libro)"
+                    <a
+                      :href="hrefAgregarCopia(f.libro)"
+                      title="Cmd/Ctrl + clic: abrir en otra pestaña"
+                      class="inline-block rounded-lg border border-dashed border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+                      @click="clicAgregarCopia($event, f.libro)"
                     >
                       + Agregar copia
-                    </button>
+                    </a>
                   </div>
                 </div>
                 <FasciculosRevista
