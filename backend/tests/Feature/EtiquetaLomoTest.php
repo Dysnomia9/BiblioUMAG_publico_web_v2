@@ -131,4 +131,19 @@ class EtiquetaLomoTest extends TestCase
 
         $this->getJson('/api/ejemplares/siguiente-codigo-barras?largo=otro')->assertStatus(422);
     }
+
+    public function test_en_tomo_va_solo_el_tomo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $libro = Libro::factory()->create();
+
+        // Con la copia escrita, se toma el tomo: la copia la numera el sistema
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000777001', 'tomo' => 't.1 c.2'])
+            ->assertCreated()->assertJsonPath('tomo', 't.1');
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000777002', 'tomo' => 'Tomo 1'])
+            ->assertCreated()->assertJsonPath('tomo', 't.1')->assertJsonPath('volumen', 't.1 c.1');
+        // Lo que no es un tomo no se guarda
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000777003', 'tomo' => 't.1 c..2'])
+            ->assertStatus(422)->assertJsonValidationErrors('tomo');
+    }
 }

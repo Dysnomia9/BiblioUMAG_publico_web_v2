@@ -386,11 +386,22 @@ const formCopia = reactive(copiaVacia())
 
 // ---------- Tomo de la copia (obras en varios tomos, como en Horizon: «t.1 c.2») ----------
 /** «Tomo 1», «T1», «t. 1» → «t.1»; «Vol 2» → «v.2» (lo mismo que App\Support\TomoEjemplar). */
-function normalizarTomo(texto: string) {
+/**
+ * Lee lo escrito en «Tomo»: solo el tomo («t.1», «Tomo 1», «v.2»). Si trae también la copia
+ * («t.1 c.2»), se toma el tomo y se avisa: la copia la numera el sistema. Lo que no es un tomo
+ * («t.1 c..2», «primero») no vale: se avisa y no deja guardar (el servidor tampoco lo acepta).
+ */
+function leerTomo(texto: string): { tomo: string; valido: boolean; traiaCopia: boolean } {
   const t = texto.replace(/\s+/g, ' ').trim()
-  const m = t.match(/^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)$/i)
-  return m ? `${m[1].charAt(0).toLowerCase()}.${m[2].toLowerCase()}` : t
+  if (!t) return { tomo: '', valido: true, traiaCopia: false }
+  const m = t.match(/^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)\s*(?:[-,;/]\s*|\s)?(?:(?:c|copia)\.?\s*(\d+))?\.?$/i)
+  if (!m) return { tomo: t, valido: false, traiaCopia: false }
+  return { tomo: `${m[1].charAt(0).toLowerCase()}.${m[2].toLowerCase()}`, valido: true, traiaCopia: !!m[3] }
 }
+function normalizarTomo(texto: string) {
+  return leerTomo(texto).tomo
+}
+const tomoLeido = computed(() => leerTomo(formCopia.tomo))
 /** Los tomos que ya tiene la obra elegida, con cuántas copias, para elegir uno o escribir otro. */
 const tomosDeLaObra = computed(() => {
   const cuenta = new Map<string, number>()
@@ -418,6 +429,7 @@ function copiaGuardada(actualizada: Ejemplar) {
 }
 
 const copiaDelTomo = computed(() => {
+  if (!tomoLeido.value.valido) return null
   const tomo = normalizarTomo(formCopia.tomo)
   if (!tomo) return null
   const delTomo = (libroParaCopia.value?.ejemplares ?? []).filter((e) => e.tomo === tomo)
@@ -1037,6 +1049,11 @@ const confirmandoCopia = ref(false)
 const ubicacionCopia = computed(() => ubicacionesOpciones.value.find((u) => u.id === formCopia.ubicacion_id)?.nombre ?? null)
 
 function pedirConfirmacionCopia() {
+  if (!tomoLeido.value.valido) {
+    toast.error('En «Tomo» va solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema')
+    document.getElementById('copia-tomo')?.focus()
+    return
+  }
   const falta = obligatoriosCopia.value.filter((o) => !o.listo)
   if (falta.length) {
     toast.error(`Falta completar: ${falta.map((o) => o.texto).join(', ')}`)
@@ -1056,7 +1073,7 @@ async function confirmarAgregarCopia() {
       codigo_barras: formCopia.codigo_barras,
       ubicacion_id: formCopia.ubicacion_id === '' ? null : Number(formCopia.ubicacion_id),
       volumen: formCopia.tomo.trim() ? null : formCopia.volumen || null,
-      tomo: formCopia.tomo.trim() || null,
+      tomo: normalizarTomo(formCopia.tomo) || null,
       precio: formCopia.precio === '' ? null : Number(formCopia.precio),
       forma_adquisicion: formCopia.forma_adquisicion || null,
       coleccion: formCopia.coleccion.trim() || null,
@@ -1762,7 +1779,13 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-tomo" :class="ETIQUETA">Tomo <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
-                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1" :class="CAMPO" />
+                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1 o Tomo 1" :aria-invalid="!tomoLeido.valido" :class="[CAMPO, !tomoLeido.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p v-if="!tomoLeido.valido" class="mt-1 text-[11px] font-semibold text-red-700">
+                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.
+                  </p>
+                  <p v-else-if="tomoLeido.traiaCopia" class="mt-1 text-[11px] text-amber-800">
+                    El número de copia lo pone el sistema: se toma solo el tomo, <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>.
+                  </p>
                   <datalist id="tomos-de-la-obra">
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ partesCopia(t.tomo, null).tomo ?? t.tomo }} · {{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>

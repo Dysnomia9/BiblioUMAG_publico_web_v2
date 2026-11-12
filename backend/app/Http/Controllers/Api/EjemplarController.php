@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EjemplarController extends Controller
 {
@@ -56,6 +57,16 @@ class EjemplarController extends Controller
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
             ...self::reglasNotasYColeccion(),
         ]);
+
+        // En «tomo» va solo el tomo («t.1», «Tomo 1»); si trae la copia («t.1 c.2») se toma el
+        // tomo (la copia la numera el sistema). Lo que no es un tomo no se guarda.
+        if (filled($data['tomo'] ?? null)) {
+            [$tomoEscrito] = TomoEjemplar::desdeEtiqueta($data['tomo']);
+            if ($tomoEscrito === null) {
+                throw ValidationException::withMessages(['tomo' => 'En «Tomo» va solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.']);
+            }
+            $data['tomo'] = $tomoEscrito;
+        }
 
         $ejemplar = DB::transaction(function () use ($data) {
             $siguienteNumero = Ejemplar::siguienteNumero((int) $data['libro_id']);
