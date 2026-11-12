@@ -216,6 +216,31 @@ function quitarTituloAlternativo(i: number) {
   guardarTitulosAlternativos()
 }
 
+/**
+ * La guía de la clasificación: un ejemplo de cómo están escritas las del catálogo, separado
+ * en sus partes. Cada plantilla tiene la suya (sacadas de lo migrado de Horizon):
+ * libros «001.42 S116c 1998», tesis «T A116i 1999» (sin clase Dewey), juegos «JE1 V986j 2020»;
+ * las revistas se ubican por su nombre, sin partes.
+ */
+const guiaClasificacion = computed<{ ejemplo: string; partes: { valor: string; parte: string; que: string }[]; nota?: string }>(() => {
+  const cutter = (valor: string) => ({ valor, parte: 'Cutter', que: 'autor + inicial del título' })
+  const anio = (valor: string, que = 'de la edición') => ({ valor, parte: 'Año', que })
+  switch (tipoActual.value?.plantilla) {
+    case 'trabajo_titulacion':
+      return {
+        ejemplo: 'T A473p 2013',
+        partes: [{ valor: 'T', parte: 'Prefijo', que: 'T, P, I, TE o D' }, cutter('A473p'), anio('2013', 'de la tesis')],
+        nota: 'Las tesis no llevan clase Dewey: el prefijo, el Cutter del autor y el año.',
+      }
+    case 'juego_educativo':
+      return { ejemplo: 'JE1 V986j 2020', partes: [{ valor: 'JE1', parte: 'Código', que: 'del juego' }, cutter('V986j'), anio('2020')] }
+    case 'publicacion_seriada':
+      return { ejemplo: 'Revista Chilena de Historia', partes: [], nota: 'Las revistas se ubican por su nombre, tal como está en el estante (ej: «Memoria anual»).' }
+    default:
+      return { ejemplo: '813.54 G216n 2020', partes: [{ valor: '813.54', parte: 'Clase', que: 'el tema (Dewey)' }, cutter('G216n'), anio('2020')] }
+  }
+})
+
 /** 490 también es repetible: cada serie en su casilla; se guardan una por línea («Serie Harry Potter ; 1»). */
 const series = ref<string[]>([''])
 function cargarSeries() {
@@ -1144,10 +1169,22 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <input autocomplete="off"
                     id="cat-clasificacion"
                     v-model="form.clasificacion"
-                    :placeholder="etiqueta('clasificacion') === '082' ? 'Ej: 813.54 G216n 2020' : 'Ej: T 005.1 C764s 2023'"
+                    :placeholder="`Ej: ${guiaClasificacion.ejemplo}`"
+                    aria-describedby="cat-clasificacion-guia"
                     :class="[CAMPO, 'font-mono']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Clase · Cutter · Año</p>
+                  <!-- Guía: el ejemplo separado en sus partes, con qué es cada una -->
+                  <div id="cat-clasificacion-guia" class="mt-2 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                    <p v-if="guiaClasificacion.partes.length" class="text-[11px] font-semibold text-indigo-900">Cómo se escribe, separado por espacios:</p>
+                    <div v-if="guiaClasificacion.partes.length" class="mt-1.5 flex flex-wrap items-start gap-1.5">
+                      <div v-for="p in guiaClasificacion.partes" :key="p.parte" class="text-center">
+                        <span class="block rounded-md border border-indigo-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ p.valor }}</span>
+                        <span class="mt-0.5 block text-[11px] font-semibold text-indigo-800">{{ p.parte }}</span>
+                        <span class="block text-[10px] leading-tight text-gray-500">{{ p.que }}</span>
+                      </div>
+                    </div>
+                    <p v-if="guiaClasificacion.nota" class="text-[11px] leading-snug text-indigo-900" :class="guiaClasificacion.partes.length ? 'mt-1.5' : ''">{{ guiaClasificacion.nota }}</p>
+                  </div>
                 </div>
                 <div v-if="tiene('idioma')" class="sm:col-span-3">
                   <label for="cat-idioma" :class="ETIQUETA"><Marc :codigo="etiqueta('idioma')" tono="indigo" /> Idioma</label>
