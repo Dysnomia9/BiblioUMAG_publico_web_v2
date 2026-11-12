@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode'
+import { leerTomoCopia } from '@/utils/tomo'
 
 /**
  * Etiqueta de lomo: la que se pega por fuera, donde se afirman las hojas. Es
@@ -47,12 +48,15 @@ export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_cop
 }
 
 /**
- * El tomo o el número de la revista: «4» → «v.4»; «v.2» o «t.1-c.3», tal cual; uno largo
+ * El tomo o el número de la revista, como en los lomos de la biblioteca: cada parte en su
+ * renglón («t.1-v.II c.2» → «t.1», «v.II», «c.2»; «t.1-c.3» → «t.1», «c.3»); «4» → «v.4»; uno largo
  * («Año IV No. 4 (Jul.-Aug., 1985)») en renglones cortos y sin paréntesis («Año IV»,
  * «No. 4», «Jul.-Aug.», «1985»), para que la letra no se achique en todo el lomo.
  */
 function lineasDeVolumen(volumen: string): string[] {
   if (/^\d+$/.test(volumen)) return [`v.${volumen}`]
+  const tomo = leerTomoCopia(volumen)
+  if (tomo) return [...tomo.clave.split('-'), ...(tomo.copia ? [`c.${tomo.copia}`] : [])]
   const lineas: string[] = []
   for (const palabra of volumen.replace(/[()]/g, ' ').split(/\s+/).map((p) => p.replace(/,$/, '')).filter(Boolean)) {
     const ultima = lineas.length - 1

@@ -44,9 +44,9 @@ class Ejemplar extends Model
     protected $appends = ['etiqueta_copia'];
 
     /**
-     * «c.2» como se rotula la copia: la «c.N» que figura en la signatura y en el lomo. La de
-     * Horizon lleva su «c.N» (copia_tomo) o nada si allá no tenía «c.»; una copia creada en
-     * BiblioUMAG, su número (la 0, sin «c.»). numero_copia no se repite dentro de un título.
+     * «c.2» como se rotula la copia: la «c.N» que figura en la signatura y en el lomo
+     * (copia_tomo), o nada si no tiene. Las de Horizon traen la suya; las creadas aquí, la que
+     * escribió quien catalogó (o la que se calculó). numero_copia es interno y no se muestra.
      */
     public function getEtiquetaCopiaAttribute(): ?string
     {
@@ -59,12 +59,8 @@ class Ejemplar extends Model
         if (! empty($atributos['copia_tomo'])) {
             return "c.{$atributos['copia_tomo']}";
         }
-        // De Horizon sin «c.», o la primera copia de un tomo («t.4» sola): sin número
-        if (! empty($atributos['fecha_ingreso_horizon']) || ! empty($atributos['tomo'])) {
-            return null;
-        }
-
-        return ($atributos['numero_copia'] ?? 0) > 0 ? "c.{$atributos['numero_copia']}" : null;
+        // Sin «c.»: de Horizon sin número, la primera de un tomo («t.4» sola) o una que se catalogó sin número
+        return null;
     }
 
     /** Para los mensajes: «copia 2» (la de Horizon y el lomo) o «copia sin número». */

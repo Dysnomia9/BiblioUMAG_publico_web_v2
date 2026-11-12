@@ -385,7 +385,7 @@ const obligatoriosNuevo = computed<Requisito[]>(() => [])
 const libroParaCopia = ref<Libro | null>(null)
 const busquedaCopia = ref('')
 const resultadosCopia = ref<Libro[]>([])
-const copiaVacia = () => ({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', tomo: '', parte: '', precio: '' as number | '', forma_adquisicion: '', coleccion: '', nota_publica: '', nota_interna: '' })
+const copiaVacia = () => ({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', tomo: '', parte: '', copia: '', precio: '' as number | '', forma_adquisicion: '', coleccion: '', nota_publica: '', nota_interna: '' })
 const formCopia = reactive(copiaVacia())
 
 // ---------- Tomo de la copia (obras en varios tomos, como en Horizon: «t.1 c.2») ----------
@@ -393,7 +393,7 @@ const formCopia = reactive(copiaVacia())
 /**
  * Lee lo escrito en «Tomo»: solo el tomo («t.1», «Tomo 1», «v.2») o tomo y volumen juntos,
  * como en Horizon («t.1-v.II»). Si trae también la copia («t.1 c.2»), se toma el tomo y se
- * avisa: la copia la numera el sistema. Lo que no es un tomo («t.1 c..2», «primero») no vale:
+ * avisa: el número de copia va en su casilla. Lo que no es un tomo («t.1 c..2», «primero») no vale:
  * se avisa y no deja guardar (el servidor tampoco lo acepta).
  */
 function leerTomo(texto: string): { tomo: string; valido: boolean; traiaCopia: boolean; conVolumen: boolean } {
@@ -568,13 +568,27 @@ async function guardarEdicionCopia() {
   }
 }
 
-const copiaDelTomo = computed(() => {
-  if (!tomoValido.value) return null
-  const tomo = claveTomo.value
-  if (!tomo) return null
-  const delTomo = (libroParaCopia.value?.ejemplares ?? []).filter((e) => e.tomo === tomo)
-  if (!delTomo.length) return 0
-  return Math.max(0, ...delTomo.map((e) => e.copia_tomo ?? 0)) + 1
+/**
+ * La «c.N» que seguiría (la de mayor número + 1 entre las copias del mismo tomo; sin tomo,
+ * entre las que tienen la misma designación), o null si no tiene ninguna: es solo una
+ * sugerencia, la copia lleva el número que se escriba (o ninguno).
+ */
+const copiaSugerida = computed<number | null>(() => {
+  if (!tomoValido.value || !libroParaCopia.value) return null
+  const tomo = claveTomo.value || null
+  const otra = formCopia.volumen.trim()
+  const delGrupo = (libroParaCopia.value.ejemplares ?? []).filter((e) => (tomo ? e.tomo === tomo : !e.tomo && (e.volumen ?? '').trim() === otra))
+  if (!delGrupo.length) return null
+  return Math.max(0, ...delGrupo.map((e) => Number((e.etiqueta_copia ?? '').replace(/^c\./, '')) || 0)) + 1
+})
+/** El número escrito en «Copia» («2», «c.2» → «2»); vacío = sin número. */
+const copiaEscrita = computed(() => formCopia.copia.trim().replace(/^c\.?\s*/i, ''))
+const copiaEscritaValida = computed(() => /^\d{0,4}$/.test(copiaEscrita.value) && copiaEscrita.value !== '0')
+/** Cómo queda el texto de la copia: «t.1-v.II c.2», «Anexo» (con «c.2» aparte) o nada. */
+const volumenCopiaNueva = computed(() => {
+  const copia = copiaEscrita.value ? ` c.${copiaEscrita.value}` : ''
+  if (claveTomo.value && tomoValido.value) return `${claveTomo.value}${copia}`
+  return `${formCopia.volumen.trim()}${copia}`.trim()
 })
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
@@ -683,7 +697,7 @@ const textoAccion = computed(() => {
 })
 
 const notaCatalogador = computed(() => {
-  if (modo.value === 'copia') return 'La copia toma el número siguiente y nace en «Inventario».'
+  if (modo.value === 'copia') return 'La copia lleva la «c.» que escribas (vacía, sin número) y nace en «Inventario».'
   if (modo.value === 'editar_copia') return copiaEditando.value && !editarConCambios.value ? 'Sin cambios por guardar.' : 'El código de barras y el estado no se cambian aquí.'
   const marca = etiqueta('catalogador') || '910'
   if (editandoId.value) return `Catalogado por ${catalogadorEditado.value ?? 'alguien sin registro'} (${marca})`
@@ -1216,8 +1230,13 @@ const confirmandoCopia = ref(false)
 const ubicacionCopia = computed(() => ubicacionesOpciones.value.find((u) => u.id === formCopia.ubicacion_id)?.nombre ?? null)
 
 function pedirConfirmacionCopia() {
+  if (!copiaEscritaValida.value) {
+    toast.error('En «Copia» va solo el número, por ejemplo «2» (o vacía, sin número)')
+    document.getElementById('copia-numero')?.focus()
+    return
+  }
   if (!tomoValido.value) {
-    toast.error('Revisa el tomo y el volumen: por ejemplo «t.1» y «II». El número de copia lo pone el sistema')
+    toast.error('Revisa el tomo y el volumen: por ejemplo «t.1» y «II»')
     document.getElementById('copia-tomo')?.focus()
     return
   }
@@ -1241,6 +1260,8 @@ async function confirmarAgregarCopia() {
       ubicacion_id: formCopia.ubicacion_id === '' ? null : Number(formCopia.ubicacion_id),
       volumen: formCopia.tomo.trim() ? null : formCopia.volumen || null,
       tomo: claveTomo.value || null,
+      // La «c.N» escrita, o null: sin número (no se inventa)
+      copia: copiaEscrita.value ? Number(copiaEscrita.value) : null,
       precio: formCopia.precio === '' ? null : Number(formCopia.precio),
       forma_adquisicion: formCopia.forma_adquisicion || null,
       coleccion: formCopia.coleccion.trim() || null,
@@ -1948,13 +1969,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-3">
                   <p :class="ETIQUETA">Cómo queda</p>
                   <p class="flex min-h-[2.75rem] flex-wrap items-center gap-x-2 rounded-lg border border-dashed border-violet-200 bg-violet-50/50 px-3 py-1.5 text-sm">
-                    <template v-if="claveTomo && tomoValido">
-                      <strong class="text-violet-900">{{ textoCopia(copiaDelTomo ? `${claveTomo} c.${copiaDelTomo}` : claveTomo, null) ?? claveTomo }}</strong>
-                      <span class="font-mono text-xs text-violet-500">({{ copiaDelTomo ? `${claveTomo} c.${copiaDelTomo}` : claveTomo }})</span>
-                      <span v-if="copiaDelTomo === 0" class="text-xs text-gray-500">· la primera de ese tomo</span>
+                    <template v-if="volumenCopiaNueva && tomoValido">
+                      <strong class="text-violet-900">{{ textoCopia(volumenCopiaNueva, null) ?? volumenCopiaNueva }}</strong>
+                      <span class="font-mono text-xs text-violet-500">({{ volumenCopiaNueva }})</span>
                     </template>
-                    <strong v-else-if="!formCopia.tomo.trim() && formCopia.volumen.trim()" class="text-violet-900">{{ formCopia.volumen.trim() }}</strong>
-                    <span v-else class="text-gray-400">Sin tomo · el número de copia lo pone el sistema</span>
+                    <span v-else class="text-gray-400">Sin tomo ni número de copia</span>
                   </p>
                 </div>
                 <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
@@ -1980,22 +1999,30 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">II</span> o <span class="font-mono">2</span> · solo si el tomo tiene varios</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <p :class="ETIQUETA">Copia</p>
-                  <p class="flex min-h-[2.75rem] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
-                    <template v-if="claveTomo && tomoValido">{{ copiaDelTomo ? `Copia ${copiaDelTomo}` : 'Primera (sin «c.»)' }}</template>
-                    <template v-else>La pone el sistema</template>
-                  </p>
-                  <p class="mt-1 text-[11px] text-gray-500">No se escribe: sigue la numeración del tomo</p>
+                  <label for="copia-numero" :class="ETIQUETA">Copia</label>
+                  <div class="flex gap-2">
+                    <input id="copia-numero" v-model="formCopia.copia" autocomplete="off" inputmode="numeric" placeholder="2" :aria-invalid="!copiaEscritaValida" :class="[CAMPO, !copiaEscritaValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                    <button
+                      v-if="copiaSugerida && copiaEscrita !== String(copiaSugerida)"
+                      type="button"
+                      class="shrink-0 rounded-lg border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-700 hover:bg-violet-50"
+                      :title="`La siguiente de ${claveTomo ? 'ese tomo' : 'la obra'}`"
+                      @click="formCopia.copia = String(copiaSugerida)"
+                    >
+                      Usar c.{{ copiaSugerida }}
+                    </button>
+                  </div>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacía = sin número de copia</p>
                 </div>
                 <div class="sm:col-span-6">
                   <p v-if="!tomoLeido.valido" class="text-[11px] font-semibold text-red-700">
-                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.
+                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia va en «Copia».
                   </p>
                   <p v-else-if="parteLeida === null" class="text-[11px] font-semibold text-red-700">
                     En «{{ segundaParte.nombre }}» va solo el número, por ejemplo «2» o «II».
                   </p>
                   <p v-else-if="tomoLeido.traiaCopia" class="text-[11px] text-amber-800">
-                    El número de copia lo pone el sistema: se toma solo <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>.
+                    En «Tomo» va solo el tomo: se toma <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>; el número de copia va en «Copia».
                   </p>
                   <p v-else-if="tomosDeLaObra.length" class="text-[11px] text-gray-500">
                     Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${partesCopia(t.tomo, null).tomo ?? t.tomo} (${t.copias} ${t.copias === 1 ? 'copia' : 'copias'})`).join(' · ') }}

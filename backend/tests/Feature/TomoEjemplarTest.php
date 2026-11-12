@@ -87,12 +87,14 @@ class TomoEjemplarTest extends TestCase
         // De Horizon: «c.2» -> copia_tomo 2 (su número interno es otro); sin «c.» -> sin etiqueta
         $conC = Ejemplar::factory()->for($libro)->create(['numero_copia' => 5, 'copia_tomo' => 2, 'fecha_ingreso_horizon' => '2001-01-01']);
         $sinC = Ejemplar::factory()->for($libro)->create(['numero_copia' => 6, 'copia_tomo' => null, 'fecha_ingreso_horizon' => '2001-01-01']);
-        // Creada en BiblioUMAG: su número
-        $nueva = Ejemplar::factory()->for($libro)->create(['numero_copia' => 7]);
+        // Creada en BiblioUMAG: la «c.N» que se le puso; sin ella, sin número (nunca el interno)
+        $nueva = Ejemplar::factory()->for($libro)->create(['numero_copia' => 7, 'copia_tomo' => 3]);
+        $sinNumero = Ejemplar::factory()->for($libro)->create(['numero_copia' => 8, 'copia_tomo' => null]);
 
         $this->assertSame('c.2', $conC->fresh()->etiqueta_copia);
         $this->assertNull($sinC->fresh()->etiqueta_copia);
-        $this->assertSame('c.7', $nueva->fresh()->etiqueta_copia);
+        $this->assertSame('c.3', $nueva->fresh()->etiqueta_copia);
+        $this->assertNull($sinNumero->fresh()->etiqueta_copia);
     }
 
     public function test_en_el_portal_se_reserva_el_tomo_elegido_y_la_fila_espera_ese_tomo(): void
@@ -143,5 +145,22 @@ class TomoEjemplarTest extends TestCase
         // Otro volumen del mismo tomo empieza su propia numeración
         $agregar('30000000888003', 't.1-v.I')->assertJsonPath('volumen', 't.1-v.I');
         $agregar('30000000888004', 't.1')->assertJsonPath('volumen', 't.1');
+    }
+
+    public function test_la_copia_lleva_el_numero_que_se_escribe_o_ninguno(): void
+    {
+        \Laravel\Sanctum\Sanctum::actingAs(\App\Models\Staff::factory()->admin()->create());
+        $libro = \App\Models\Libro::factory()->create();
+        $agregar = fn (array $datos) => $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, ...$datos]);
+
+        // Sin número: no se inventa uno
+        $agregar(['codigo_barras' => '30000000999001', 'copia' => null])->assertCreated()->assertJsonPath('etiqueta_copia', null);
+        // Con número, también en un tomo
+        $agregar(['codigo_barras' => '30000000999002', 'copia' => 2])->assertCreated()->assertJsonPath('etiqueta_copia', 'c.2');
+        $agregar(['codigo_barras' => '30000000999003', 'tomo' => 't.1-v.II', 'copia' => 3])->assertCreated()->assertJsonPath('volumen', 't.1-v.II c.3');
+        // La misma «c.N» no se repite en el mismo tomo, pero sí en otro
+        $agregar(['codigo_barras' => '30000000999004', 'tomo' => 't.1-v.II', 'copia' => 3])->assertStatus(422)->assertJsonValidationErrors('copia');
+        $agregar(['codigo_barras' => '30000000999005', 'tomo' => 't.2', 'copia' => 3])->assertCreated();
+        $agregar(['codigo_barras' => '30000000999006', 'copia' => 2])->assertStatus(422);
     }
 }

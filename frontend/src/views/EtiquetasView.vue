@@ -56,16 +56,22 @@ const sugiriendoRango = ref(false)
 async function sugerirSiguienteCodigo() {
   sugiriendoRango.value = true
   try {
+    // Corto: los cortos nuevos del sistema (8 dígitos desde 10000001), apartados ya en la
+    // cantidad pedida: nadie más los recibe y al catalogar cada uno queda también como su lomo.
+    if (rango.formato === 'corto') {
+      const cantidad = Math.min(Math.max(Number(rango.cantidad) || 1, 1), 500)
+      const { data } = await api.get<{ codigo_barras: string; codigos: string[] }>('/ejemplares/siguiente-codigo-barras', { params: { largo: 'corto', cantidad } })
+      rango.prefijo = ''
+      rango.digitos = 8
+      rango.desde = parseInt(data.codigos[0], 10)
+      codigosTexto.value = data.codigos.join('\n')
+      toast.success(`Apartados ${data.codigos.length} códigos cortos: ${data.codigos[0]} a ${data.codigos[data.codigos.length - 1]}`)
+      return
+    }
     const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras')
     const match = data.codigo_barras.match(/^([A-Za-z]*)(\d+)$/)
-    let sugerido = data.codigo_barras
-    if (match && rango.formato === 'corto' && match[2].length === 14 && match[2].startsWith('3')) {
-      // El corto del siguiente libro: sin el «3» y los ceros de relleno, en 8 dígitos
-      rango.prefijo = ''
-      rango.desde = parseInt(match[2].slice(1), 10)
-      rango.digitos = 8
-      sugerido = String(rango.desde).padStart(8, '0')
-    } else if (match) {
+    const sugerido = data.codigo_barras
+    if (match) {
       rango.prefijo = match[1]
       rango.desde = parseInt(match[2], 10)
       rango.digitos = match[2].length
@@ -318,11 +324,11 @@ function abrirImpresion() {
           v-model:abierta="guiaAbierta"
           :con-boton="false"
           :pasos="[
-            'Pulse <strong>Sugerir siguiente (libros)</strong> para partir desde el primer código de libro que todavía no se usa.',
-            'Indique la <strong>cantidad</strong> y pulse <strong>Generar lista con este rango</strong>, o pegue códigos a mano (uno por línea).',
+            'Elija el formato. <strong>Largo</strong>: pulse <strong>Sugerir siguiente (libros)</strong> para partir desde el primer código de 14 dígitos sin usar, indique la <strong>cantidad</strong> y pulse <strong>Generar lista con este rango</strong>.',
+            '<strong>Corto</strong>: indique la <strong>cantidad</strong> y pulse <strong>Sugerir siguiente (libros)</strong>: se apartan esos códigos de 8 dígitos (nadie más los recibe) y la lista queda lista. También puede pegar códigos a mano (uno por línea).',
             'Pulse <strong>Generar e imprimir</strong>: se abre una pestaña con las etiquetas y su botón Imprimir.',
           ]"
-          consejo="Imprimir etiquetas no registra nada: los códigos se asignan al catalogar cada copia."
+          consejo="Los códigos se asignan al catalogar cada copia. Los cortos ya quedan apartados al sugerirlos: al catalogar, cada uno sirve también de código de lomo."
         />
 
         <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -346,7 +352,7 @@ function abrirImpresion() {
                 <div class="mb-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Formato del código">
                   <span class="text-xs font-medium text-gray-700">Formato</span>
                   <button
-                    v-for="f in ([['largo', 'Largo · 14 dígitos', '30000003222799'], ['corto', 'Corto · 8 dígitos', '03222799']] as const)"
+                    v-for="f in ([['largo', 'Largo · 14 dígitos', '30000003222799'], ['corto', 'Corto · 8 dígitos', '10114502']] as const)"
                     :key="f[0]"
                     type="button"
                     role="radio"

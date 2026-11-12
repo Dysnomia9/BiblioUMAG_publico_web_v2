@@ -51,40 +51,55 @@ class EjemplarController extends Controller
             'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
             'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
             'volumen' => ['nullable', 'string', 'max:100'],
-            // Obra en varios tomos: el tomo de esta copia; la copia dentro del tomo se calcula sola.
+            // Obra en varios tomos: el tomo de esta copia («t.1», «t.1-v.II»).
             'tomo' => ['nullable', 'string', 'max:50'],
+            // La «c.N» de la copia, como la escribe quien cataloga; vacía (null) = sin número. Si
+            // no se manda, se calcula sola: la siguiente de ese tomo (o del título).
+            'copia' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:9999'],
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
             ...self::reglasNotasYColeccion(),
         ]);
 
         // En «tomo» va solo el tomo («t.1», «Tomo 1»); si trae la copia («t.1 c.2») se toma el
-        // tomo (la copia la numera el sistema). Lo que no es un tomo no se guarda.
+        // tomo (el número de copia va en «copia»). Lo que no es un tomo no se guarda.
         if (filled($data['tomo'] ?? null)) {
             [$tomoEscrito] = TomoEjemplar::desdeEtiqueta($data['tomo']);
             if ($tomoEscrito === null) {
-                throw ValidationException::withMessages(['tomo' => 'En «Tomo» va solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.']);
+                throw ValidationException::withMessages(['tomo' => 'En «Tomo» va solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia va aparte.']);
             }
             $data['tomo'] = $tomoEscrito;
         }
 
         $ejemplar = DB::transaction(function () use ($data) {
             $siguienteNumero = Ejemplar::siguienteNumero((int) $data['libro_id']);
+            $copiaEscrita = array_key_exists('copia', $data);
             // Con tomo: la copia que sigue de ese tomo y el volumen como en Horizon («t.1 c.3»).
             $tomo = TomoEjemplar::normalizar($data['tomo'] ?? null);
             [$tomoDelVolumen, $copiaDelVolumen] = TomoEjemplar::desdeEtiqueta($data['volumen'] ?? null);
             if ($tomo) {
                 Ejemplar::where('libro_id', $data['libro_id'])->lockForUpdate()->get(['id']);
-                $copiaTomo = TomoEjemplar::siguienteCopia((int) $data['libro_id'], $tomo);
+                $copiaTomo = $copiaEscrita ? $data['copia'] : TomoEjemplar::siguienteCopia((int) $data['libro_id'], $tomo);
                 $data['volumen'] = TomoEjemplar::etiqueta($tomo, $copiaTomo);
             } elseif (blank($data['volumen'] ?? null)) {
                 // Sin tomo: la primera copia del título va sin «c.» y las demás siguen la
                 // numeración que ya tiene, también la de Horizon (c.1, c.2…)
                 Ejemplar::where('libro_id', $data['libro_id'])->lockForUpdate()->get(['id']);
                 $tomo = null;
-                $copiaTomo = TomoEjemplar::siguienteCopia((int) $data['libro_id'], null);
+                $copiaTomo = $copiaEscrita ? $data['copia'] : TomoEjemplar::siguienteCopia((int) $data['libro_id'], null);
             } else {
-                [$tomo, $copiaTomo] = [$tomoDelVolumen, $copiaDelVolumen];
+                [$tomo, $copiaTomo] = [$tomoDelVolumen, $copiaEscrita ? $data['copia'] : $copiaDelVolumen];
+            }
+
+            // La misma «c.N» no se repite en el mismo tomo (o, sin tomo, con la misma designación)
+            if ($copiaTomo !== null) {
+                $repetida = Ejemplar::where('libro_id', $data['libro_id'])->where('copia_tomo', $copiaTomo)
+                    ->when($tomo !== null, fn ($q) => $q->where('tomo', $tomo), fn ($q) => $q->whereNull('tomo')
+                        ->where(fn ($w) => blank($data['volumen'] ?? null) ? $w->whereNull('volumen')->orWhere('volumen', '') : $w->where('volumen', $data['volumen'])))
+                    ->exists();
+                if ($repetida) {
+                    throw ValidationException::withMessages(['copia' => "Esta obra ya tiene la copia c.{$copiaTomo}".($tomo ? ' de ese tomo' : '').': elige otro número o déjala sin número.']);
+                }
             }
 
             $copia = new Ejemplar([
@@ -186,13 +201,17 @@ class EjemplarController extends Controller
      */
     public function siguienteCodigoBarras(Request $request)
     {
-        $request->validate(['largo' => ['nullable', Rule::in(['largo', 'corto'])]]);
+        $request->validate(['largo' => ['nullable', Rule::in(['largo', 'corto'])], 'cantidad' => ['nullable', 'integer', 'min:1', 'max:500']]);
 
         // El corto, de 8 dígitos: el siguiente código de lomo, que se reserva ya (así dos
         // personas no reciben el mismo). Al guardar la copia, su lomo queda con este mismo
         // número (ver store()): la copia tiene un solo código, que sirve de barras y de lomo.
+        // Con «cantidad», se apartan varios de una vez, para imprimir sus etiquetas por adelantado.
         if ($request->query('largo') === 'corto') {
-            return response()->json(['codigo_barras' => (string) DB::selectOne("SELECT nextval('ejemplares_codigo_lomo_seq') AS n")->n]);
+            $codigos = collect(DB::select("SELECT nextval('ejemplares_codigo_lomo_seq') AS n FROM generate_series(1, ?)", [(int) $request->query('cantidad', 1)]))
+                ->map(fn ($fila) => (string) $fila->n)->all();
+
+            return response()->json(['codigo_barras' => $codigos[0], 'codigos' => $codigos]);
         }
 
         // El mayor se calcula en la base, sin traer los miles de códigos: todos tienen 14

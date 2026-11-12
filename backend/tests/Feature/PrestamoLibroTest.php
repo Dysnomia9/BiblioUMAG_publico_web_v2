@@ -149,7 +149,7 @@ class PrestamoLibroTest extends TestCase
         Sanctum::actingAs(Staff::factory()->create());
         $libro = Libro::factory()->create(['titulo' => 'Título con copias']);
         $copiaUno = Ejemplar::factory()->for($libro)->create(['numero_copia' => 1]);
-        $copiaDos = Ejemplar::factory()->for($libro)->create(['numero_copia' => 2]);
+        $copiaDos = Ejemplar::factory()->for($libro)->create(['numero_copia' => 2, 'copia_tomo' => 2]);
 
         $response = $this->postJson('/api/prestamos', [
             'usuario_id' => Usuario::factory()->create()->id,
