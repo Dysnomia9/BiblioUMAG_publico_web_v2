@@ -687,6 +687,17 @@ async function confirmarGuardar() {
       toast.success(`Ficha N.º ${data.numero_ficha} creada: agregue ahora los ejemplares de «${data.titulo}»`)
       confirmandoGuardar.value = false
       resetForm()
+      // La notificación se va sola: el N.º queda además a la vista en una caja, en «Nuevo ejemplar».
+      fichaCreada.value = {
+        id: data.id,
+        numero: data.numero_ficha,
+        titulo: data.titulo,
+        autores: (data.autores ?? []).map((a) => a.nombre),
+        tipo: data.tipo_material?.nombre ?? null,
+        plantilla: data.tipo_material?.plantilla ?? null,
+        claveTono: data.categorias?.[0]?.nombre ?? data.tipo_material?.nombre ?? data.titulo,
+      }
+      numeroCopiado.value = false
       await Promise.all([cargar(), cargarCatalogos()])
       // La ficha ya existe: se pasa a «Nuevo ejemplar» con ella elegida.
       agregarCopiaDe(data)
@@ -833,6 +844,8 @@ function onBuscarCopiaInput() {
 
 function seleccionarLibroParaCopia(libro: Libro) {
   clearTimeout(buscarCopiaTimer)
+  // Otra obra: la caja «Ficha creada» era de la anterior
+  if (fichaCreada.value && fichaCreada.value.id !== libro.id) fichaCreada.value = null
   libroParaCopia.value = libro
   resultadosCopia.value = []
   busquedaCopia.value = libro.titulo
@@ -848,6 +861,26 @@ function agregarCopiaDe(libro: Libro) {
 function cambiarObra() {
   libroParaCopia.value = null
   busquedaCopia.value = ''
+  fichaCreada.value = null
+}
+
+/**
+ * La ficha recién creada, para la caja «Ficha creada» de «Nuevo ejemplar»: con su N.º a la
+ * vista hasta cerrarla, elegir otra obra o volver a «Nueva ficha».
+ */
+const fichaCreada = ref<{ id: number; numero: number; titulo: string; autores: string[]; tipo: string | null; plantilla: string | null; claveTono: string | null } | null>(null)
+const numeroCopiado = ref(false)
+watch(modo, (m) => {
+  if (m !== 'copia') fichaCreada.value = null
+})
+async function copiarNumeroFicha() {
+  if (!fichaCreada.value) return
+  try {
+    await navigator.clipboard.writeText(`Ficha N.º ${fichaCreada.value.numero}`)
+    numeroCopiado.value = true
+  } catch {
+    toast.error('No se pudo copiar: anótalo a mano')
+  }
 }
 
 /**
@@ -1410,6 +1443,37 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           </template>
 
           <template v-else>
+            <!-- Ficha recién creada: su N.º a la vista (la notificación de la derecha se va sola) -->
+            <section
+              v-if="fichaCreada"
+              role="status"
+              class="mb-4 flex items-start gap-4 rounded-2xl border border-emerald-200 border-l-4 border-l-emerald-500 bg-emerald-50/70 p-4 shadow-sm"
+            >
+              <PortadaMaterial :titulo="fichaCreada.titulo" :tipo="fichaCreada.tipo" :plantilla="fichaCreada.plantilla" :clave-tono="fichaCreada.claveTono" tamano="sm" class="shrink-0 shadow-sm" />
+              <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                  Ficha creada
+                </p>
+                <p class="mt-1 text-[15px] leading-snug text-gray-800">
+                  Se creó la ficha de <strong class="text-gray-900">«{{ fichaCreada.titulo }}»</strong> con el
+                </p>
+                <p class="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span class="rounded-full bg-emerald-600 px-3 py-1 text-sm font-semibold text-white">
+                    N.º de ficha <span class="font-mono text-base">{{ fichaCreada.numero }}</span>
+                  </span>
+                  <button type="button" class="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-50" @click="copiarNumeroFicha">
+                    {{ numeroCopiado ? '✓ Copiado' : 'Copiar N.º' }}
+                  </button>
+                </p>
+                <p v-if="fichaCreada.autores.length" class="mt-1.5 truncate text-xs text-gray-600">{{ fichaCreada.autores.join(' · ') }}</p>
+                <p class="mt-1 text-xs text-gray-600">Con este número se encuentra la ficha en Catalogación y en el listado. Ahora agrégale sus ejemplares aquí abajo.</p>
+              </div>
+              <button type="button" class="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700" aria-label="Cerrar el aviso de ficha creada" @click="fichaCreada = null">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </section>
+
             <!-- 1. Obra -->
             <SeccionFicha id="seccion-obra" :numero="1" titulo="Obra" detalle="Busca el título ya catalogado" tono="indigo">
               <p id="cat-buscar-obra-por" :class="ETIQUETA">Buscar la obra por</p>
