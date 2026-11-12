@@ -11,6 +11,7 @@ use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -144,5 +145,27 @@ class RegistroAbsolutoTest extends TestCase
         $response->assertStatus(200);
         $detalles = collect($response->json('operaciones'))->pluck('detalle')->all();
         $this->assertSame(['Reciente', 'Antiguo'], $detalles);
+    }
+
+    public function test_la_reserva_de_sala_aparece_a_la_hora_en_que_se_hizo_no_a_la_de_la_sala(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Carbon::setTestNow('2026-11-12 14:00:00');
+        Reserva::factory()->create([
+            'fecha' => '2026-11-12', 'hora_inicio' => '17:00', 'hora_fin' => '19:00', 'estado' => 'cancelada',
+        ]);
+        Entrada::factory()->create(['fecha_hora_entrada' => '2026-11-12 14:25:00']);
+        // Una reserva hecha hoy para pasado mañana se ve hoy, con su día en el detalle.
+        Carbon::setTestNow('2026-11-12 14:10:00');
+        Reserva::factory()->create(['fecha' => '2026-11-14', 'hora_inicio' => '09:00', 'hora_fin' => '10:00']);
+        Carbon::setTestNow('2026-11-12 15:00:00');
+
+        $filas = collect($this->getJson('/api/registro-absoluto?desde=2026-11-12&hasta=2026-11-12')->assertOk()->json('operaciones'));
+
+        $this->assertSame(['entrada', 'reserva_sala', 'reserva_sala'], $filas->pluck('tipo')->all());
+        $sala = $filas->firstWhere('estado', 'cancelada');
+        $this->assertSame('2026-11-12T14:00:00', substr($sala['fecha_hora'], 0, 19));
+        $this->assertStringEndsWith('(12-11-2026, 17:00–19:00)', $sala['detalle']);
+        $this->assertTrue($filas->contains(fn ($f) => str_ends_with((string) $f['detalle'], '(14-11-2026, 09:00–10:00)')));
     }
 }

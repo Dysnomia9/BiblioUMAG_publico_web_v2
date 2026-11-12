@@ -123,12 +123,17 @@ class RegistroAbsolutoController extends Controller
             // prestado_por_staff_id es la fuente de verdad (FK real, desde 2026-08-17); el
             // texto prestado_por cubre reservas anteriores a esa migración.
             ->leftJoin('staff as s', 's.id', '=', 'r.prestado_por_staff_id')
-            ->whereBetween('r.fecha', [$desde->toDateString(), $hasta->toDateString()])
+            // La hora de la fila es cuándo se hizo la reserva, no a qué hora es la sala: una
+            // reserva para las 17:00 hecha (o cancelada) a las 14:00 no puede aparecer arriba
+            // de lo que pasó a las 15:00. El día y el tramo reservados van en el detalle.
+            ->where(fn ($q) => $q->whereBetween('r.created_at', [$desde, $hasta])
+                ->orWhere(fn ($q) => $q->whereNull('r.created_at')->whereBetween('r.fecha', [$desde->toDateString(), $hasta->toDateString()])))
             ->selectRaw("'reserva_sala' AS tipo")
-            ->selectRaw("CONCAT(CAST(r.fecha AS CHAR(10)), ' ', CAST(r.hora_inicio AS CHAR(8))) AS fecha_hora")
+            ->selectRaw("COALESCE(CAST(r.created_at AS CHAR(19)), CONCAT(CAST(r.fecha AS CHAR(10)), ' ', CAST(r.hora_inicio AS CHAR(8)))) AS fecha_hora")
             ->selectRaw(self::NOMBRE_USUARIO.' AS usuario_nombre')
             ->selectRaw('r.rut_usuario AS usuario_rut')
-            ->selectRaw("CONCAT(COALESCE(sa.nombre, 'Sala eliminada'), ' (', SUBSTRING(CAST(r.hora_inicio AS CHAR(8)), 1, 5), '–', SUBSTRING(CAST(r.hora_fin AS CHAR(8)), 1, 5), ')') AS detalle")
+            // «Logia 02 (13-11-2026, 17:00–19:00)»: el día reservado, que puede no ser el de la fila.
+            ->selectRaw("CONCAT(COALESCE(sa.nombre, 'Sala eliminada'), ' (', SUBSTRING(CAST(r.fecha AS CHAR(10)), 9, 2), '-', SUBSTRING(CAST(r.fecha AS CHAR(10)), 6, 2), '-', SUBSTRING(CAST(r.fecha AS CHAR(10)), 1, 4), ', ', SUBSTRING(CAST(r.hora_inicio AS CHAR(8)), 1, 5), '–', SUBSTRING(CAST(r.hora_fin AS CHAR(8)), 1, 5), ')') AS detalle")
             ->selectRaw('r.estado AS estado')
             ->selectRaw('COALESCE(s.nombre, r.prestado_por) AS atendido_por')
             ->selectRaw('r.id AS origen_id');
