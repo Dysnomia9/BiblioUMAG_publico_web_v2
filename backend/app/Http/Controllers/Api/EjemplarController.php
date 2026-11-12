@@ -411,11 +411,14 @@ class EjemplarController extends Controller
             $query->where('staff_id', $staffId);
         }
 
+        // Primero las copias que calzan (por su código o el título de su libro, cada uno con su
+        // índice de trigramas) y después sus movimientos. Con whereHas anidados, Postgres
+        // preguntaba por cada uno de los ~115.000 movimientos (1 s por búsqueda).
         if ($busqueda = $request->query('q')) {
-            $query->whereHas('ejemplar', function ($e) use ($busqueda) {
-                $e->where(fn ($c) => $c->where('codigo_barras', 'ilike', "%{$busqueda}%")->orWhere('codigo_lomo', 'like', "%{$busqueda}%"))
-                    ->orWhereHas('libro', fn ($l) => $l->whereSinTildes('titulo', $busqueda));
-            });
+            $query->whereIn('ejemplar_id', DB::table('ejemplares')->select('id')->where('codigo_barras', 'ilike', "%{$busqueda}%")
+                ->unionAll(DB::table('ejemplares')->select('id')->where('codigo_lomo', 'like', "%{$busqueda}%"))
+                ->unionAll(DB::table('ejemplares')->select('ejemplares.id')
+                    ->whereIn('libro_id', DB::table('libros')->select('id')->whereSinTildes('titulo', $busqueda))));
         }
 
         if ($desde = $request->query('desde')) {

@@ -128,16 +128,15 @@ class PrestamoController extends Controller
                 $busqueda = trim((string) $request->query('q'));
                 $digitos = preg_replace('/[^0-9kK]/', '', $busqueda);
                 // Título y código en préstamos, y nombre o RUT en usuarios: cada parte con su
-                // índice de trigramas, unidas por id (revisar préstamo por préstamo era lento).
-                $q->where(function ($w) use ($busqueda, $digitos) {
-                    $w->whereIn('prestamos.id', DB::table('prestamos')->select('id')
-                        ->whereRaw(Busqueda::sinTildes('libro_titulo').' ilike ?', [Busqueda::patron($busqueda)])
-                        ->unionAll(DB::table('prestamos')->select('id')->where('codigo_barras', 'ilike', "%{$busqueda}%")))
-                        ->orWhereIn('prestamos.usuario_id', DB::table('usuarios')->select('id')->where(fn ($u) => $u
-                            ->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
-                            ->orWhere('rut', 'ilike', "%{$busqueda}%")
-                            ->when(strlen($digitos) >= 3, fn ($r) => $r->orWhereRaw("regexp_replace(rut, '[^0-9kK]', '', 'g') ilike ?", ["%{$digitos}%"]))));
-                });
+                // índice, unidas en UNA lista de ids. Con «id en (…) OR usuario en (…)» Postgres
+                // recorría los ~72.000 préstamos en cada consulta (lista y 4 contadores: 0,45 s).
+                $q->whereIn('prestamos.id', DB::table('prestamos')->select('id')
+                    ->whereRaw(Busqueda::sinTildes('libro_titulo').' ilike ?', [Busqueda::patron($busqueda)])
+                    ->unionAll(DB::table('prestamos')->select('id')->where('codigo_barras', 'ilike', "%{$busqueda}%"))
+                    ->unionAll(DB::table('prestamos')->select('id')->whereIn('usuario_id', DB::table('usuarios')->select('id')->where(fn ($u) => $u
+                        ->whereCadaPalabra("(nombre || ' ' || apellido)", $busqueda)
+                        ->orWhere('rut', 'ilike', "%{$busqueda}%")
+                        ->when(strlen($digitos) >= 3, fn ($r) => $r->orWhereRaw("regexp_replace(rut, '[^0-9kK]', '', 'g') ilike ?", ["%{$digitos}%"]))))));
             });
 
         $vistas = [
