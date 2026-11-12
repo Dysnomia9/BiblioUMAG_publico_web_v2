@@ -1944,54 +1944,74 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <option v-for="u in ubicacionesOpciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
                   </select>
                 </div>
+                <!-- Cómo queda la copia (igual que en «Editar ejemplar») -->
                 <div class="sm:col-span-3">
-                  <label for="copia-tomo" :class="ETIQUETA">Tomo y volumen <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
-                  <div class="flex gap-2">
-                    <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="Tomo: t.1" aria-label="Tomo" :aria-invalid="!tomoLeido.valido" :class="[CAMPO, !tomoLeido.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                    <input
-                      autocomplete="off"
-                      id="copia-parte"
-                      v-model="formCopia.parte"
-                      :disabled="!tomoLeido.tomo || !tomoLeido.valido || tomoLeido.conVolumen"
-                      :placeholder="`${segundaParte.nombre}: II (opcional)`"
-                      :aria-label="`${segundaParte.nombre} dentro del ${segundaParte.nombre === 'Volumen' ? 'tomo' : 'volumen'}`"
-                      :aria-invalid="parteLeida === null"
-                      :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400', parteLeida === null ? 'border-red-400 ring-1 ring-red-300' : '']"
-                    />
-                  </div>
-                  <p v-if="!tomoLeido.valido" class="mt-1 text-[11px] font-semibold text-red-700">
-                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.
+                  <p :class="ETIQUETA">Cómo queda</p>
+                  <p class="flex min-h-[2.75rem] flex-wrap items-center gap-x-2 rounded-lg border border-dashed border-violet-200 bg-violet-50/50 px-3 py-1.5 text-sm">
+                    <template v-if="claveTomo && tomoValido">
+                      <strong class="text-violet-900">{{ textoCopia(copiaDelTomo ? `${claveTomo} c.${copiaDelTomo}` : claveTomo, null) ?? claveTomo }}</strong>
+                      <span class="font-mono text-xs text-violet-500">({{ copiaDelTomo ? `${claveTomo} c.${copiaDelTomo}` : claveTomo }})</span>
+                      <span v-if="copiaDelTomo === 0" class="text-xs text-gray-500">· la primera de ese tomo</span>
+                    </template>
+                    <strong v-else-if="!formCopia.tomo.trim() && formCopia.volumen.trim()" class="text-violet-900">{{ formCopia.volumen.trim() }}</strong>
+                    <span v-else class="text-gray-400">Sin tomo · el número de copia lo pone el sistema</span>
                   </p>
-                  <p v-else-if="parteLeida === null" class="mt-1 text-[11px] font-semibold text-red-700">
-                    En «{{ segundaParte.nombre }}» va solo el número, por ejemplo «2» o «II».
-                  </p>
-                  <p v-else-if="tomoLeido.traiaCopia" class="mt-1 text-[11px] text-amber-800">
-                    El número de copia lo pone el sistema: se toma solo <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>.
-                  </p>
+                </div>
+                <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
+                <div class="sm:col-span-2">
+                  <label for="copia-tomo" :class="ETIQUETA">Tomo <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
+                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1" :aria-invalid="!tomoLeido.valido" :class="[CAMPO, !tomoLeido.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">t.1</span>, <span class="font-mono">Tomo 2</span> o <span class="font-mono">v.3</span> · vacío si no tiene</p>
                   <datalist id="tomos-de-la-obra">
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ partesCopia(t.tomo, null).tomo ?? t.tomo }} · {{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
-                  <p v-if="copiaDelTomo === 0" class="mt-1 text-[11px] font-semibold text-indigo-700">
-                    Quedará como <strong>{{ textoCopia(claveTomo, null) ?? claveTomo }}</strong> <span class="font-mono font-normal text-indigo-500">({{ claveTomo }})</span>, la primera de ese tomo
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="copia-parte" :class="ETIQUETA">{{ segundaParte.nombre }} dentro del {{ segundaParte.nombre === 'Volumen' ? 'tomo' : 'volumen' }}</label>
+                  <input
+                    autocomplete="off"
+                    id="copia-parte"
+                    v-model="formCopia.parte"
+                    :disabled="!tomoLeido.tomo || !tomoLeido.valido || tomoLeido.conVolumen"
+                    placeholder="II"
+                    :aria-invalid="parteLeida === null"
+                    :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400', parteLeida === null ? 'border-red-400 ring-1 ring-red-300' : '']"
+                  />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">II</span> o <span class="font-mono">2</span> · solo si el tomo tiene varios</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <p :class="ETIQUETA">Copia</p>
+                  <p class="flex min-h-[2.75rem] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+                    <template v-if="claveTomo && tomoValido">{{ copiaDelTomo ? `Copia ${copiaDelTomo}` : 'Primera (sin «c.»)' }}</template>
+                    <template v-else>La pone el sistema</template>
                   </p>
-                  <p v-else-if="copiaDelTomo" class="mt-1 text-[11px] font-semibold text-indigo-700">
-                    Quedará como <strong>{{ textoCopia(`${claveTomo} c.${copiaDelTomo}`, null) }}</strong> <span class="font-mono font-normal text-indigo-500">({{ claveTomo }} c.{{ copiaDelTomo }})</span>
+                  <p class="mt-1 text-[11px] text-gray-500">No se escribe: sigue la numeración del tomo</p>
+                </div>
+                <div class="sm:col-span-6">
+                  <p v-if="!tomoLeido.valido" class="text-[11px] font-semibold text-red-700">
+                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia lo pone el sistema.
                   </p>
-                  <p v-else-if="tomosDeLaObra.length" class="mt-1 text-[11px] text-gray-500">
+                  <p v-else-if="parteLeida === null" class="text-[11px] font-semibold text-red-700">
+                    En «{{ segundaParte.nombre }}» va solo el número, por ejemplo «2» o «II».
+                  </p>
+                  <p v-else-if="tomoLeido.traiaCopia" class="text-[11px] text-amber-800">
+                    El número de copia lo pone el sistema: se toma solo <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>.
+                  </p>
+                  <p v-else-if="tomosDeLaObra.length" class="text-[11px] text-gray-500">
                     Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${partesCopia(t.tomo, null).tomo ?? t.tomo} (${t.copias} ${t.copias === 1 ? 'copia' : 'copias'})`).join(' · ') }}
                   </p>
                 </div>
-                <div class="sm:col-span-3">
-                  <label for="copia-volumen" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo)</span></label>
+                <div class="sm:col-span-6">
+                  <label for="copia-volumen" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no es un tomo)</span></label>
                   <input
                     autocomplete="off"
                     id="copia-volumen"
                     v-model="formCopia.volumen"
                     :disabled="!!formCopia.tomo.trim()"
-                    :placeholder="formCopia.tomo.trim() ? 'Con tomo, se arma sola' : 'Ej: Atlas, Anexo'"
+                    placeholder="Ej: Anexo · Atlas · Año IV No. 4 (Jul.-Aug., 1985)"
                     :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Lo que distingue a la copia si no es un tomo. Con tomo no hace falta: queda como «t.1-v.II c.2».</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es un tomo, como el número de una revista. Con tomo, se deja vacía.</p>
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>
