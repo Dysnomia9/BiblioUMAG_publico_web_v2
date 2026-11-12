@@ -659,6 +659,53 @@ watch(
 )
 
 const confirmandoGuardar = ref(false)
+
+/**
+ * La ficha como va a quedar, para revisarla antes de crearla: cada campo lleno de la
+ * plantilla, en su orden y con su etiqueta MARC. Los vacíos no se muestran.
+ */
+const fichaAConfirmar = computed(() => {
+  const filas: { etiqueta: string; nombre: string; valor: string; interno: boolean }[] = []
+  const agregar = (etiquetaMarc: string, nombre: string, valor: string, interno = false) => {
+    if (valor.trim()) filas.push({ etiqueta: etiquetaMarc, nombre, valor: valor.trim(), interno })
+  }
+  agregar('', 'Tipo de material', tipoActual.value?.nombre ?? 'Libro')
+  // Si el primero tiene otro papel (traductor, editor…), no hay autor principal: todos van en 700
+  const [primero, ...resto] = form.autores
+  const conPrincipal = !!primero && !form.rolesAutores[primero]
+  const conPapel = (n: string) => (form.rolesAutores[n] ? `${n} (${nombreRol(form.rolesAutores[n])})` : n)
+  const secundarios = (conPrincipal ? resto : form.autores).map(conPapel)
+  for (const c of plantillaActual.value?.campos ?? []) {
+    const interno = !c.publico
+    switch (c.clave) {
+      case 'titulo':
+        agregar(c.etiqueta, c.nombre, tituloAGuardar.value, interno)
+        break
+      case 'autor_principal':
+        if (conPrincipal) agregar(c.etiqueta, c.nombre, primero, interno)
+        break
+      case 'autores_secundarios':
+        agregar(c.etiqueta, c.nombre, secundarios.join('\n'), interno)
+        break
+      case 'pie_imprenta': {
+        const lugarEditorial = [form.lugar_publicacion.trim(), form.editorial.trim()].filter(Boolean).join(' : ')
+        agregar(c.etiqueta, c.nombre, [lugarEditorial, String(form.anio_publicacion ?? '').trim()].filter(Boolean).join(', '), interno)
+        break
+      }
+      case 'materias':
+        agregar(c.etiqueta, c.nombre, form.categorias.join('\n'), interno)
+        break
+      case 'catalogador':
+      case 'creacion_registro':
+        break // los pone el sistema al crearla
+      default:
+        if ((CAMPOS_TEXTO as readonly string[]).includes(c.clave)) agregar(c.etiqueta, c.nombre, form[c.clave as CampoTexto] ?? '', interno)
+    }
+  }
+  agregar('', 'Carreras', form.carreras.join('\n'))
+  agregar('', 'Colección', form.coleccion)
+  return filas
+})
 /** El título con que queda guardada la ficha: vacío es «Sin título», como lo guarda el servidor. */
 const tituloAGuardar = computed(() => form.titulo.trim() || 'Sin título')
 const ubicacionElegida = computed(() => ubicacionesOpciones.value.find((u) => u.id === form.ubicacion_id)?.nombre ?? null)
@@ -1936,7 +1983,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       :confirmar="editandoId ? 'Sí, guardar' : 'Sí, crear ficha'"
       :cargando="guardando"
       destacado
-      ancho="md"
+      :ancho="editandoId ? 'md' : 'lg'"
       @confirmar="confirmarGuardar"
       @cancelar="confirmandoGuardar = false"
     >
@@ -1946,7 +1993,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         copias en estante, en el portal.
       </p>
       <template v-else>
-        <p class="text-[15px] text-gray-600">Se creará la ficha bibliográfica:</p>
+        <p class="text-[15px] text-gray-600">Se creará esta ficha bibliográfica. Revisa que todo esté bien:</p>
         <div class="mt-3 flex items-start gap-3.5 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
           <PortadaMaterial class="shadow-sm" :titulo="tituloAGuardar" :tipo="tipoActual?.nombre ?? null" :clave-tono="vista?.claveTono ?? null" />
           <div class="min-w-0">
@@ -1958,8 +2005,26 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </p>
           </div>
         </div>
-        <p class="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-[15px] leading-relaxed text-gray-600">
-          Después se pasa a <strong class="text-gray-900">«Nuevo ejemplar»</strong> para agregarle sus copias con código de barras.
+        <!-- La ficha completa: cada campo lleno, con su etiqueta MARC -->
+        <div class="mt-3 overflow-hidden rounded-xl border border-indigo-100">
+          <p class="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-indigo-800">
+            Ficha bibliográfica
+            <span class="font-normal normal-case tracking-normal text-indigo-700">{{ fichaAConfirmar.length }} {{ fichaAConfirmar.length === 1 ? 'campo' : 'campos' }} con datos</span>
+          </p>
+          <dl class="divide-y divide-gray-100">
+            <div v-for="(f, i) in fichaAConfirmar" :key="i" class="grid grid-cols-[2.75rem_minmax(0,9rem)_minmax(0,1fr)] gap-x-3 px-4 py-2 text-sm">
+              <dt class="pt-px font-mono text-xs font-semibold text-indigo-700">{{ f.etiqueta }}</dt>
+              <dt class="text-gray-500">
+                {{ f.nombre }}
+                <span v-if="f.interno" class="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">solo personal</span>
+              </dt>
+              <dd class="whitespace-pre-line break-words text-gray-900">{{ f.valor }}</dd>
+            </div>
+          </dl>
+        </div>
+        <p class="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-[13px] leading-relaxed text-gray-600">
+          Si falta o sobra algo, aprieta <strong class="text-gray-900">Cancelar</strong> y corrígelo. Al crearla se le asigna su N.º de ficha y
+          podrás elegir entre catalogar otra o agregarle ejemplares.
         </p>
       </template>
     </DialogoConfirmacion>
