@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class BusquedaLibros
 {
-    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'clasificacion', 'isbn', 'issn', 'autores', 'profesor_guia', 'codigos'];
+    // isbn_sin_guiones también en el personal: el lector lee el código de barras del libro sin
+    // guiones («9789564006062») y el ISBN pudo catalogarse con ellos («978-956-400-606-2»).
+    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'clasificacion', 'isbn', 'isbn_sin_guiones', 'issn', 'autores', 'profesor_guia', 'codigos'];
 
     public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'autores', 'categorias', 'isbn_sin_guiones'];
 

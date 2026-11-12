@@ -222,4 +222,27 @@ class FichaBibliograficaTest extends TestCase
         Sanctum::actingAs(Staff::factory()->create());
         $this->assertSame([$minero->id, $aguas->id], $ids('/api/libros?q=9789564006062'));
     }
+
+    /**
+     * «Otros ISBN» se escribe en Catalogación separado por «;», con o sin guiones. Cada uno
+     * encuentra el título, en el portal y en el listado del personal, escrito como sea: el
+     * lector de códigos lee el ISBN sin guiones.
+     */
+    public function test_cada_uno_de_los_otros_isbn_encuentra_el_titulo_con_o_sin_guiones(): void
+    {
+        $libro = $this->libroEnEstante('Libro', ['titulo' => 'Obra en tomos', 'isbn' => '978-956-11-1111-1',
+            'otros_isbn' => '978-956-400-606-2; 9789562222222']);
+        $this->libroEnEstante('Libro', ['titulo' => 'Otro libro', 'isbn' => '9780000000002']);
+
+        $formas = ['978-956-400-606-2', '9789564006062', '9789562222222', '978-956-22-2222-2', '978-956-11-1111-1', '9789561111111'];
+        $ids = fn (string $ruta) => collect($this->getJson($ruta)->assertOk()->json('data'))->pluck('id')->all();
+        Sanctum::actingAs(Usuario::factory()->create());
+        foreach ($formas as $isbn) {
+            $this->assertSame([$libro->id], $ids('/api/mi/catalogo?q='.urlencode($isbn)), "portal: {$isbn}");
+        }
+        Sanctum::actingAs(Staff::factory()->create());
+        foreach ($formas as $isbn) {
+            $this->assertSame([$libro->id], $ids('/api/libros?q='.urlencode($isbn)), "personal: {$isbn}");
+        }
+    }
 }
