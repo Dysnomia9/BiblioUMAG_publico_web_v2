@@ -46,6 +46,13 @@ class LibroController extends Controller
             $query->whereHas('categorias', fn ($q) => $q->where('categorias.id', $categoriaId));
         }
 
+        // Materia escrita: todas las materias que traen esas palabras, con o sin subdivisiones
+        // («mapuches» encuentra «MAPUCHES», «MAPUCHES -- HISTORIA», «MAPUCHES -- VIDA SOCIAL…»).
+        if (($materia = trim((string) $request->query('materia'))) !== '') {
+            $query->whereIn('libros.id', DB::table('libro_categoria')->select('libro_categoria.libro_id')
+                ->whereIn('libro_categoria.categoria_id', DB::table('categorias')->select('id')->whereCadaPalabra('nombre', $materia)));
+        }
+
         if ($autorId = $request->query('autor_id')) {
             $query->whereHas('autores', fn ($q) => $q->where('autores.id', $autorId));
         }

@@ -306,7 +306,7 @@ async function guardarClave() {
       >
         <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido.
              my-auto lo centra en la pantalla y, si no cabe, deja desplazar sin cortar el borde de arriba. -->
-        <div class="w-full max-w-3xl lg:max-w-[60rem] my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
+        <div class="w-full max-w-3xl lg:max-w-[54rem] my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
           <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
           <div class="flex items-center justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-3 sm:px-5">
             <div class="flex items-stretch gap-3">
@@ -374,25 +374,25 @@ async function guardarClave() {
                   </span>
                   <span class="text-[11px] font-bold uppercase tracking-[0.12em]" :class="TONOS_SECCION[seccion.tono].titulo">{{ seccion.titulo }}</span>
                 </h3>
-                <!-- Filas compactas (ícono y nombre lado a lado): todo cerca, sin recorrer tarjetas grandes -->
-                <div class="grid grid-cols-2 gap-1 p-1.5 sm:flex sm:flex-wrap sm:p-2">
+                <!-- Tarjetas chicas: el mismo diseño, con todo más cerca -->
+                <div class="flex flex-wrap gap-2 p-2.5">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:bg-white hover:shadow-sm sm:w-[10.5rem]"
-                    :class="[ADMIN_COLORS[link.color].border, route.name === link.name ? 'bg-white ring-2 ring-indigo-400' : '']"
+                    class="group flex min-h-[5.25rem] w-[calc(50%-0.25rem)] flex-col items-center justify-center gap-1.5 rounded-xl border border-t-[3px] border-gray-200 bg-white px-1.5 py-2 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98] sm:w-[6.25rem]"
+                    :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
                   >
                     <span
-                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors group-hover:text-white"
+                      class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors group-hover:text-white"
                       :class="[ADMIN_COLORS[link.color].icon, ADMIN_COLORS[link.color].iconHover]"
                     >
                       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="link.icon" />
                       </svg>
                     </span>
-                    <span class="text-[13px] font-semibold leading-tight text-gray-800">{{ link.label }}</span>
+                    <span class="text-[12px] font-semibold leading-tight text-gray-900">{{ link.label }}</span>
                   </router-link>
                 </div>
               </section>

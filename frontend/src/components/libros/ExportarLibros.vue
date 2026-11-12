@@ -19,7 +19,7 @@ import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial } from
  */
 const props = defineProps<{
   abierto: boolean
-  inicial: { q: string; estado_proceso: string; tipo_material_id: number | ''; categoria_id: number | ''; carrera_id: number | '' }
+  inicial: { q: string; estado_proceso: string; tipo_material_id: number | ''; categoria_id: number | ''; carrera_id: number | ''; materia?: string }
   /** La categoría de inicial.categoria_id, con su nombre (las categorías se buscan, no hay lista). */
   categoriaInicial: Categoria | null
   carreras: Carrera[]
@@ -36,6 +36,7 @@ const filtros = reactive({
   tipo_material_id: '' as number | '',
   categoria_id: '' as number | '',
   carrera_id: '' as number | '',
+  materia: '',
   situacion: '' as Situacion,
 })
 const categoriaElegida = ref<Categoria | null>(null)
@@ -54,7 +55,7 @@ watch(
   () => props.abierto,
   (abierto) => {
     if (!abierto) return
-    Object.assign(filtros, { ...props.inicial, situacion: '' })
+    Object.assign(filtros, { materia: '', ...props.inicial, situacion: '' })
     categoriaElegida.value = props.categoriaInicial
     contenido.value = 'ambos'
     formato.value = 'excel'
@@ -64,7 +65,7 @@ watch(
 
 let timer: ReturnType<typeof setTimeout> | undefined
 watch(
-  () => [filtros.q, filtros.estado_proceso, filtros.tipo_material_id, filtros.categoria_id, filtros.carrera_id],
+  () => [filtros.q, filtros.estado_proceso, filtros.tipo_material_id, filtros.categoria_id, filtros.carrera_id, filtros.materia],
   () => {
     if (!props.abierto) return
     clearTimeout(timer)
@@ -78,6 +79,7 @@ const parametros = () => ({
   tipo_material_id: filtros.tipo_material_id || undefined,
   categoria_id: filtros.categoria_id || undefined,
   carrera_id: filtros.carrera_id || undefined,
+  materia: filtros.materia.trim() || undefined,
 })
 
 /** Solo cuenta (una página de un título): traer el catálogo entero se hace al confirmar. */
@@ -145,7 +147,8 @@ const descripcionFiltros = computed(() => {
   if (filtros.q.trim()) partes.push(`búsqueda «${filtros.q.trim()}»`)
   if (filtros.estado_proceso) partes.push(`estado ${ESTADOS_EJEMPLAR[filtros.estado_proceso as keyof typeof ESTADOS_EJEMPLAR]?.label ?? filtros.estado_proceso}`)
   if (filtros.carrera_id) partes.push(`carrera ${nombreDe(props.carreras, filtros.carrera_id)}`)
-  if (filtros.categoria_id) partes.push(`categoría ${categoriaElegida.value?.nombre ?? ''}`)
+  if (filtros.categoria_id) partes.push(`materia ${categoriaElegida.value?.nombre ?? ''}`)
+  if (filtros.materia.trim()) partes.push(`materias con «${filtros.materia.trim()}»`)
   if (filtros.tipo_material_id) partes.push(`tipo ${nombreDe(props.tiposMaterial, filtros.tipo_material_id)}`)
   if (filtros.situacion) partes.push(`copias ${SITUACIONES[filtros.situacion].toLowerCase()}`)
   return partes.length ? partes.join(', ') : 'sin filtros (todo el catálogo)'
@@ -306,7 +309,7 @@ const claseSelect = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:
           </select>
         </div>
         <div>
-          <label for="exp-categoria" class="mb-1 block text-xs font-medium text-gray-600">Categoría</label>
+          <label for="exp-categoria" class="mb-1 block text-xs font-medium text-gray-600">Materia (una exacta)</label>
           <SelectorBuscable
             v-model="filtros.categoria_id"
             id-campo="exp-categoria"

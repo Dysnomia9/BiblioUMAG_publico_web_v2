@@ -11,7 +11,6 @@ import ExportarLibros from '@/components/libros/ExportarLibros.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
-import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -46,6 +45,8 @@ const filtros = reactive({
   estado_proceso: '',
   tipo_material_id: '' as number | '',
   categoria_id: '' as number | '',
+  /** Materia escrita: todas las que traen esas palabras (con o sin subdivisiones). */
+  materia: '',
   // Carrera asignada al libro al catalogarlo (ej. Pedagogía en Educación Básica).
   carrera_id: '' as number | '',
   // Al pulsar un autor en una fila: sus libros.
@@ -122,6 +123,7 @@ async function cargar() {
         estado_proceso: filtros.estado_proceso || undefined,
         tipo_material_id: filtros.tipo_material_id || undefined,
         categoria_id: filtros.categoria_id || undefined,
+        materia: filtros.materia.trim() || undefined,
         carrera_id: filtros.carrera_id || undefined,
         autor_id: filtros.autor_id || undefined,
         orden: filtros.orden,
@@ -181,13 +183,9 @@ async function cargarCatalogos() {
   }
 }
 
-async function buscarCategorias(texto: string) {
-  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
-  return data
-}
-
 function elegirCategoria(categoria: Categoria | null) {
   categoriaElegida.value = categoria
+  filtros.categoria_id = categoria?.id ?? ''
   filtrar()
 }
 
@@ -485,7 +483,7 @@ function copiaGuardada(actualizada: Ejemplar) {
             <input
               v-model="filtros.q"
               type="text"
-              placeholder="Título, autor, ISBN, Dewey, código de barras o N° de registro"
+              placeholder="Título, autor, ISBN, Dewey, código o N° de registro"
               aria-label="Buscar libros"
               class="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
               @input="onBuscarInput"
@@ -511,18 +509,23 @@ function copiaGuardada(actualizada: Ejemplar) {
               <option v-for="o in f.opciones" :key="String(o.valor)" :value="o.valor">{{ o.texto }}</option>
             </select>
           </label>
-          <!-- La categoría, después del tipo: se busca escribiendo, son miles. -->
-          <SelectorBuscable
-            v-if="f.campo === 'tipo_material_id'"
-            v-model="filtros.categoria_id"
-            :buscar="buscarCategorias"
-            :nombre-elegido="categoriaElegida?.nombre"
-            todas="Todas las categorías"
-            placeholder="Categoría"
-            etiqueta="Filtrar por categoría"
-            :clase-campo="`h-10 w-48 rounded-xl border bg-white pl-3.5 pr-3 text-sm font-medium outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 ${filtros.categoria_id !== '' ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'}`"
-            @elegir="elegirCategoria"
-          />
+          <!-- La materia, después del tipo: se escribe y trae todas las que tienen esas palabras
+               («mapuches» → MAPUCHES, MAPUCHES -- HISTORIA…), sin obligar a elegir una sola. -->
+          <div v-if="f.campo === 'tipo_material_id'" class="relative">
+            <svg class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+            </svg>
+            <input
+              v-model="filtros.materia"
+              type="search"
+              placeholder="Materia"
+              aria-label="Filtrar por materia (todas las que traen esas palabras)"
+              title="Escribe parte de la materia: trae todas las que la contienen, con o sin subdivisiones"
+              class="h-10 w-52 rounded-xl border bg-white pl-8 pr-3 text-sm font-medium outline-none transition-colors placeholder:text-gray-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30"
+              :class="filtros.materia.trim() ? 'border-indigo-300 text-indigo-800' : 'border-gray-200 text-gray-700'"
+              @input="onBuscarInput"
+            />
+          </div>
         </template>
           <button
             v-if="autorElegido"
@@ -532,6 +535,17 @@ function copiaGuardada(actualizada: Ejemplar) {
             @click="filtrarPorAutor(null)"
           >
             Autor: {{ autorElegido.nombre }}
+            <span class="text-base leading-none" aria-hidden="true">×</span>
+          </button>
+          <!-- Una materia exacta (desde la ficha o la pantalla Materias) -->
+          <button
+            v-if="filtros.categoria_id !== ''"
+            type="button"
+            class="inline-flex h-10 max-w-full items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 pl-3.5 pr-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+            :title="`Quitar el filtro por ${categoriaElegida?.nombre ?? 'materia'}`"
+            @click="elegirCategoria(null)"
+          >
+            <span class="truncate">Materia: {{ categoriaElegida?.nombre ?? '…' }}</span>
             <span class="text-base leading-none" aria-hidden="true">×</span>
           </button>
         </div>
@@ -549,7 +563,7 @@ function copiaGuardada(actualizada: Ejemplar) {
               {{ c[1] }} <span aria-hidden="true">{{ flechaOrden(c[0]) }}</span>
             </button>
           </span>
-          <button v-for="c in ([['clasificacion', 'Dewey'], ['materia', 'Categoría'], ['tipo_material', 'Tipo']] as const)" :key="c[0]" type="button" class="inline-flex items-center gap-1 justify-self-start uppercase tracking-wider hover:text-indigo-700" :class="filtros.orden === c[0] ? 'text-indigo-700' : ''" :title="`Ordenar por ${c[1].toLowerCase()}`" @click="ordenarPor(c[0])">
+          <button v-for="c in ([['clasificacion', 'Dewey'], ['materia', 'Materia'], ['tipo_material', 'Tipo']] as const)" :key="c[0]" type="button" class="inline-flex items-center gap-1 justify-self-start uppercase tracking-wider hover:text-indigo-700" :class="filtros.orden === c[0] ? 'text-indigo-700' : ''" :title="`Ordenar por ${c[1].toLowerCase()}`" @click="ordenarPor(c[0])">
             {{ c[1] }} <span aria-hidden="true">{{ flechaOrden(c[0]) }}</span>
           </button>
           <span>Ejemplares</span>
@@ -822,7 +836,7 @@ function copiaGuardada(actualizada: Ejemplar) {
 
     <ExportarLibros
       v-model:abierto="exportarAbierto"
-      :inicial="{ q: filtros.q, estado_proceso: filtros.estado_proceso, tipo_material_id: filtros.tipo_material_id, categoria_id: filtros.categoria_id, carrera_id: filtros.carrera_id }"
+      :inicial="{ q: filtros.q, estado_proceso: filtros.estado_proceso, tipo_material_id: filtros.tipo_material_id, categoria_id: filtros.categoria_id, carrera_id: filtros.carrera_id, materia: filtros.materia }"
       :categoria-inicial="categoriaElegida"
       :carreras="carreras"
       :tipos-material="tiposMaterial"
