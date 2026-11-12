@@ -294,18 +294,9 @@ function irA(clave: string) {
 // ---------- Obligatorios ----------
 type Requisito = { texto: string; listo: boolean; seccion: string }
 
-// El título no es obligatorio: sin él la ficha queda «Sin título» (lo pone el servidor).
-const obligatoriosNuevo = computed<Requisito[]>(() => {
-  const lista: Requisito[] = []
-  if (tiene('autor_principal')) {
-    lista.push({
-      texto: tiene('entidad_corporativa') ? 'Autor principal (100) o entidad (110)' : 'Autor principal (100)',
-      listo: form.autores.length > 0 || !!form.entidad_corporativa.trim(),
-      seccion: 'titulo',
-    })
-  }
-  return lista
-})
+// Una ficha nueva no tiene campos obligatorios: sin título queda «Sin título» (lo pone
+// el servidor) y el autor principal (100) o la entidad (110) se pueden dejar vacíos.
+const obligatoriosNuevo = computed<Requisito[]>(() => [])
 
 const libroParaCopia = ref<Libro | null>(null)
 const busquedaCopia = ref('')
@@ -1085,10 +1076,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('autor_principal')" class="sm:col-span-6" :class="tiene('entidad_corporativa') ? 'rounded-xl border border-amber-200 bg-amber-50/40 p-3' : ''">
                   <p v-if="tiene('entidad_corporativa')" class="mb-2 text-xs font-semibold text-gray-800">
-                    Autoría <span class="text-red-600">*</span>
-                    <span class="font-normal text-gray-600">: complete <strong>los autores</strong> o <strong>la entidad institucional</strong>, no hace falta llenar ambos.</span>
+                    Autoría
+                    <span class="font-normal text-gray-600">: <strong>los autores</strong> o <strong>la entidad institucional</strong>, si los tiene; no hace falta llenar ambos.</span>
                   </p>
-                  <p :class="ETIQUETA"><Marc codigo="100 / 700" tono="dorado" /> Autores <span v-if="!tiene('entidad_corporativa')" class="text-red-600">*</span></p>
+                  <p :class="ETIQUETA"><Marc codigo="100 / 700" tono="dorado" /> Autores</p>
                   <MultiSelectCombobox
                     v-model="form.autores"
                     :buscar="buscarAutores"
