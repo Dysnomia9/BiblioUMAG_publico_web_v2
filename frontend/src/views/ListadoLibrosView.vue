@@ -358,6 +358,20 @@ onBeforeUnmount(() => {
 
 const libroAEditar = ref<Libro | null>(null)
 
+/** Catalogación con la ficha cargada: el enlace de «Editar», para abrirlo en otra pestaña o ventana. */
+const hrefEditar = (libro: Libro) => router.resolve({ name: 'catalogacion-libros', query: { editar: libro.id } }).href
+
+/**
+ * Un clic normal pide confirmación y abre Catalogación aquí. Cmd/Ctrl/Mayús + clic (o la
+ * rueda, o «Abrir en otra pestaña» del menú del navegador) la abre en otra pestaña o
+ * ventana sin preguntar: elegir abrirla así ya es confirmar.
+ */
+function clicEditar(evento: MouseEvent, libro: Libro) {
+  if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
+  evento.preventDefault()
+  libroAEditar.value = libro
+}
+
 function irAEditar() {
   const libro = libroAEditar.value
   libroAEditar.value = null
@@ -573,14 +587,15 @@ function copiaGuardada(actualizada: Ejemplar) {
                   </p>
                 </div>
                 <div class="relative flex shrink-0 items-center justify-end gap-2" data-menu-libro>
-                  <button
+                  <a
                     v-if="puedeCatalogar"
-                    type="button"
+                    :href="hrefEditar(f.libro)"
+                    title="Cmd/Ctrl + clic: abrir en otra pestaña"
                     class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 border-b-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50"
-                    @click="libroAEditar = f.libro"
+                    @click="clicEditar($event, f.libro)"
                   >
                     Editar
-                  </button>
+                  </a>
                   <button
                     v-if="puedeCatalogar || puedeVerHistorial || puedeCambiarEstado"
                     type="button"
@@ -599,6 +614,18 @@ function copiaGuardada(actualizada: Ejemplar) {
                       class="fixed z-50 w-56 rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-lg"
                       :style="posicionMenu"
                     >
+                      <a
+                        v-if="puedeCatalogar"
+                        role="menuitem"
+                        :href="hrefEditar(f.libro)"
+                        target="_blank"
+                        rel="noopener"
+                        class="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        @click="menuAbierto = null"
+                      >
+                        Editar en otra pestaña
+                        <svg class="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                      </a>
                       <button v-if="puedeCatalogar" type="button" role="menuitem" class="w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" @click="agregarCopia(f.libro)">
                         Agregar copia
                       </button>
@@ -765,6 +792,7 @@ function copiaGuardada(actualizada: Ejemplar) {
         Se abrirá Catalogación con <strong class="text-gray-900">{{ libroAEditar?.titulo }}</strong> cargado para corregirlo. Los cambios se guardan
         recién al pulsar «Guardar cambios».
       </p>
+      <p class="mt-2 text-xs text-gray-500">Para abrirla en otra pestaña sin esta pregunta: Cmd/Ctrl + clic en «Editar», o «Editar en otra pestaña» en el menú ⋯.</p>
     </DialogoConfirmacion>
   </StaffLayout>
 </template>
