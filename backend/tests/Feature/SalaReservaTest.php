@@ -644,8 +644,8 @@ class SalaReservaTest extends TestCase
 
         $this->getJson('/api/salas?fecha=2026-07-11')->assertOk()
             ->assertJsonPath('atencion', ['09:00', '14:00'])
-            ->assertJsonPath('apertura', '08:45')
-            ->assertJsonPath('cierre', '20:30');
+            ->assertJsonPath('apertura', '08:00')
+            ->assertJsonPath('cierre', '21:00');
     }
 
     public function test_entre_semana_las_salas_siguen_el_horario_de_la_biblioteca(): void
@@ -661,12 +661,12 @@ class SalaReservaTest extends TestCase
             'ruts' => Usuario::factory()->count(2)->create()->pluck('rut')->all(),
         ]);
 
-        $reserva('08:30', '09:30')->assertStatus(422)
-            ->assertJsonPath('message', 'Los viernes la biblioteca atiende de 08:45 a 20:30: elige un horario dentro de ese rango.');
-        $reserva('20:00', '21:00')->assertStatus(422);
-        $reserva('09:00', '10:00')->assertStatus(201);
-        $reserva('20:00', '20:30')->assertStatus(201);
-        $this->getJson('/api/salas?fecha=2026-07-10')->assertOk()->assertJsonPath('atencion', ['08:45', '20:30']);
+        $reserva('07:30', '08:30')->assertStatus(422)
+            ->assertJsonPath('message', 'Los viernes la biblioteca atiende de 08:00 a 21:00: elige un horario dentro de ese rango.');
+        $reserva('20:30', '21:30')->assertStatus(422);
+        $reserva('08:00', '09:00')->assertStatus(201);
+        $reserva('20:30', '21:00')->assertStatus(201);
+        $this->getJson('/api/salas?fecha=2026-07-10')->assertOk()->assertJsonPath('atencion', ['08:00', '21:00']);
     }
 
     public function test_fuera_del_horario_ninguna_sala_queda_libre_ahora(): void
@@ -679,7 +679,7 @@ class SalaReservaTest extends TestCase
         $this->assertSame(0, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '15:00'));
         $this->assertSame(120, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '11:00'));
         $this->assertSame(30, $service->duracionMaximaDisponible($sala->id, '2026-07-11', '13:30'));
-        $this->assertSame(0, $service->duracionMaximaDisponible($sala->id, '2026-07-10', '08:30'));
+        $this->assertSame(0, $service->duracionMaximaDisponible($sala->id, '2026-07-10', '07:30'));
 
         $libre = collect($this->getJson('/api/salas')->assertOk()->json('salas'))->firstWhere('id', $sala->id);
         $this->assertFalse($libre['libre_ahora']);

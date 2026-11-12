@@ -105,8 +105,25 @@ class Ejemplar extends Model
     public function scopePorCodigo(Builder $query, string $codigo): Builder
     {
         $codigo = trim($codigo);
+        $codigos = self::variantesCodigo($codigo);
 
-        return $query->where(fn ($q) => $q->where('codigo_barras', $codigo)->orWhere('codigo_lomo', $codigo));
+        return $query->where(fn ($q) => $q->whereIn('codigo_barras', $codigos)->orWhere('codigo_lomo', $codigo));
+    }
+
+    /**
+     * El código tal cual y, si es numérico corto (ej. 02025988), también su forma larga
+     * de 14 dígitos con el prefijo 3 (30000002025988): en el sistema se usaban ambas.
+     */
+    public static function variantesCodigo(string $codigo): array
+    {
+        $codigo = trim($codigo);
+        $variantes = [$codigo];
+
+        if (preg_match('/^\d{1,13}$/', $codigo)) {
+            $variantes[] = '3'.str_pad($codigo, 13, '0', STR_PAD_LEFT);
+        }
+
+        return array_values(array_unique($variantes));
     }
 
     /** La colección de la copia; si no tiene, la del libro. */

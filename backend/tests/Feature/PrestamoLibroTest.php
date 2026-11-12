@@ -103,6 +103,47 @@ class PrestamoLibroTest extends TestCase
         $this->assertDatabaseHas('ejemplares', ['id' => $ejemplar->id, 'disponible' => false]);
     }
 
+    public function test_prestamo_de_libro_acepta_el_codigo_corto_sin_prefijo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '30000002025988']);
+
+        $response = $this->postJson('/api/prestamos', [
+            'usuario_id' => Usuario::factory()->create()->id,
+            'tipo_item' => 'libro',
+            'codigo_barras' => '02025988',
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('ejemplar_id', $ejemplar->id)
+            ->assertJsonPath('codigo_barras', '30000002025988');
+    }
+
+    public function test_devolucion_rapida_encuentra_el_prestamo_por_codigo_corto(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $ejemplar = Ejemplar::factory()->for(Libro::factory())->create(['codigo_barras' => '30000002025988']);
+        $usuario = Usuario::factory()->create();
+
+        $this->getJson('/api/prestamos/por-codigo?codigo=02025988')
+            ->assertStatus(404)->assertJsonPath('message', 'Ese libro no está prestado');
+
+        $this->postJson('/api/prestamos', [
+            'usuario_id' => $usuario->id,
+            'tipo_item' => 'libro',
+            'codigo_barras' => $ejemplar->codigo_barras,
+            'fecha_prestamo' => now()->toDateString(),
+            'fecha_devolucion' => $this->fechaConAtencion(7),
+        ])->assertStatus(201);
+
+        $this->getJson('/api/prestamos/por-codigo?codigo=02025988')
+            ->assertOk()
+            ->assertJsonPath('ejemplar_id', $ejemplar->id)
+            ->assertJsonPath('usuario.id', $usuario->id);
+    }
+
     public function test_prestamo_de_una_segunda_copia_incluye_el_numero_de_copia_en_el_titulo(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

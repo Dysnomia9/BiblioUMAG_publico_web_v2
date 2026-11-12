@@ -73,7 +73,7 @@ class PortalEntradaTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('personasEnSala', 0)
-            ->assertJsonPath('horario.1', ['08:45', '20:30'])
+            ->assertJsonPath('horario.1', ['08:00', '21:00'])
             ->assertJsonPath('horario.6', ['09:00', '14:00'])
             ->assertJsonPath('horario.7', null);
     }

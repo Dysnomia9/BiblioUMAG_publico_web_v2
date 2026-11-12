@@ -40,7 +40,7 @@ const reservas = ref<ReservaLibro[]>([])
 
 const showForm = ref(false)
 const showReservaForm = ref(false)
-const activeTab = ref<'prestamos' | 'reservas' | 'recursos'>('prestamos')
+const activeTab = ref<'recientes' | 'prestamos' | 'reservas' | 'recursos'>('recientes')
 
 const today = new Date().toLocaleDateString('sv-SE')
 
@@ -191,6 +191,7 @@ onMounted(() => {
   cargarRecursosDisponibles()
   cargarCategorias()
   cargarHorario()
+  cargarPrestadosAhora()
   const pendiente = tomarFichaPendiente()
   // Se puede llegar con ?rut=… (ej. desde Multas o Entradas) para abrir directo los préstamos de esa persona.
   const rutInicial = typeof route.query.rut === 'string' && route.query.rut ? route.query.rut : pendiente
@@ -229,10 +230,11 @@ function buscarOtroUsuario() {
   modoPrestamo.value = 'domicilio'
   mostrarDevueltos.value = false
   mostrarTerminadas.value = false
-  activeTab.value = 'prestamos'
+  activeTab.value = 'recientes'
   rut.value = ''
   modoRut.value = 'rut'
   errorRut.value = ''
+  cargarPrestadosAhora()
   nextTick(() => rutInput.value?.focus())
 }
 
@@ -264,12 +266,14 @@ async function buscarUsuario() {
   try {
     const { data } = await api.get<Usuario>(`/usuarios/rut/${encodeURIComponent(rut.value)}`)
     usuario.value = data
-    showForm.value = false
+    // Con el RUT puesto, el formulario de préstamo ya queda abierto para escanear.
+    showForm.value = true
     showReservaForm.value = false
     mostrarDevueltos.value = false
     mostrarTerminadas.value = false
-    activeTab.value = 'prestamos'
+    activeTab.value = 'recientes'
     await cargarPrestamosYReservas()
+    nextTick(() => codigoPrestamoInput.value?.focus())
   } catch (e: any) {
     usuario.value = null
     errorRut.value =
@@ -317,6 +321,32 @@ const mostrarTerminadas = ref(false)
 const tieneMultaPendiente = (p: Prestamo) => !!p.multas?.some((m) => m.estado === 'pendiente')
 
 const ordenPrestamos = (a: Prestamo, b: Prestamo) => Number(a.estado === 'devuelto') - Number(b.estado === 'devuelto') || b.fecha_prestamo.localeCompare(a.fecha_prestamo)
+
+// Pestaña Recientes: todo lo de la persona (libros y recursos), del más nuevo al más viejo.
+const filasRecientes = computed(() => [...prestamos.value].sort((a, b) => b.fecha_prestamo.localeCompare(a.fecha_prestamo) || b.id - a.id))
+
+// Sin usuario: todo lo prestado ahora en la biblioteca.
+const prestadosAhora = ref<Prestamo[]>([])
+const totalPrestadosAhora = ref(0)
+const cargandoPrestados = ref(false)
+const textoPrestadosAhora = computed(() => {
+  if (cargandoPrestados.value) return 'Cargando…'
+  const n = totalPrestadosAhora.value
+  const extra = n > prestadosAhora.value.length ? ` · se muestran los ${prestadosAhora.value.length} más recientes` : ''
+  return `${n} sin devolver${extra}`
+})
+async function cargarPrestadosAhora() {
+  cargandoPrestados.value = true
+  try {
+    const { data } = await api.get<{ data: Prestamo[]; total: number }>('/prestamos', { params: { vista: 'activos', por_pagina: 100 } })
+    prestadosAhora.value = data.data
+    totalPrestadosAhora.value = data.total
+  } catch {
+    prestadosAhora.value = []
+  } finally {
+    cargandoPrestados.value = false
+  }
+}
 
 // Pestaña Libros: solo los libros (los recursos de apoyo tienen su propia pestaña).
 const devueltosOcultables = computed(() => prestamosLibros.value.filter((p) => p.estado === 'devuelto' && !tieneMultaPendiente(p)).length)
@@ -462,6 +492,12 @@ async function cargarCondiciones() {
   }
 }
 
+/** Tras renovar la cuenta, las condiciones ya pedidas todavía dicen «inactivo»: se vuelven a pedir. */
+function alRenovar(renovado: Usuario) {
+  usuario.value = renovado
+  if (condiciones.value) cargarCondiciones()
+}
+
 function cambiarFechaPrestamo() {
   if (condiciones.value) cargarCondiciones()
 }
@@ -555,7 +591,7 @@ async function confirmarPrestamo() {
     fechaPropuesta = ''
     condiciones.value = null
     prestamoPendiente.value = null
-    await cargarPrestamosYReservas()
+    await Promise.all([cargarPrestamosYReservas(), cargarPrestadosAhora()])
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo crear el préstamo'))
     prestamoPendiente.value = null
@@ -566,6 +602,13 @@ async function confirmarPrestamo() {
 
 // ---------- Devolver y pagar ----------
 const devolucionPendiente = ref<Prestamo | null>(null)
+const codigoPrestamoInput = ref<HTMLInputElement | null>(null)
+
+/** Tercera alternativa del formulario: los recursos de apoyo (tablets, notebooks…) se prestan en su pestaña. */
+function irARecursos() {
+  activeTab.value = 'recursos'
+  nextTick(() => document.getElementById('pestanas-prestamo')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
 const devolviendo = ref(false)
 
 // Un libro de otra biblioteca que figura prestado pero el usuario ya no tiene (volvió sin
@@ -582,15 +625,50 @@ async function alCerrarInterbibliotecario() {
   await Promise.all([cargarPrestamosYReservas(), refrescarUsuario()])
 }
 
+/** A quién se le prestó lo que se va a devolver: el del préstamo o, desde la ficha, el usuario abierto. */
+const usuarioDevolucion = computed(() => devolucionPendiente.value?.usuario ?? usuario.value)
+
+// ---------- Devolución rápida por código de barras ----------
+const codigoRapido = ref('')
+const buscandoRapido = ref(false)
+const prestamoRapido = ref<Prestamo | null>(null)
+const mensajeRapido = ref('')
+const codigoRapidoInput = ref<HTMLInputElement | null>(null)
+
+async function buscarPrestamoPorCodigo() {
+  const codigo = codigoRapido.value.trim()
+  prestamoRapido.value = null
+  mensajeRapido.value = ''
+  if (!codigo) return
+  buscandoRapido.value = true
+  try {
+    const { data } = await api.get<Prestamo>('/prestamos/por-codigo', { params: { codigo } })
+    prestamoRapido.value = data
+  } catch (e) {
+    mensajeRapido.value = mensajeDeError(e, 'No se pudo buscar el código')
+  } finally {
+    buscandoRapido.value = false
+  }
+}
+
+function limpiarRapido() {
+  codigoRapido.value = ''
+  prestamoRapido.value = null
+  mensajeRapido.value = ''
+  nextTick(() => codigoRapidoInput.value?.focus())
+}
+
 async function confirmarDevolucion() {
   if (!devolucionPendiente.value) return
+  const esRapida = prestamoRapido.value?.id === devolucionPendiente.value.id
   devolviendo.value = true
   try {
     const { data } = await api.patch<Prestamo>(`/prestamos/${devolucionPendiente.value.id}/devolver`)
     const multa = data.multas?.find((m) => m.tipo === 'atraso')
     toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso` : 'Devolución registrada')
     devolucionPendiente.value = null
-    await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario()])
+    if (esRapida) limpiarRapido()
+    await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario(), cargarPrestadosAhora()])
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo registrar la devolución'))
   } finally {
@@ -815,6 +893,69 @@ function formatHora(iso: string | null) {
         consejo="Cada usuario puede tener <strong>un solo libro</strong> a la vez, y con <strong>multas pendientes</strong> no puede llevarse ni reservar material hasta pagarlas."
       />
 
+      <!-- Devolución rápida: escanear el libro o recurso sin buscar antes al usuario -->
+      <div class="relative mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <span class="absolute inset-x-0 top-0 h-1 bg-emerald-500" aria-hidden="true"></span>
+        <div class="mb-3 flex items-stretch gap-3">
+          <span class="w-1 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
+          <div>
+            <label for="codigo-devolucion" class="block font-semibold text-gray-900">Devolución rápida por código de barras</label>
+            <p class="mt-0.5 text-xs text-gray-500">
+              Escanee el libro o recurso: si está prestado, se puede devolver sin buscar al usuario.
+              Presiona <kbd class="rounded border border-gray-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-700 shadow-sm">Enter</kbd> para buscar.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <div class="relative flex-1">
+            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5v15m3-15v15m4.5-15v15m3-15v15m4.5-15v15" />
+            </svg>
+            <input
+              id="codigo-devolucion"
+              ref="codigoRapidoInput"
+              v-model="codigoRapido"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="Ej. 30000002025988 o 02025988"
+              maxlength="64"
+              class="h-10 w-full rounded-xl border border-gray-300 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              @input="prestamoRapido = null; mensajeRapido = ''"
+              @keydown.enter="buscarPrestamoPorCodigo"
+            />
+          </div>
+          <button
+            type="button"
+            class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-600 px-4 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-60"
+            :disabled="buscandoRapido || !codigoRapido.trim()"
+            @click="buscarPrestamoPorCodigo"
+          >
+            {{ buscandoRapido ? 'Buscando…' : 'Buscar préstamo' }}
+          </button>
+        </div>
+        <p v-if="mensajeRapido" class="mt-2 text-sm text-amber-700" role="status">{{ mensajeRapido }}</p>
+        <div
+          v-if="prestamoRapido"
+          class="mt-3 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0 text-sm">
+            <p class="truncate font-semibold text-gray-900">{{ prestamoRapido.libro_titulo }}</p>
+            <p class="text-gray-600">
+              Prestado a {{ prestamoRapido.usuario ? `${prestamoRapido.usuario.nombre} ${prestamoRapido.usuario.apellido} (${prestamoRapido.usuario.rut})` : '—' }}
+              <template v-if="prestamoRapido.fecha_devolucion"> · vence el {{ fechaCorta(prestamoRapido.fecha_devolucion) }}</template>
+            </p>
+          </div>
+          <button
+            type="button"
+            class="h-10 shrink-0 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+            @click="devolucionPendiente = prestamoRapido"
+          >
+            Devolver
+          </button>
+        </div>
+      </div>
+
       <!-- Buscar al usuario: línea morada arriba y barra junto al título -->
       <div class="relative mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <span class="absolute inset-x-0 top-0 h-1" :style="{ background: FRANJA }" aria-hidden="true"></span>
@@ -912,7 +1053,7 @@ function formatHora(iso: string | null) {
               class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="bloqueadoPorMultas"
               :title="bloqueadoPorMultas ? MENSAJE_BLOQUEO : undefined"
-              @click="showForm = !showForm; showReservaForm = false"
+              @click="showForm = true; showReservaForm = false"
             >
               Nuevo préstamo
             </button>
@@ -935,12 +1076,12 @@ function formatHora(iso: string | null) {
           </div>
         </div>
 
-        <RenovarCuenta v-if="usuario.activo === false" class="mt-3" :usuario="usuario" @renovada="usuario = $event" />
+        <RenovarCuenta v-if="usuario.activo === false" class="mt-3" :usuario="usuario" @renovada="alRenovar" />
 
         <div v-if="showForm && !bloqueadoPorMultas" class="mt-3 border-t border-indigo-100 pt-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h4 class="text-sm font-semibold text-gray-800">Nuevo préstamo por código de barras</h4>
-            <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" aria-label="Tipo de préstamo">
+            <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de préstamo">
               <button
                 v-for="m in ([
                   { id: 'domicilio', texto: 'Para llevar' },
@@ -956,6 +1097,14 @@ function formatHora(iso: string | null) {
               >
                 {{ m.texto }}
               </button>
+              <button
+                type="button"
+                class="col-span-2 rounded-md px-3 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-white hover:text-gray-800 sm:col-span-1"
+                title="Tablets, notebooks, audífonos…: se prestan en la pestaña Recursos de apoyo"
+                @click="irARecursos"
+              >
+                Recurso de apoyo
+              </button>
             </div>
           </div>
           <p class="mb-3 mt-1 text-xs text-gray-500">
@@ -969,6 +1118,7 @@ function formatHora(iso: string | null) {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h1m0 0h1M5 6v12M8 6v12M11 6v12m3-12v12m3-12v12m3-12h1v12h-1" />
               </svg>
               <input
+                ref="codigoPrestamoInput"
                 :value="codigoBarrasPrestamo"
                 placeholder="Escanear o ingresar código de barras"
                 aria-label="Código de barras del libro"
@@ -1138,12 +1288,13 @@ function formatHora(iso: string | null) {
       </div>
 
       <!-- Préstamos y reservas -->
-      <div class="mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div id="pestanas-prestamo" class="mb-4 scroll-mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
-        <div class="border-b border-indigo-100/70 bg-indigo-50/50 px-3 py-2">
-        <div class="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist">
+        <div v-if="usuario" class="border-b border-indigo-100/70 bg-indigo-50/50 px-3 py-2">
+        <div class="grid grid-cols-2 gap-1 sm:grid-cols-4 rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist">
           <button
             v-for="t in [
+              { id: 'recientes', texto: 'Recientes', n: prestamos.length, icono: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
               { id: 'prestamos', texto: 'Libros', n: librosEnPrestamo, icono: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25' },
               { id: 'recursos', texto: 'Recursos de apoyo', n: recursosEnUso.length, icono: 'M20.25 7.5l-8.25 4.5L3.75 7.5M3.75 7.5l8.25-4.5 8.25 4.5M3.75 7.5v9l8.25 4.5m0-9v9m0-9l8.25-4.5m-8.25 4.5l8.25 4.5m0 0v-9' },
               { id: 'reservas', texto: 'Reservas', n: reservasVigentes.length, icono: 'M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z' },
@@ -1169,26 +1320,80 @@ function formatHora(iso: string | null) {
         </div>
         </div>
 
-        <template v-if="!usuario || activeTab === 'prestamos'">
+        <template v-if="!usuario">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+            <h3 class="font-semibold text-gray-900">Todo lo prestado ahora</h3>
+            <span class="text-xs text-gray-500">{{ textoPrestadosAhora }}</span>
+          </div>
+          <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_6.5rem_8.5rem_6.5rem_7rem] md:gap-3">
+            <span>Material</span><span>Usuario</span><span>Préstamo</span><span>Devolución</span><span>Estado</span><span>Acción</span>
+          </div>
+          <ul class="divide-y divide-gray-100">
+            <li v-for="p in prestadosAhora" :key="p.id" class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_6.5rem_8.5rem_6.5rem_7rem] md:items-center">
+              <div class="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo(p.tipo_item).icono" /></svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block truncate font-semibold text-gray-900">{{ p.libro_titulo }}</span>
+                  <span class="block truncate text-xs text-gray-500">{{ subtituloItem(p) }}</span>
+                </span>
+              </div>
+              <div class="col-span-2 min-w-0 text-sm md:col-span-1">
+                <span class="block truncate text-gray-900">{{ p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}` : '—' }}</span>
+                <span class="block truncate font-mono text-xs text-gray-500">{{ p.usuario?.rut }}</span>
+              </div>
+              <div class="text-sm text-gray-700"><span class="block text-[11px] text-gray-400 md:hidden">Préstamo</span>{{ formatFecha(p.fecha_prestamo) }}</div>
+              <div class="text-sm">
+                <span class="block text-[11px] text-gray-400 md:hidden">Devolución</span>
+                <span class="text-gray-700">{{ devolucionDe(p).linea1 }}</span>
+                <span class="block text-xs font-semibold" :class="devolucionDe(p).clase">{{ devolucionDe(p).linea2 }}</span>
+              </div>
+              <div><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="estadoDe(p).clase">{{ estadoDe(p).texto }}</span></div>
+              <div class="flex justify-end md:justify-start">
+                <button v-if="p.estado !== 'devuelto'" type="button" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700" @click="devolucionPendiente = p">Devolver</button>
+              </div>
+            </li>
+            <li v-if="!cargandoPrestados && !prestadosAhora.length" class="p-4 text-center text-sm text-gray-500">No hay nada prestado en este momento.</li>
+          </ul>
+        </template>
+
+        <template v-else-if="activeTab === 'recientes'">
+          <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_7rem] md:gap-3">
+            <span>Material</span><span>Préstamo</span><span>Devolución</span><span>Estado</span><span>Acción</span>
+          </div>
+          <ul class="divide-y divide-gray-100">
+            <li v-for="p in filasRecientes" :key="p.id" class="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-2 md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_7rem] md:items-center" :class="p.estado === 'devuelto' ? 'bg-gray-50/50' : ''">
+              <div class="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="itemPrestamo(p.tipo_item).fondo">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" :d="itemPrestamo(p.tipo_item).icono" /></svg>
+                </span>
+                <span class="min-w-0">
+                  <span class="block truncate font-semibold text-gray-900">{{ p.libro_titulo }}</span>
+                  <span class="block truncate text-xs text-gray-500">{{ subtituloItem(p) }}</span>
+                </span>
+              </div>
+              <div class="text-sm text-gray-700"><span class="block text-[11px] text-gray-400 md:hidden">Préstamo</span>{{ formatFecha(p.fecha_prestamo) }}</div>
+              <div class="text-sm">
+                <span class="block text-[11px] text-gray-400 md:hidden">Devolución</span>
+                <span class="text-gray-700">{{ devolucionDe(p).linea1 }}</span>
+                <span class="block text-xs font-semibold" :class="devolucionDe(p).clase">{{ devolucionDe(p).linea2 }}</span>
+              </div>
+              <div><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="estadoDe(p).clase">{{ estadoDe(p).texto }}</span></div>
+              <div class="flex justify-end md:justify-start">
+                <button v-if="p.estado !== 'devuelto'" type="button" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700" @click="devolucionPendiente = p">Devolver</button>
+              </div>
+            </li>
+            <li v-if="!filasRecientes.length" class="p-4 text-center text-sm text-gray-500">Todavía no tiene préstamos.</li>
+          </ul>
+        </template>
+
+        <template v-else-if="activeTab === 'prestamos'">
           <div class="hidden border-b border-gray-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 md:grid md:grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] md:gap-3">
             <span>Libro</span><span>Préstamo</span><span>Devolución</span><span>Estado</span><span>Multa</span><span>Acción</span>
           </div>
 
-          <div v-if="!usuario" class="px-4 pb-3 pt-3">
-            <div class="hidden space-y-3 md:block" aria-hidden="true">
-              <div v-for="n in 2" :key="n" class="grid grid-cols-[minmax(0,2.2fr)_6.5rem_8.5rem_6.5rem_minmax(0,1fr)_7rem] gap-3 border-b border-gray-50 pb-4">
-                <span class="h-2.5 rounded-full bg-gray-100" :class="n === 1 ? 'w-3/4' : 'w-1/2'"></span>
-                <span class="h-2.5 w-16 rounded-full bg-gray-100"></span>
-                <span class="h-2.5 w-16 rounded-full bg-gray-100"></span>
-                <span class="h-2.5 w-14 rounded-full bg-gray-100"></span>
-                <span class="h-2.5 w-8 rounded-full bg-gray-100"></span>
-                <span class="h-2.5 w-14 rounded-full bg-gray-100"></span>
-              </div>
-            </div>
-            <p class="pt-2 text-center text-sm text-gray-500">Aquí aparecerán los préstamos del usuario que busques.</p>
-          </div>
-
-          <template v-else>
+                    <template v-if="usuario">
             <ul class="divide-y divide-gray-100">
               <li
                 v-for="p in filasPrestamos"
@@ -1518,9 +1723,16 @@ function formatHora(iso: string | null) {
       >
         <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
           <h3 class="mb-1 text-lg font-bold text-gray-900">¿Confirmar devolución?</h3>
-          <p class="mb-6 text-sm text-gray-500">
+          <p class="mb-4 text-sm text-gray-500">
             Se registrará la devolución de <strong class="font-mono">{{ devolucionPendiente.libro_titulo }}</strong>.
           </p>
+          <dl v-if="usuarioDevolucion" class="mb-6 space-y-1 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Prestado a</dt><dd class="text-right font-medium text-gray-900">{{ usuarioDevolucion.nombre }} {{ usuarioDevolucion.apellido }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">RUT</dt><dd class="font-mono text-gray-900">{{ usuarioDevolucion.rut }}</dd></div>
+            <div v-if="devolucionPendiente.codigo_barras" class="flex justify-between gap-3"><dt class="text-gray-500">Código</dt><dd class="font-mono text-gray-900">{{ devolucionPendiente.codigo_barras }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Prestado el</dt><dd class="text-gray-900">{{ fechaCorta(devolucionPendiente.fecha_prestamo) }}</dd></div>
+            <div v-if="devolucionPendiente.fecha_devolucion" class="flex justify-between gap-3"><dt class="text-gray-500">Vence el</dt><dd class="text-gray-900">{{ fechaCorta(devolucionPendiente.fecha_devolucion) }}</dd></div>
+          </dl>
           <div class="flex gap-3">
             <button
               type="button"

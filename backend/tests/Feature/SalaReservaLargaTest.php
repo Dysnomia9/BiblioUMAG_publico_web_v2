@@ -69,7 +69,7 @@ class SalaReservaLargaTest extends TestCase
         $sala = Sala::factory()->create();
         $usuario = Usuario::factory()->create();
 
-        $this->reservar($sala, $usuario, '08:45', '21:00')->assertStatus(422);
+        $this->reservar($sala, $usuario, '07:30', '21:00')->assertStatus(422);
         $this->reservar($sala, $usuario, '09:00', '09:10')
             ->assertStatus(422)
             ->assertJsonPath('message', 'La reserva debe durar al menos 30 minutos.');

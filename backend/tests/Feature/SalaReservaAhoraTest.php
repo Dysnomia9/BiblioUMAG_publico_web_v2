@@ -98,27 +98,27 @@ class SalaReservaAhoraTest extends TestCase
     public function test_cerca_del_cierre_no_se_reserva_por_2_horas(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-07-10 20:00:00'); // viernes: cierra a las 20:30
+        Carbon::setTestNow('2026-07-10 20:30:00'); // viernes: cierra a las 21:00
         $sala = Sala::factory()->create();
         $ruts = [Usuario::factory()->create()->rut];
 
         $this->reservarAhora($sala, $ruts, ['duracion' => 120])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'La biblioteca cierra a las 20:30: desde ahora se puede reservar hasta esa hora (30 minutos).');
+            ->assertJsonPath('message', 'La biblioteca cierra a las 21:00: desde ahora se puede reservar hasta esa hora (30 minutos).');
         // Con la hora de término escrita a mano, igual.
-        $this->reservarAhora($sala, $ruts, ['hora_fin' => '21:00', 'duracion' => null])->assertStatus(422);
+        $this->reservarAhora($sala, $ruts, ['hora_fin' => '21:30', 'duracion' => null])->assertStatus(422);
 
-        $this->reservarAhora($sala, $ruts, ['duracion' => 30])->assertCreated()->assertJsonPath('hora_fin', '20:30:00');
+        $this->reservarAhora($sala, $ruts, ['duracion' => 30])->assertCreated()->assertJsonPath('hora_fin', '21:00:00');
     }
 
     public function test_si_falta_menos_que_lo_minimo_para_el_cierre_no_se_reserva(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
-        Carbon::setTestNow('2026-07-10 20:05:00');
+        Carbon::setTestNow('2026-07-10 20:35:00');
 
         $this->reservarAhora(Sala::factory()->create(), [Usuario::factory()->create()->rut], ['duracion' => 30])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'La biblioteca cierra a las 20:30: desde ahora ya no alcanza una reserva de al menos 30 minutos.');
+            ->assertJsonPath('message', 'La biblioteca cierra a las 21:00: desde ahora ya no alcanza una reserva de al menos 30 minutos.');
     }
 
     public function test_el_sabado_cuenta_el_cierre_de_las_1400(): void

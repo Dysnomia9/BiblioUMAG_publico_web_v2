@@ -65,6 +65,27 @@ class PrestamoController extends Controller
     }
 
     /**
+     * Devolución rápida: el préstamo sin devolver del libro o recurso con ese código
+     * (largo, corto o de lomo), con su usuario. 404 si nadie lo tiene prestado.
+     */
+    public function porCodigo(Request $request)
+    {
+        $codigo = trim((string) $request->validate(['codigo' => ['required', 'string', 'max:64']])['codigo']);
+        $ejemplarIds = Ejemplar::porCodigo($codigo)->pluck('id');
+
+        $prestamo = Prestamo::with(['usuario:id,nombre,apellido,rut', 'multas:id,prestamo_id,tipo,monto,estado'])
+            ->where('estado', '!=', 'devuelto')
+            ->where(fn ($q) => $q->whereIn('ejemplar_id', $ejemplarIds)
+                ->orWhere(fn ($r) => $r->where('tipo_item', '!=', 'libro')->whereIn('codigo_barras', Ejemplar::variantesCodigo($codigo))))
+            ->latest('fecha_prestamo')
+            ->first();
+
+        return $prestamo
+            ? response()->json($prestamo)
+            : response()->json(['message' => $ejemplarIds->isNotEmpty() ? 'Ese libro no está prestado' : 'No hay ningún préstamo sin devolver con ese código'], 404);
+    }
+
+    /**
      * Con usuario_id (la ficha de una persona en Préstamos): todos sus préstamos, que
      * siempre son pocos. Sin usuario_id (Listado de préstamos): por páginas, con la
      * pestaña (activos, vencidos, devueltos, todos), el tipo y la búsqueda resueltos en
@@ -246,10 +267,10 @@ class PrestamoController extends Controller
                 $ejemplar->loadMissing('libro');
             } else {
                 $categoria = CategoriaRecurso::where('clave', $data['tipo_item'])->first();
-                $equipo = Equipo::where('codigo_barras', $data['codigo_barras'])->where('tipo', $data['tipo_item'])->lockForUpdate()->first();
+                $equipo = Equipo::whereIn('codigo_barras', Ejemplar::variantesCodigo($data['codigo_barras']))->where('tipo', $data['tipo_item'])->lockForUpdate()->first();
 
                 if (! $equipo) {
-                    $deOtraCategoria = Equipo::with('categoria')->where('codigo_barras', $data['codigo_barras'])->first();
+                    $deOtraCategoria = Equipo::with('categoria')->whereIn('codigo_barras', Ejemplar::variantesCodigo($data['codigo_barras']))->first();
 
                     return $deOtraCategoria
                         ? [['message' => "Ese código es de {$deOtraCategoria->categoria?->nombre} ({$deOtraCategoria->codigo_inventario}), no de {$categoria->nombre}."], 422]
