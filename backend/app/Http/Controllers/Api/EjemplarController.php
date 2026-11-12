@@ -76,7 +76,7 @@ class EjemplarController extends Controller
                 [$tomo, $copiaTomo] = [$tomoDelVolumen, $copiaDelVolumen];
             }
 
-            return Ejemplar::create([
+            $copia = new Ejemplar([
                 'libro_id' => $data['libro_id'],
                 'numero_copia' => $siguienteNumero,
                 'codigo_barras' => $data['codigo_barras'],
@@ -91,6 +91,15 @@ class EjemplarController extends Controller
                 'coleccion' => $data['coleccion'] ?? null,
                 'estado_proceso' => 'inventario',
             ]);
+            // Un código corto del sistema (8 dígitos desde 10000001, ver siguienteCodigoBarras):
+            // es también su código de lomo, y la secuencia sigue después de él para no repetirlo.
+            if (Ejemplar::esCodigoCorto($data['codigo_barras'])) {
+                $copia->forceFill(['codigo_lomo' => $data['codigo_barras']]);
+                DB::statement("SELECT setval('ejemplares_codigo_lomo_seq', GREATEST((SELECT last_value FROM ejemplares_codigo_lomo_seq), ?))", [(int) $data['codigo_barras']]);
+            }
+            $copia->save();
+
+            return $copia;
         });
 
         // refresh(): el código de lomo lo pone la base al insertar.
@@ -164,8 +173,17 @@ class EjemplarController extends Controller
      * '00000000000001' — es solo un punto de partida neutro, no un prefijo institucional
      * real, que nadie confirmó todavía.
      */
-    public function siguienteCodigoBarras()
+    public function siguienteCodigoBarras(Request $request)
     {
+        $request->validate(['largo' => ['nullable', Rule::in(['largo', 'corto'])]]);
+
+        // El corto, de 8 dígitos: el siguiente código de lomo, que se reserva ya (así dos
+        // personas no reciben el mismo). Al guardar la copia, su lomo queda con este mismo
+        // número (ver store()): la copia tiene un solo código, que sirve de barras y de lomo.
+        if ($request->query('largo') === 'corto') {
+            return response()->json(['codigo_barras' => (string) DB::selectOne("SELECT nextval('ejemplares_codigo_lomo_seq') AS n")->n]);
+        }
+
         // El mayor se calcula en la base, sin traer los miles de códigos: todos tienen 14
         // dígitos, así que el mayor como texto es también el mayor como número.
         $ultimo = collect([

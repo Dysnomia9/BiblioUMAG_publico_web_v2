@@ -135,6 +135,15 @@ class Ejemplar extends Model
     }
 
     /**
+     * Un código corto del sistema: 8 dígitos desde 10000001, los de la secuencia del código de
+     * lomo. Los cortos de Horizon empiezan con 0 («02025988») y no son de estos.
+     */
+    public static function esCodigoCorto(string $codigo): bool
+    {
+        return (bool) preg_match('/^[1-9][0-9]{7}$/', trim($codigo));
+    }
+
+    /**
      * Busca la copia por cualquiera de sus dos códigos de barras: el de 14 dígitos o el
      * de 8 de la etiqueta de lomo (codigo_lomo, lo asigna la base al crear la copia).
      */

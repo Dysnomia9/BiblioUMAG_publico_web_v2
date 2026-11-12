@@ -591,9 +591,10 @@ function irAPaginaLibros(pagina: number) {
   cargar()
 }
 
-async function generarCodigoBarras(destino: 'nuevo' | 'copia') {
+/** Largo: el siguiente de 14 dígitos. Corto: el siguiente de 8, que queda también como su código de lomo. */
+async function generarCodigoBarras(destino: 'nuevo' | 'copia', largo: 'largo' | 'corto' = 'largo') {
   try {
-    const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras')
+    const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras', { params: { largo } })
     if (destino === 'nuevo') form.codigo_barras = data.codigo_barras
     else formCopia.codigo_barras = data.codigo_barras
   } catch {
@@ -1703,20 +1704,30 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div class="sm:col-span-3">
                   <label for="copia-codigo" :class="ETIQUETA">Código de barras <span class="text-red-600">*</span></label>
-                  <div class="flex gap-2">
-                    <input autocomplete="off" id="copia-codigo" v-model="formCopia.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
+                  <input autocomplete="off" id="copia-codigo" v-model="formCopia.codigo_barras" placeholder="Escanea el código o genera uno" aria-describedby="copia-codigo-generar" :class="[CAMPO, 'font-mono']" />
+                  <!-- Generar uno nuevo: el largo de siempre o el corto (que sirve también de código de lomo) -->
+                  <div id="copia-codigo-generar" class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span class="text-gray-500">Generar:</span>
                     <button
                       type="button"
-                      class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-gray-600 transition-colors hover:bg-gray-50"
-                      title="Generar el siguiente código"
-                      aria-label="Generar el siguiente código de barras"
-                      @click="generarCodigoBarras('copia')"
+                      class="rounded-lg border border-gray-300 bg-white px-2.5 py-1 font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                      title="El siguiente código de 14 dígitos, como los de siempre"
+                      @click="generarCodigoBarras('copia', 'largo')"
                     >
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
+                      Largo <span class="font-mono font-normal text-gray-500">· 14 dígitos</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-lg border border-gray-300 bg-white px-2.5 py-1 font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                      title="El siguiente de 8 dígitos: el mismo número queda como código de lomo"
+                      @click="generarCodigoBarras('copia', 'corto')"
+                    >
+                      Corto <span class="font-mono font-normal text-gray-500">· 8 dígitos</span>
                     </button>
                   </div>
+                  <p v-if="/^[1-9][0-9]{7}$/.test(formCopia.codigo_barras.trim())" class="mt-1 text-[11px] text-gray-500">
+                    Código corto: queda también como su código de lomo (la copia tendrá un solo número).
+                  </p>
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-ubicacion" :class="ETIQUETA">Ubicación física</label>

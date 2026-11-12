@@ -99,4 +99,36 @@ class EtiquetaLomoTest extends TestCase
 
         $this->postJson('/api/ejemplares/etiquetas-lomo', ['codigos' => ['30000000000901']])->assertForbidden();
     }
+
+    public function test_el_codigo_corto_generado_queda_tambien_como_codigo_de_lomo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $libro = Libro::factory()->create();
+
+        $largo = $this->getJson('/api/ejemplares/siguiente-codigo-barras?largo=largo')->assertOk()->json('codigo_barras');
+        $this->assertMatchesRegularExpression('/^[0-9]{14}$/', $largo);
+
+        // Dos pedidos seguidos no reciben el mismo corto: se reserva al generarlo
+        $corto = $this->getJson('/api/ejemplares/siguiente-codigo-barras?largo=corto')->assertOk()->json('codigo_barras');
+        $otro = $this->getJson('/api/ejemplares/siguiente-codigo-barras?largo=corto')->json('codigo_barras');
+        $this->assertMatchesRegularExpression('/^[1-9][0-9]{7}$/', $corto);
+        $this->assertNotSame($corto, $otro);
+
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => $corto])
+            ->assertCreated()
+            ->assertJsonPath('codigo_barras', $corto)
+            ->assertJsonPath('codigo_lomo', $corto);
+
+        // La copia siguiente, con código largo, recibe un lomo nuevo que no repite ninguno
+        $siguiente = $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => $largo])->assertCreated()->json('codigo_lomo');
+        $this->assertNotContains($siguiente, [$corto, $otro]);
+
+        // Un corto escrito a mano más adelante: la secuencia salta después de él
+        $aMano = (string) ((int) $siguiente + 50);
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => $aMano])->assertCreated()->assertJsonPath('codigo_lomo', $aMano);
+        $despues = Ejemplar::factory()->for($libro)->create()->fresh()->codigo_lomo;
+        $this->assertGreaterThan((int) $aMano, (int) $despues);
+
+        $this->getJson('/api/ejemplares/siguiente-codigo-barras?largo=otro')->assertStatus(422);
+    }
 }
