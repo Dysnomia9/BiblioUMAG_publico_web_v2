@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { leerTomoCopia, nombreDeCopia, numeroDeCopia, partesCopia, textoCopia } from '@/utils/tomo'
-import EditarCopia from '@/components/libros/EditarCopia.vue'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type FunctionalComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -53,7 +52,7 @@ const ubicacionesOpciones = ref<Ubicacion[]>([])
 const tiposMaterialOpciones = ref<TipoMaterial[]>([])
 
 // Libro nuevo, copia de uno ya catalogado o material que presta otra biblioteca.
-const modo = ref<'nuevo' | 'copia' | 'interbibliotecario'>('nuevo')
+const modo = ref<'nuevo' | 'copia' | 'interbibliotecario' | 'editar_copia'>('nuevo')
 
 const editandoId = ref<number | null>(null)
 /** Se llegó desde el Listado de material (Editar o Agregar copia): se ofrece volver con la misma búsqueda. */
@@ -345,7 +344,11 @@ const SECCIONES_COPIA: Seccion[] = [
   { clave: 'obra', titulo: 'Obra', detalle: 'Busca el título ya catalogado', tono: 'indigo' },
   { clave: 'copia', titulo: 'Ejemplar nuevo', detalle: 'Datos de la copia física · solo uso interno', tono: 'violeta' },
 ]
-const secciones = computed(() => (modo.value === 'copia' ? SECCIONES_COPIA : seccionesNuevo.value))
+const SECCIONES_EDITAR_COPIA: Seccion[] = [
+  { clave: 'ejemplar', titulo: 'Ejemplar', detalle: 'Escanea el código de la copia', tono: 'indigo' },
+  { clave: 'datos', titulo: 'Datos de la copia', detalle: 'Todo lo que se puede corregir · solo uso interno', tono: 'violeta' },
+]
+const secciones = computed(() => (modo.value === 'copia' ? SECCIONES_COPIA : modo.value === 'editar_copia' ? SECCIONES_EDITAR_COPIA : seccionesNuevo.value))
 const numeroDe = (clave: string) => secciones.value.findIndex((s) => s.clave === clave) + 1
 const seccionDe = (clave: string) => secciones.value.find((s) => s.clave === clave)
 
@@ -437,14 +440,96 @@ const rotuloCopia = (e: Pick<Ejemplar, 'volumen' | 'etiqueta_copia' | 'codigo_ba
   return texto ? `${texto} · ${e.codigo_barras}` : e.codigo_barras
 }
 
-// ---------- Editar una copia (ubicación, volumen, colección y notas), aquí mismo ----------
-const copiaAEditar = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
-function copiaGuardada(actualizada: Ejemplar) {
-  for (const libro of [copiaAEditar.value?.libro, libroParaCopia.value, ...libros.value]) {
-    const i = libro?.ejemplares?.findIndex((e) => e.id === actualizada.id) ?? -1
-    if (libro?.ejemplares && i >= 0) libro.ejemplares[i] = { ...libro.ejemplares[i], ...actualizada, libro: undefined }
+// ---------- Editar ejemplar (pestaña): todos los datos de una copia ya catalogada ----------
+// Se llega escaneando su código, con un clic en una copia («Nuevo ejemplar», «Títulos
+// catalogados») o con el «Editar» de una copia en el Listado de material (?editar_copia=código).
+const codigoAEditar = ref('')
+const buscandoCopiaAEditar = ref(false)
+const copiaEditando = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
+const formEditarVacio = () => ({
+  ubicacion_id: '' as number | '',
+  volumen: '',
+  coleccion: '',
+  precio: '' as number | string,
+  forma_adquisicion: '',
+  numero_registro: '',
+  nota_publica: '',
+  nota_interna: '',
+})
+const formEditar = reactive(formEditarVacio())
+const fotoEditar = ref('')
+const editarConCambios = computed(() => !!copiaEditando.value && JSON.stringify(formEditar) !== fotoEditar.value)
+
+/** Abre la copia en la pestaña «Editar ejemplar», con sus datos en el formulario. */
+function editarCopia(copia: Ejemplar, libro: Libro) {
+  modo.value = 'editar_copia'
+  copiaEditando.value = { copia, libro }
+  codigoAEditar.value = copia.codigo_barras
+  Object.assign(formEditar, {
+    ubicacion_id: copia.ubicacion_id ?? '',
+    volumen: copia.volumen ?? '',
+    coleccion: copia.coleccion ?? '',
+    precio: copia.precio ?? '',
+    forma_adquisicion: copia.forma_adquisicion ?? '',
+    numero_registro: copia.numero_registro ?? '',
+    nota_publica: copia.nota_publica ?? '',
+    nota_interna: copia.nota_interna ?? '',
+  })
+  fotoEditar.value = JSON.stringify(formEditar)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** Busca la copia por su código de barras (o de lomo) y la abre. */
+async function buscarCopiaParaEditar(codigo = codigoAEditar.value) {
+  const texto = codigo.trim()
+  if (!texto) return
+  buscandoCopiaAEditar.value = true
+  try {
+    const { data } = await api.get<Ejemplar & { libro: Libro }>(`/ejemplares/${encodeURIComponent(texto)}`)
+    editarCopia(data, data.libro)
+  } catch {
+    toast.error(`No hay ninguna copia con el código ${texto}`)
+  } finally {
+    buscandoCopiaAEditar.value = false
   }
-  copiaAEditar.value = null
+}
+
+/** Suelta la copia (sin guardar) para escanear otra. */
+function soltarCopiaEditando() {
+  copiaEditando.value = null
+  codigoAEditar.value = ''
+  Object.assign(formEditar, formEditarVacio())
+  fotoEditar.value = ''
+  nextTick(() => document.getElementById('editar-copia-codigo')?.focus())
+}
+
+async function guardarEdicionCopia() {
+  const actual = copiaEditando.value
+  if (!actual) {
+    toast.error('Primero escanea o escribe el código de la copia')
+    irA('ejemplar')
+    return
+  }
+  guardando.value = true
+  try {
+    const { data } = await api.patch<Ejemplar>(`/ejemplares/${actual.copia.id}`, {
+      ubicacion_id: formEditar.ubicacion_id === '' ? null : formEditar.ubicacion_id,
+      volumen: formEditar.volumen.trim() || null,
+      coleccion: formEditar.coleccion.trim() || null,
+      precio: formEditar.precio === '' ? null : Number(formEditar.precio),
+      forma_adquisicion: formEditar.forma_adquisicion || null,
+      numero_registro: formEditar.numero_registro.trim() || null,
+      nota_publica: formEditar.nota_publica.trim() || null,
+      nota_interna: formEditar.nota_interna.trim() || null,
+    })
+    toast.success(`Copia ${data.codigo_barras} actualizada`)
+    editarCopia({ ...actual.copia, ...data, libro: undefined }, actual.libro)
+    await cargar()
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo guardar la copia'))
+  } finally {
+    guardando.value = false
+  }
 }
 
 const copiaDelTomo = computed(() => {
@@ -460,7 +545,10 @@ const obligatoriosCopia = computed<Requisito[]>(() => [
   { texto: 'Obra elegida', listo: !!libroParaCopia.value, seccion: 'obra' },
   { texto: 'Código de barras', listo: !!formCopia.codigo_barras.trim(), seccion: 'copia' },
 ])
-const obligatorios = computed(() => (modo.value === 'copia' ? obligatoriosCopia.value : obligatoriosNuevo.value))
+const obligatoriosEditarCopia = computed<Requisito[]>(() => [{ texto: 'Ejemplar elegido', listo: !!copiaEditando.value, seccion: 'ejemplar' }])
+const obligatorios = computed(() =>
+  modo.value === 'copia' ? obligatoriosCopia.value : modo.value === 'editar_copia' ? obligatoriosEditarCopia.value : obligatoriosNuevo.value,
+)
 
 const pasos = computed(() => {
   const iActual = secciones.value.findIndex((s) => s.clave === seccionActual.value)
@@ -508,6 +596,19 @@ function armarVista(datos: { titulo: string; autores: string[]; categorias: stri
 }
 
 const vista = computed(() => {
+  if (modo.value === 'editar_copia') {
+    const actual = copiaEditando.value
+    if (!actual) return null
+    return armarVista(
+      {
+        titulo: actual.libro.titulo,
+        autores: (actual.libro.autores ?? []).map((a) => a.nombre),
+        categorias: (actual.libro.categorias ?? []).map((c) => c.nombre),
+        tipo: actual.libro.tipo_material?.nombre ?? null,
+      },
+      estadoDeCopias([actual.copia], 'La nota pública y la ubicación de la copia se ven en el portal; lo demás es solo para el personal.'),
+    )
+  }
   if (modo.value === 'copia') {
     const libro = libroParaCopia.value
     if (!libro) return null
@@ -541,11 +642,13 @@ const nombreTipo = computed(() => {
 
 const textoAccion = computed(() => {
   if (modo.value === 'copia') return 'Agregar copia'
+  if (modo.value === 'editar_copia') return 'Guardar cambios de la copia'
   return editandoId.value ? 'Guardar cambios' : 'Crear ficha'
 })
 
 const notaCatalogador = computed(() => {
   if (modo.value === 'copia') return 'La copia toma el número siguiente y nace en «Inventario».'
+  if (modo.value === 'editar_copia') return copiaEditando.value && !editarConCambios.value ? 'Sin cambios por guardar.' : 'El código de barras y el estado no se cambian aquí.'
   const marca = etiqueta('catalogador') || '910'
   if (editandoId.value) return `Catalogado por ${catalogadorEditado.value ?? 'alguien sin registro'} (${marca})`
   return `Catalogador (${marca}): ${auth.staff?.nombre ?? 'tu cuenta'} · se registra automáticamente`
@@ -597,6 +700,13 @@ async function cargarCatalogos() {
 async function abrirDesdeListado() {
   const editarId = Number(route.query.editar)
   const copiaId = Number(route.query.copia)
+  // «Editar» de una copia en el Listado de material: la pestaña «Editar ejemplar» con ella
+  const codigoCopia = typeof route.query.editar_copia === 'string' ? route.query.editar_copia : ''
+  if (codigoCopia) {
+    await buscarCopiaParaEditar(codigoCopia)
+    router.replace({ query: {} })
+    return
+  }
   if (!editarId && !copiaId) return
   try {
     const { data } = await api.get<Libro>(`/libros/${editarId || copiaId}`)
@@ -896,6 +1006,7 @@ const formularioVacio = computed(() => JSON.stringify(form) === JSON.stringify(f
 
 /** Lo escrito que se perdería al cargar otra ficha o el borrador. */
 const hayTrabajoSinGuardar = computed(() => {
+  if (modo.value === 'editar_copia') return editarConCambios.value
   if (modo.value === 'copia') {
     return JSON.stringify(formCopia) !== JSON.stringify(copiaVacia()) || !!libroParaCopia.value
   }
@@ -1120,6 +1231,7 @@ async function confirmarAgregarCopia() {
 const MODOS = [
   { id: 'nuevo' as const, label: 'Nueva ficha', detalle: 'El registro del título, sin código', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700', activo: 'border-indigo-600 bg-indigo-600 shadow-indigo-600/30', anillo: 'hover:border-indigo-300' },
   { id: 'copia' as const, label: 'Nuevo ejemplar', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700', activo: 'border-emerald-600 bg-emerald-600 shadow-emerald-600/30', anillo: 'hover:border-emerald-300', detalle: 'Una copia con su código de barras' },
+  { id: 'editar_copia' as const, label: 'Editar ejemplar', icono: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM16.5 13.5v6m3-3h-6', tono: 'bg-violet-50 text-violet-700', activo: 'border-violet-600 bg-violet-600 shadow-violet-600/30', anillo: 'hover:border-violet-300', detalle: 'Escanea su código y corrige sus datos' },
   { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600', activo: 'border-amber-600 bg-amber-600 shadow-amber-600/30', anillo: 'hover:border-amber-300', detalle: 'Material que llega de otra biblioteca' },
 ]
 
@@ -1128,7 +1240,8 @@ function abrirMenuGestion() {
 }
 
 function accionPrincipal() {
-  if (modo.value === 'copia') pedirConfirmacionCopia()
+  if (modo.value === 'editar_copia') guardarEdicionCopia()
+  else if (modo.value === 'copia') pedirConfirmacionCopia()
   else pedirConfirmacionGuardar()
 }
 
@@ -1174,7 +1287,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </div>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-2xl p-3">
           <!-- Botones grandes, tipo tarjeta: cada uno dice qué hace; el elegido, en su color. -->
-          <div class="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-3" role="tablist" aria-label="Qué catalogar">
+          <div class="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4" role="tablist" aria-label="Qué catalogar">
             <button
               v-for="m in MODOS"
               :key="m.id"
@@ -1667,7 +1780,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </SeccionFicha>
           </template>
 
-          <template v-else>
+          <template v-else-if="modo === 'copia'">
             <!-- 1. Obra -->
             <SeccionFicha id="seccion-obra" :numero="1" titulo="Obra" detalle="Busca el título ya catalogado" tono="indigo">
               <p id="cat-buscar-obra-por" :class="ETIQUETA">Buscar la obra por</p>
@@ -1734,7 +1847,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       type="button"
                       class="whitespace-nowrap rounded-full border border-indigo-100 bg-white px-2 py-0.5 text-[11px] text-gray-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
                       :title="`Editar la copia ${e.codigo_barras}`"
-                      @click="copiaAEditar = { copia: e, libro: libroParaCopia }"
+                      @click="editarCopia(e, libroParaCopia)"
                     >
                       {{ rotuloCopia(e) }}
                     </button>
@@ -1877,6 +1990,128 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               </div>
             </SeccionFicha>
           </template>
+
+          <!-- Editar ejemplar: la copia por su código y todos sus datos -->
+          <template v-else>
+            <!-- 1. Ejemplar -->
+            <SeccionFicha id="seccion-ejemplar" :numero="1" titulo="Ejemplar" detalle="Escanea el código de la copia" tono="indigo">
+              <form class="flex gap-2" @submit.prevent="buscarCopiaParaEditar()">
+                <div class="min-w-0 flex-1">
+                  <label for="editar-copia-codigo" :class="ETIQUETA">Código de barras o de lomo</label>
+                  <input
+                    id="editar-copia-codigo"
+                    v-model="codigoAEditar"
+                    autocomplete="off"
+                    inputmode="numeric"
+                    placeholder="Escanea la copia o escribe su código"
+                    :class="[CAMPO, 'font-mono']"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  class="mt-auto shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-60"
+                  :disabled="buscandoCopiaAEditar || !codigoAEditar.trim()"
+                >
+                  {{ buscandoCopiaAEditar ? 'Buscando…' : 'Abrir' }}
+                </button>
+              </form>
+              <p class="mt-1.5 text-[11px] text-gray-500">
+                También se llega con el «Editar» de una copia, en el Listado de material o en «Títulos catalogados», aquí abajo.
+              </p>
+              <div v-if="copiaEditando" class="mt-4 flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-gray-900">{{ copiaEditando.libro.titulo }}</p>
+                  <p class="mt-0.5 text-xs font-semibold text-indigo-800">Ficha N.º <span class="font-mono">{{ copiaEditando.libro.numero_ficha }}</span></p>
+                  <p class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span
+                      v-if="partesCopia(copiaEditando.copia.volumen, copiaEditando.copia.etiqueta_copia).tomo"
+                      class="rounded-full bg-gradient-to-b from-indigo-500 to-indigo-600 px-2.5 py-0.5 font-bold text-white shadow-sm"
+                    >{{ partesCopia(copiaEditando.copia.volumen, copiaEditando.copia.etiqueta_copia).tomo }}</span>
+                    <span
+                      v-if="partesCopia(copiaEditando.copia.volumen, copiaEditando.copia.etiqueta_copia).copia"
+                      class="rounded-full bg-emerald-50 px-2.5 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                    >Copia <strong>{{ partesCopia(copiaEditando.copia.volumen, copiaEditando.copia.etiqueta_copia).copia }}</strong></span>
+                    <span class="rounded-full px-2.5 py-0.5 font-semibold" :class="estadoBadges[copiaEditando.copia.estado_proceso]?.cls">
+                      {{ estadoBadges[copiaEditando.copia.estado_proceso]?.label ?? copiaEditando.copia.estado_proceso }}
+                    </span>
+                  </p>
+                  <p class="mt-1.5 text-xs text-gray-600">
+                    Código <span class="font-mono font-semibold text-gray-900">{{ copiaEditando.copia.codigo_barras }}</span> · lomo <span class="font-mono">{{ copiaEditando.copia.codigo_lomo }}</span>
+                  </p>
+                  <router-link
+                    v-if="puedeCambiarEstado"
+                    :to="{ name: 'estado-libro', query: { q: copiaEditando.copia.codigo_barras } }"
+                    class="mt-1 inline-block text-xs font-semibold text-indigo-700 hover:underline"
+                  >
+                    Cambiar su estado en «Estado de ejemplares» →
+                  </router-link>
+                </div>
+                <button type="button" class="shrink-0 text-xs font-medium text-indigo-700 hover:underline" @click="soltarCopiaEditando">Cambiar</button>
+              </div>
+            </SeccionFicha>
+
+            <!-- 2. Datos de la copia -->
+            <SeccionFicha id="seccion-datos" :numero="2" titulo="Datos de la copia" detalle="Todo lo que se puede corregir · solo uso interno" tono="violeta">
+              <p v-if="!copiaEditando" class="text-sm text-gray-500">Escanea una copia arriba para ver y corregir sus datos.</p>
+              <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-6">
+                <div class="sm:col-span-3">
+                  <label for="editar-ubicacion" :class="ETIQUETA">Ubicación física</label>
+                  <select id="editar-ubicacion" v-model="formEditar.ubicacion_id" :class="CAMPO">
+                    <option value="">Sin especificar</option>
+                    <option v-for="u in ubicacionesOpciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
+                  </select>
+                </div>
+                <div class="sm:col-span-3">
+                  <label for="editar-volumen" :class="ETIQUETA">Tomo y copia, o designación</label>
+                  <input id="editar-volumen" v-model="formEditar.volumen" autocomplete="off" maxlength="100" placeholder="Ej: t.1 c.2 · t.1-v.II · Anexo" :class="[CAMPO, 'font-mono']" />
+                  <p class="mt-1 text-[11px] text-gray-500">
+                    Se ve como <strong class="text-gray-700">{{ textoCopia(formEditar.volumen, copiaEditando.copia.etiqueta_copia) ?? 'sin tomo ni copia' }}</strong>. Como en Horizon: «t.1 c.2», «t.1-v.II»…
+                  </p>
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="editar-coleccion" :class="ETIQUETA">Colección de la copia</label>
+                  <input
+                    id="editar-coleccion"
+                    v-model="formEditar.coleccion"
+                    autocomplete="off"
+                    list="colecciones"
+                    :placeholder="copiaEditando.libro.coleccion ? `${copiaEditando.libro.coleccion} (la del libro)` : 'La del libro'"
+                    :class="CAMPO"
+                  />
+                  <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro<template v-if="copiaEditando.libro.coleccion"> («{{ copiaEditando.libro.coleccion }}»)</template>.</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="editar-precio" :class="ETIQUETA">Precio (CLP)</label>
+                  <div class="relative">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                    <input id="editar-precio" v-model="formEditar.precio" autocomplete="off" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
+                  </div>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="editar-adquisicion" :class="ETIQUETA">Forma de adquisición</label>
+                  <select id="editar-adquisicion" v-model="formEditar.forma_adquisicion" :class="CAMPO">
+                    <option value="">Sin especificar</option>
+                    <option v-for="f in FORMAS_ADQUISICION" :key="f.valor" :value="f.valor">{{ f.nombre }}</option>
+                  </select>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="editar-registro" :class="ETIQUETA">N.º de registro (Horizon)</label>
+                  <input id="editar-registro" v-model="formEditar.numero_registro" autocomplete="off" maxlength="50" inputmode="numeric" placeholder="Ej: 30727" :class="CAMPO" />
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="editar-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
+                  <textarea id="editar-nota-publica" v-model="formEditar.nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="editar-nota-interna" :class="ETIQUETA">Nota interna de la copia (solo la ve el personal)</label>
+                  <textarea id="editar-nota-interna" v-model="formEditar.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
+                </div>
+                <p class="text-[11px] text-gray-500 sm:col-span-6">
+                  El código de barras y el de lomo no se cambian: identifican a la copia. El estado se cambia en «Estado de ejemplares».
+                </p>
+              </div>
+            </SeccionFicha>
+          </template>
         </div>
 
         <!-- Vista previa, obligatorios y acciones -->
@@ -1903,7 +2138,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <p class="mt-0.5 text-xs text-gray-500">{{ vista.estado.detalle }}</p>
               <p v-if="vista.estado.nota" class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-500">{{ vista.estado.nota }}</p>
             </template>
-            <p v-else class="text-sm text-gray-400">Elige la obra para ver cómo aparece.</p>
+            <p v-else class="text-sm text-gray-400">{{ modo === 'editar_copia' ? 'Escanea una copia para ver su obra.' : 'Elige la obra para ver cómo aparece.' }}</p>
             </div>
           </div>
 
@@ -1935,10 +2170,18 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               type="button"
               class="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-110 disabled:opacity-60"
               style="background: linear-gradient(135deg, #3B28A3 0%, #4F46E5 100%);"
-              :disabled="guardando"
+              :disabled="guardando || (modo === 'editar_copia' && (!copiaEditando || !editarConCambios))"
               @click="accionPrincipal"
             >
               {{ textoAccion }}
+            </button>
+            <button
+              v-if="modo === 'editar_copia' && copiaEditando"
+              type="button"
+              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
+              @click="soltarCopiaEditando"
+            >
+              {{ editarConCambios ? 'Descartar y editar otra' : 'Editar otra copia' }}
             </button>
             <button
               v-if="modo === 'nuevo' && !editandoId"
@@ -2015,21 +2258,25 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <td class="px-5 py-3 font-mono text-xs text-gray-500">{{ l.clasificacion ?? '—' }}</td>
                 <td class="px-5 py-3">
                   <div class="flex flex-wrap gap-1">
-                    <!-- En «Nuevo ejemplar», cada copia abre su edición; en «Nueva ficha», solo se muestra -->
-                    <component
-                      :is="modo === 'copia' ? 'button' : 'span'"
+                    <!-- Cada copia, con su botón «Editar»: abre la pestaña «Editar ejemplar» con ella -->
+                    <span
                       v-for="e in l.ejemplares"
                       :key="e.id"
-                      :type="modo === 'copia' ? 'button' : undefined"
-                      class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
-                      :class="[estadoBadges[e.estado_proceso]?.cls, modo === 'copia' ? 'ring-indigo-300 transition hover:ring-2' : '']"
-                      :title="`${modo === 'copia' ? 'Editar la copia · ' : ''}${nombreDeCopia(e) ?? e.codigo_barras} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
-                      @click="modo === 'copia' && (copiaAEditar = { copia: e, libro: l })"
+                      class="inline-flex items-center overflow-hidden rounded-full text-xs font-medium"
+                      :class="estadoBadges[e.estado_proceso]?.cls"
+                      :title="`${nombreDeCopia(e) ?? e.codigo_barras} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
                     >
-                      {{ rotuloCopia(e) }}
-                    </component>
+                      <span class="whitespace-nowrap py-0.5 pl-2 pr-1.5">{{ rotuloCopia(e) }}</span>
+                      <button
+                        type="button"
+                        class="border-l border-black/10 bg-white/60 px-2 py-0.5 font-semibold text-violet-700 transition-colors hover:bg-violet-600 hover:text-white"
+                        :aria-label="`Editar la copia ${e.codigo_barras}`"
+                        @click="editarCopia(e, l)"
+                      >
+                        Editar
+                      </button>
+                    </span>
                   </div>
-                  <p v-if="modo === 'copia' && l.ejemplares?.length" class="mt-1 text-[11px] text-gray-400">Haz clic en una copia para editarla</p>
                 </td>
                 <td class="px-5 py-3">
                   <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -2143,14 +2390,6 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </p>
       </template>
     </DialogoConfirmacion>
-
-    <EditarCopia
-      :copia="copiaAEditar?.copia ?? null"
-      :coleccion-libro="copiaAEditar?.libro.coleccion ?? null"
-      :ubicaciones="ubicacionesOpciones"
-      @cerrar="copiaAEditar = null"
-      @guardada="copiaGuardada"
-    />
 
     <!-- Ficha creada: su N.º a la vista y qué hacer ahora (no se va sola como una notificación) -->
     <Modal

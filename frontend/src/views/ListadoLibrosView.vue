@@ -411,14 +411,15 @@ function agregarCopia(l: Libro) {
 // ---------- Editar una copia (ubicación, volumen, colección y notas) ----------
 const copiaAEditar = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
 
-/** El «Editar» de una copia como enlace: el listado con esa copia y su cuadro de edición abierto. */
-const hrefEditarCopia = (e: Ejemplar) => router.resolve({ name: 'listado-libros', query: { editar_copia: e.codigo_barras } }).href
+/** El «Editar» de una copia: Catalogación › «Editar ejemplar» con esa copia abierta. */
+const hrefEditarCopia = (e: Ejemplar) => router.resolve({ name: 'catalogacion-libros', query: { editar_copia: e.codigo_barras } }).href
 
-/** Clic normal: el cuadro aquí mismo. Cmd/Ctrl/Mayús + clic o la rueda: el navegador lo abre en otra pestaña. */
+/** Clic normal: allá, recordando dónde estaba (para volver con la misma búsqueda). Cmd/Ctrl/Mayús + clic o la rueda: otra pestaña. */
 function clicEditarCopia(evento: MouseEvent, copia: Ejemplar, libro: Libro) {
   if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
   evento.preventDefault()
-  copiaAEditar.value = { copia, libro }
+  guardarDondeEstaba(libro.id)
+  router.push({ name: 'catalogacion-libros', query: { editar_copia: copia.codigo_barras, desde: 'listado' } })
 }
 
 async function abrirCopiaPorCodigo(codigo: string) {
@@ -781,8 +782,8 @@ function copiaGuardada(actualizada: Ejemplar) {
                         <a
                           v-if="puedeCatalogar"
                           :href="hrefEditarCopia(e)"
-                          title="Cmd/Ctrl + clic: abrir en otra pestaña"
-                          class="rounded-lg px-2 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-50"
+                          title="Editar esta copia en Catalogación (Cmd/Ctrl + clic: en otra pestaña)"
+                          class="rounded-lg border border-violet-200 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 shadow-sm transition-colors hover:border-violet-600 hover:bg-violet-600 hover:text-white"
                           :aria-label="`Editar la copia ${e.codigo_barras}`"
                           @click="clicEditarCopia($event, e, f.libro)"
                         >
