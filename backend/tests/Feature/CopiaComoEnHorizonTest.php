@@ -49,6 +49,19 @@ class CopiaComoEnHorizonTest extends TestCase
         $this->assertSame('c.2', Ejemplar::whereKey($c2->id)->first(['id', 'numero_copia', 'copia_tomo', 'fecha_ingreso_horizon'])->etiqueta_copia);
     }
 
+    public function test_la_copia_pegada_al_tomo_se_reconoce(): void
+    {
+        // Como figuran en Horizon y en los lomos impresos (6 copias)
+        $this->assertSame(['t.1', 1], \App\Support\TomoEjemplar::desdeEtiqueta('t.1c.1'));
+        $this->assertSame(['v.1', 2], \App\Support\TomoEjemplar::desdeEtiqueta('v.1c.2'));
+        $this->assertSame(['t.2', 1], \App\Support\TomoEjemplar::desdeEtiqueta('t.2/c.1'));
+        // Lo de siempre no cambia
+        $this->assertSame(['t.2a', null], \App\Support\TomoEjemplar::desdeEtiqueta('t.2a'));
+        $this->assertSame(['v.2', 1], \App\Support\TomoEjemplar::desdeEtiqueta('v.2-c.1'));
+        $this->assertSame(['t.1', 3], \App\Support\TomoEjemplar::desdeEtiqueta('t.1 c.3'));
+        $this->assertSame([null, null], \App\Support\TomoEjemplar::desdeEtiqueta('No. 367 (Ene., 2014)'));
+    }
+
     public function test_sin_c_de_horizon_no_lleva_numero(): void
     {
         $libro = Libro::factory()->create(['titulo' => 'Tesis']);

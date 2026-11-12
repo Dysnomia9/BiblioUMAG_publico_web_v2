@@ -158,7 +158,7 @@ function resumenLote(h: EjemplarEstadoHistorial) {
   const anteriores = new Set(filas.map((x) => etiquetaEstado(x, 'anterior')))
   const copias = filas.slice(0, COPIAS_EN_RESUMEN).map((x) => {
     const palabras = (x.ejemplar?.libro?.titulo ?? 'Libro eliminado').split(/\s+/)
-    return `${palabras.slice(0, 3).join(' ')}${palabras.length > 3 ? '…' : ''} ${numeroDeCopia(x.ejemplar) ? ` (c.${numeroDeCopia(x.ejemplar)})` : ''}`
+    return `${palabras.slice(0, 3).join(' ')}${palabras.length > 3 ? '…' : ''}${numeroDeCopia(x.ejemplar) ? ` (c.${numeroDeCopia(x.ejemplar)})` : ''}`
   })
   return {
     total,

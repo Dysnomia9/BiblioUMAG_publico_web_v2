@@ -1,5 +1,6 @@
 // El tomo y la copia como los escribe Horizon («t.72», «v.1 c.2»), igual que App\Support\TomoEjemplar.
-const TOMO = /^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)\s*(?:[-,;]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/i
+// La letra tras el número del tomo («t.2a») no es la «c» de la copia pegada («t.1c.1»); también «t.2/c.1».
+const TOMO = /^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)\s*(?:[-,;/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/i
 
 /**
  * El tomo y la copia por separado, para las píldoras del listado: «t.72» → tomo «Tomo 72»;

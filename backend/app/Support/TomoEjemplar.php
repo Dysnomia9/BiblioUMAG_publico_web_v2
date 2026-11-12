@@ -20,7 +20,9 @@ final class TomoEjemplar
     public static function desdeEtiqueta(?string $etiqueta): array
     {
         $texto = trim(preg_replace('/\s+/u', ' ', (string) $etiqueta));
-        if (! preg_match('/^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)\s*(?:[-,;]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/iu', $texto, $m)) {
+        // La letra tras el número del tomo («t.2a») no es la «c» de la copia pegada («t.1c.1»);
+        // también «t.2/c.1». Igual que tomo_de_volumen() del ETL.
+        if (! preg_match('/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)\s*(?:[-,;\/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/iu', $texto, $m)) {
             return [null, null];
         }
 

@@ -38,10 +38,11 @@ export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_cop
   const lineas = (e.clasificacion ?? '').trim().split(/\s+/).filter(Boolean)
   const volumen = e.volumen?.trim() ?? ''
   if (conCopia && volumen) lineas.push(...lineasDeVolumen(volumen))
-  // La copia 0 no lleva «c.», como en Horizon; «v.2-c.1» (como venía de Horizon) ya la dice
-  // La de Horizon lleva su «c.N» (etiqueta_copia), no el número interno de BiblioUMAG
-  const copia = e.etiqueta_copia !== undefined ? e.etiqueta_copia : e.numero_copia > 0 ? `c.${e.numero_copia}` : null
-  if (conCopia && copia && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(copia)
+  // Solo la «c.N» de Horizon y del lomo (etiqueta_copia), nunca el número interno de BiblioUMAG:
+  // sin ella, la etiqueta no lleva copia. Si el volumen ya la dice («v.2-c.1», «t.1c.1»,
+  // «t.2/c.1»), no se repite.
+  const copia = e.etiqueta_copia ?? null
+  if (conCopia && copia && !/(^|[\s,.;\-(/\]\d])c\.?\s*\d/i.test(volumen)) lineas.push(copia)
   return lineas
 }
 
