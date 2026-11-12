@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { FilaFicha } from '@/types'
+import type { FilaFicha, ItemFicha } from '@/types'
 
 /**
  * Ficha bibliográfica de un título. El personal la ve con los números de etiqueta
  * MARC y, al final, los campos de uso interno agrupados en un bloque que se puede
  * plegar; el portal recibe solo las filas públicas y las muestra sin números.
  */
-const props = withDefaults(defineProps<{ filas: FilaFicha[]; conEtiquetas?: boolean }>(), { conEtiquetas: false })
+const props = withDefaults(defineProps<{ filas: FilaFicha[]; conEtiquetas?: boolean; filtrable?: boolean }>(), { conEtiquetas: false, filtrable: false })
+
+/** Pulsar un autor, una materia, una carrera o un profesor guía (solo con filtrable). */
+const emit = defineEmits<{ filtrar: [item: ItemFicha] }>()
+
+const sePuedeFiltrar = (item: ItemFicha) => props.filtrable && !!(item.autor_id || item.categoria_id || item.carrera_id || item.buscar)
 
 const esEnlace = (fila: FilaFicha) => fila.etiqueta === '856' && /^https?:\/\//.test(fila.valor)
 // ISBN, ISSN y clasificación se leen mejor en letra de código.
@@ -27,6 +32,19 @@ const verInternas = ref(true)
         <dt class="text-gray-500">{{ f.campo }}</dt>
         <dd class="col-start-2 break-words font-medium text-gray-900 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
           <a v-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">Abrir recurso electrónico</a>
+          <!-- Varios valores (autores, materias…): una etiqueta cada uno, no unidos con «;». -->
+          <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
+            <template v-for="(item, k) in f.items" :key="k">
+              <button
+                v-if="sePuedeFiltrar(item)"
+                type="button"
+                class="rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-0.5 text-left text-[13px] font-medium text-indigo-800 transition-colors hover:border-indigo-300 hover:bg-indigo-100"
+                :title="`Ver los libros de ${item.texto}`"
+                @click="emit('filtrar', item)"
+              >{{ item.texto }}</button>
+              <span v-else class="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[13px]">{{ item.texto }}</span>
+            </template>
+          </span>
           <template v-else>{{ f.valor }}</template>
         </dd>
       </div>
@@ -49,7 +67,12 @@ const verInternas = ref(true)
         <div v-for="(f, i) in internas" :key="`i${i}`" class="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 px-4 py-2 sm:grid-cols-[2.75rem_11rem_minmax(0,1fr)]">
           <span class="rounded-md bg-gray-100 py-0.5 text-center font-mono text-[11px] font-semibold text-gray-500">{{ f.etiqueta }}</span>
           <dt class="text-gray-500">{{ f.campo }}</dt>
-          <dd class="col-start-2 break-words text-gray-600 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">{{ f.valor }}</dd>
+          <dd class="col-start-2 break-words text-gray-600 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
+            <span v-if="f.items?.length" class="flex flex-wrap gap-1.5">
+              <span v-for="(item, k) in f.items" :key="k" class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[13px]">{{ item.texto }}</span>
+            </span>
+            <template v-else>{{ f.valor }}</template>
+          </dd>
         </div>
       </dl>
     </template>
@@ -64,6 +87,9 @@ const verInternas = ref(true)
         <a v-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">
           Abrir recurso electrónico
         </a>
+        <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
+          <span v-for="(item, k) in f.items" :key="k" class="rounded-md bg-gray-100 px-2 py-0.5">{{ item.texto }}</span>
+        </span>
         <template v-else>{{ f.valor }}</template>
       </dd>
     </div>

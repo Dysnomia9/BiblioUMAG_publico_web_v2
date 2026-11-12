@@ -171,6 +171,9 @@ function estadoLibro(libro: LibroCatalogo) {
       color: 'text-sky-700',
     }
   }
+  if (libro.digital) {
+    return { texto: 'Libro electrónico', detalle: 'Se lee en línea, sin reserva', punto: 'bg-emerald-500', color: 'text-emerald-700' }
+  }
   if (hayDisponible(libro)) {
     const n = libro.ejemplares_disponibles
     return { texto: 'Disponible', detalle: `${n} ${n === 1 ? 'ejemplar' : 'ejemplares'} en estantería`, punto: 'bg-emerald-500', color: 'text-emerald-700' }
@@ -455,7 +458,16 @@ async function cancelar(reserva: ReservaLibro) {
                     <p class="mt-0.5 text-xs text-gray-500">{{ fila.estado.detalle }}</p>
                   </div>
                   <div class="shrink-0 sm:text-center">
-                    <span v-if="fila.reserva" class="text-xs font-semibold text-indigo-700">En tus reservas</span>
+                    <a
+                      v-if="fila.libro.digital"
+                      :href="fila.libro.url_acceso ?? undefined"
+                      target="_blank"
+                      rel="noopener"
+                      class="inline-block whitespace-nowrap rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 sm:w-full"
+                    >
+                      Leer en línea ↗
+                    </a>
+                    <span v-else-if="fila.reserva" class="text-xs font-semibold text-indigo-700">En tus reservas</span>
                     <button
                       v-else
                       @click="libroPorConfirmar = fila.libro"
@@ -528,7 +540,16 @@ async function cancelar(reserva: ReservaLibro) {
         >
           Cerrar
         </button>
-        <p v-if="filaFicha?.reserva" class="flex-1 self-center text-center text-sm font-semibold text-indigo-700">En tus reservas</p>
+        <a
+          v-if="filaFicha?.libro.digital"
+          :href="filaFicha.libro.url_acceso ?? undefined"
+          target="_blank"
+          rel="noopener"
+          class="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+        >
+          Leer en línea ↗
+        </a>
+        <p v-else-if="filaFicha?.reserva" class="flex-1 self-center text-center text-sm font-semibold text-indigo-700">En tus reservas</p>
         <button
           v-else-if="filaFicha"
           :disabled="!!motivoSinReservar"

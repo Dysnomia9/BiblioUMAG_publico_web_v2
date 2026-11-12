@@ -20,12 +20,12 @@ class CatalogoLibroController extends Controller
 {
     public function autores(Request $request)
     {
-        return response()->json(OpcionesCatalogo::buscar(Autor::class, $request->query('q')));
+        return response()->json(OpcionesCatalogo::buscar(Autor::class, $request->query('q'), conLibros: $request->boolean('con_libros')));
     }
 
     public function categorias(Request $request)
     {
-        return response()->json(OpcionesCatalogo::buscar(Categoria::class, $request->query('q')));
+        return response()->json(OpcionesCatalogo::buscar(Categoria::class, $request->query('q'), conLibros: $request->boolean('con_libros')));
     }
 
     /**

@@ -66,6 +66,7 @@ const router = createRouter({
     { path: '/codigo-qr', name: 'codigo-qr', component: () => import('@/views/CodigoQrView.vue') },
     { path: '/prestamos/listado', name: 'listado-prestamos', component: () => import('@/views/ListadoPrestamosView.vue') },
     { path: '/salas/reservas', name: 'listado-reservas', component: () => import('@/views/ListadoReservasView.vue') },
+    { path: '/catalogo/materias', name: 'materias-catalogo', component: () => import('@/views/MateriasCatalogoView.vue') },
     { path: '/catalogo/listado', name: 'listado-libros', component: () => import('@/views/ListadoLibrosView.vue') },
     { path: '/catalogo/catalogacion', name: 'catalogacion-libros', component: () => import('@/views/CatalogacionLibrosView.vue') },
     { path: '/catalogo/estado', name: 'estado-libro', component: () => import('@/views/EstadoLibroView.vue') },

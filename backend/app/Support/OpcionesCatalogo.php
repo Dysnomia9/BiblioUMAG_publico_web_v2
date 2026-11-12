@@ -23,20 +23,27 @@ final class OpcionesCatalogo
      * @param  (Closure(Builder): mixed)|null  $libros  solo las que tienen algún libro así
      * @return list<array{id: int, nombre: string}>
      */
-    public static function buscar(string $modelo, mixed $texto, ?Closure $libros = null): array
+    public static function buscar(string $modelo, mixed $texto, ?Closure $libros = null, bool $conLibros = false): array
     {
         $texto = trim((string) $texto);
 
+        // Con $conLibros, cuántos libros tiene cada una (las sugerencias al catalogar): se
+        // cuenta solo para las LIMITE que se devuelven, así que no pesa.
         $opciones = $texto !== ''
             ? $modelo::query()
                 ->whereCadaPalabra('nombre', $texto)
                 ->when($libros !== null, fn (Builder $q) => $q->whereHas('libros', $libros))
+                ->when($conLibros, fn (Builder $q) => $q->withCount('libros'))
                 ->orderBy('nombre')
                 ->limit(self::LIMITE)
-                ->get(['id', 'nombre'])
+                ->get()
             : self::masUsadas($modelo, $libros);
 
-        return $opciones->map(fn (Model $opcion) => ['id' => $opcion->id, 'nombre' => $opcion->nombre])->values()->all();
+        return $opciones->map(fn (Model $opcion) => [
+            'id' => $opcion->id,
+            'nombre' => $opcion->nombre,
+            ...($conLibros && isset($opcion->libros_count) ? ['libros' => $opcion->libros_count] : []),
+        ])->values()->all();
     }
 
     /**

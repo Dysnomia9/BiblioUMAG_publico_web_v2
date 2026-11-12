@@ -72,6 +72,39 @@ class LibroCatalogacionTest extends TestCase
         $this->assertTrue(Libro::first()->autores->contains($autor->id));
     }
 
+    public function test_materia_con_espacios_de_mas_no_se_duplica(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $materia = Categoria::create(['nombre' => 'Mapuche - Lenguas']);
+
+        $this->postJson('/api/libros', [
+            'codigo_barras' => 'UMAG000097',
+            'titulo' => 'Diccionario mapudungun',
+            'categorias' => ['MAPUCHE  -   lenguas', '  Lenguas   indígenas '],
+        ])->assertStatus(201);
+
+        $this->assertSame(1, Categoria::whereRaw('lower(nombre) = ?', ['mapuche - lenguas'])->count());
+        $this->assertTrue(Libro::first()->categorias->contains($materia->id));
+        $this->assertDatabaseHas('categorias', ['nombre' => 'Lenguas indígenas']);
+    }
+
+    public function test_materia_sin_tilde_usa_la_que_ya_existe_con_tilde(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+        $materia = Categoria::create(['nombre' => 'COMUNICACIÓN']);
+        $otra = Categoria::create(['nombre' => 'AÑO SABÁTICO']);
+
+        $this->postJson('/api/libros', [
+            'codigo_barras' => 'UMAG000096',
+            'titulo' => 'Teoría de la comunicación',
+            'categorias' => ['Comunicacion', 'ANO SABATICO'],
+        ])->assertStatus(201);
+
+        $this->assertTrue(Libro::first()->categorias->contains($materia->id));
+        // La ñ no se iguala a la n: «ANO SABATICO» es otra materia
+        $this->assertFalse(Libro::first()->categorias->contains($otra->id));
+    }
+
     public function test_isbn_duplicado_falla_validacion(): void
     {
         Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));

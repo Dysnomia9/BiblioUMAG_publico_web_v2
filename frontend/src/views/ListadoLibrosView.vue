@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -17,9 +17,10 @@ import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
 import { textoIngreso } from '@/utils/ingreso'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
-import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
+import type { Autor, Carrera, Categoria, Ejemplar, ItemFicha, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 
 function abrirMenuGestion() {
   window.dispatchEvent(new Event('abrir-menu-gestion'))
@@ -35,6 +36,8 @@ const POR_PAGINA = 50
 const pagina = ref(1)
 const meta = ref<Omit<Paginado<Libro>, 'data'>>({ current_page: 1, last_page: 1, per_page: POR_PAGINA, total: 0, from: null, to: null })
 
+type Orden = 'titulo' | 'autor' | 'clasificacion' | 'materia' | 'tipo_material'
+
 const filtros = reactive({
   q: '',
   estado_proceso: '',
@@ -42,11 +45,15 @@ const filtros = reactive({
   categoria_id: '' as number | '',
   // Carrera asignada al libro al catalogarlo (ej. Pedagogía en Educación Básica).
   carrera_id: '' as number | '',
-  orden: 'titulo' as 'titulo' | 'tipo_material',
+  // Al pulsar un autor en una fila: sus libros.
+  autor_id: '' as number | '',
+  orden: 'titulo' as Orden,
+  direccion: 'asc' as 'asc' | 'desc',
 })
 
 // La categoría se busca en el servidor (son miles con el catálogo real): acá queda la elegida.
 const categoriaElegida = ref<Categoria | null>(null)
+const autorElegido = ref<Autor | null>(null)
 const carreras = ref<Carrera[]>([])
 const exportarAbierto = ref(false)
 const tiposMaterial = ref<TipoMaterial[]>([])
@@ -79,6 +86,9 @@ const filtrosPildora = computed(() => [
     nombre: 'Ordenar',
     opciones: [
       { valor: 'titulo', texto: 'título' },
+      { valor: 'autor', texto: 'autor' },
+      { valor: 'clasificacion', texto: 'Dewey' },
+      { valor: 'materia', texto: 'materia' },
       { valor: 'tipo_material', texto: 'tipo de recurso' },
     ],
   },
@@ -110,7 +120,9 @@ async function cargar() {
         tipo_material_id: filtros.tipo_material_id || undefined,
         categoria_id: filtros.categoria_id || undefined,
         carrera_id: filtros.carrera_id || undefined,
+        autor_id: filtros.autor_id || undefined,
         orden: filtros.orden,
+        direccion: filtros.direccion,
       },
     })
     const { data: filas, ...resto } = data
@@ -124,6 +136,17 @@ async function cargar() {
   } finally {
     if (busquedaEnCurso === busqueda) cargando.value = false
   }
+}
+
+/** Encabezado de columna: ordena por ella (A→Z); pulsarlo de nuevo invierte (Z→A). */
+function ordenarPor(campo: Orden) {
+  filtros.direccion = filtros.orden === campo && filtros.direccion === 'asc' ? 'desc' : 'asc'
+  filtros.orden = campo
+  filtrar()
+}
+
+function flechaOrden(campo: Orden) {
+  return filtros.orden !== campo ? '↕' : filtros.direccion === 'asc' ? '↑' : '↓'
 }
 
 /** Una búsqueda o un filtro nuevo parte de la primera página. */
@@ -163,6 +186,31 @@ async function buscarCategorias(texto: string) {
 function elegirCategoria(categoria: Categoria | null) {
   categoriaElegida.value = categoria
   filtrar()
+}
+
+/** Pulsar una materia en una fila: el listado pasa a mostrar los libros de esa materia. */
+function filtrarPorMateria(c: Categoria) {
+  filtros.categoria_id = c.id
+  elegirCategoria(c)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** Desde la ficha abierta: un autor, una materia, una carrera o (el profesor guía) un nombre a buscar. */
+function filtrarDesdeFicha(item: ItemFicha) {
+  if (item.autor_id) return filtrarPorAutor({ id: item.autor_id, nombre: item.texto })
+  if (item.categoria_id) return filtrarPorMateria({ id: item.categoria_id, nombre: item.texto })
+  if (item.carrera_id) filtros.carrera_id = item.carrera_id
+  else if (item.buscar) filtros.q = item.buscar
+  filtrar()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** Pulsar un autor en una fila: el listado pasa a mostrar sus libros. */
+function filtrarPorAutor(a: Autor | null) {
+  autorElegido.value = a
+  filtros.autor_id = a?.id ?? ''
+  filtrar()
+  if (a) window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
@@ -254,9 +302,52 @@ function alHacerClic(e: MouseEvent) {
   if (menuAbierto.value !== null && !(e.target as HTMLElement).closest('[data-menu-libro]')) menuAbierto.value = null
 }
 
-onMounted(() => {
-  cargar()
+// ---------- Volver desde Editar ficha con la misma búsqueda ----------
+// Al ir a editar se guarda dónde estaba (búsqueda, filtros, materia, página y la fila abierta);
+// el botón «Volver al listado» de la ficha trae ?volver=1 y se restaura tal cual.
+const CLAVE_VOLVER = 'listado-libros:volver'
+
+function guardarDondeEstaba(libroId?: number) {
+  try {
+    sessionStorage.setItem(CLAVE_VOLVER, JSON.stringify({ filtros: { ...filtros }, categoria: categoriaElegida.value, autor: autorElegido.value, pagina: pagina.value, libroId }))
+  } catch {
+    // Sin almacenamiento (modo privado): el botón vuelve al listado sin filtros.
+  }
+}
+
+/** Desde otra pantalla (Materias): ?categoria_id=…&categoria=Nombre abre el listado ya filtrado. */
+function filtroDesdeLaDireccion() {
+  const id = Number(route.query.categoria_id)
+  if (!id) return
+  filtros.categoria_id = id
+  categoriaElegida.value = { id, nombre: String(route.query.categoria ?? '') } as Categoria
+  router.replace({ name: 'listado-libros' })
+}
+
+function restaurarDondeEstaba(): number | undefined {
+  if (route.query.volver !== '1') return undefined
+  try {
+    const guardado = JSON.parse(sessionStorage.getItem(CLAVE_VOLVER) ?? 'null')
+    if (!guardado) return undefined
+    Object.assign(filtros, guardado.filtros)
+    categoriaElegida.value = guardado.categoria ?? null
+    autorElegido.value = guardado.autor ?? null
+    pagina.value = guardado.pagina ?? 1
+    if (guardado.libroId) expandidos.value = new Set([guardado.libroId])
+    router.replace({ name: 'listado-libros' })
+    return guardado.libroId
+  } catch {
+    return undefined
+  }
+}
+
+onMounted(async () => {
+  filtroDesdeLaDireccion()
+  const libroVuelto = restaurarDondeEstaba()
   cargarCatalogos()
+  await cargar()
+  // La fila del libro que se editó queda a la vista.
+  if (libroVuelto) nextTick(() => document.getElementById(`libro-${libroVuelto}`)?.scrollIntoView({ block: 'center' }))
   document.addEventListener('click', alHacerClic)
 })
 onBeforeUnmount(() => {
@@ -269,11 +360,14 @@ const libroAEditar = ref<Libro | null>(null)
 function irAEditar() {
   const libro = libroAEditar.value
   libroAEditar.value = null
-  if (libro) router.push({ name: 'catalogacion-libros', query: { editar: libro.id } })
+  if (!libro) return
+  guardarDondeEstaba(libro.id)
+  router.push({ name: 'catalogacion-libros', query: { editar: libro.id, desde: 'listado' } })
 }
 
 function agregarCopia(l: Libro) {
-  router.push({ name: 'catalogacion-libros', query: { copia: l.id } })
+  guardarDondeEstaba(l.id)
+  router.push({ name: 'catalogacion-libros', query: { copia: l.id, desde: 'listado' } })
 }
 
 // ---------- Editar una copia (ubicación, volumen, colección y notas) ----------
@@ -366,6 +460,7 @@ function copiaGuardada(actualizada: Ejemplar) {
             v-if="f.campo === 'tipo_material_id'"
             v-model="filtros.categoria_id"
             :buscar="buscarCategorias"
+            :nombre-elegido="categoriaElegida?.nombre"
             todas="Todas las categorías"
             placeholder="Categoría"
             etiqueta="Filtrar por categoría"
@@ -373,6 +468,16 @@ function copiaGuardada(actualizada: Ejemplar) {
             @elegir="elegirCategoria"
           />
         </template>
+          <button
+            v-if="autorElegido"
+            type="button"
+            class="inline-flex h-10 items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 pl-3.5 pr-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+            :title="`Quitar el filtro por ${autorElegido.nombre}`"
+            @click="filtrarPorAutor(null)"
+          >
+            Autor: {{ autorElegido.nombre }}
+            <span class="text-base leading-none" aria-hidden="true">×</span>
+          </button>
         </div>
       </section>
 
@@ -383,16 +488,20 @@ function copiaGuardada(actualizada: Ejemplar) {
           class="hidden border-b border-gray-200 bg-gray-50/80 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 lg:grid lg:grid-cols-[2.25rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_7.5rem_minmax(0,1.1fr)_8.5rem] lg:gap-4"
         >
           <span></span>
-          <span>Título y autor</span>
-          <span>Dewey</span>
-          <span>Categoría</span>
-          <span>Tipo</span>
+          <span class="flex gap-3">
+            <button v-for="c in ([['titulo', 'Título'], ['autor', 'Autor']] as const)" :key="c[0]" type="button" class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-indigo-700" :class="filtros.orden === c[0] ? 'text-indigo-700' : ''" :title="`Ordenar por ${c[1].toLowerCase()}`" @click="ordenarPor(c[0])">
+              {{ c[1] }} <span aria-hidden="true">{{ flechaOrden(c[0]) }}</span>
+            </button>
+          </span>
+          <button v-for="c in ([['clasificacion', 'Dewey'], ['materia', 'Categoría'], ['tipo_material', 'Tipo']] as const)" :key="c[0]" type="button" class="inline-flex items-center gap-1 justify-self-start uppercase tracking-wider hover:text-indigo-700" :class="filtros.orden === c[0] ? 'text-indigo-700' : ''" :title="`Ordenar por ${c[1].toLowerCase()}`" @click="ordenarPor(c[0])">
+            {{ c[1] }} <span aria-hidden="true">{{ flechaOrden(c[0]) }}</span>
+          </button>
           <span>Ejemplares</span>
           <span class="text-right">Acciones</span>
         </div>
 
         <div class="divide-y divide-gray-100">
-          <div v-for="f in filas" :key="f.libro.id" class="even:bg-gray-50/50">
+          <div v-for="f in filas" :id="`libro-${f.libro.id}`" :key="f.libro.id" class="scroll-mt-24 even:bg-gray-50/50">
             <div
               class="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 px-4 py-3.5 transition-colors lg:grid-cols-[2.25rem_minmax(0,2.3fr)_minmax(0,1.1fr)_minmax(0,1fr)_7.5rem_minmax(0,1.1fr)_8.5rem] lg:items-center lg:gap-4 lg:px-5"
               :class="expandidos.has(f.libro.id) ? 'bg-indigo-50/40' : 'hover:bg-gray-50/70'"
@@ -421,13 +530,27 @@ function copiaGuardada(actualizada: Ejemplar) {
                 />
                 <div class="min-w-0">
                   <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
-                  <p class="truncate text-xs text-gray-500">{{ f.autores }}</p>
+                  <p class="truncate text-xs text-gray-500">
+                    <template v-if="f.libro.autores?.length">
+                      <template v-for="(a, i) in f.libro.autores" :key="a.id">
+                        <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los libros de ${a.nombre}`" @click="filtrarPorAutor(a)">{{ a.nombre }}</button><span v-if="i < f.libro.autores.length - 1">, </span>
+                      </template>
+                    </template>
+                    <template v-else>{{ f.autores }}</template>
+                  </p>
                 </div>
               </div>
 
               <div class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 lg:contents">
                 <p class="justify-self-start rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700">{{ f.libro.clasificacion ?? '—' }}</p>
-                <p class="truncate text-xs font-medium text-gray-700" :title="f.categoria">{{ f.categoria }}</p>
+                <p class="truncate text-xs font-medium text-gray-700" :title="f.categoria">
+                  <template v-if="f.libro.categorias?.length">
+                    <template v-for="(c, i) in f.libro.categorias" :key="c.id">
+                      <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los libros de la materia ${c.nombre}`" @click="filtrarPorMateria(c)">{{ c.nombre }}</button><span v-if="i < f.libro.categorias.length - 1">, </span>
+                    </template>
+                  </template>
+                  <template v-else>—</template>
+                </p>
                 <span class="inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full py-0.5 font-semibold" :class="[f.tipoClase, f.tipoTamano]">
                   <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
                   {{ f.libro.tipo_material?.nombre ?? 'Libro' }}
@@ -516,7 +639,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                     <span class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-800"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Ficha bibliográfica</span>
                     <span class="rounded-md border border-indigo-200 bg-white px-1.5 py-px font-mono text-[11px] font-semibold text-indigo-700">MARC 21</span>
                   </p>
-                  <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas />
+                  <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas filtrable @filtrar="filtrarDesdeFicha" />
                   <p v-if="textoIngreso(f.libro)" class="border-t border-indigo-100 px-4 py-2.5 text-xs text-gray-500">{{ textoIngreso(f.libro) }}</p>
                 </div>
                 <div class="overflow-hidden rounded-xl border border-emerald-100 bg-white">

@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\DB;
 
 class PortalController extends Controller
 {
+    /** El tipo de material de los libros que se leen en línea (migración crear_tipo_libro_electronico). */
+    private const LIBRO_ELECTRONICO = 'Libro electrónico';
+
     public function __construct(private ReservaSalaService $reservaSalaService)
     {
     }
@@ -207,9 +210,12 @@ class PortalController extends Controller
 
     public function catalogo(Request $request)
     {
-        // Solo obras con al menos un ejemplar en estante (aunque esté prestado ahora
-        // mismo — el usuario puede reservarlo/unirse a la cola desde el portal).
-        $query = Libro::whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
+        // Obras con al menos un ejemplar en estante (aunque esté prestado ahora mismo — el
+        // usuario puede reservarlo/unirse a la cola desde el portal) y los libros electrónicos
+        // con su enlace (856): se buscan igual, se leen en línea y no se reservan.
+        $query = Libro::where(fn ($w) => $w
+            ->whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante'))
+            ->orWhere(fn ($e) => $e->whereNotNull('url_acceso')->whereHas('tipoMaterial', fn ($t) => $t->where('nombre', self::LIBRO_ELECTRONICO))))
             ->with([
                 'autores', 'categorias', 'tipoMaterial',
                 'carreras' => fn ($q) => $q->orderBy('carreras.nombre'),
@@ -256,6 +262,9 @@ class PortalController extends Controller
             'id' => $libro->id,
             'titulo' => $libro->titulo,
             'tipo_material' => $libro->tipoMaterial?->nombre,
+            // Digital: se abre con el enlace; no tiene copias que prestar ni reservar.
+            'digital' => $libro->tipoMaterial?->nombre === self::LIBRO_ELECTRONICO && filled($libro->url_acceso),
+            'url_acceso' => $libro->url_acceso,
             'autores' => $libro->autores->map->only(['id', 'nombre'])->values(),
             'categorias' => $libro->categorias->map->only(['id', 'nombre'])->values(),
             'ejemplares_total' => $libro->ejemplares_total,

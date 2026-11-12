@@ -51,7 +51,7 @@ class Libro extends Model
     /** En orden de catalogación: el primero es el autor principal (100), el resto, secundarios (700). */
     public function autores(): BelongsToMany
     {
-        return $this->belongsToMany(Autor::class, 'libro_autor')->withPivot('orden')->orderByPivot('orden');
+        return $this->belongsToMany(Autor::class, 'libro_autor')->withPivot('orden', 'rol')->orderByPivot('orden');
     }
 
     public function catalogadoPor(): BelongsTo

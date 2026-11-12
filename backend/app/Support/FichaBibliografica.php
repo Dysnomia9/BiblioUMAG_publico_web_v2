@@ -141,18 +141,32 @@ final class FichaBibliografica
                 continue;
             }
 
+            // Los secundarios (700), una fila por papel: «Autores secundarios», «Compiladores»,
+            // «Traductores»… así se distingue quién es qué sin leer abreviaturas.
+            if ($clave === 'autores_secundarios') {
+                foreach (self::secundariosPorPapel($libro) as $campo => $autores) {
+                    $filas[] = [
+                        'etiqueta' => $etiqueta, 'campo' => $campo, 'valor' => $autores->pluck('nombre')->implode('; '), 'interno' => ! $publico,
+                        'items' => self::itemsAutores($autores),
+                    ];
+                }
+
+                continue;
+            }
+
             $valor = self::valor($libro, $clave);
             if ($valor === null || $valor === '') {
                 continue;
             }
 
-            $filas[] = ['etiqueta' => $etiqueta, 'campo' => $nombre, 'valor' => $valor, 'interno' => ! $publico];
+            $filas[] = ['etiqueta' => $etiqueta, 'campo' => $nombre, 'valor' => $valor, 'interno' => ! $publico, 'items' => self::items($libro, $clave, $valor)];
         }
 
         // Las carreras a las que sirve (Catalogación → Carreras asociadas), en cualquier
         // plantilla: una fila más, con la etiqueta local 690, en su lugar tras las materias.
         if ($libro->carreras->isNotEmpty()) {
-            $carreras = ['etiqueta' => '690', 'campo' => 'Carreras asociadas', 'valor' => $libro->carreras->pluck('nombre')->sort()->implode('; '), 'interno' => false];
+            $carreras = ['etiqueta' => '690', 'campo' => 'Carreras asociadas', 'valor' => $libro->carreras->pluck('nombre')->sort()->implode('; '), 'interno' => false,
+                'items' => $libro->carreras->sortBy('nombre')->map(fn ($c) => ['texto' => $c->nombre, 'carrera_id' => $c->id])->values()->all()];
             $despues = collect($filas)->search(fn ($fila) => $fila['etiqueta'] > '690');
             array_splice($filas, $despues === false ? count($filas) : $despues, 0, [$carreras]);
         }
@@ -163,10 +177,14 @@ final class FichaBibliografica
     private static function valor(Libro $libro, string $clave): ?string
     {
         return match ($clave) {
-            'autor_principal' => $libro->autores->first()?->nombre,
-            'autores_secundarios' => $libro->autores->slice(1)->pluck('nombre')->implode('; '),
+            // 100 solo si el primero es autor: una obra compilada o editada no tiene autor
+            // principal (se registra por el título) y sus compiladores o editores van en 700.
+            'autor_principal' => self::principal($libro)?->nombre,
+            'autores_secundarios' => $libro->autores->reject(fn ($a) => $a === self::principal($libro))->map(fn ($a) => self::conRol($a))->implode('; '),
+            // Como en el registro (490): entre paréntesis, «(Serie Harry Potter ; 1)».
+            'serie' => filled($libro->serie) ? '('.trim($libro->serie).')' : null,
             'materias' => $libro->categorias->pluck('nombre')->implode('; '),
-            'materias_personales', 'materias_geograficas' => self::lineas($libro->{$clave}),
+            'titulo_alternativo', 'materias_personales', 'materias_geograficas' => self::lineas($libro->{$clave}),
             'pie_imprenta' => self::pieDeImprenta($libro),
             'catalogador' => $libro->catalogadoPor?->nombre,
             'creacion_registro' => $libro->created_at?->format('d-m-Y'),
@@ -174,12 +192,64 @@ final class FichaBibliografica
         };
     }
 
+    /** @return array<string, string> «Compiladores» => «Moulder, David S.; Varley, Allen», en el orden de la ficha. */
+    private static function secundariosPorPapel(Libro $libro): array
+    {
+        $principal = self::principal($libro);
+
+        return $libro->autores
+            ->reject(fn ($a) => $a === $principal)
+            ->groupBy(fn ($a) => RolesAutor::plural($a->pivot->rol ?? null))
+            ->all();
+    }
+
+    /** Cada autor por separado, con su id para filtrar el listado por él. */
+    private static function itemsAutores($autores): array
+    {
+        return $autores->map(fn ($a) => ['texto' => $a->nombre, 'autor_id' => $a->id])->values()->all();
+    }
+
+    /**
+     * Los valores de una fila por separado, para mostrarlos como etiquetas y no unidos con
+     * «;»: autores y materias con su id (se filtra por ellos), el profesor guía con su nombre
+     * para buscarlo; el resto, solo partido donde había «; ». Null si es un solo valor común.
+     */
+    private static function items(Libro $libro, string $clave, string $valor): ?array
+    {
+        return match ($clave) {
+            'autor_principal' => self::itemsAutores(collect([self::principal($libro)])),
+            'materias' => $libro->categorias->map(fn ($c) => ['texto' => $c->nombre, 'categoria_id' => $c->id])->values()->all(),
+            'profesor_guia' => collect(explode(';', $valor))->map(fn ($n) => trim($n))->filter()->map(fn ($n) => ['texto' => $n, 'buscar' => $n])->values()->all(),
+            default => str_contains($valor, '; ') ? collect(explode('; ', $valor))->filter()->map(fn ($t) => ['texto' => $t])->values()->all() : null,
+        };
+    }
+
+    /** El autor principal (100): el primero, si su papel es autor (sin rol). */
+    private static function principal(Libro $libro)
+    {
+        $primero = $libro->autores->first();
+
+        return $primero && blank($primero->pivot->rol ?? null) ? $primero : null;
+    }
+
+    /** «Pérez, Juan, trad.»: el nombre con la abreviatura de su papel (700 $e), si no es autor. */
+    private static function conRol($autor): string
+    {
+        $abreviatura = RolesAutor::abreviatura($autor->pivot->rol ?? null);
+
+        return $abreviatura ? "{$autor->nombre}, {$abreviatura}" : $autor->nombre;
+    }
+
     /** "Lugar : Editorial, año", como se transcribe en la ficha (260/264). */
     private static function pieDeImprenta(Libro $libro): ?string
     {
         $lugarYEditorial = collect([$libro->lugar_publicacion, $libro->editorial])->filter()->implode(' : ');
 
-        return collect([$lugarYEditorial, $libro->anio_publicacion])->filter()->implode(', ') ?: null;
+        $pie = collect([$lugarYEditorial, $libro->anio_publicacion])->filter()->implode(', ');
+
+        // Como en el registro original (Horizon: «Boston : WCB/McGraw-Hill, 1997.»), el
+        // 260/264 cierra siempre con punto (salvo que ya termine en uno).
+        return $pie === '' ? null : (str_ends_with($pie, '.') ? $pie : "{$pie}.");
     }
 
     private static function lineas(?string $texto): ?string

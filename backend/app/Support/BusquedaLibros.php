@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class BusquedaLibros
 {
-    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'clasificacion', 'isbn', 'issn', 'autores', 'codigos'];
+    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'clasificacion', 'isbn', 'issn', 'autores', 'profesor_guia', 'codigos'];
 
     public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'autores', 'categorias', 'isbn_sin_guiones'];
 
@@ -35,6 +35,8 @@ final class BusquedaLibros
                 'titulo' => $libros()->whereRaw(Busqueda::sinTildes('titulo').' ilike ?', [$sinTildes]),
                 'titulo_alternativo' => $libros()->whereRaw(Busqueda::sinTildes('titulo_alternativo').' ilike ?', [$sinTildes]),
                 'clasificacion' => $libros()->where('clasificacion', 'ilike', $tal),
+                // El profesor guía de las tesis (texto en el libro, no un autor del catálogo).
+                'profesor_guia' => $libros()->whereRaw(Busqueda::sinTildes('profesor_guia').' ilike ?', [$sinTildes]),
                 // El propio o cualquiera de los otros (el de la colección encuentra todos sus títulos).
                 'isbn' => $libros()->where(fn ($q) => $q->where('isbn', 'ilike', $tal)->orWhere('otros_isbn', 'ilike', $tal)),
                 'issn' => $libros()->where('issn', 'ilike', $tal),

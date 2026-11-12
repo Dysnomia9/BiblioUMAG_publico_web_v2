@@ -16,6 +16,7 @@ use App\Support\Bitacora;
 use App\Support\FichaBibliografica;
 use App\Support\OrdenAlfabetico;
 use App\Support\Paginacion;
+use App\Support\RolesAutor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -74,12 +75,28 @@ class LibroController extends Controller
         // Ordenar "por tipo de recurso" es alfabético por el nombre del catálogo, no por
         // el id de la FK — de ahí el join en vez de un simple orderBy('tipo_material_id').
         // Los títulos, de la A a la Z con los que empiezan con un número o un signo al final.
-        if ($request->query('orden') === 'tipo_material') {
+        // Autor y materia: los del primero de cada libro (el principal / la primera materia).
+        // Dewey: como texto, que deja «025.3» antes de «100» y junta la misma clase.
+        // Los que no tienen el dato van al final; dentro de cada valor, por título.
+        $orden = $request->query('orden');
+        $descendente = $request->query('direccion') === 'desc' ? 'desc' : 'asc';
+        $primero = [
+            'autor' => '(select a.nombre from libro_autor la join autores a on a.id = la.autor_id where la.libro_id = libros.id order by la.orden limit 1)',
+            'materia' => '(select c.nombre from libro_categoria lc join categorias c on c.id = lc.categoria_id where lc.libro_id = libros.id order by c.nombre limit 1)',
+            'clasificacion' => 'libros.clasificacion',
+        ];
+        if ($orden === 'tipo_material') {
             $query->leftJoin('tipos_material', 'libros.tipo_material_id', '=', 'tipos_material.id')
                 ->select('libros.*')
-                ->orderBy('tipos_material.nombre');
+                ->orderBy('tipos_material.nombre', $descendente);
+        } elseif (isset($primero[$orden])) {
+            $query->orderByRaw(OrdenAlfabetico::de($primero[$orden])." {$descendente} nulls last");
         }
-        OrdenAlfabetico::porTitulo($query, 'libros.titulo');
+        if ($orden === 'titulo' && $descendente === 'desc') {
+            $query->orderByRaw(OrdenAlfabetico::de('libros.titulo').' desc');
+        } else {
+            OrdenAlfabetico::porTitulo($query, 'libros.titulo');
+        }
 
         // Por páginas: el catálogo real son decenas de miles de títulos, cada uno con su
         // ficha y sus copias. La exportación pide páginas grandes (hasta 500) una tras otra.
@@ -170,6 +187,10 @@ class LibroController extends Controller
 
             $this->sincronizarPivotes($libro, $data);
 
+            if (blank($data['codigo_barras'] ?? null)) {
+                return $libro;
+            }
+
             Ejemplar::create([
                 'libro_id' => $libro->id,
                 // La primera copia no lleva «c.»: ver Ejemplar::siguienteNumero()
@@ -187,11 +208,12 @@ class LibroController extends Controller
             return $libro;
         });
 
+        $codigo = $data['codigo_barras'] ?? null;
         Bitacora::registrar(
             'libros.catalogar',
-            "Catalogó «{$libro->titulo}» con su primera copia ({$data['codigo_barras']})",
+            $codigo ? "Catalogó «{$libro->titulo}» con su primera copia ({$codigo})" : "Creó la ficha de «{$libro->titulo}», todavía sin ejemplares",
             entidad: $libro,
-            datos: ['codigo_barras' => $data['codigo_barras'], 'isbn' => $libro->isbn],
+            datos: ['codigo_barras' => $codigo, 'isbn' => $libro->isbn],
         );
 
         return response()->json($this->conFicha($libro->load([...self::RELACIONES, 'ejemplares.ubicacion'])), 201);
@@ -289,8 +311,20 @@ class LibroController extends Controller
     {
         if (array_key_exists('autores', $data)) {
             // Se guarda el orden: el primero es el autor principal (100).
-            $ids = $this->idsPorNombre(Autor::class, $data['autores'] ?? []);
-            $libro->autores()->sync(collect($ids)->mapWithKeys(fn ($id, $i) => [$id => ['orden' => $i + 1]])->all());
+            // El rol de cada uno va en autores_roles, en el mismo orden (null = autor).
+            // Pares [nombre, rol] sin vacíos ni repetidos (el mismo criterio que idsPorNombre),
+            // para que cada id quede con el rol de su nombre.
+            $roles = array_values($data['autores_roles'] ?? []);
+            $pares = collect($data['autores'] ?? [])->values()
+                ->map(fn ($n, $i) => [trim(preg_replace('/\s+/u', ' ', (string) $n)), $roles[$i] ?? null])
+                ->filter(fn ($p) => $p[0] !== '')
+                ->unique(fn ($p) => self::claveNombre($p[0]))
+                ->values();
+            $ids = $this->idsPorNombre(Autor::class, $pares->pluck(0)->all());
+            $libro->autores()->sync(collect($ids)->mapWithKeys(fn ($id, $i) => [$id => [
+                'orden' => $i + 1,
+                'rol' => $pares[$i][1] ?? null,
+            ]])->all());
         }
 
         if (array_key_exists('categorias', $data)) {
@@ -302,14 +336,33 @@ class LibroController extends Controller
         }
     }
 
+    public const CON_TILDE = 'áéíóúàèìòùäëïöüâêîôû';
+
+    public const SIN_TILDE = 'aeiouaeiouaeiouaeiou';
+
+    /** Cómo se comparan los nombres: en minúsculas y sin tildes (la ñ se mantiene). */
+    public static function claveNombre(string $nombre): string
+    {
+        $base = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $nombre)));
+
+        return strtr($base, array_combine(mb_str_split(self::CON_TILDE), mb_str_split(self::SIN_TILDE)));
+    }
+
     /** @return array<int> */
     private function idsPorNombre(string $modelClass, array $nombres): array
     {
+        // Un solo espacio entre palabras («Mapuche  -  Lenguas» → «Mapuche - Lenguas») y, si
+        // ya existe escrita igual salvo mayúsculas, tildes o espacios («COMUNICACION» y
+        // «Comunicación»), se usa esa en vez de crear otra: así no se repiten materias ni
+        // autores como pasaba en el sistema anterior. La ñ no se iguala a la n (año ≠ ano).
         return collect($nombres)
-            ->map(fn ($nombre) => trim((string) $nombre))
+            ->map(fn ($nombre) => trim(preg_replace('/\s+/u', ' ', (string) $nombre)))
             ->filter()
-            ->unique()
-            ->map(fn ($nombre) => $modelClass::firstOrCreate(['nombre' => $nombre])->id)
+            ->unique(fn ($nombre) => self::claveNombre($nombre))
+            ->map(fn ($nombre) => $modelClass::query()
+                ->whereRaw("translate(lower(regexp_replace(trim(nombre), '\\s+', ' ', 'g')), ?, ?) = ?", [self::CON_TILDE, self::SIN_TILDE, self::claveNombre($nombre)])
+                ->orderBy('id')
+                ->value('id') ?? $modelClass::create(['nombre' => $nombre])->id)
             ->values()
             ->all();
     }
@@ -319,13 +372,17 @@ class LibroController extends Controller
         return [
             'codigo_barras' => $ignorarLibroId
                 ? ['sometimes']
-                : ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
-            'titulo' => ['required', 'string', 'max:255'],
+                // Sin código se crea solo la ficha (el registro bibliográfico, como en Horizon);
+                // las copias se agregan después desde «Nuevo ejemplar».
+                : ['nullable', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
+            'titulo' => ['required', 'string', 'max:1000'],
             'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn,' . ($ignorarLibroId ?? 'NULL') . ',id'],
             // Varios, separados por «;», y se pueden repetir entre títulos (el de la colección)
             'otros_isbn' => ['nullable', 'string', 'max:500'],
             'autores' => ['nullable', 'array'],
             'autores.*' => ['string', 'max:255'],
+            'autores_roles' => ['nullable', 'array'],
+            'autores_roles.*' => ['nullable', 'string', Rule::exists('roles_autor', 'clave')],
             'categorias' => ['nullable', 'array'],
             'categorias.*' => ['string', 'max:255'],
             'carreras' => ['nullable', 'array'],
@@ -344,10 +401,10 @@ class LibroController extends Controller
             'copia_nota_interna' => ['nullable', 'string', 'max:5000'],
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
-            'titulo_alternativo' => ['nullable', 'string', 'max:255'],
+            'titulo_alternativo' => ['nullable', 'string', 'max:2000'], // 246 repetible: uno por línea
             'edicion' => ['nullable', 'string', 'max:255'],
             'lugar_publicacion' => ['nullable', 'string', 'max:255'],
-            'descripcion_fisica' => ['nullable', 'string', 'max:255'],
+            'descripcion_fisica' => ['nullable', 'string', 'max:2000'],
             'entidad_corporativa' => ['nullable', 'string', 'max:255'],
             'reunion' => ['nullable', 'string', 'max:255'],
             'entidad_secundaria' => ['nullable', 'string', 'max:255'],

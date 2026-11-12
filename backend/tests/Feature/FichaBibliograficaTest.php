@@ -64,7 +64,7 @@ class FichaBibliograficaTest extends TestCase
         $this->assertSame('982.64 M385h 2021', $ficha['Número de clasificación Dewey']);
         $this->assertSame('Martinic, Mateo', $ficha['Autor principal']);
         $this->assertSame('Ortega, Luis', $ficha['Autores secundarios']);
-        $this->assertSame('Punta Arenas : Ediciones UMAG, 2021', $ficha['Pie de imprenta']);
+        $this->assertSame('Punta Arenas : Ediciones UMAG, 2021.', $ficha['Pie de imprenta']);
         $this->assertSame('https://biblioteca.umag.cl/recurso/123', $ficha['Acceso electrónico']);
         foreach (['Idioma', 'Serie', 'Notas generales', 'Nota de bibliografía', 'Catalogador', 'Creación del registro'] as $interno) {
             $this->assertArrayNotHasKey($interno, $ficha->all());
@@ -125,7 +125,7 @@ class FichaBibliograficaTest extends TestCase
         $ficha = collect($this->fichaEnElPortal($libro))->keyBy('etiqueta');
 
         $this->assertSame('Producción y publicación', $ficha['264']['campo']);
-        $this->assertSame('Santiago : Didácticos Austral, 2022', $ficha['264']['valor']);
+        $this->assertSame('Santiago : Didácticos Austral, 2022.', $ficha['264']['valor']);
         $this->assertSame('Niños de 8 a 12 años', $ficha['521']['valor']);
         $this->assertArrayHasKey('520', $ficha->all());
     }

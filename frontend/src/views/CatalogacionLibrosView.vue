@@ -34,11 +34,11 @@ const busqueda = ref('')
 // Autores y materias son miles con el catálogo real: los combobox los buscan en el
 // servidor a medida que se escribe, en vez de traer la lista entera.
 async function buscarAutores(texto: string) {
-  const { data } = await api.get<Autor[]>('/autores', { params: { q: texto || undefined } })
+  const { data } = await api.get<Autor[]>('/autores', { params: { q: texto || undefined, con_libros: 1 } })
   return data
 }
 async function buscarMaterias(texto: string) {
-  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined } })
+  const { data } = await api.get<Categoria[]>('/categorias', { params: { q: texto || undefined, con_libros: 1 } })
   return data
 }
 // Las del catálogo y las que tienen los usuarios: una nueva se escribe y se agrega con Enter.
@@ -50,6 +50,8 @@ const tiposMaterialOpciones = ref<TipoMaterial[]>([])
 const modo = ref<'nuevo' | 'copia' | 'interbibliotecario'>('nuevo')
 
 const editandoId = ref<number | null>(null)
+/** Se llegó desde el Listado de material (Editar o Agregar copia): se ofrece volver con la misma búsqueda. */
+const vieneDelListado = route.query.desde === 'listado'
 const libroEditado = ref<Libro | null>(null)
 const guardando = ref(false)
 
@@ -75,6 +77,8 @@ const formVacio = {
   codigo_barras: '',
   titulo: '',
   autores: [] as string[],
+  /** Papel de cada autor (700 $e) por su nombre; sin entrada = autor. */
+  rolesAutores: {} as Record<string, string>,
   categorias: [] as string[],
   carreras: [] as string[],
   coleccion: '',
@@ -90,7 +94,12 @@ const formVacio = {
   copia_nota_interna: '',
   ...(Object.fromEntries(CAMPOS_TEXTO.map((c) => [c, ''])) as Record<CampoTexto, string>),
 }
-const form = reactive({ ...formVacio })
+const form = reactive({ ...formVacio, rolesAutores: {} as Record<string, string> })
+
+// Papeles que puede tener una persona en la obra (los mismos de App\Support\RolesAutor).
+// Papeles de cada persona en la obra (700 $e): se administran en Administración → Catálogos.
+const rolesAutor = ref<{ clave: string; nombre: string }[]>([])
+const ROLES_AUTOR = computed(() => [{ valor: '', texto: 'Autor' }, ...rolesAutor.value.map((r) => ({ valor: r.clave, texto: r.nombre }))])
 
 const plantillas = ref<PlantillaFicha[]>([])
 const catalogadorEditado = ref<string | null>(null)
@@ -136,7 +145,8 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
 }
 
 // Campos opcionales que quedan tras un botón «+ …» para no alargar el formulario.
-const EXTRAS_TITULO = ['titulo_alternativo', 'entidad_corporativa', 'reunion', 'entidad_secundaria'] as const
+// La entidad (110) no va aquí: está siempre a la vista junto a los autores, porque la autoría es una u otra.
+const EXTRAS_TITULO = ['titulo_alternativo', 'reunion', 'entidad_secundaria'] as const
 const EXTRAS_MATERIAS = ['materias_personales', 'materias_geograficas', 'url_acceso'] as const
 const NOTAS_INTERNAS = ['nota_interna', 'nota_bibliografia', 'nota_idioma', 'nota_local'] as const
 const EN_EL_BOTON: Partial<Record<CampoTexto, string>> = {
@@ -154,6 +164,25 @@ const extrasMaterias = computed(() => EXTRAS_MATERIAS.filter((c) => tiene(c)))
 const notaPublica = computed(() => tiene('nota_publica'))
 const notasInternas = computed(() => NOTAS_INTERNAS.filter((c) => tiene(c)))
 const verMasTitulo = ref(false)
+
+/** 246 es repetible: los títulos alternativos se guardan uno por línea. */
+const titulosAlternativos = ref<string[]>([''])
+function cargarTitulosAlternativos() {
+  const lista = (form.titulo_alternativo ?? '').split(/\r?\n/).map((t) => t.trim()).filter(Boolean)
+  titulosAlternativos.value = lista.length ? lista : ['']
+}
+function guardarTitulosAlternativos() {
+  form.titulo_alternativo = titulosAlternativos.value.map((t) => t.trim()).filter(Boolean).join('\n')
+}
+function agregarTituloAlternativo() {
+  titulosAlternativos.value.push('')
+  nextTick(() => document.getElementById(`cat-titulo-alt-${titulosAlternativos.value.length - 1}`)?.focus())
+}
+function quitarTituloAlternativo(i: number) {
+  titulosAlternativos.value.splice(i, 1)
+  if (!titulosAlternativos.value.length) titulosAlternativos.value.push('')
+  guardarTitulosAlternativos()
+}
 const verMasMaterias = ref(false)
 
 /** «Título alternativo, entidad o congreso (246 · 110 · 111)». */
@@ -165,6 +194,7 @@ function textoExtras(claves: readonly CampoTexto[]) {
 
 function abrirExtrasConDatos() {
   verMasTitulo.value = EXTRAS_TITULO.some((c) => form[c].trim())
+  cargarTitulosAlternativos()
   verMasMaterias.value = EXTRAS_MATERIAS.some((c) => form[c].trim())
 }
 
@@ -193,15 +223,15 @@ const seccionesNuevo = computed<Seccion[]>(() => {
   else if (tiene('resumen') || tiene('audiencia')) lista.push({ clave: 'contenido', titulo: 'Contenido', detalle: 'De qué trata y para quién es', tono: 'pizarra' })
   lista.push({
     clave: 'ejemplar',
-    titulo: 'Ejemplar',
-    detalle: editandoId.value ? 'Datos internos del título · no se muestran al usuario' : 'Datos de esta copia física · solo uso interno',
+    titulo: 'Colección y notas',
+    detalle: 'Datos internos del título · las copias se agregan en «Nuevo ejemplar»',
     tono: 'violeta',
   })
   return lista
 })
 const SECCIONES_COPIA: Seccion[] = [
   { clave: 'obra', titulo: 'Obra', detalle: 'Busca el título ya catalogado', tono: 'indigo' },
-  { clave: 'copia', titulo: 'Copia nueva', detalle: 'Datos de la copia física · solo uso interno', tono: 'violeta' },
+  { clave: 'copia', titulo: 'Ejemplar nuevo', detalle: 'Datos de la copia física · solo uso interno', tono: 'violeta' },
 ]
 const secciones = computed(() => (modo.value === 'copia' ? SECCIONES_COPIA : seccionesNuevo.value))
 const numeroDe = (clave: string) => secciones.value.findIndex((s) => s.clave === clave) + 1
@@ -234,7 +264,6 @@ type Requisito = { texto: string; listo: boolean; seccion: string }
 
 const obligatoriosNuevo = computed<Requisito[]>(() => {
   const lista: Requisito[] = []
-  if (!editandoId.value) lista.push({ texto: 'Código de barras', listo: !!form.codigo_barras.trim(), seccion: 'identificacion' })
   lista.push({ texto: `Título (${etiqueta('titulo') || '245'})`, listo: !!form.titulo.trim(), seccion: 'titulo' })
   if (tiene('autor_principal')) {
     lista.push({
@@ -320,11 +349,11 @@ const vista = computed(() => {
   const estado = editandoId.value
     ? estadoDeCopias(libroEditado.value?.ejemplares ?? [], '')
     : {
-        texto: 'Disponible',
-        detalle: '1 ejemplar en estantería',
-        punto: 'bg-emerald-500',
-        color: 'text-emerald-700',
-        nota: 'La copia nace en «Inventario»: el título aparece en el portal cuando pase a «En estante».',
+        texto: 'Sin ejemplares',
+        detalle: 'Ficha sin copias todavía',
+        punto: 'bg-gray-400',
+        color: 'text-gray-600',
+        nota: 'Una ficha sin ejemplares no se ve en el portal: aparece cuando una copia pase a «En estante».',
       }
   return armarVista({ titulo: form.titulo, autores: form.autores, categorias: form.categorias, tipo: tipoActual.value?.nombre ?? null }, estado)
 })
@@ -337,7 +366,7 @@ const nombreTipo = computed(() => {
 
 const textoAccion = computed(() => {
   if (modo.value === 'copia') return 'Agregar copia'
-  return editandoId.value ? 'Guardar cambios' : `Catalogar ${nombreTipo.value}`
+  return editandoId.value ? 'Guardar cambios' : 'Crear ficha'
 })
 
 const notaCatalogador = computed(() => {
@@ -375,6 +404,7 @@ async function cargarCatalogos() {
       api.get<TipoMaterial[]>('/tipos-material'),
       api.get<PlantillaFicha[]>('/libros/plantillas'),
     ])
+    api.get<{ clave: string; nombre: string }[]>('/roles-autor').then(({ data }) => (rolesAutor.value = data)).catch(() => {})
     carrerasOpciones.value = carrerasRes.data
     ubicacionesOpciones.value = ubicacionesRes.data
     tiposMaterialOpciones.value = tiposMaterialRes.data
@@ -439,11 +469,12 @@ async function generarCodigoBarras(destino: 'nuevo' | 'copia') {
 
 // ---------- Libro nuevo y edición ----------
 function resetForm() {
-  Object.assign(form, formVacio, { autores: [], categorias: [], carreras: [] })
+  Object.assign(form, formVacio, { autores: [], rolesAutores: {}, categorias: [], carreras: [] })
   editandoId.value = null
   libroEditado.value = null
   catalogadorEditado.value = null
   verMasTitulo.value = false
+  titulosAlternativos.value = ['']
   verMasMaterias.value = false
 }
 
@@ -457,6 +488,7 @@ function editar(libro: Libro) {
     codigo_barras: '',
     titulo: libro.titulo,
     autores: (libro.autores ?? []).map((a) => a.nombre),
+    rolesAutores: Object.fromEntries((libro.autores ?? []).filter((a) => a.pivot?.rol).map((a) => [a.nombre, a.pivot!.rol as string])),
     categorias: (libro.categorias ?? []).map((c) => c.nombre),
     carreras: (libro.carreras ?? []).map((c) => c.nombre),
     coleccion: libro.coleccion ?? '',
@@ -561,15 +593,21 @@ async function confirmarGuardar() {
       forma_adquisicion: form.forma_adquisicion || null,
       ubicacion_id: form.ubicacion_id === '' ? null : Number(form.ubicacion_id),
       tipo_material_id: form.tipo_material_id === '' ? null : Number(form.tipo_material_id),
+      autores_roles: form.autores.map((n) => form.rolesAutores[n] || null),
     }
     if (editandoId.value) {
       await api.patch(`/libros/${editandoId.value}`, payload)
       toast.success('Ficha actualizada')
     } else {
-      const { data } = await api.post<Libro>('/libros', payload)
-      toast.success('Material catalogado correctamente')
+      const { data } = await api.post<Libro>('/libros', { ...payload, codigo_barras: null })
       if (desdeBorrador.value) descartarBorrador()
-      avisarCopiaCreada(data.titulo, data.ejemplares?.[0])
+      toast.success(`Ficha creada: agregue ahora los ejemplares de «${data.titulo}»`)
+      confirmandoGuardar.value = false
+      resetForm()
+      await Promise.all([cargar(), cargarCatalogos()])
+      // La ficha ya existe: se pasa a «Nuevo ejemplar» con ella elegida.
+      agregarCopiaDe(data)
+      return
     }
     confirmandoGuardar.value = false
     resetForm()
@@ -619,7 +657,7 @@ const fechaBorrador = computed(() =>
 function guardarBorrador() {
   const nuevo: Borrador = {
     guardado: new Date().toISOString(),
-    form: { ...form, autores: [...form.autores], categorias: [...form.categorias], carreras: [...form.carreras] },
+    form: { ...form, autores: [...form.autores], rolesAutores: { ...form.rolesAutores }, categorias: [...form.categorias], carreras: [...form.carreras] },
   }
   try {
     localStorage.setItem(CLAVE_BORRADOR, JSON.stringify(nuevo))
@@ -741,8 +779,8 @@ async function confirmarAgregarCopia() {
 }
 
 const MODOS = [
-  { id: 'nuevo' as const, label: 'Libro nuevo', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700' },
-  { id: 'copia' as const, label: 'Agregar copia a libro existente', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700' },
+  { id: 'nuevo' as const, label: 'Nueva ficha', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700' },
+  { id: 'copia' as const, label: 'Nuevo ejemplar', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700' },
   { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600' },
 ]
 
@@ -781,6 +819,15 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <span class="mx-1.5">›</span>
               <span>Catálogo</span>
             </nav>
+            <router-link
+              v-if="vieneDelListado"
+              :to="{ name: 'listado-libros', query: { volver: '1' } }"
+              class="float-right mt-1 inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/25"
+              title="Vuelve al Listado de material con la misma búsqueda, filtros y página"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+              Volver al listado
+            </router-link>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">{{ modo === 'nuevo' && editandoId ? 'Editar ficha' : 'Catalogar material' }}</h1>
             <p v-if="modo === 'nuevo' && editandoId" class="truncate text-sm text-white/75">{{ libroEditado?.titulo }}</p>
           </div>
@@ -901,37 +948,20 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </select>
                   <p class="mt-1 text-[11px] text-gray-500">Define qué campos se piden<template v-if="plantillaActual"> · ficha de {{ plantillaActual.nombre.toLowerCase() }}</template></p>
                 </div>
-                <div v-if="!editandoId" class="sm:col-span-2">
-                  <label for="cat-codigo" :class="ETIQUETA">Código de barras (1.ª copia) <span class="text-red-600">*</span></label>
-                  <div class="flex gap-2">
-                    <input id="cat-codigo" v-model="form.codigo_barras" placeholder="30000003227565" :class="[CAMPO, 'font-mono']" />
-                    <button
-                      type="button"
-                      class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-gray-600 transition-colors hover:bg-gray-50"
-                      title="Generar el siguiente código"
-                      aria-label="Generar el siguiente código de barras"
-                      @click="generarCodigoBarras('nuevo')"
-                    >
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div v-if="tiene('isbn')" :class="editandoId ? 'sm:col-span-3' : 'sm:col-span-2'">
+                <div v-if="tiene('isbn')" class="sm:col-span-3">
                   <label for="cat-isbn" :class="ETIQUETA"><Marc :codigo="etiqueta('isbn')" tono="indigo" /> ISBN</label>
-                  <input id="cat-isbn" v-model="form.isbn" placeholder="978..." :class="[CAMPO, 'font-mono']" />
+                  <input autocomplete="off" id="cat-isbn" v-model="form.isbn" placeholder="978..." :class="[CAMPO, 'font-mono']" />
                 </div>
                 <div v-else-if="tiene('issn')" :class="editandoId ? 'sm:col-span-3' : 'sm:col-span-2'">
                   <label for="cat-issn" :class="ETIQUETA"><Marc :codigo="etiqueta('issn')" tono="indigo" /> ISSN</label>
-                  <input id="cat-issn" v-model="form.issn" placeholder="0718-..." :class="[CAMPO, 'font-mono']" />
+                  <input autocomplete="off" id="cat-issn" v-model="form.issn" placeholder="0718-..." :class="[CAMPO, 'font-mono']" />
                 </div>
                 <div v-if="tiene('clasificacion')" class="sm:col-span-3">
                   <label for="cat-clasificacion" :class="ETIQUETA">
                     <Marc :codigo="etiqueta('clasificacion')" tono="indigo" />
                     {{ etiqueta('clasificacion') === '082' ? 'Clasificación Dewey' : 'Clasificación local' }}
                   </label>
-                  <input
+                  <input autocomplete="off"
                     id="cat-clasificacion"
                     v-model="form.clasificacion"
                     :placeholder="etiqueta('clasificacion') === '082' ? 'Ej: 813.54 G216n 2020' : 'Ej: T 005.1 C764s 2023'"
@@ -941,11 +971,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('idioma')" class="sm:col-span-3">
                   <label for="cat-idioma" :class="ETIQUETA"><Marc :codigo="etiqueta('idioma')" tono="indigo" /> Idioma</label>
-                  <input id="cat-idioma" v-model="form.idioma" placeholder="Español" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-idioma" v-model="form.idioma" placeholder="Español" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('otros_isbn')" class="sm:col-span-6">
                   <label for="cat-otros-isbn" :class="ETIQUETA"><Marc :codigo="etiqueta('otros_isbn')" tono="indigo" /> Otros ISBN</label>
-                  <input id="cat-otros-isbn" v-model="form.otros_isbn" placeholder="978...; 978..." :class="[CAMPO, 'font-mono']" />
+                  <input autocomplete="off" id="cat-otros-isbn" v-model="form.otros_isbn" placeholder="978...; 978..." :class="[CAMPO, 'font-mono']" />
                   <p class="mt-1 text-[11px] text-gray-500">El de la colección o la obra completa, o el que comparte con otros tomos, separados por «;». Al buscar cualquiera de ellos aparece este título.</p>
                 </div>
               </div>
@@ -956,27 +986,54 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div :class="tiene('edicion') ? 'sm:col-span-4' : 'sm:col-span-6'">
                   <label for="cat-titulo" :class="ETIQUETA"><Marc :codigo="etiqueta('titulo') || '245'" tono="dorado" /> Título <span class="text-red-600">*</span></label>
-                  <input id="cat-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('edicion')" class="sm:col-span-2">
                   <label for="cat-edicion" :class="ETIQUETA"><Marc :codigo="etiqueta('edicion')" tono="dorado" /> Edición</label>
-                  <input id="cat-edicion" v-model="form.edicion" placeholder="Ej: 6.ª ed." :class="CAMPO" />
+                  <input autocomplete="off" id="cat-edicion" v-model="form.edicion" placeholder="Ej: 6.ª ed." :class="CAMPO" />
                 </div>
-                <div v-if="tiene('autor_principal')" class="sm:col-span-6">
-                  <p :class="ETIQUETA"><Marc codigo="100 / 700" tono="dorado" /> Autores <span class="text-red-600">*</span></p>
+                <div v-if="tiene('autor_principal')" class="sm:col-span-6" :class="tiene('entidad_corporativa') ? 'rounded-xl border border-amber-200 bg-amber-50/40 p-3' : ''">
+                  <p v-if="tiene('entidad_corporativa')" class="mb-2 text-xs font-semibold text-gray-800">
+                    Autoría <span class="text-red-600">*</span>
+                    <span class="font-normal text-gray-600">: complete <strong>los autores</strong> o <strong>la entidad institucional</strong>, no hace falta llenar ambos.</span>
+                  </p>
+                  <p :class="ETIQUETA"><Marc codigo="100 / 700" tono="dorado" /> Autores <span v-if="!tiene('entidad_corporativa')" class="text-red-600">*</span></p>
                   <MultiSelectCombobox
                     v-model="form.autores"
                     :buscar="buscarAutores"
                     placeholder="Apellido, Nombre: escribe para buscar o crear"
                     :clase-ficha="TONOS_FICHA.dorado.chip"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">
-                    El primero queda como autor principal (100); el resto, como secundarios (700).<template v-if="tiene('entidad_corporativa')"> Si la obra es de una institución, basta la entidad (110).</template>
+                  <ul v-if="form.autores.length" class="mt-2 divide-y divide-amber-100 rounded-lg border border-amber-200 bg-white">
+                    <li v-for="(nombre, i) in form.autores" :key="nombre" class="flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm">
+                      <span class="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold" :class="i === 0 && !form.rolesAutores[nombre] ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'">{{ i === 0 && !form.rolesAutores[nombre] ? '100' : '700' }}</span>
+                      <span class="min-w-0 flex-1 truncate text-gray-900">{{ nombre }}</span>
+                      <label class="sr-only" :for="`rol-autor-${i}`">Papel de {{ nombre }}</label>
+                      <select
+                        :id="`rol-autor-${i}`"
+                        :value="form.rolesAutores[nombre] ?? ''"
+                        class="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800"
+                        @change="(e) => { const v = (e.target as HTMLSelectElement).value; if (v) form.rolesAutores[nombre] = v; else delete form.rolesAutores[nombre] }"
+                      >
+                        <option v-for="r in ROLES_AUTOR" :key="r.valor" :value="r.valor">{{ r.texto }}</option>
+                        <option v-if="form.rolesAutores[nombre] && !ROLES_AUTOR.some((r) => r.valor === form.rolesAutores[nombre])" :value="form.rolesAutores[nombre]">{{ form.rolesAutores[nombre] }} (desactivado)</option>
+                      </select>
+                    </li>
+                  </ul>
+                  <p class="mt-1 text-[11px] font-semibold text-gray-700">
+                    El primero queda como autor principal (100); el resto, como secundarios (700). Elija el papel de cada uno (traductor, editor, compilador…): si el primero no es «Autor», la obra queda sin autor principal y todos van en 700, como una obra compilada. El profesor guía de una tesis va en su propio campo.<template v-if="tiene('entidad_corporativa')"> Si la obra es de una institución, basta la entidad (110).</template>
                   </p>
+                  <template v-if="tiene('entidad_corporativa')">
+                    <div class="my-3 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-amber-700" aria-hidden="true">
+                      <span class="h-px flex-1 bg-amber-200"></span>o<span class="h-px flex-1 bg-amber-200"></span>
+                    </div>
+                    <label for="cat-entidad_corporativa" :class="ETIQUETA"><Marc :codigo="etiqueta('entidad_corporativa')" tono="dorado" /> Entidad institucional (autor corporativo)</label>
+                    <input autocomplete="off" id="cat-entidad_corporativa" v-model="form.entidad_corporativa" :placeholder="PISTAS.entidad_corporativa" :class="CAMPO" />
+                  </template>
                 </div>
                 <div v-if="tiene('profesor_guia')" class="sm:col-span-3">
                   <label for="cat-profesor" :class="ETIQUETA"><Marc :codigo="etiqueta('profesor_guia')" tono="dorado" /> Profesor guía</label>
-                  <input id="cat-profesor" v-model="form.profesor_guia" placeholder="Apellido, Nombre" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-profesor" v-model="form.profesor_guia" placeholder="Apellido, Nombre" :class="CAMPO" />
                 </div>
                 <template v-if="extrasTitulo.length">
                   <div v-if="!verMasTitulo" class="sm:col-span-6">
@@ -989,9 +1046,31 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     </button>
                   </div>
                   <template v-else>
-                    <div v-for="c in extrasTitulo" :key="c" class="sm:col-span-3">
+                    <div v-if="tiene('titulo_alternativo')" class="sm:col-span-6">
+                      <p :class="ETIQUETA"><Marc :codigo="etiqueta('titulo_alternativo')" tono="dorado" /> {{ NOMBRES.titulo_alternativo }} <span class="font-normal text-gray-500">(puede haber varios)</span></p>
+                      <div class="space-y-2">
+                        <div v-for="(_, i) in titulosAlternativos" :key="i" class="flex gap-2">
+                          <input autocomplete="off"
+                            :id="`cat-titulo-alt-${i}`"
+                            v-model="titulosAlternativos[i]"
+                            :placeholder="PISTAS.titulo_alternativo"
+                            :class="CAMPO"
+                            @input="guardarTitulosAlternativos"
+                          />
+                          <button
+                            v-if="titulosAlternativos.length > 1 || titulosAlternativos[i]"
+                            type="button"
+                            class="shrink-0 rounded-lg border border-gray-300 px-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-red-600"
+                            :aria-label="`Quitar título alternativo ${i + 1}`"
+                            @click="quitarTituloAlternativo(i)"
+                          >✕</button>
+                        </div>
+                      </div>
+                      <button type="button" class="mt-2 text-xs font-semibold text-dorado-600 hover:underline" @click="agregarTituloAlternativo">+ Agregar otro título alternativo</button>
+                    </div>
+                    <div v-for="c in extrasTitulo.filter((x) => x !== 'titulo_alternativo')" :key="c" class="sm:col-span-3">
                       <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="dorado" /> {{ NOMBRES[c] }}</label>
-                      <input :id="`cat-${c}`" v-model="form[c]" :placeholder="PISTAS[c]" :class="CAMPO" />
+                      <input autocomplete="off" :id="`cat-${c}`" v-model="form[c]" :placeholder="PISTAS[c]" :class="CAMPO" />
                     </div>
                   </template>
                 </template>
@@ -1003,34 +1082,34 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div class="sm:col-span-2">
                   <label for="cat-lugar" :class="ETIQUETA"><Marc :codigo="etiqueta('pie_imprenta') || '260'" tono="teal" /> Lugar</label>
-                  <input id="cat-lugar" v-model="form.lugar_publicacion" placeholder="Ciudad" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-lugar" v-model="form.lugar_publicacion" placeholder="Ciudad" :class="CAMPO" />
                 </div>
                 <div class="sm:col-span-2">
                   <label for="cat-editorial" :class="ETIQUETA">
                     <Marc :codigo="etiqueta('pie_imprenta') || '260'" tono="teal" />
                     {{ etiqueta('pie_imprenta') === '264' ? 'Productor o editor' : 'Editorial' }}
                   </label>
-                  <input id="cat-editorial" v-model="form.editorial" :placeholder="etiqueta('pie_imprenta') === '264' ? 'Productor o editor' : 'Editorial'" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-editorial" v-model="form.editorial" :placeholder="etiqueta('pie_imprenta') === '264' ? 'Productor o editor' : 'Editorial'" :class="CAMPO" />
                 </div>
                 <div class="sm:col-span-2">
                   <label for="cat-anio" :class="ETIQUETA"><Marc :codigo="etiqueta('pie_imprenta') || '260'" tono="teal" /> Año</label>
-                  <input id="cat-anio" v-model="form.anio_publicacion" type="number" placeholder="2020" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-anio" v-model="form.anio_publicacion" type="number" placeholder="2020" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('descripcion_fisica')" class="sm:col-span-3">
                   <label for="cat-descripcion" :class="ETIQUETA"><Marc :codigo="etiqueta('descripcion_fisica')" tono="teal" /> Descripción física</label>
-                  <input id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('serie')" class="sm:col-span-3">
                   <label for="cat-serie" :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie</label>
-                  <input id="cat-serie" v-model="form.serie" placeholder="Opcional" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-serie" v-model="form.serie" placeholder="Opcional" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('designacion_volumen')" class="sm:col-span-3">
                   <label for="cat-designacion" :class="ETIQUETA"><Marc :codigo="etiqueta('designacion_volumen')" tono="teal" /> Fecha de publicación y volumen</label>
-                  <input id="cat-designacion" v-model="form.designacion_volumen" :placeholder="PISTAS.designacion_volumen" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-designacion" v-model="form.designacion_volumen" :placeholder="PISTAS.designacion_volumen" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('frecuencia')" class="sm:col-span-3">
                   <label for="cat-frecuencia" :class="ETIQUETA"><Marc :codigo="etiqueta('frecuencia')" tono="teal" /> Frecuencia</label>
-                  <input id="cat-frecuencia" v-model="form.frecuencia" :placeholder="PISTAS.frecuencia" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-frecuencia" v-model="form.frecuencia" :placeholder="PISTAS.frecuencia" :class="CAMPO" />
                 </div>
                 <div v-if="tiene('nota_tesis')" class="sm:col-span-6">
                   <label for="cat-nota-tesis" :class="ETIQUETA"><Marc :codigo="etiqueta('nota_tesis')" tono="teal" /> Nota de tesis</label>
@@ -1051,8 +1130,14 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div v-if="tiene('materias')" class="sm:col-span-6">
                   <p :class="ETIQUETA"><Marc :codigo="etiqueta('materias')" tono="pizarra" /> Materias</p>
-                  <MultiSelectCombobox v-model="form.categorias" :buscar="buscarMaterias" placeholder="Agregar materia" :clase-ficha="TONOS_FICHA.pizarra.chip" />
+                  <MultiSelectCombobox v-model="form.categorias" :buscar="buscarMaterias" placeholder="Agregar materia (ej. MAPUCHES -- VIDA SOCIAL Y COSTUMBRES)" :clase-ficha="TONOS_FICHA.pizarra.chip" />
                   <p class="mt-1 text-[11px] text-gray-500">Sugerencias según lo que ya existe en el catálogo.</p>
+                  <p class="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-gray-700">
+                    <strong>Subdivisiones:</strong> escríbalas en la misma materia, separadas por <kbd class="rounded border border-gray-300 bg-white px-1 font-mono">--</kbd>,
+                    en el orden <strong>tema -- aspecto -- lugar -- época</strong>. Ej.: <span class="font-mono">MAPUCHES -- VIDA SOCIAL Y COSTUMBRES</span>,
+                    <span class="font-mono">EDUCACION -- CHILE</span>, <span class="font-mono">MAPUCHES -- HISTORIA -- 1860-1970</span>.
+                    Es mejor que dejar solo el tema: el libro se encuentra con más precisión.
+                  </p>
                 </div>
                 <div v-if="tiene('contenido')" class="sm:col-span-6">
                   <label for="cat-contenido" :class="ETIQUETA"><Marc :codigo="etiqueta('contenido')" tono="pizarra" /> Nota de contenido</label>
@@ -1065,7 +1150,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('audiencia')" class="sm:col-span-3">
                   <label for="cat-audiencia" :class="ETIQUETA"><Marc :codigo="etiqueta('audiencia')" tono="pizarra" /> Audiencia</label>
-                  <input id="cat-audiencia" v-model="form.audiencia" :placeholder="PISTAS.audiencia" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-audiencia" v-model="form.audiencia" :placeholder="PISTAS.audiencia" :class="CAMPO" />
                 </div>
                 <template v-if="extrasMaterias.length">
                   <div v-if="!verMasMaterias" class="sm:col-span-6">
@@ -1080,7 +1165,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <template v-else>
                     <div v-for="c in extrasMaterias" :key="c" :class="c === 'url_acceso' ? 'sm:col-span-6' : 'sm:col-span-3'">
                       <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="pizarra" /> {{ NOMBRES[c] }}</label>
-                      <input v-if="c === 'url_acceso'" :id="`cat-${c}`" v-model="form.url_acceso" type="url" :placeholder="PISTAS.url_acceso" :class="CAMPO" />
+                      <input autocomplete="off" v-if="c === 'url_acceso'" :id="`cat-${c}`" v-model="form.url_acceso" type="url" :placeholder="PISTAS.url_acceso" :class="CAMPO" />
                       <textarea v-else :id="`cat-${c}`" v-model="form[c]" rows="2" :placeholder="PISTAS[c]" :class="CAMPO"></textarea>
                     </div>
                   </template>
@@ -1089,9 +1174,9 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </SeccionFicha>
 
             <!-- 5. Ejemplar y datos internos -->
-            <SeccionFicha id="seccion-ejemplar" :numero="numeroDe('ejemplar')" titulo="Ejemplar" :detalle="seccionDe('ejemplar')?.detalle ?? ''" tono="violeta">
+            <SeccionFicha id="seccion-ejemplar" :numero="numeroDe('ejemplar')" titulo="Colección y notas" :detalle="seccionDe('ejemplar')?.detalle ?? ''" tono="violeta">
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
-                <div v-if="!editandoId" class="sm:col-span-2">
+                <div v-if="false" class="sm:col-span-2">
                   <label for="cat-ubicacion" :class="ETIQUETA">Ubicación física</label>
                   <select id="cat-ubicacion" v-model="form.ubicacion_id" :class="CAMPO">
                     <option value="">Sin especificar</option>
@@ -1100,32 +1185,32 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-2">
                   <label for="cat-coleccion" :class="ETIQUETA">Colección</label>
-                  <input id="cat-coleccion" v-model="form.coleccion" list="colecciones" placeholder="General, Referencia…" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-coleccion" v-model="form.coleccion" list="colecciones" placeholder="General, Referencia…" :class="CAMPO" />
                 </div>
-                <div v-if="!editandoId" class="sm:col-span-2">
+                <div v-if="false" class="sm:col-span-2">
                   <label for="cat-volumen" :class="ETIQUETA">Volumen</label>
-                  <input id="cat-volumen" v-model="form.volumen" placeholder="Tomo I" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-volumen" v-model="form.volumen" placeholder="Tomo I" :class="CAMPO" />
                 </div>
                 <div class="sm:col-span-4">
                   <p :class="ETIQUETA">Carreras asociadas</p>
                   <MultiSelectCombobox v-model="form.carreras" :opciones="carrerasOpciones" placeholder="Buscar carrera" :clase-ficha="TONOS_FICHA.violeta.chip" />
                   <p class="mt-1 text-[11px] text-gray-500">A qué carreras sirve este título. Los estudiantes las ven en la ficha, en el portal. Si no está, escríbela y presiona Enter.</p>
                 </div>
-                <div v-if="!editandoId" class="sm:col-span-2">
+                <div v-if="false" class="sm:col-span-2">
                   <label for="cat-precio" :class="ETIQUETA">Precio (CLP)</label>
                   <div class="relative">
                     <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                    <input id="cat-precio" v-model="form.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
+                    <input autocomplete="off" id="cat-precio" v-model="form.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
                   </div>
                 </div>
-                <div v-if="!editandoId" class="sm:col-span-2">
+                <div v-if="false" class="sm:col-span-2">
                   <label for="cat-adquisicion" :class="ETIQUETA">Forma de adquisición</label>
                   <select id="cat-adquisicion" v-model="form.forma_adquisicion" :class="CAMPO">
                     <option value="">Sin especificar</option>
                     <option v-for="f in FORMAS_ADQUISICION" :key="f.valor" :value="f.valor">{{ f.nombre }}</option>
                   </select>
                 </div>
-                <template v-if="!editandoId">
+                <template v-if="false">
                   <div class="sm:col-span-6">
                     <label for="cat-copia-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
                     <textarea id="cat-copia-nota-publica" v-model="form.copia_nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
@@ -1135,8 +1220,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <textarea id="cat-copia-nota-interna" v-model="form.copia_nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
                   </div>
                 </template>
-                <p v-if="editandoId" class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:col-span-6">
-                  La ubicación, el volumen, el precio y la forma de adquisición son de cada copia y se registran al crearla.
+                <p class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:col-span-6">
+                  Esta es la <strong>ficha bibliográfica</strong> (el registro del título), sin código de barras. El código, la ubicación, el volumen,
+                  el precio y la forma de adquisición son de cada copia: se registran en <strong>«Nuevo ejemplar»</strong>.
+                  Una ficha sin ejemplares no se muestra en el portal.
                 </p>
                 <div v-if="notaPublica" class="sm:col-span-6">
                   <label for="cat-nota_publica" :class="ETIQUETA"><Marc :codigo="etiqueta('nota_publica')" tono="dorado" /> {{ NOMBRES.nota_publica }}</label>
@@ -1155,7 +1242,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             <SeccionFicha id="seccion-obra" :numero="1" titulo="Obra" detalle="Busca el título ya catalogado" tono="indigo">
               <label for="cat-buscar-obra" :class="ETIQUETA">Título, autor, ISBN o código de barras</label>
               <div class="relative">
-                <input
+                <input autocomplete="off"
                   id="cat-buscar-obra"
                   v-model="busquedaCopia"
                   type="text"
@@ -1205,7 +1292,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-3">
                   <label for="copia-codigo" :class="ETIQUETA">Código de barras <span class="text-red-600">*</span></label>
                   <div class="flex gap-2">
-                    <input id="copia-codigo" v-model="formCopia.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
+                    <input autocomplete="off" id="copia-codigo" v-model="formCopia.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
                     <button
                       type="button"
                       class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-gray-600 transition-colors hover:bg-gray-50"
@@ -1228,13 +1315,13 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-volumen" :class="ETIQUETA">Volumen</label>
-                  <input id="copia-volumen" v-model="formCopia.volumen" placeholder="Tomo I" :class="CAMPO" />
+                  <input autocomplete="off" id="copia-volumen" v-model="formCopia.volumen" placeholder="Tomo I" :class="CAMPO" />
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>
                   <div class="relative">
                     <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                    <input id="copia-precio" v-model="formCopia.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
+                    <input autocomplete="off" id="copia-precio" v-model="formCopia.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
                   </div>
                 </div>
                 <div class="sm:col-span-3">
@@ -1246,7 +1333,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-coleccion" :class="ETIQUETA">Colección de la copia</label>
-                  <input id="copia-coleccion" v-model="formCopia.coleccion" :placeholder="libroParaCopia?.coleccion ? `${libroParaCopia.coleccion} (la del libro)` : 'La del libro'" :class="CAMPO" />
+                  <input autocomplete="off" id="copia-coleccion" v-model="formCopia.coleccion" list="colecciones" :placeholder="libroParaCopia?.coleccion ? `${libroParaCopia.coleccion} (la del libro)` : 'La del libro'" :class="CAMPO" />
                   <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro.</p>
                 </div>
                 <div class="sm:col-span-6">
@@ -1367,7 +1454,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
             </svg>
-            <input
+            <input autocomplete="off"
               v-model="busqueda"
               type="text"
               placeholder="Título, autor o código de barras"
@@ -1457,7 +1544,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       </p>
       <div>
         <label for="baja-motivo" class="mb-1.5 block text-xs font-semibold text-gray-700">Motivo de la baja (obligatorio)</label>
-        <input
+        <input autocomplete="off"
           id="baja-motivo"
           v-model="bajaMotivo"
           type="text"
@@ -1471,7 +1558,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
     <DialogoConfirmacion
       :abierto="confirmandoGuardar"
       :titulo="editandoId ? '¿Guardar los cambios de la ficha?' : '¿Catalogar este material?'"
-      :confirmar="editandoId ? 'Sí, guardar' : 'Sí, catalogar'"
+      :confirmar="editandoId ? 'Sí, guardar' : 'Sí, crear ficha'"
       :cargando="guardando"
       @confirmar="confirmarGuardar"
       @cancelar="confirmandoGuardar = false"
@@ -1481,15 +1568,13 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         copias en estante, en el portal.
       </p>
       <template v-else>
-        <p>Se agregará al catálogo:</p>
+        <p>Se creará la ficha bibliográfica:</p>
         <div class="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
           <p class="font-semibold text-gray-900">{{ form.titulo.trim() }}</p>
           <p v-if="form.autores.length" class="text-xs">{{ form.autores.join('; ') }}</p>
-          <p class="mt-0.5 text-xs">
-            {{ tipoActual?.nombre ?? 'Libro' }} · 1.ª copia <span class="font-mono">{{ form.codigo_barras.trim() }}</span><template v-if="ubicacionElegida"> · {{ ubicacionElegida }}</template>
-          </p>
+          <p class="mt-0.5 text-xs">{{ tipoActual?.nombre ?? 'Libro' }} · sin ejemplares</p>
         </div>
-        <p class="mt-2">La copia nace en «Inventario».</p>
+        <p class="mt-2">Después se pasa a <strong>«Nuevo ejemplar»</strong> para agregarle sus copias con código de barras.</p>
       </template>
     </DialogoConfirmacion>
 

@@ -5,7 +5,7 @@ import { itemPorRuta } from '@/navegacion'
 
 /** Pestañas del módulo de catálogo; solo las que el rol puede abrir. En pantallas angostas se deslizan. */
 const props = defineProps<{
-  actual: 'catalogacion-libros' | 'listado-libros' | 'historial-prestamos-libro' | 'estado-libro' | 'historial-estado-libro'
+  actual: 'catalogacion-libros' | 'listado-libros' | 'historial-prestamos-libro' | 'estado-libro' | 'historial-estado-libro' | 'materias-catalogo'
   /** Sobre la caja de título: la activa se une con lo que viene debajo, como una carpeta. */
   enBanda?: boolean
 }>()
@@ -18,6 +18,7 @@ const PESTANAS = [
   { name: 'historial-prestamos-libro', label: 'Historial' },
   { name: 'estado-libro', label: 'Estado' },
   { name: 'historial-estado-libro', label: 'Historial de estado' },
+  { name: 'materias-catalogo', label: 'Materias' },
 ] as const
 
 const visibles = computed(() => PESTANAS.filter((p) => p.name === props.actual || auth.puedeAlguno(itemPorRuta(p.name)?.permiso)))

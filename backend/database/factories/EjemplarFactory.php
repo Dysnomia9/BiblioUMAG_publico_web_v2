@@ -10,11 +10,22 @@ class EjemplarFactory extends Factory
 {
     protected $model = Ejemplar::class;
 
+    /** Último número entregado por libro: con count(3) se arman todas antes de guardar la primera. */
+    private static array $ultimos = [];
+
+    private static function siguienteNumero(int $libroId): int
+    {
+        $enBase = Ejemplar::where('libro_id', $libroId)->max('numero_copia') ?? -1;
+
+        return self::$ultimos[$libroId] = max($enBase, self::$ultimos[$libroId] ?? -1) + 1;
+    }
+
     public function definition(): array
     {
         return [
             'libro_id' => Libro::factory(),
-            'numero_copia' => 0, // la primera copia no lleva «c.» (Ejemplar::siguienteNumero)
+            // El siguiente del libro: dos copias de un título no comparten número (la primera es la 0)
+            'numero_copia' => fn (array $atributos) => self::siguienteNumero($atributos['libro_id']),
             'codigo_barras' => fake()->unique()->ean13(),
             'disponible' => true,
             'estado_proceso' => 'en_estante',

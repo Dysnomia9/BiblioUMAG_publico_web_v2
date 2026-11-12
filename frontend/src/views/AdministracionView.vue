@@ -5,6 +5,7 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GestionEstudiantes from '@/components/administracion/GestionEstudiantes.vue'
 import CategoriasRecurso from '@/components/administracion/CategoriasRecurso.vue'
+import RolesAutor from '@/components/administracion/RolesAutor.vue'
 import ReglasPrestamo from '@/components/administracion/ReglasPrestamo.vue'
 import DiasSinAtencion from '@/components/administracion/DiasSinAtencion.vue'
 import FondoAdministracion from '@/components/administracion/FondoAdministracion.vue'
@@ -31,7 +32,7 @@ const cargando = ref(true)
 type Seccion = 'institucion' | 'catalogos' | 'circulacion' | 'salas' | 'estudiantes' | 'vigencia' | 'eliminados'
 const SECCIONES: { clave: Seccion; label: string; detalle?: string; permiso: string }[] = [
   { clave: 'institucion', label: 'Configuración', detalle: 'institucional', permiso: 'configuracion.editar' },
-  { clave: 'catalogos', label: 'Catálogos', detalle: 'estados, ubicaciones, tipos y recursos', permiso: 'catalogos.gestionar' },
+  { clave: 'catalogos', label: 'Catálogos', detalle: 'estados, ubicaciones, tipos, papeles de autor y recursos', permiso: 'catalogos.gestionar' },
   { clave: 'circulacion', label: 'Reglas de préstamo', detalle: 'y días sin atención', permiso: 'catalogos.gestionar' },
   { clave: 'salas', label: 'Salas', permiso: 'catalogos.gestionar' },
   { clave: 'estudiantes', label: 'Usuarios', permiso: 'usuarios.gestionar' },
@@ -597,6 +598,8 @@ async function confirmarDesactivar() {
               </tbody>
             </table>
           </section>
+
+          <RolesAutor />
 
           <CategoriasRecurso />
         </template>

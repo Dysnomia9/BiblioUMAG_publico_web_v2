@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\SalaController;
 use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\TipoMaterialController;
+use App\Http\Controllers\Api\MateriaController;
+use App\Http\Controllers\Api\RolAutorController;
 use App\Http\Controllers\Api\UbicacionController;
 use App\Http\Controllers\Api\UsuarioAuthController;
 use App\Http\Controllers\Api\UsuarioController;
@@ -77,6 +79,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/carreras', [CatalogoLibroController::class, 'carreras']);
     Route::get('/ubicaciones', [UbicacionController::class, 'index']);
     Route::get('/tipos-material', [TipoMaterialController::class, 'index']);
+    Route::get('/roles-autor', [RolAutorController::class, 'index']);
     Route::get('/categorias-recurso', [CategoriaRecursoController::class, 'index']);
     Route::get('/configuracion', [ConfiguracionInstitucionalController::class, 'show']);
     Route::get('/configuracion/horario', [ConfiguracionInstitucionalController::class, 'horario']);
@@ -102,6 +105,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/prestamos', [PrestamoController::class, 'index'])->middleware('permiso:prestamos.gestionar,listados.ver');
     Route::middleware('permiso:prestamos.gestionar')->group(function () {
         Route::get('/prestamos/condiciones', [PrestamoController::class, 'condiciones']);
+        Route::get('/prestamos/por-codigo', [PrestamoController::class, 'porCodigo']);
         Route::post('/prestamos', [PrestamoController::class, 'store']);
         Route::patch('/prestamos/{prestamo}/devolver', [PrestamoController::class, 'devolver']);
         Route::get('/reservas-libro', [ReservaLibroController::class, 'index']);
@@ -204,6 +208,12 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::delete('/ubicaciones/{ubicacion}', [UbicacionController::class, 'destroy']);
         Route::post('/tipos-material', [TipoMaterialController::class, 'store']);
         Route::patch('/tipos-material/{tipoMaterial}', [TipoMaterialController::class, 'update']);
+        Route::post('/roles-autor', [RolAutorController::class, 'store']);
+        Route::patch('/roles-autor/{rolAutor}', [RolAutorController::class, 'update']);
+        Route::delete('/roles-autor/{rolAutor}', [RolAutorController::class, 'destroy']);
+        Route::get('/materias', [MateriaController::class, 'index']);
+        Route::patch('/materias/{categoria}', [MateriaController::class, 'update']);
+        Route::delete('/materias/{categoria}', [MateriaController::class, 'destroy']);
         Route::post('/categorias-recurso', [CategoriaRecursoController::class, 'store']);
         Route::patch('/categorias-recurso/{categoriaRecurso}', [CategoriaRecursoController::class, 'update']);
         Route::get('/reglas-prestamo', [ReglaPrestamoController::class, 'index']);

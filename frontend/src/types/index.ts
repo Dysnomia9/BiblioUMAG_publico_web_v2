@@ -213,7 +213,7 @@ export type EstadoProcesoEjemplar =
   /** Volvió a la biblioteca que la prestó (préstamo interbibliotecario): solo la deja el sistema. */
   | 'devuelto_propietaria'
 
-export type Autor = { id: number; nombre: string }
+export type Autor = { id: number; nombre: string; pivot?: { orden: number; rol: string | null } }
 export type Categoria = { id: number; nombre: string }
 export type Carrera = { id: number; nombre: string }
 /** Al catalogar: las carreras del catálogo (con id) y las de los usuarios que aún no tiene ningún libro (sin id). */
@@ -224,7 +224,9 @@ export type PlantillaFichaClave = 'libro' | 'trabajo_titulacion' | 'juego_educat
 export type TipoMaterial = { id: number; nombre: string; plantilla: PlantillaFichaClave }
 
 /** Una fila de la ficha bibliográfica (etiqueta MARC, nombre del campo y su valor). */
-export type FilaFicha = { etiqueta: string; campo: string; valor: string; interno: boolean }
+/** Un valor de una fila de la ficha (un autor, una materia…), con lo que sirve para filtrar por él. */
+export type ItemFicha = { texto: string; autor_id?: number; categoria_id?: number; carrera_id?: number; buscar?: string }
+export type FilaFicha = { etiqueta: string; campo: string; valor: string; interno: boolean; items?: ItemFicha[] | null }
 
 /** Título tal como lo entrega el catálogo del portal: solo datos públicos. */
 export type LibroCatalogo = {
@@ -237,6 +239,9 @@ export type LibroCatalogo = {
   ejemplares_disponibles: number
   // Devolución más próxima entre las copias prestadas (null si ninguna lo está).
   proxima_devolucion: string | null
+  /** Libro electrónico: se lee en línea con url_acceso; no se reserva. */
+  digital?: boolean
+  url_acceso?: string | null
   ficha: FilaFicha[]
   /** Copias en estante: colección (la de la copia o, si no tiene, la del libro) y nota pública. */
   copias?: { numero_copia: number; volumen: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
