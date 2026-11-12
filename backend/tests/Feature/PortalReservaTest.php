@@ -211,6 +211,17 @@ class PortalReservaTest extends TestCase
         $this->assertEqualsCanonicalizing([$dueno->rut, $companero->rut], array_column($propia['personas'], 'rut'));
     }
 
+    public function test_la_grilla_de_salas_rechaza_una_fecha_mal_escrita_sin_error_del_servidor(): void
+    {
+        Sanctum::actingAs(Usuario::factory()->create());
+
+        foreach (['abc', '2026-13-45', '12-11-2026', "2026-11-12' or 1=1"] as $fecha) {
+            $this->getJson('/api/mi/salas?fecha='.urlencode($fecha))->assertStatus(422);
+        }
+        $this->getJson('/api/mi/salas?fecha='.now()->toDateString())->assertOk();
+        $this->getJson('/api/mi/salas')->assertOk();
+    }
+
     public function test_usuario_no_puede_reservar_para_un_dia_futuro(): void
     {
         $usuario = Usuario::factory()->create();
