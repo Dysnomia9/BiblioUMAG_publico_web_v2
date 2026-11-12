@@ -149,6 +149,29 @@ class LibroController extends Controller
     }
 
     /**
+     * Las colecciones que ya se usan (las de Horizon y las que se agreguen), de la que tiene
+     * más copias a la que tiene menos: las sugerencias de Catalogación, para escribirlas igual.
+     * La de cada copia es la suya o, si no tiene, la de su libro; los títulos sin copias cuentan 0.
+     */
+    public function colecciones()
+    {
+        $deCopias = DB::table('ejemplares')->join('libros', 'libros.id', '=', 'ejemplares.libro_id')
+            ->selectRaw('TRIM(COALESCE(ejemplares.coleccion, libros.coleccion)) AS nombre, 1 AS copia');
+        $deTitulosSinCopias = DB::table('libros')->whereNotExists(fn ($q) => $q->from('ejemplares')->whereColumn('ejemplares.libro_id', 'libros.id'))
+            ->selectRaw('TRIM(libros.coleccion) AS nombre, 0 AS copia');
+
+        return response()->json(
+            DB::query()->fromSub($deCopias->unionAll($deTitulosSinCopias), 'c')
+                ->whereNotNull('nombre')->where('nombre', '<>', '')
+                ->selectRaw('nombre, SUM(copia) AS copias')
+                ->groupBy('nombre')
+                ->orderByDesc('copias')->orderBy('nombre')
+                ->get()
+                ->map(fn ($c) => ['nombre' => $c->nombre, 'copias' => (int) $c->copias])
+        );
+    }
+
+    /**
      * Da de baja un título: todas sus copias salen de circulación, las prestadas incluidas
      * (se perdieron), y las personas en su lista de espera quedan sin reserva. Pide el
      * motivo y que se escriba CONFIRMAR. Si una copia está apartada para quien va a

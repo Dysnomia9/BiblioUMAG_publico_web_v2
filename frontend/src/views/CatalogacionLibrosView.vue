@@ -129,6 +129,8 @@ function elegirRol(nombre: string, caja: HTMLInputElement) {
 }
 
 const plantillas = ref<PlantillaFicha[]>([])
+/** Las colecciones que ya se usan, para sugerirlas tal como están escritas (GET /libros/colecciones). */
+const colecciones = ref<{ nombre: string; copias: number }[]>([])
 const catalogadorEditado = ref<string | null>(null)
 
 /** Una ficha nueva parte con «Libro» elegido (se puede cambiar, también a «Sin especificar»). */
@@ -530,6 +532,7 @@ async function cargarCatalogos() {
       api.get<PlantillaFicha[]>('/libros/plantillas'),
     ])
     api.get<{ clave: string; nombre: string }[]>('/roles-autor').then(({ data }) => (rolesAutor.value = data)).catch(() => {})
+    api.get<{ nombre: string; copias: number }[]>('/libros/colecciones').then(({ data }) => (colecciones.value = data)).catch(() => {})
     carrerasOpciones.value = carrerasRes.data
     ubicacionesOpciones.value = ubicacionesRes.data
     tiposMaterialOpciones.value = tiposMaterialRes.data
@@ -1557,7 +1560,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-2">
                   <label for="cat-coleccion" :class="ETIQUETA">Colección</label>
-                  <input autocomplete="off" id="cat-coleccion" v-model="form.coleccion" list="colecciones" placeholder="General, Referencia…" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-coleccion" v-model="form.coleccion" list="colecciones" :placeholder="colecciones[0] ? `Ej: ${colecciones[0].nombre} · escribe para ver las demás` : 'Escribe para ver las colecciones'" :class="CAMPO" />
                 </div>
                 <div v-if="false" class="sm:col-span-2">
                   <label for="cat-volumen" :class="ETIQUETA">Volumen</label>
@@ -1955,10 +1958,9 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       </section>
       </template>
 
+      <!-- Las colecciones del catálogo (las de Horizon), para escribirlas igual y no crear otra parecida -->
       <datalist id="colecciones">
-        <option value="General" />
-        <option value="Referencia" />
-        <option value="Hemeroteca" />
+        <option v-for="c in colecciones" :key="c.nombre" :value="c.nombre">{{ c.copias === 1 ? '1 copia' : `${c.copias.toLocaleString('es-CL')} copias` }}</option>
       </datalist>
     </div>
 

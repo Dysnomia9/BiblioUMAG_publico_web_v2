@@ -80,4 +80,19 @@ class NumeroFichaTest extends TestCase
         $this->assertContains('Por ISBN', $titulos('Por', 'todo'));
         $this->getJson('/api/libros?q=x&buscar_en=otra')->assertStatus(422);
     }
+
+    public function test_las_colecciones_sugeridas_son_las_del_catalogo_por_cantidad_de_copias(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $general = Libro::factory()->create(['coleccion' => 'Coleccion general']);
+        Ejemplar::factory()->for($general)->count(2)->create(['coleccion' => null]);
+        Ejemplar::factory()->for(Libro::factory()->create(['coleccion' => 'Coleccion general']))->create(['coleccion' => 'Mapas']);
+        Libro::factory()->create(['coleccion' => 'Testoteca']); // sin copias
+
+        $this->getJson('/api/libros/colecciones')->assertOk()->assertExactJson([
+            ['nombre' => 'Coleccion general', 'copias' => 2],
+            ['nombre' => 'Mapas', 'copias' => 1],
+            ['nombre' => 'Testoteca', 'copias' => 0],
+        ]);
+    }
 }

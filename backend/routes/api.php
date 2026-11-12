@@ -78,6 +78,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/usuarios/rut/{rut}', [UsuarioController::class, 'porRut']);
     Route::get('/libros/{libro}', [LibroController::class, 'show'])->whereNumber('libro');
     Route::get('/libros/plantillas', [LibroController::class, 'plantillas']);
+    Route::get('/libros/colecciones', [LibroController::class, 'colecciones']);
     Route::get('/libros', [LibroController::class, 'index']);
     Route::get('/equipos', [EquipoController::class, 'index']);
     Route::get('/equipos/{codigo}', [EquipoController::class, 'buscarPorCodigo']);
