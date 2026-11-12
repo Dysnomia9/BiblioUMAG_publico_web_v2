@@ -263,8 +263,7 @@ function abrirMenuGestion() {
                 :class="puedeEditar && reservaEditable(r) ? 'border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'"
                 @click.stop="seleccionada = r"
               >
-                <svg v-if="puedeEditar && reservaEditable(r)" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.820a4.500 4.500 0 01-1.897 1.130l-2.685.8.8-2.685a4.500 4.500 0 011.130-1.897L16.863 4.487z" /></svg>
-                <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.510 7.360 4.500 12 4.500c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.490 16.640 19.500 12 19.500c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <svg v-if="!(puedeEditar && reservaEditable(r))" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.510 7.360 4.500 12 4.500c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.490 16.640 19.500 12 19.500c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 {{ puedeEditar && reservaEditable(r) ? 'Editar' : 'Ver' }}
               </button>
             </div>
