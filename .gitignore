@@ -12,3 +12,12 @@ docs/manuales/*.toc
 
 # Respaldos de la base de datos (datos reales: no se suben)
 respaldos/
+
+# Revisiones del catálogo en Excel (nombres, títulos y datos de la biblioteca: no se suben)
+docs/revisiones/
+*.xlsx
+*.xls
+*.csv
+# …salvo las plantillas de ejemplo para la carga masiva (sin datos reales)
+!docs/ejemplos/*.xlsx
+!docs/ejemplos/*.csv
