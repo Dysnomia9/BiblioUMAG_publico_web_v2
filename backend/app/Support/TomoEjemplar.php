@@ -8,39 +8,61 @@ use App\Models\Ejemplar;
  * Tomo y copia del tomo de un ejemplar, como los numera Horizon: «v.1 c.2» es el tomo 1,
  * copia 2 de ese tomo; «t.4» es el tomo 4 (una sola copia). En BiblioUMAG van en
  * ejemplares.tomo y ejemplares.copia_tomo; el texto completo sigue en volumen.
+ *
+ * Horizon también junta tomo y volumen, en el orden en que se escribió: «t.1-v.II»,
+ * «t.2-v.I-c.1», «v.1-t.2» (unas 90 copias). Ese par es el «tomo» de la copia («t.1-v.II»):
+ * las copias se numeran dentro de él, igual que dentro de un tomo solo.
  */
 final class TomoEjemplar
 {
+    /** Tomo o volumen y su número; tras el número del primero, una letra («t.2a») que no es la «c» de la copia pegada («t.1c.1»). */
+    private const PATRON = '/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)'
+        // el segundo, del otro tipo: «t.1-v.II», «t.1 v.2», «v.2- t.98», «t.4-vol.II»
+        .'(?:\s*[-,;\/]?\s*(t|tomo|v|vol|volumen)\.?\s*(\d+|[ivxlc]+)(?![a-z]))?'
+        // la copia: «c.2», «-c.1», «/c.1», «c2»
+        .'\s*(?:[-,;\/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/iu';
+
     /**
-     * «v.1 c.2», «v.1-c.3», «t.4», «Tomo 2», «vol. 3 c.1» → ['v.1', 2], ['v.1', 3], ['t.4', null]…
-     * Lo que no es un tomo («No. 367 (Ene., 2014)») → [null, null].
+     * «v.1 c.2», «v.1-c.3», «t.4», «Tomo 2», «vol. 3 c.1», «t.2-v.I-c.1» → ['v.1', 2],
+     * ['v.1', 3], ['t.4', null]… ['t.2-v.I', 1]. Lo que no es un tomo («No. 367 (Ene., 2014)»)
+     * → [null, null]. Igual que tomo_de_volumen() del ETL.
      *
      * @return array{0: string|null, 1: int|null}
      */
     public static function desdeEtiqueta(?string $etiqueta): array
     {
         $texto = trim(preg_replace('/\s+/u', ' ', (string) $etiqueta));
-        // La letra tras el número del tomo («t.2a») no es la «c» de la copia pegada («t.1c.1»);
-        // también «t.2/c.1». Igual que tomo_de_volumen() del ETL.
-        if (! preg_match('/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)\s*(?:[-,;\/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/iu', $texto, $m)) {
+        if (! preg_match(self::PATRON, $texto, $m)) {
             return [null, null];
         }
+        $segundo = $m[3] ?? '';
+        // «t.1 t.2» no es tomo y volumen
+        if ($segundo !== '' && mb_strtolower($segundo[0]) === mb_strtolower($m[1][0])) {
+            return [null, null];
+        }
+        $tomo = self::parte($m[1], $m[2]).($segundo !== '' ? '-'.self::parte($segundo, $m[4]) : '');
 
-        return [self::normalizar($m[1].$m[2]), isset($m[3]) && $m[3] !== '' ? (int) $m[3] : null];
+        return [$tomo, isset($m[5]) && $m[5] !== '' ? (int) $m[5] : null];
     }
 
-    /** «Tomo 1», «T1», «t. 1» → «t.1»; «Vol 2», «v2» → «v.2»; otro texto queda como se escribió. */
+    /** «Tomo», «1» → «t.1»; «vol», «ii» → «v.II» (los romanos en mayúscula, como en Horizon). */
+    private static function parte(string $tipo, string $numero): string
+    {
+        $numero = ctype_digit($numero) || preg_match('/^\d/', $numero) ? mb_strtolower($numero) : mb_strtoupper($numero);
+
+        return mb_strtolower(mb_substr($tipo, 0, 1)).'.'.$numero;
+    }
+
+    /** «Tomo 1», «T1», «t. 1» → «t.1»; «Vol 2», «v2» → «v.2»; «t.1 v.II» → «t.1-v.II»; otro texto queda como se escribió. */
     public static function normalizar(?string $tomo): ?string
     {
         $tomo = trim(preg_replace('/\s+/u', ' ', (string) $tomo));
         if ($tomo === '') {
             return null;
         }
-        if (preg_match('/^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)$/iu', $tomo, $m)) {
-            return mb_strtolower(mb_substr($m[1], 0, 1)).'.'.mb_strtolower($m[2]);
-        }
+        [$clave, $copia] = self::desdeEtiqueta($tomo);
 
-        return $tomo;
+        return $clave !== null && $copia === null ? $clave : $tomo;
     }
 
     /**

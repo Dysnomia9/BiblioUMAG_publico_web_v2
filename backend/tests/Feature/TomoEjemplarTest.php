@@ -118,4 +118,30 @@ class TomoEjemplarTest extends TestCase
         $this->assertSame($t1->id, $apartada?->ejemplar_id);
         $this->assertSame('pendiente', ReservaLibro::first()->estado);
     }
+
+    public function test_tomo_y_volumen_juntos_como_en_horizon(): void
+    {
+        $this->assertSame(['t.1-v.II', null], TomoEjemplar::desdeEtiqueta('t.1-v.II'));
+        $this->assertSame(['t.2-v.I', 1], TomoEjemplar::desdeEtiqueta('t.2-v.I-c.1'));
+        $this->assertSame(['t.3-v.1', 1], TomoEjemplar::desdeEtiqueta('t.3- v.1-c.1'));
+        $this->assertSame(['t.4-v.II', 1], TomoEjemplar::desdeEtiqueta('t.4-vol.II-c.1'));
+        $this->assertSame(['v.1-t.2', 3], TomoEjemplar::desdeEtiqueta('v.1-t.2-c.3'));
+        $this->assertSame(['t.1-v.2', null], TomoEjemplar::desdeEtiqueta('t.1 v.2'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('t.1 t.2'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol 1 No 1 (2009)'));
+        $this->assertSame('t.1-v.II', TomoEjemplar::normalizar('Tomo 1 Volumen II'));
+    }
+
+    public function test_las_copias_se_numeran_dentro_del_tomo_y_volumen(): void
+    {
+        \Laravel\Sanctum\Sanctum::actingAs(\App\Models\Staff::factory()->admin()->create());
+        $libro = \App\Models\Libro::factory()->create();
+        $agregar = fn (string $codigo, string $tomo) => $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => $codigo, 'tomo' => $tomo])->assertCreated();
+
+        $agregar('30000000888001', 't.1-v.II')->assertJsonPath('tomo', 't.1-v.II')->assertJsonPath('volumen', 't.1-v.II');
+        $agregar('30000000888002', 't.1 v.ii')->assertJsonPath('volumen', 't.1-v.II c.1');
+        // Otro volumen del mismo tomo empieza su propia numeración
+        $agregar('30000000888003', 't.1-v.I')->assertJsonPath('volumen', 't.1-v.I');
+        $agregar('30000000888004', 't.1')->assertJsonPath('volumen', 't.1');
+    }
 }
