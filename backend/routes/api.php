@@ -41,6 +41,14 @@ use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\VigenciaController;
 use Illuminate\Support\Facades\Route;
 
+// Los parámetros que son el id de un registro solo aceptan dígitos: «/mi/reservas/abc» llegaba
+// a Postgres como bigint y respondía 500; así es un 404. ({codigo} y {rut} son texto.)
+foreach (['categoria', 'categoriaRecurso', 'diaSinAtencion', 'ejemplar', 'equipo', 'estadoLibroPersonalizado', 'fasciculo',
+    'libro', 'multa', 'periodoPlazoSala', 'prestamo', 'prestamoInterbibliotecario', 'reglaPrestamo', 'reserva', 'reservaLibro',
+    'rol', 'rolAutor', 'sala', 'staff', 'tipoMaterial', 'ubicacion', 'usuario'] as $parametro) {
+    Route::pattern($parametro, '[0-9]+');
+}
+
 // El login único (LoginView.vue): correo y contraseña, para el personal y los usuarios
 // (con el RUT no se entra); responde a qué sesión corresponde o, si la persona tiene las
 // dos cuentas, pide elegir (LoginUnificadoService).

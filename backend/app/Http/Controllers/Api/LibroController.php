@@ -28,6 +28,14 @@ class LibroController extends Controller
 
     public function index(Request $request)
     {
+        // Textos y números: «q[]=a» o «categoria_id=abc» daban un error 500.
+        $request->validate([
+            'q' => ['nullable', 'string', 'max:200'], 'materia' => ['nullable', 'string', 'max:200'],
+            'categoria_id' => ['nullable', 'integer'], 'autor_id' => ['nullable', 'integer'],
+            'carrera_id' => ['nullable', 'integer'], 'tipo_material_id' => ['nullable', 'integer'],
+            'estado_personalizado_id' => ['nullable', 'integer'],
+        ]);
+
         $query = Libro::query()->with([
             ...self::RELACIONES,
             // Cada copia dice si está prestada o reservada (listado de libros y estado de ejemplares).

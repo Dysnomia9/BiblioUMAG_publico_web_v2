@@ -236,6 +236,9 @@ class PortalController extends Controller
                 ->where('prestamos.estado', '!=', 'devuelto'),
             ]);
 
+        // Un texto y un número: «q[]=a» o «categoria_id=abc» daban un error 500.
+        $request->validate(['q' => ['nullable', 'string', 'max:200'], 'categoria_id' => ['nullable', 'integer']]);
+
         // «Solo disponibles» y el área se filtran acá, no en el navegador: el catálogo va por páginas.
         if (filter_var($request->query('disponibles'), FILTER_VALIDATE_BOOLEAN)) {
             $query->whereHas('ejemplares', fn ($q) => $q->where('estado_proceso', 'en_estante')->where('disponible', true));
@@ -295,6 +298,8 @@ class PortalController extends Controller
      */
     public function areasCatalogo(Request $request)
     {
+        $request->validate(['q' => ['nullable', 'string', 'max:200']]);
+
         return response()->json(OpcionesCatalogo::buscar(
             Categoria::class,
             $request->query('q'),
