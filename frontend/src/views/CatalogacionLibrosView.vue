@@ -601,10 +601,7 @@ async function abrirDesdeListado() {
   try {
     const { data } = await api.get<Libro>(`/libros/${editarId || copiaId}`)
     if (editarId) editar(data)
-    else {
-      modo.value = 'copia'
-      seleccionarLibroParaCopia(data)
-    }
+    else agregarCopiaDe(data) // desde «Agregar copia» del listado de material
   } catch {
     toast.error('No se pudo abrir ese título')
   }
@@ -984,6 +981,8 @@ function elegirBuscarObraEn(valor: BuscarObraEn) {
 let buscarCopiaTimer: ReturnType<typeof setTimeout> | undefined
 function onBuscarCopiaInput() {
   clearTimeout(buscarCopiaTimer)
+  // Se borró o cambió el título de la obra elegida: se suelta y se busca de nuevo (sin apretar «Cambiar»)
+  if (libroParaCopia.value && busquedaCopia.value.trim() !== libroParaCopia.value.titulo) libroParaCopia.value = null
   buscarCopiaTimer = setTimeout(async () => {
     const texto = busquedaCopia.value.trim()
     const en = buscarObraEn.value
@@ -1013,6 +1012,8 @@ function seleccionarLibroParaCopia(libro: Libro) {
 function agregarCopiaDe(libro: Libro) {
   modo.value = 'copia'
   seleccionarLibroParaCopia(libro)
+  // En la casilla queda el nombre: si se borra o se sigue escribiendo, se busca por nombre (no por N.º de ficha)
+  buscarObraEn.value = 'resto'
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -1725,7 +1726,8 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="text-sm font-semibold text-gray-900">{{ libroParaCopia.titulo }}</p>
                   <p class="mt-0.5 text-xs font-semibold text-indigo-800">Ficha N.º <span class="font-mono">{{ libroParaCopia.numero_ficha }}</span></p>
                   <p class="text-xs text-gray-500">{{ libroParaCopia.ejemplares_count ?? libroParaCopia.ejemplares?.length ?? 0 }} copia(s) ya catalogada(s)</p>
-                  <div v-if="libroParaCopia.ejemplares?.length" class="mt-2 flex flex-wrap gap-1">
+                  <p v-if="libroParaCopia.ejemplares?.length" class="mt-2 text-[11px] text-indigo-800">Haz clic en un código para editar esa copia:</p>
+                  <div v-if="libroParaCopia.ejemplares?.length" class="mt-1 flex flex-wrap gap-1">
                     <button
                       v-for="e in libroParaCopia.ejemplares"
                       :key="e.id"
