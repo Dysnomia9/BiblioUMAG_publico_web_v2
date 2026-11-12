@@ -603,7 +603,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                   :clave-tono="f.libro.categorias?.[0]?.nombre"
                 />
                 <div class="min-w-0">
-                  <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }} <span class="whitespace-nowrap font-mono text-[11px] font-normal text-gray-400" title="N.º de ficha">N.º {{ f.libro.numero_ficha }}</span></p>
+                  <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
                   <p class="truncate text-xs text-gray-500">
                     <template v-if="f.libro.autores?.length">
                       <template v-for="(a, i) in f.libro.autores" :key="a.id">
