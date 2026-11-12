@@ -373,7 +373,7 @@ const horaInicioOpciones = computed(() => {
 /** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
 /** El mínimo de las logias (Administración › Salas), o null si está apagado. */
 const minimoLogias = ref<number | null>(null)
-const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : sala.tipo === 'logia' && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
+const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : sala.codigo?.toUpperCase().startsWith('L') && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
 /** El mínimo de la sala elegida: el de las opciones de «Cantidad de personas». */
 const minimoElegida = computed(() => (selectedSala.value ? minimoDe(selectedSala.value) : cantidadMinima.value))
 

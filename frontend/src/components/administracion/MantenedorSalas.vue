@@ -23,9 +23,9 @@ const apiError = ref(false)
 const cargando = ref(true)
 
 // ---------- Mínimo de personas para salas o logias ----------
-// Encendido, el número es el mínimo de todas las logias en el mesón y en el portal (en el
+// Encendido, el número es el mínimo solo de las salas con código «L…» (las logias), en el mesón y en el portal (en el
 // portal, sin pasar de su máximo); apagado, vuelven los rangos de siempre.
-type MinimoLogias = { activo: boolean; minimo: number; maximo: number; portal: Rango; logias_chicas: string[] }
+type MinimoLogias = { activo: boolean; minimo: number; maximo: number; portal: Rango; logias_chicas: string[]; sin_cambio: string[] }
 const minimoLogias = ref<MinimoLogias | null>(null)
 const guardandoMinimo = ref(false)
 
@@ -258,13 +258,16 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <p id="minimo-logias-titulo" class="text-sm font-semibold text-gray-900">Mínimo de personas para salas o logias</p>
           <p class="mt-0.5 max-w-2xl text-xs text-gray-500">
             <template v-if="minimoLogias.activo">
-              Todas las logias piden al menos <strong class="text-gray-800">{{ minimoLogias.minimo }} {{ minimoLogias.minimo === 1 ? 'persona' : 'personas' }}</strong>, en el mesón y en el portal<template v-if="minimoLogias.minimo > minimoLogias.portal.maximo"> (en el portal, que admite hasta {{ minimoLogias.portal.maximo }}, piden {{ minimoLogias.portal.maximo }})</template>.
+              <strong class="text-indigo-700">Solo las logias cuyo código empieza con «L»</strong> (L01, L02…) piden al menos <strong class="text-gray-800">{{ minimoLogias.minimo }} {{ minimoLogias.minimo === 1 ? 'persona' : 'personas' }}</strong>, en el mesón y en el portal<template v-if="minimoLogias.minimo > minimoLogias.portal.maximo"> (en el portal, que admite hasta {{ minimoLogias.portal.maximo }}, piden {{ minimoLogias.portal.maximo }})</template>. Las demás salas no cambian.
             </template>
+            <span v-if="minimoLogias.sin_cambio.length" class="mt-1 block">
+              <strong class="text-gray-700">No cambian:</strong> {{ minimoLogias.sin_cambio.join(' · ') }}.
+            </span>
             <span v-if="minimoLogias.activo && minimoLogias.logias_chicas.length" class="mt-1 block text-amber-700">
               {{ minimoLogias.logias_chicas.length === 1 ? 'La logia' : 'Las logias' }} {{ minimoLogias.logias_chicas.join(', ') }} {{ minimoLogias.logias_chicas.length === 1 ? 'tiene' : 'tienen' }} capacidad para menos de {{ minimoLogias.minimo }}: revisa su capacidad o baja el mínimo.
             </span>
             <template v-if="!minimoLogias.activo">
-              Apagado: las logias usan el mínimo de siempre, {{ personas.portal.minimo }} en el portal y {{ personas.meson.minimo }} en el mesón. Al encenderlo, el número que elijas vale para todas las logias.
+              Apagado: las logias usan el mínimo de siempre, {{ personas.portal.minimo }} en el portal y {{ personas.meson.minimo }} en el mesón. Al encenderlo, el número que elijas vale <strong class="text-indigo-700">solo para las logias cuyo código empieza con «L»</strong> (L01, L02…); las demás salas no cambian.
             </template>
           </p>
         </div>

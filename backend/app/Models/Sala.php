@@ -97,10 +97,16 @@ class Sala extends Model
         return $configuracion->minimo_personas_logias_activo ? $configuracion->minimo_personas_logias : null;
     }
 
+    /** Si el mínimo de las logias le aplica: solo las salas cuyo código empieza con L (L01…L30). */
+    public function esLogiaL(): bool
+    {
+        return str_starts_with(mb_strtoupper((string) $this->codigo), 'L');
+    }
+
     /** El mínimo de las logias, si está encendido, sin pasar del máximo del rango (si no, el del rango). */
     private function minimoPropio(int $minimo, int $maximo): int
     {
-        $logias = $this->tipo === 'logia' ? self::minimoLogias() : null;
+        $logias = $this->esLogiaL() ? self::minimoLogias() : null;
 
         return $logias === null ? $minimo : min($logias, $maximo);
     }

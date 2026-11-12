@@ -77,6 +77,23 @@ class SalaMinimoLogiasTest extends TestCase
         $this->postJson('/api/mi/reservas', $this->reserva('L02', [$yo->rut]))->assertCreated();
     }
 
+    public function test_solo_aplica_a_las_salas_cuyo_codigo_empieza_con_l(): void
+    {
+        $this->fijar(true, 1)->assertOk();
+
+        // Una «logia» con otro código no cambia; una sala con código L sí
+        $otra = Sala::create(['nombre' => 'Sala de estudio', 'codigo' => 'EST1', 'capacidad' => 6, 'tipo' => 'logia']);
+        $this->assertSame([3, 6], $otra->personasEnElPortal());
+        $this->assertSame([1, 6], Sala::where('codigo', 'L30')->first()->personasEnElPortal());
+        $this->assertFalse($otra->esLogiaL());
+
+        // Administración avisa las que no toca, con su nombre; ninguna logia L entre ellas
+        $sinCambio = $this->getJson('/api/mantenedor-salas')->assertOk()->json('minimo_logias.sin_cambio');
+        $this->assertContains('Sala de estudio (EST1)', $sinCambio);
+        $this->assertContains('Sala de Postgrado (POS)', $sinCambio);
+        $this->assertEmpty(array_filter($sinCambio, fn ($s) => preg_match('/\(L\d+\)$/', $s)));
+    }
+
     public function test_un_minimo_mas_alto_tambien_rige_en_el_meson(): void
     {
         $this->fijar(true, 5)->assertOk();

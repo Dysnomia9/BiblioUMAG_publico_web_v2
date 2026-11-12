@@ -132,7 +132,7 @@ const modalOpen = ref(false)
 const selectedSala = ref<Sala | null>(null)
 /** El mínimo de las logias (Administración › Salas), o null si está apagado. */
 const minimoLogias = ref<number | null>(null)
-const minimoDe = (sala: Sala | null | undefined) => (sala?.tipo === 'logia' && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
+const minimoDe = (sala: Sala | null | undefined) => (sala?.codigo?.toUpperCase().startsWith('L') && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
 /** El mínimo de la sala elegida: el de las opciones de «Cantidad de personas». */
 const minimoElegida = computed(() => minimoDe(selectedSala.value))
 const modalHoraInicio = ref('')

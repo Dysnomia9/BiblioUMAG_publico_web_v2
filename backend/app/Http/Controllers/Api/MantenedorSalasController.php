@@ -40,8 +40,8 @@ class MantenedorSalasController extends Controller
     }
 
     /**
-     * «Mínimo de personas para salas o logias»: encendido, el número vale como mínimo en todas
-     * las logias, en el mesón y en el portal (sin pasar del máximo de cada uno); apagado,
+     * «Mínimo de personas para salas o logias»: encendido, el número vale como mínimo solo en las
+     * salas cuyo código empieza con L (las logias), en el mesón y en el portal (sin pasar del máximo de cada uno); apagado,
      * vuelven los de config/salas.php.
      */
     public function minimoLogiasActualizar(Request $request)
@@ -70,7 +70,7 @@ class MantenedorSalasController extends Controller
         return response()->json($this->minimoLogias());
     }
 
-    /** @return array{activo: bool, minimo: int, maximo: int, portal: array{minimo: int, maximo: int}, logias_chicas: list<string>} */
+    /** @return array{activo: bool, minimo: int, maximo: int, portal: array{minimo: int, maximo: int}, logias_chicas: list<string>, sin_cambio: list<string>} */
     private function minimoLogias(): array
     {
         $configuracion = ConfiguracionInstitucional::actual();
@@ -84,9 +84,12 @@ class MantenedorSalasController extends Controller
             // Logias activas con capacidad menor que el mínimo: un aviso, no un bloqueo (el mesón
             // ya anota hasta 7 en una logia de 3)
             'logias_chicas' => $configuracion->minimo_personas_logias_activo
-                ? Sala::where('tipo', 'logia')->where('activa', true)->where('solo_responsable', false)
+                ? Sala::where('codigo', 'like', 'L%')->where('activa', true)->where('solo_responsable', false)
                     ->where('capacidad', '<', $configuracion->minimo_personas_logias)->enOrden()->pluck('codigo')->all()
                 : [],
+            // Las salas activas que este mínimo no toca (su código no empieza con L)
+            'sin_cambio' => Sala::where('activa', true)->where('codigo', 'not like', 'L%')->enOrden()->get(['nombre', 'codigo'])
+                ->map(fn (Sala $s) => "{$s->nombre} ({$s->codigo})")->all(),
         ];
     }
 
