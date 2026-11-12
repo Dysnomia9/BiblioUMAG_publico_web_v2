@@ -1165,7 +1165,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('descripcion_fisica')" class="sm:col-span-3">
                   <label for="cat-descripcion" :class="ETIQUETA"><Marc :codigo="etiqueta('descripcion_fisica')" tono="teal" /> Descripción física</label>
-                  <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm" :class="CAMPO" />
+                  <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm.":class="CAMPO" />
                 </div>
                 <div v-if="tiene('serie')" class="sm:col-span-3">
                   <label for="cat-serie" :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie</label>

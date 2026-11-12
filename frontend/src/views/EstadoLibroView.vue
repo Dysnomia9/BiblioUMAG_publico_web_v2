@@ -264,7 +264,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
             <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" d="M4 5v14M7.5 5v14M11 5v14M14.5 5v14M17 5v14M20 5v14" />
             </svg>
-            <input
+            <input autocomplete="off"
               v-model="busqueda"
               type="text"
               placeholder="Título o código de barras (o escanéalo)"
@@ -448,7 +448,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                   {{ objetivo === 'de_baja' ? 'Motivo de la baja (obligatorio)' : 'Nota (opcional)' }}
                 </label>
                 <div class="flex flex-col gap-2 sm:flex-row">
-                  <input
+                  <input autocomplete="off"
                     id="nota-estado"
                     v-model="nota"
                     type="text"

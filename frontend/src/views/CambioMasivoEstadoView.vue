@@ -221,7 +221,7 @@ async function confirmarEjecucion() {
             </div>
             <div class="sm:col-span-2">
               <label for="masivo-q" class="block text-xs font-medium text-gray-700 mb-1">Búsqueda por título o código de barras</label>
-              <input id="masivo-q" v-model="filtro.q" placeholder="Opcional" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <input autocomplete="off" id="masivo-q" v-model="filtro.q" placeholder="Opcional" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
           </div>
 
@@ -288,7 +288,7 @@ async function confirmarEjecucion() {
 
             <div class="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
               <label class="block text-xs font-medium text-gray-700 mb-1">{{ nuevoEstado === 'de_baja' ? 'Motivo de la baja (obligatorio, queda en el historial)' : 'Motivo (opcional, queda en el historial)' }}</label>
-              <input v-model="motivo" :required="nuevoEstado === 'de_baja'" :placeholder="nuevoEstado === 'de_baja' ? 'Ej: deterioro, pérdida, descarte por inventario' : 'Ej: inventario anual'" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <input autocomplete="off" v-model="motivo" :required="nuevoEstado === 'de_baja'" :placeholder="nuevoEstado === 'de_baja' ? 'Ej: deterioro, pérdida, descarte por inventario' : 'Ej: inventario anual'" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
 
             <div class="border-t border-dashed border-gray-200 pt-4">
@@ -331,7 +331,7 @@ async function confirmarEjecucion() {
           <label class="block text-xs font-medium text-gray-600 mb-1">
             Escribe <span class="font-mono font-bold">CONFIRMAR</span> para continuar
           </label>
-          <input
+          <input autocomplete="off"
             v-model="textoConfirmacion"
             type="text"
             class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm mb-4 font-mono"

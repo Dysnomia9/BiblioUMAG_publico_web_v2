@@ -78,6 +78,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
 
         $respuesta = $this->postJson('/api/prestamos-interbibliotecarios', [
             'titulo' => 'Fisiología médica',
+            'titulos_alternativos' => ['Guyton y Hall', '  Textbook of medical physiology ', ''],
             'autores' => ['Guyton, Arthur C.', 'Hall, John E.'],
             'isbn' => '9788491130246',
             'codigo_barras' => '30000009990001',
@@ -98,6 +99,7 @@ class PrestamoInterbibliotecarioTest extends TestCase
         $this->assertTrue($ejemplar->disponible);
         $this->assertSame(0, $ejemplar->numero_copia); // título nuevo: su primera copia no lleva «c.»
         $this->assertSame(['Guyton, Arthur C.', 'Hall, John E.'], $ejemplar->libro->autores->pluck('nombre')->all());
+        $this->assertSame(['Guyton y Hall', 'Textbook of medical physiology'], explode("\n", $ejemplar->libro->titulo_alternativo));
         $this->assertSame($staff->id, $ejemplar->libro->catalogado_por_staff_id);
         $this->assertDatabaseHas('bitacora', ['accion' => 'libros.recibir_interbibliotecario', 'entidad_id' => $respuesta->json('id')]);
     }

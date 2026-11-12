@@ -305,7 +305,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
               <div class="flex items-start gap-2">
                 <span class="mt-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xs font-bold tabular-nums text-indigo-700">{{ i + 1 }}</span>
                 <div class="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem]">
-                  <input
+                  <input autocomplete="off"
                     v-model="f.nombre"
                     :data-fila="i"
                     data-campo="nombre"
@@ -318,7 +318,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                   />
                   <span class="relative block">
                     <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 5v14M7.5 5v14M11 5v14M14.5 5v14M17 5v14M20 5v14" /></svg>
-                  <input
+                  <input autocomplete="off"
                     v-model="f.codigo"
                     :data-fila="i"
                     data-campo="codigo"

@@ -71,16 +71,16 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
       </div>
       <div>
         <label for="copia-editar-volumen" class="mb-1 block text-xs font-medium text-gray-600">Volumen</label>
-        <input id="copia-editar-volumen" v-model="form.volumen" maxlength="100" placeholder="Tomo I" :class="CAMPO" />
+        <input autocomplete="off" id="copia-editar-volumen" v-model="form.volumen" maxlength="100" placeholder="Tomo I" :class="CAMPO" />
       </div>
       <div class="sm:col-span-2">
         <label for="copia-editar-coleccion" class="mb-1 block text-xs font-medium text-gray-600">Colección de la copia</label>
-        <input id="copia-editar-coleccion" v-model="form.coleccion" maxlength="255" :placeholder="coleccionLibro ? `${coleccionLibro} (la del libro)` : 'La del libro'" :class="CAMPO" />
+        <input autocomplete="off" id="copia-editar-coleccion" v-model="form.coleccion" maxlength="255" :placeholder="coleccionLibro ? `${coleccionLibro} (la del libro)` : 'La del libro'" :class="CAMPO" />
         <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro<template v-if="coleccionLibro"> («{{ coleccionLibro }}»)</template>.</p>
       </div>
       <div>
         <label for="copia-editar-registro" class="mb-1 block text-xs font-medium text-gray-600">N° de registro en Horizon</label>
-        <input id="copia-editar-registro" v-model="form.numero_registro" maxlength="50" inputmode="numeric" placeholder="Ej: 30727" :class="CAMPO" />
+        <input autocomplete="off" id="copia-editar-registro" v-model="form.numero_registro" maxlength="50" inputmode="numeric" placeholder="Ej: 30727" :class="CAMPO" />
         <p class="mt-1 text-[11px] text-gray-500">Solo lo ve el personal. Sirve para buscar el libro.</p>
       </div>
       <div class="sm:col-span-2">

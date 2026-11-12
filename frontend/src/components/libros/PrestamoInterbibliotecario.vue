@@ -35,6 +35,8 @@ const fecha = (iso: string | null | undefined) =>
 // ---------- Registrar lo que llega ----------
 const formVacio = () => ({
   titulo: '',
+  /** Títulos alternativos (246, repetible): una caja por título. */
+  titulosAlternativos: [''] as string[],
   autores: [] as string[],
   isbn: '',
   editorial: '',
@@ -153,6 +155,7 @@ async function registrar() {
         ? { libro_id: libroElegido.value?.id }
         : {
             titulo: form.titulo.trim(),
+            titulos_alternativos: form.titulosAlternativos.map((t) => t.trim()).filter(Boolean),
             autores: form.autores,
             isbn: form.isbn.trim() || null,
             editorial: form.editorial.trim() || null,
@@ -388,7 +391,28 @@ async function guardarEdicion() {
           <div v-if="origen === 'nuevo'" class="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <div class="sm:col-span-6">
               <label for="pib-titulo" :class="ETIQUETA">Título <span class="text-red-600">*</span></label>
-              <input id="pib-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
+              <input autocomplete="off" id="pib-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
+            </div>
+            <div class="sm:col-span-6">
+              <p :class="ETIQUETA">Títulos alternativos <span class="font-normal text-gray-400">(246 · puede haber varios)</span></p>
+              <div class="space-y-2">
+                <div v-for="(_, i) in form.titulosAlternativos" :key="i" class="flex gap-2">
+                  <input autocomplete="off"
+                    :id="`pib-titulo-alt-${i}`"
+                    v-model="form.titulosAlternativos[i]"
+                    placeholder="Otro título con que se conoce la obra"
+                    :class="CAMPO"
+                  />
+                  <button
+                    v-if="form.titulosAlternativos.length > 1 || form.titulosAlternativos[i]"
+                    type="button"
+                    class="shrink-0 rounded-lg border border-gray-300 px-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-red-600"
+                    :aria-label="`Quitar título alternativo ${i + 1}`"
+                    @click="form.titulosAlternativos.length > 1 ? form.titulosAlternativos.splice(i, 1) : (form.titulosAlternativos[0] = '')"
+                  >✕</button>
+                </div>
+              </div>
+              <button type="button" class="mt-2 text-xs font-semibold text-indigo-700 hover:underline" @click="form.titulosAlternativos.push('')">+ Agregar otro título alternativo</button>
             </div>
             <div class="sm:col-span-6">
               <p :class="ETIQUETA">Autores</p>
@@ -396,15 +420,15 @@ async function guardarEdicion() {
             </div>
             <div class="sm:col-span-2">
               <label for="pib-isbn" :class="ETIQUETA">ISBN</label>
-              <input id="pib-isbn" v-model="form.isbn" placeholder="978..." :class="[CAMPO, 'font-mono']" />
+              <input autocomplete="off" id="pib-isbn" v-model="form.isbn" placeholder="978..." :class="[CAMPO, 'font-mono']" />
             </div>
             <div class="sm:col-span-2">
               <label for="pib-editorial" :class="ETIQUETA">Editorial</label>
-              <input id="pib-editorial" v-model="form.editorial" placeholder="Editorial" :class="CAMPO" />
+              <input autocomplete="off" id="pib-editorial" v-model="form.editorial" placeholder="Editorial" :class="CAMPO" />
             </div>
             <div class="sm:col-span-2">
               <label for="pib-anio" :class="ETIQUETA">Año</label>
-              <input id="pib-anio" v-model="form.anio_publicacion" type="number" placeholder="2020" :class="CAMPO" />
+              <input autocomplete="off" id="pib-anio" v-model="form.anio_publicacion" type="number" placeholder="2020" :class="CAMPO" />
             </div>
             <div class="sm:col-span-3">
               <label for="pib-tipo" :class="ETIQUETA">Tipo de material</label>
@@ -419,7 +443,7 @@ async function guardarEdicion() {
           <template v-else>
             <label for="pib-buscar" :class="ETIQUETA">Título, autor, ISBN o código de barras</label>
             <div class="relative">
-              <input id="pib-buscar" v-model="busquedaLibro" type="text" placeholder="Ej: Fundamentos de bases de datos" :class="CAMPO" @input="onBuscarLibro" />
+              <input autocomplete="off" id="pib-buscar" v-model="busquedaLibro" type="text" placeholder="Ej: Fundamentos de bases de datos" :class="CAMPO" @input="onBuscarLibro" />
               <div v-if="resultadosLibro.length" class="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                 <button
                   v-for="l in resultadosLibro"
@@ -451,7 +475,7 @@ async function guardarEdicion() {
             <div class="sm:col-span-3">
               <label for="pib-codigo" :class="ETIQUETA">Código de barras <span class="text-red-600">*</span></label>
               <div class="flex gap-2">
-                <input id="pib-codigo" v-model="form.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
+                <input autocomplete="off" id="pib-codigo" v-model="form.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
                 <button
                   type="button"
                   class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-gray-600 transition-colors hover:bg-gray-50"
@@ -481,19 +505,19 @@ async function guardarEdicion() {
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <div class="sm:col-span-6">
               <label for="pib-biblioteca" :class="ETIQUETA">Biblioteca propietaria <span class="text-red-600">*</span></label>
-              <input id="pib-biblioteca" v-model="form.biblioteca" list="pib-bibliotecas" placeholder="Ej: Biblioteca Central, Universidad de Chile" :class="CAMPO" />
+              <input autocomplete="off" id="pib-biblioteca" v-model="form.biblioteca" list="pib-bibliotecas" placeholder="Ej: Biblioteca Central, Universidad de Chile" :class="CAMPO" />
               <datalist id="pib-bibliotecas">
                 <option v-for="b in bibliotecas" :key="b" :value="b" />
               </datalist>
             </div>
             <div class="sm:col-span-3">
               <label for="pib-ingreso" :class="ETIQUETA">Fecha de ingreso <span class="text-red-600">*</span></label>
-              <input id="pib-ingreso" v-model="form.fecha_ingreso" type="date" :max="hoy" :class="CAMPO" />
+              <input autocomplete="off" id="pib-ingreso" v-model="form.fecha_ingreso" type="date" :max="hoy" :class="CAMPO" />
               <p class="mt-1 text-[11px] text-gray-500">Cuándo llegó a la biblioteca.</p>
             </div>
             <div class="sm:col-span-3">
               <label for="pib-limite" :class="ETIQUETA">Vuelve a su biblioteca el <span class="text-red-600">*</span></label>
-              <input id="pib-limite" v-model="form.fecha_limite" type="date" :min="form.fecha_ingreso || hoy" :class="CAMPO" />
+              <input autocomplete="off" id="pib-limite" v-model="form.fecha_limite" type="date" :min="form.fecha_ingreso || hoy" :class="CAMPO" />
               <p class="mt-1 text-[11px] text-gray-500">La fecha límite del préstamo interbibliotecario.</p>
             </div>
             <div class="sm:col-span-6">
@@ -573,7 +597,7 @@ async function guardarEdicion() {
               {{ v.label }} <span class="ml-0.5 tabular-nums text-gray-400">{{ conteos[v.id] }}</span>
             </button>
           </div>
-          <input
+          <input autocomplete="off"
             v-model="busqueda"
             type="text"
             placeholder="Título, código o biblioteca"
@@ -739,7 +763,7 @@ async function guardarEdicion() {
       </p>
       <div class="mt-3">
         <label for="pib-nota-devolucion" class="mb-1.5 block text-xs font-semibold text-gray-700">Nota (opcional)</label>
-        <input
+        <input autocomplete="off"
           id="pib-nota-devolucion"
           v-model="notaDevolucion"
           type="text"
@@ -763,11 +787,11 @@ async function guardarEdicion() {
       <div class="space-y-3">
         <div>
           <label for="pib-editar-biblioteca" class="mb-1.5 block text-xs font-semibold text-gray-700">Biblioteca propietaria</label>
-          <input id="pib-editar-biblioteca" v-model="edicion.biblioteca" list="pib-bibliotecas" :class="CAMPO" />
+          <input autocomplete="off" id="pib-editar-biblioteca" v-model="edicion.biblioteca" list="pib-bibliotecas" :class="CAMPO" />
         </div>
         <div>
           <label for="pib-editar-limite" class="mb-1.5 block text-xs font-semibold text-gray-700">Vuelve a su biblioteca el</label>
-          <input id="pib-editar-limite" v-model="edicion.fecha_limite" type="date" :min="aEditar?.fecha_ingreso" :class="CAMPO" />
+          <input autocomplete="off" id="pib-editar-limite" v-model="edicion.fecha_limite" type="date" :min="aEditar?.fecha_ingreso" :class="CAMPO" />
           <p class="mt-1 text-[11px] text-gray-500">Si la biblioteca propietaria dio más plazo.</p>
         </div>
         <div>

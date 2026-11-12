@@ -1117,7 +1117,7 @@ function formatHora(iso: string | null) {
               <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h1m0 0h1M5 6v12M8 6v12M11 6v12m3-12v12m3-12v12m3-12h1v12h-1" />
               </svg>
-              <input
+              <input autocomplete="off"
                 ref="codigoPrestamoInput"
                 :value="codigoBarrasPrestamo"
                 placeholder="Escanear o ingresar código de barras"
@@ -1171,7 +1171,7 @@ function formatHora(iso: string | null) {
             <div v-else class="flex flex-wrap items-start gap-3">
               <div class="min-w-[160px] flex-1">
                 <label for="fecha-prestamo" class="mb-1 block text-xs font-medium text-gray-600">Fecha de préstamo</label>
-                <input
+                <input autocomplete="off"
                   id="fecha-prestamo"
                   v-model="fechaPrestamo"
                   type="date"
@@ -1182,7 +1182,7 @@ function formatHora(iso: string | null) {
               </div>
               <div class="min-w-[160px] flex-1">
                 <label for="fecha-devolucion" class="mb-1 block text-xs font-medium text-gray-600">Fecha de devolución</label>
-                <input
+                <input autocomplete="off"
                   id="fecha-devolucion"
                   v-model="fechaDevolucion"
                   type="date"
@@ -1214,7 +1214,7 @@ function formatHora(iso: string | null) {
               <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h1m0 0h1M5 6v12M8 6v12M11 6v12m3-12v12m3-12v12m3-12h1v12h-1" />
               </svg>
-              <input
+              <input autocomplete="off"
                 :value="codigoBarras"
                 placeholder="Escanear o ingresar código de barras"
                 aria-label="Código de barras del libro a reservar"
@@ -1236,7 +1236,7 @@ function formatHora(iso: string | null) {
               <template v-if="libroDisponible">
                 <div class="min-w-[180px] flex-1">
                   <label for="fecha-reserva" class="mb-1 block text-xs font-medium text-gray-600">Fecha de reserva</label>
-                  <input
+                  <input autocomplete="off"
                     id="fecha-reserva"
                     v-model="fechaReserva"
                     type="date"
@@ -1246,7 +1246,7 @@ function formatHora(iso: string | null) {
                 </div>
                 <div class="min-w-[180px] flex-1">
                   <label for="fecha-retiro" class="mb-1 block text-xs font-medium text-gray-600">Fecha límite de retiro</label>
-                  <input
+                  <input autocomplete="off"
                     id="fecha-retiro"
                     v-model="fechaRetiro"
                     type="date"

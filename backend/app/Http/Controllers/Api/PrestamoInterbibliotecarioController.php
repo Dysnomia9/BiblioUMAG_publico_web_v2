@@ -111,7 +111,10 @@ class PrestamoInterbibliotecarioController extends Controller
     {
         $data = $request->validate([
             'libro_id' => ['required_without:titulo', 'nullable', 'exists:libros,id'],
-            'titulo' => ['required_without:libro_id', 'nullable', 'string', 'max:255'],
+            'titulo' => ['required_without:libro_id', 'nullable', 'string', 'max:1000'],
+            // Títulos alternativos (246, repetible): uno por elemento
+            'titulos_alternativos' => ['nullable', 'array'],
+            'titulos_alternativos.*' => ['nullable', 'string', 'max:1000'],
             'autores' => ['nullable', 'array'],
             'autores.*' => ['string', 'max:255'],
             'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn'],
@@ -330,6 +333,9 @@ class PrestamoInterbibliotecarioController extends Controller
     {
         $libro = Libro::create([
             'titulo' => trim($data['titulo']),
+            // Varios títulos alternativos (246): uno por línea, como al catalogar
+            'titulo_alternativo' => collect($data['titulos_alternativos'] ?? [])->map(fn ($t) => trim(preg_replace('/\s+/u', ' ', (string) $t)))
+                ->filter()->unique()->implode("\n") ?: null,
             'isbn' => isset($data['isbn']) && trim($data['isbn']) !== '' ? trim($data['isbn']) : null,
             'editorial' => $data['editorial'] ?? null,
             'anio_publicacion' => $data['anio_publicacion'] ?? null,
