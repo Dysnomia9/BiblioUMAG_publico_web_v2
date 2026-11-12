@@ -51,6 +51,20 @@ class TomoEjemplarTest extends TestCase
         $this->assertSame(['t.3', 2], [$copia->fresh()->tomo, $copia->fresh()->copia_tomo]);
     }
 
+    public function test_la_copia_se_rotula_con_el_c_de_horizon_y_no_con_el_numero_interno(): void
+    {
+        $libro = Libro::factory()->create();
+        // De Horizon: «c.2» -> copia_tomo 2 (su número interno es otro); sin «c.» -> sin etiqueta
+        $conC = Ejemplar::factory()->for($libro)->create(['numero_copia' => 5, 'copia_tomo' => 2, 'fecha_ingreso_horizon' => '2001-01-01']);
+        $sinC = Ejemplar::factory()->for($libro)->create(['numero_copia' => 6, 'copia_tomo' => null, 'fecha_ingreso_horizon' => '2001-01-01']);
+        // Creada en BiblioUMAG: su número
+        $nueva = Ejemplar::factory()->for($libro)->create(['numero_copia' => 7]);
+
+        $this->assertSame('c.2', $conC->fresh()->etiqueta_copia);
+        $this->assertNull($sinC->fresh()->etiqueta_copia);
+        $this->assertSame('c.7', $nueva->fresh()->etiqueta_copia);
+    }
+
     public function test_en_el_portal_se_reserva_el_tomo_elegido_y_la_fila_espera_ese_tomo(): void
     {
         $libro = Libro::factory()->create();

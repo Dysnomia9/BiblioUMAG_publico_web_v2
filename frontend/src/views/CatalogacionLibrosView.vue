@@ -1346,7 +1346,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       :key="e.id"
                       class="whitespace-nowrap rounded-full border border-indigo-100 bg-white px-2 py-0.5 font-mono text-[11px] text-gray-600"
                     >
-                      c.{{ e.numero_copia }} · {{ e.codigo_barras }}
+                      {{ e.etiqueta_copia ? `${e.etiqueta_copia} · ` : '' }}{{ e.codigo_barras }}
                     </span>
                   </div>
                 </div>
@@ -1578,7 +1578,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       :class="estadoBadges[e.estado_proceso]?.cls"
                       :title="`Copia ${e.numero_copia} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
                     >
-                      c.{{ e.numero_copia }} · {{ e.codigo_barras }}
+                      {{ e.etiqueta_copia ? `${e.etiqueta_copia} · ` : '' }}{{ e.codigo_barras }}
                     </span>
                   </div>
                 </td>

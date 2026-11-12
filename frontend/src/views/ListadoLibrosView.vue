@@ -653,7 +653,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                         <!-- El tomo («v.2») o el número de la revista («Año IV No. 4 (Jul.-Aug., 1985)») -->
                         <p v-if="e.volumen" class="text-sm text-gray-800">{{ e.volumen }}</p>
                         <p class="text-xs text-gray-500">
-                          {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · c.{{ e.numero_copia }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
+                          {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} <template v-if="e.etiqueta_copia"> · {{ e.etiqueta_copia }}</template> · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
                         <p v-if="e.numero_registro" class="text-xs text-gray-600">N° de registro Horizon: <span class="font-mono">{{ e.numero_registro }}</span></p>

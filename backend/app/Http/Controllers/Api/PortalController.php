@@ -221,7 +221,7 @@ class PortalController extends Controller
                 'carreras' => fn ($q) => $q->orderBy('carreras.nombre'),
                 // Las copias que ve el usuario: las que están en estante.
                 'ejemplares' => fn ($q) => $q->where('estado_proceso', 'en_estante')->orderBy('numero_copia')
-                    ->select(['id', 'libro_id', 'numero_copia', 'volumen', 'tomo', 'disponible', 'ubicacion_id', 'coleccion', 'nota_publica']),
+                    ->select(['id', 'libro_id', 'numero_copia', 'volumen', 'tomo', 'copia_tomo', 'fecha_ingreso_horizon', 'disponible', 'ubicacion_id', 'coleccion', 'nota_publica']),
                 'ejemplares.ubicacion:id,nombre',
             ])
             ->withCount([
@@ -279,6 +279,7 @@ class PortalController extends Controller
             // Colección de cada copia (si no tiene, la del libro) y su nota pública.
             'copias' => $libro->ejemplares->map(fn ($e) => [
                 'numero_copia' => $e->numero_copia,
+                'etiqueta_copia' => $e->etiqueta_copia,
                 'volumen' => $e->volumen,
                 'tomo' => $e->tomo,
                 'disponible' => $e->disponible,

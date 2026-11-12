@@ -12,8 +12,12 @@ export type EtiquetaLomo = {
   codigo_barras: string
   codigo_lomo: string
   numero_copia: number
+  /** «c.2» como se rotula (en las de Horizon, su «c.N»); null = sin «c.». */
+  etiqueta_copia?: string | null
   volumen: string | null
   clasificacion: string | null
+  /** Etiqueta con texto personalizado: estos renglones en vez de la clasificación. */
+  lineas?: string[]
 }
 
 export type OpcionesLomo = {
@@ -29,12 +33,15 @@ export type OpcionesLomo = {
 export const OPCIONES_LOMO: OpcionesLomo = { anchoMm: 50, altoMm: 25, conCopia: true, lectura: 'abajo-arriba', bordeDeCorte: true }
 
 /** «998 E56 2026» → ['998', 'E56', '2026'], más «v.2» y «c.2» si se pide. */
-export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_copia' | 'volumen'>, conCopia: boolean): string[] {
+export function lineasDeLomo(e: Pick<EtiquetaLomo, 'clasificacion' | 'numero_copia' | 'volumen' | 'etiqueta_copia' | 'lineas'>, conCopia: boolean): string[] {
+  if (e.lineas?.length) return e.lineas
   const lineas = (e.clasificacion ?? '').trim().split(/\s+/).filter(Boolean)
   const volumen = e.volumen?.trim() ?? ''
   if (conCopia && volumen) lineas.push(...lineasDeVolumen(volumen))
   // La copia 0 no lleva «c.», como en Horizon; «v.2-c.1» (como venía de Horizon) ya la dice
-  if (conCopia && e.numero_copia > 0 && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(`c.${e.numero_copia}`)
+  // La de Horizon lleva su «c.N» (etiqueta_copia), no el número interno de BiblioUMAG
+  const copia = e.etiqueta_copia !== undefined ? e.etiqueta_copia : e.numero_copia > 0 ? `c.${e.numero_copia}` : null
+  if (conCopia && copia && !/(^|[\s-])c\.?\s*\d/i.test(volumen)) lineas.push(copia)
   return lineas
 }
 
@@ -119,7 +126,8 @@ export function paginaEtiquetasLomo(etiquetas: EtiquetaLomo[], opciones: Opcione
       const letra = tamanoLetraMm(lineas, columnaMm, altoMm)
       let barra: string
       try {
-        barra = `<img src="${codigoParado(e.codigo_lomo, opciones.lectura)}" alt="${escapar(e.codigo_lomo)}" />`
+        // Una etiqueta de texto personalizado puede ir sin código
+        barra = e.codigo_lomo ? `<img src="${codigoParado(e.codigo_lomo, opciones.lectura)}" alt="${escapar(e.codigo_lomo)}" />` : ''
       } catch {
         barra = `<span class="error">Código inválido: ${escapar(e.codigo_lomo)}</span>`
       }

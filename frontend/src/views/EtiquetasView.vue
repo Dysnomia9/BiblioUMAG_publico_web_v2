@@ -33,7 +33,24 @@ const INSTITUCION = 'UNIVERSIDAD DE MAGALLANES'
 const codigosTexto = ref('')
 // Los códigos reales de la biblioteca son numéricos de 14 dígitos (ej. 30000003227565,
 // formato heredado de Horizon) — sin prefijo de letras.
-const rango = reactive({ prefijo: '', desde: 1, cantidad: 10, digitos: 14 })
+const rango = reactive({ prefijo: '', desde: 1, cantidad: 10, digitos: 14, formato: 'largo' as 'largo' | 'corto' })
+
+/**
+ * Largo: los 14 dígitos de Horizon (30000003222799). Corto: los 8 que se escriben a mano
+ * (03222799), que el sistema reconoce igual: el largo es «3» + el corto con ceros a la izquierda.
+ */
+const EJEMPLO_LARGO = ['30000003227565', '30000003227566', '30000003227567'].join('\n')
+const EJEMPLO_CORTO = ['03227565', '03227566', '03227567'].join('\n')
+
+function elegirFormato(formato: 'largo' | 'corto') {
+  rango.formato = formato
+  rango.prefijo = ''
+  rango.digitos = formato === 'corto' ? 8 : 14
+  // El mismo número en el otro formato: 30000003222799 ⇄ 03222799
+  const texto = String(rango.desde)
+  if (formato === 'corto' && texto.length === 14 && texto.startsWith('3')) rango.desde = parseInt(texto.slice(1), 10)
+  if (formato === 'largo' && rango.desde > 0 && texto.length <= 8) rango.desde = parseInt(`3${texto.padStart(13, '0')}`, 10)
+}
 const sugiriendoRango = ref(false)
 
 async function sugerirSiguienteCodigo() {
@@ -41,12 +58,19 @@ async function sugerirSiguienteCodigo() {
   try {
     const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras')
     const match = data.codigo_barras.match(/^([A-Za-z]*)(\d+)$/)
-    if (match) {
+    let sugerido = data.codigo_barras
+    if (match && rango.formato === 'corto' && match[2].length === 14 && match[2].startsWith('3')) {
+      // El corto del siguiente libro: sin el «3» y los ceros de relleno, en 8 dígitos
+      rango.prefijo = ''
+      rango.desde = parseInt(match[2].slice(1), 10)
+      rango.digitos = 8
+      sugerido = String(rango.desde).padStart(8, '0')
+    } else if (match) {
       rango.prefijo = match[1]
       rango.desde = parseInt(match[2], 10)
       rango.digitos = match[2].length
     }
-    toast.success(`Sugerido: ${data.codigo_barras}`)
+    toast.success(`Sugerido: ${sugerido}`)
   } catch {
     toast.error('No se pudo obtener el siguiente código sugerido')
   } finally {
@@ -319,6 +343,22 @@ function abrirImpresion() {
                   <span class="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-600 text-[11px] text-white">1</span>
                   Armar un rango
                 </p>
+                <div class="mb-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Formato del código">
+                  <span class="text-xs font-medium text-gray-700">Formato</span>
+                  <button
+                    v-for="f in ([['largo', 'Largo · 14 dígitos', '30000003222799'], ['corto', 'Corto · 8 dígitos', '03222799']] as const)"
+                    :key="f[0]"
+                    type="button"
+                    role="radio"
+                    :aria-checked="rango.formato === f[0]"
+                    class="rounded-lg border px-3 py-1.5 text-left text-xs transition-colors"
+                    :class="rango.formato === f[0] ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+                    @click="elegirFormato(f[0])"
+                  >
+                    <span class="block font-semibold">{{ f[1] }}</span>
+                    <span class="block font-mono opacity-80">{{ f[2] }}</span>
+                  </button>
+                </div>
                 <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <div>
                     <label for="eti-prefijo" class="mb-1 block text-xs font-medium text-gray-700">Prefijo</label>
@@ -357,7 +397,7 @@ function abrirImpresion() {
                   id="eti-codigos"
                   v-model="codigosTexto"
                   rows="6"
-                  placeholder="30000003227565&#10;30000003227566&#10;30000003227567"
+                  :placeholder="rango.formato === 'corto' ? EJEMPLO_CORTO : EJEMPLO_LARGO"
                   class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>

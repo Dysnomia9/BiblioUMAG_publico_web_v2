@@ -246,7 +246,7 @@ export type LibroCatalogo = {
   tomos?: { tomo: string; copias: number; disponibles: number }[]
   ficha: FilaFicha[]
   /** Copias en estante: colección (la de la copia o, si no tiene, la del libro) y nota pública. */
-  copias?: { numero_copia: number; volumen: string | null; tomo?: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
+  copias?: { numero_copia: number; etiqueta_copia?: string | null; volumen: string | null; tomo?: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
 }
 
 /** Qué etiquetas lleva la ficha de un tipo de material y cuáles ve el usuario. */
@@ -281,6 +281,8 @@ export type Ejemplar = {
   /** Tomo y copia de ese tomo («t.1» y 3 en «t.1 c.3»). */
   tomo?: string | null
   copia_tomo?: number | null
+  /** «c.2» como se rotula (el de Horizon en las copias migradas); null = sin «c.». */
+  etiqueta_copia?: string | null
   precio: string | null
   forma_adquisicion: 'compra' | 'donacion' | 'canje' | null
   fecha_inventario: string | null
@@ -654,7 +656,7 @@ export type PrestamoInterbibliotecario = {
   total_prestamos?: number
   registrado_por?: { id: number; nombre: string } | null
   devuelto_por?: { id: number; nombre: string } | null
-  ejemplar: Pick<Ejemplar, 'id' | 'libro_id' | 'numero_copia' | 'codigo_barras' | 'codigo_lomo' | 'estado_proceso' | 'disponible' | 'ubicacion_id'> & {
+  ejemplar: Pick<Ejemplar, 'id' | 'libro_id' | 'numero_copia' | 'etiqueta_copia' | 'codigo_barras' | 'codigo_lomo' | 'estado_proceso' | 'disponible' | 'ubicacion_id'> & {
     ubicacion?: { id: number; nombre: string } | null
     libro: { id: number; titulo: string; isbn: string | null; autores?: { id: number; nombre: string }[] }
   }

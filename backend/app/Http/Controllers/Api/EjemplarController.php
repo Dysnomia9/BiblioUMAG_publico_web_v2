@@ -259,6 +259,7 @@ class EjemplarController extends Controller
             'codigo_barras' => $e->codigo_barras,
             'codigo_lomo' => $e->codigo_lomo,
             'numero_copia' => $e->numero_copia,
+            'etiqueta_copia' => $e->etiqueta_copia,
             'volumen' => $e->volumen,
             'titulo' => $e->libro?->titulo,
             'clasificacion' => $e->libro?->clasificacion,

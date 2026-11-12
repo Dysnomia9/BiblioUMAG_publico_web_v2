@@ -285,6 +285,7 @@ class LibroController extends Controller
             'ejemplares' => $libro->ejemplares->map(fn (Ejemplar $e) => [
                 'id' => $e->id,
                 'numero_copia' => $e->numero_copia,
+                'etiqueta_copia' => $e->etiqueta_copia,
                 'codigo_barras' => $e->codigo_barras,
                 'total_prestamos' => $e->prestamos->count(),
                 'prestamos' => $e->prestamos->map(fn ($p) => [

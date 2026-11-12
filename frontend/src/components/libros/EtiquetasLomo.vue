@@ -88,11 +88,39 @@ onMounted(() => {
   if (ids.length) agregar({ libro_ids: ids })
 })
 
+// ---------- Texto personalizado (sin copia: un rótulo, una sección, un estante…) ----------
+const personalizada = reactive({ texto: '', codigo: '', cantidad: 1 })
+let siguienteId = -1
+
+function agregarPersonalizada() {
+  const lineas = personalizada.texto.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!lineas.length) {
+    toast.error('Escribe el texto de la etiqueta (un renglón por línea)')
+    return
+  }
+  const cantidad = Math.min(100, Math.max(1, Number(personalizada.cantidad) || 1))
+  const codigo = personalizada.codigo.trim()
+  for (let i = 0; i < cantidad; i++) {
+    etiquetas.value.push({
+      id: siguienteId--,
+      titulo: 'Texto personalizado',
+      codigo_barras: codigo,
+      codigo_lomo: codigo,
+      numero_copia: 0,
+      etiqueta_copia: null,
+      volumen: null,
+      clasificacion: lineas.join(' '),
+      lineas,
+    })
+  }
+  toast.success(cantidad === 1 ? 'Etiqueta agregada' : `${cantidad} etiquetas agregadas`)
+}
+
 function quitar(id: number) {
   etiquetas.value = etiquetas.value.filter((e) => e.id !== id)
 }
 
-const sinClasificacion = computed(() => etiquetas.value.filter((e) => !e.clasificacion?.trim()).length)
+const sinClasificacion = computed(() => etiquetas.value.filter((e) => !e.lineas && !e.clasificacion?.trim()).length)
 
 function imprimir() {
   if (!etiquetas.value.length) {
@@ -131,7 +159,7 @@ const claseInput = 'w-full px-3 py-2 border border-gray-200 bg-white rounded-lg 
         </div>
       </header>
 
-      <div class="grid gap-4 p-5 md:grid-cols-2">
+      <div class="grid gap-4 p-5 md:grid-cols-3">
         <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
           <label for="lomo-codigos" class="mb-2 block text-xs text-gray-600"><strong class="text-sm font-semibold text-gray-900">Por código</strong> (de 14 u 8 dígitos, uno por línea)</label>
           <textarea
@@ -161,6 +189,24 @@ const claseInput = 'w-full px-3 py-2 border border-gray-200 bg-white rounded-lg 
             </li>
           </ul>
           <p v-else-if="busqueda.trim().length >= 2 && !buscando" class="mt-2 text-xs text-gray-400">Sin resultados.</p>
+        </div>
+
+        <div class="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+          <label for="lomo-texto" class="mb-2 block text-xs text-gray-600"><strong class="text-sm font-semibold text-gray-900">Texto personalizado</strong> (un renglón por línea)</label>
+          <textarea
+            id="lomo-texto"
+            v-model="personalizada.texto"
+            rows="3"
+            placeholder="REFERENCIA&#10;Sala 2&#10;No se presta"
+            class="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <div class="mb-2 grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+            <input v-model="personalizada.codigo" autocomplete="off" aria-label="Código de barras (opcional)" placeholder="Código (opcional)" :class="[claseInput, 'font-mono']" />
+            <input v-model.number="personalizada.cantidad" type="number" min="1" max="100" aria-label="Cantidad de etiquetas" :class="claseInput" />
+          </div>
+          <button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 border-b-amber-300 bg-white px-3 py-2 text-xs font-semibold text-dorado-700 shadow-sm transition-colors hover:bg-gray-50" @click="agregarPersonalizada">
+            Agregar a la lista
+          </button>
         </div>
       </div>
     </section>
@@ -230,10 +276,13 @@ const claseInput = 'w-full px-3 py-2 border border-gray-200 bg-white rounded-lg 
               </td>
               <td class="px-3 py-2">
                 <p class="font-medium text-gray-900">{{ e.titulo ?? '—' }}</p>
-                <p class="text-xs text-gray-500">Copia {{ e.numero_copia }} · <span class="font-mono">{{ e.codigo_barras }}</span> · lomo <span class="font-mono">{{ e.codigo_lomo }}</span></p>
+                <p v-if="e.lineas" class="text-xs text-gray-500">{{ e.codigo_lomo ? 'Con código ' : 'Sin código' }}<span class="font-mono">{{ e.codigo_lomo }}</span></p>
+                <p v-else class="text-xs text-gray-500">{{ e.etiqueta_copia ? `Copia ${e.etiqueta_copia.replace('c.', '')} · ` : '' }}<span class="font-mono">{{ e.codigo_barras }}</span> · lomo <span class="font-mono">{{ e.codigo_lomo }}</span></p>
               </td>
               <td class="px-3 py-2">
+                <span v-if="e.lineas" class="font-mono text-xs text-gray-600">{{ e.lineas.join(' / ') }}</span>
                 <input
+                  v-else
                   v-model="e.clasificacion"
                   placeholder="Ej: 998 E56 2026"
                   :aria-label="`Clasificación de ${e.titulo ?? 'la copia'}`"

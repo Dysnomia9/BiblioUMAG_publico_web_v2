@@ -661,7 +661,7 @@ async function guardarEdicion() {
               <td class="px-5 py-3 text-sm text-gray-900">
                 {{ p.ejemplar.libro.titulo }}
                 <p v-if="p.ejemplar.libro.autores?.length" class="text-xs text-gray-500">{{ p.ejemplar.libro.autores.map((a) => a.nombre).join(', ') }}</p>
-                <p class="mt-0.5 font-mono text-[11px] text-gray-400">c.{{ p.ejemplar.numero_copia }} · {{ p.ejemplar.codigo_barras }}</p>
+                <p class="mt-0.5 font-mono text-[11px] text-gray-400">{{ p.ejemplar.etiqueta_copia ? `${p.ejemplar.etiqueta_copia} · ` : '' }}{{ p.ejemplar.codigo_barras }}</p>
               </td>
               <td class="px-5 py-3 text-sm text-gray-700">
                 {{ p.biblioteca }}

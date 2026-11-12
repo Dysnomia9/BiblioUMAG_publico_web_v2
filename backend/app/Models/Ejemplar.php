@@ -40,6 +40,27 @@ class Ejemplar extends Model
         'numero_registro',
     ];
 
+    /** La copia como se rotula (lomo, listados): ver getEtiquetaCopiaAttribute(). */
+    protected $appends = ['etiqueta_copia'];
+
+    /**
+     * «c.2» como se rotula la copia: la «c.N» que figura en la signatura y en el lomo. La de
+     * Horizon lleva su «c.N» (copia_tomo) o nada si allá no tenía «c.»; una copia creada en
+     * BiblioUMAG, su número (la 0, sin «c.»). numero_copia no se repite dentro de un título.
+     */
+    public function getEtiquetaCopiaAttribute(): ?string
+    {
+        $atributos = $this->getAttributes();
+        if (! empty($atributos['copia_tomo'])) {
+            return "c.{$atributos['copia_tomo']}";
+        }
+        if (! empty($atributos['fecha_ingreso_horizon'])) {
+            return null;
+        }
+
+        return ($atributos['numero_copia'] ?? 0) > 0 ? "c.{$atributos['numero_copia']}" : null;
+    }
+
     protected function casts(): array
     {
         return [
