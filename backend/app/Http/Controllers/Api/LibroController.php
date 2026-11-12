@@ -403,6 +403,7 @@ class LibroController extends Controller
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
             'titulo_alternativo' => ['nullable', 'string', 'max:2000'], // 246 repetible: uno por línea
+            'mencion_responsabilidad' => ['nullable', 'string', 'max:2000'], // 245 $c
             'edicion' => ['nullable', 'string', 'max:255'],
             'lugar_publicacion' => ['nullable', 'string', 'max:255'],
             'descripcion_fisica' => ['nullable', 'string', 'max:2000'],

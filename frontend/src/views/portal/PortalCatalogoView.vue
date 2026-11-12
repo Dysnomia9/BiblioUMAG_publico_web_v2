@@ -47,20 +47,31 @@ const parametros = (numero: number) => ({
   por_pagina: POR_PAGINA,
 })
 
+// Al escribir salen varias búsquedas seguidas: si no se cancela la anterior, su respuesta
+// puede llegar última y reemplazar la lista de la búsqueda nueva (el «tirón»).
+let busquedaEnCurso: AbortController | undefined
+
 async function cargar(agregar = false) {
+  busquedaEnCurso?.abort()
+  const peticion = new AbortController()
+  busquedaEnCurso = peticion
   cargando.value = true
   try {
-    const { data } = await apiUsuario.get<Paginado<LibroCatalogo>>('/mi/catalogo', { params: parametros(agregar ? pagina.value + 1 : 1) })
+    const { data } = await apiUsuario.get<Paginado<LibroCatalogo>>('/mi/catalogo', {
+      signal: peticion.signal,
+      params: parametros(agregar ? pagina.value + 1 : 1),
+    })
     libros.value = agregar ? [...libros.value, ...data.data] : data.data
     pagina.value = data.current_page
     ultimaPagina.value = data.last_page
     total.value = data.total
     apiError.value = false
   } catch {
+    if (peticion.signal.aborted) return
     apiError.value = true
     if (!agregar) libros.value = []
   } finally {
-    cargando.value = false
+    if (busquedaEnCurso === peticion) cargando.value = false
   }
 }
 
@@ -446,7 +457,7 @@ async function cancelar(reserva: ReservaLibro) {
                   <PortadaMaterial :titulo="fila.libro.titulo" :tipo="fila.libro.tipo_material" :clave-tono="fila.libro.categorias?.[0]?.nombre" />
                   <div class="min-w-0">
                     <p class="text-[15px] sm:text-sm font-semibold text-gray-900 leading-snug">{{ fila.libro.titulo }}</p>
-                    <p class="mt-0.5 text-xs text-gray-600 truncate">{{ fila.libro.autores?.map((a) => a.nombre).join(', ') }}</p>
+                    <p class="mt-0.5 text-xs text-gray-600 truncate">{{ fila.libro.autores?.map((a) => a.nombre).join(' · ') }}</p>
                     <p class="mt-0.5 text-xs text-gray-500">
                       {{ fila.detalle }}<template v-if="fila.detalle"> · </template>
                       <button
@@ -499,7 +510,7 @@ async function cancelar(reserva: ReservaLibro) {
               </div>
             </div>
             <div
-              v-if="!cargando && !filas.length"
+              v-if="!cargando && !apiError && !filas.length"
               class="px-4 py-10 text-center text-sm text-gray-400 bg-white border border-gray-200 rounded-2xl sm:border-0 sm:rounded-none"
             >
               {{ soloDisponibles || areaFiltro ? 'Ningún título coincide con los filtros elegidos.' : 'Sin resultados para tu búsqueda.' }}
@@ -522,7 +533,7 @@ async function cancelar(reserva: ReservaLibro) {
     <Modal
       :abierto="filaFicha !== null"
       :titulo="filaFicha?.libro.titulo ?? ''"
-      :descripcion="filaFicha?.libro.autores?.map((a) => a.nombre).join(', ') || undefined"
+      :descripcion="filaFicha?.libro.autores?.map((a) => a.nombre).join(' · ') || undefined"
       ancho="md"
       pie-fijo
       @cerrar="filaFicha = null"
@@ -609,7 +620,7 @@ async function cancelar(reserva: ReservaLibro) {
     >
       <template v-if="libroPorConfirmar">
         <p class="font-medium text-gray-900">{{ libroPorConfirmar.titulo }}</p>
-        <p v-if="libroPorConfirmar.autores.length" class="text-xs">{{ libroPorConfirmar.autores.map((a) => a.nombre).join(', ') }}</p>
+        <p v-if="libroPorConfirmar.autores.length" class="text-xs">{{ libroPorConfirmar.autores.map((a) => a.nombre).join(' · ') }}</p>
         <div v-if="tomosDe(libroPorConfirmar).length && !limiteAlcanzado" class="mt-3">
           <p class="mb-1.5 text-xs font-semibold text-gray-700">¿Qué tomo quieres?</p>
           <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Tomo">

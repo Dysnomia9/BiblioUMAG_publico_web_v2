@@ -21,11 +21,37 @@ final class Busqueda
      * y en cualquier orden: «calculo stewart» encuentra «Cálculo Diferencial e
      * Integral - Stewart», aunque las palabras no vayan seguidas ni en el mismo campo.
      *
+     * Las palabras vacías («el», «de», «para»...) y las de 1 o 2 letras se descartan si
+     * queda alguna otra: casi todos los títulos las contienen, así que no filtran nada, y
+     * son las más caras, porque los índices de trigramas no sirven con menos de 3 letras
+     * y Postgres termina recorriendo todo el catálogo. «el puerto de talcahuano» se
+     * busca como «puerto talcahuano». Se conservan las cortas con dígitos o símbolos
+     * («2», «v1», «c#»), y si todas son cortas («de», «ph») se busca tal cual.
+     *
      * @return list<string>
      */
     public static function palabras(string $texto): array
     {
-        return preg_split('/\s+/u', trim($texto), -1, PREG_SPLIT_NO_EMPTY);
+        $palabras = preg_split('/\s+/u', trim($texto), -1, PREG_SPLIT_NO_EMPTY);
+        $utiles = array_values(array_filter($palabras, fn (string $p) => ! self::esVacia($p)));
+
+        return $utiles ?: $palabras;
+    }
+
+    private const VACIAS = ['el', 'la', 'lo', 'los', 'las', 'de', 'del', 'y', 'e', 'o', 'u', 'en', 'a', 'al',
+        'un', 'una', 'unos', 'unas', 'por', 'para', 'con', 'sin', 'que', 'se', 'su', 'sus'];
+
+    /** Palabra que no filtra nada: un artículo, preposición o conjunción, o solo 1 o 2 letras. */
+    private static function esVacia(string $palabra): bool
+    {
+        return in_array(mb_strtolower($palabra), self::VACIAS, true)
+            || (mb_strlen($palabra) <= 2 && preg_match('/^\p{L}+$/u', $palabra) === 1);
+    }
+
+    /** Si la palabra tiene algún dígito: solo así puede ser parte de un código, ISBN o ISSN. */
+    public static function tieneDigito(string $palabra): bool
+    {
+        return preg_match('/\d/', $palabra) === 1;
     }
 
     /** Patrón para ilike: el texto buscado sin tildes, entre %. */

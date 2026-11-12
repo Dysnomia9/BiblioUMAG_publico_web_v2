@@ -12,8 +12,9 @@ withDefaults(
     deshabilitado?: boolean
     /** Formato de tarjeta nueva (ver Modal). */
     destacado?: boolean
+    ancho?: 'sm' | 'md' | 'lg' | 'xl'
   }>(),
-  { confirmar: 'Confirmar', cancelar: 'Cancelar', tono: 'primario', cargando: false, deshabilitado: false, destacado: false },
+  { confirmar: 'Confirmar', cancelar: 'Cancelar', tono: 'primario', cargando: false, deshabilitado: false, destacado: false, ancho: 'sm' },
 )
 
 const emit = defineEmits<{ confirmar: []; cancelar: [] }>()
@@ -26,7 +27,12 @@ const TONOS = {
 </script>
 
 <template>
-  <Modal :abierto="abierto" :titulo="titulo" :bloqueado="cargando" :destacado="destacado" :tono="tono" @cerrar="emit('cancelar')">
+  <Modal :abierto="abierto" :titulo="titulo" :bloqueado="cargando" :destacado="destacado" :tono="tono" :ancho="ancho" @cerrar="emit('cancelar')">
+    <!-- Algo sobre el título (p. ej. los pasos de Catalogación), en el formato destacado -->
+    <template v-if="$slots.antesDelTitulo" #cabecera>
+      <slot name="antesDelTitulo" />
+      <h3 class="font-serif text-xl font-bold leading-snug text-gray-900">{{ titulo }}</h3>
+    </template>
     <div class="text-sm text-gray-500">
       <slot />
     </div>

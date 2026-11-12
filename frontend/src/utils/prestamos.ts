@@ -6,6 +6,18 @@ const inicioDeHoy = () => new Date(new Date().toDateString())
 export const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-CL')
 const horaCorta = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
 
+/**
+ * El día («Hoy» o «12-11-2026») y la hora («14:32») por separado. Sin hora si es 00:00:
+ * la devolución de un libro es solo un día, y los préstamos traídos de Horizon no tienen hora.
+ */
+export function fechaYHora(iso: string) {
+  const fecha = new Date(iso)
+  return {
+    dia: fecha.toDateString() === new Date().toDateString() ? 'Hoy' : fechaCorta(iso),
+    hora: fecha.getHours() || fecha.getMinutes() ? horaCorta(iso) : null,
+  }
+}
+
 /** Los recursos de apoyo (notebooks, bicicletas…) se devuelven a una hora: la de horas_maximas de su categoría. */
 const esRecurso = (p: Prestamo) => !!p.tipo_item && p.tipo_item !== 'libro'
 

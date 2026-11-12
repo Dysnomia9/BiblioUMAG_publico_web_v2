@@ -16,6 +16,7 @@ import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
 import { textoIngreso } from '@/utils/ingreso'
+import { partesCopia } from '@/utils/tomo'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { Autor, Carrera, Categoria, Ejemplar, ItemFicha, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
 
@@ -244,7 +245,7 @@ function filaDe(l: Libro) {
   const situaciones = copias.map((e) => situacionCopia(e))
   const plantilla = l.tipo_material?.plantilla
   return {
-    autores: l.autores?.map((a) => a.nombre).join(', ') || (plantilla === 'publicacion_seriada' ? 'Publicación periódica' : 'Sin autor registrado'),
+    autores: l.autores?.map((a) => a.nombre).join(' · ') || (plantilla === 'publicacion_seriada' ? 'Publicación periódica' : 'Sin autor registrado'),
     categoria: l.categorias?.map((c) => c.nombre).join(', ') || '—',
     tipoClase: claseDelTipo(l.tipo_material?.nombre, plantilla),
     // «Libro electrónico» y «Juego educativo» no caben en la columna Tipo (6rem) con la letra de los demás
@@ -533,7 +534,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                   <p class="truncate text-xs text-gray-500">
                     <template v-if="f.libro.autores?.length">
                       <template v-for="(a, i) in f.libro.autores" :key="a.id">
-                        <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los libros de ${a.nombre}`" @click="filtrarPorAutor(a)">{{ a.nombre }}</button><span v-if="i < f.libro.autores.length - 1">, </span>
+                        <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los libros de ${a.nombre}`" @click="filtrarPorAutor(a)">{{ a.nombre }}</button><span v-if="i < f.libro.autores.length - 1" class="mx-1.5 font-bold text-gray-300" aria-hidden="true">·</span>
                       </template>
                     </template>
                     <template v-else>{{ f.autores }}</template>
@@ -578,7 +579,6 @@ function copiaGuardada(actualizada: Ejemplar) {
                     class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 border-b-indigo-200 bg-white px-3 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-gray-50"
                     @click="libroAEditar = f.libro"
                   >
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" /></svg>
                     Editar
                   </button>
                   <button
@@ -649,11 +649,22 @@ function copiaGuardada(actualizada: Ejemplar) {
                   <ul class="divide-y divide-gray-100">
                     <li v-for="e in f.libro.ejemplares" :key="e.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
                       <div class="min-w-0">
-                        <p class="font-mono text-sm font-semibold text-gray-900">{{ e.codigo_barras }}</p>
-                        <!-- El tomo («v.2») o el número de la revista («Año IV No. 4 (Jul.-Aug., 1985)») -->
-                        <p v-if="e.volumen" class="text-sm text-gray-800">{{ e.volumen }}</p>
+                        <!-- El tomo y la copia en píldoras («Tomo 72», «Copia 2», solo si tiene «c.N»); el número de una revista («Año IV No. 4 (Jul.-Aug., 1985)») como texto -->
+                        <p class="flex flex-wrap items-center gap-1.5">
+                          <span class="font-mono text-sm font-semibold text-gray-900">{{ e.codigo_barras }}</span>
+                          <span
+                            v-if="partesCopia(e.volumen, e.etiqueta_copia).tomo"
+                            class="rounded-full bg-gradient-to-b from-indigo-500 to-indigo-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm ring-1 ring-inset ring-indigo-700/30"
+                          >
+                            {{ partesCopia(e.volumen, e.etiqueta_copia).tomo }}
+                          </span>
+                          <span v-if="partesCopia(e.volumen, e.etiqueta_copia).copia" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                            Copia <span class="font-bold tabular-nums text-emerald-900">{{ partesCopia(e.volumen, e.etiqueta_copia).copia }}</span>
+                          </span>
+                        </p>
+                        <p v-if="partesCopia(e.volumen, e.etiqueta_copia).otro" class="text-sm text-gray-800">{{ partesCopia(e.volumen, e.etiqueta_copia).otro }}</p>
                         <p class="text-xs text-gray-500">
-                          {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} <template v-if="e.etiqueta_copia"> · {{ e.etiqueta_copia }}</template> · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
+                          {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
                         <p v-if="e.numero_registro" class="text-xs text-gray-600">N° de registro Horizon: <span class="font-mono">{{ e.numero_registro }}</span></p>

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\PuntuacionIsbd;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,7 +21,7 @@ class Libro extends Model
     public const CAMPOS_BIBLIOGRAFICOS = [
         'titulo', 'isbn', 'otros_isbn', 'clasificacion', 'coleccion', 'editorial',
         'anio_publicacion', 'tipo_material_id', 'nota_interna', 'nota_publica',
-        'titulo_alternativo', 'edicion', 'lugar_publicacion', 'descripcion_fisica',
+        'titulo_alternativo', 'mencion_responsabilidad', 'edicion', 'lugar_publicacion', 'descripcion_fisica',
         'entidad_corporativa', 'reunion', 'entidad_secundaria', 'materias_personales',
         'materias_geograficas', 'url_acceso', 'issn', 'designacion_volumen',
         'nota_tesis', 'profesor_guia', 'resumen', 'audiencia',
@@ -35,6 +37,18 @@ class Libro extends Model
             // Solo la escribe la migración desde Horizon: no está en $fillable.
             'fecha_ingreso_horizon' => 'date:Y-m-d',
         ];
+    }
+
+    /** 300: espacios ordenados y punto final, como lo migrado de Horizon (PuntuacionIsbd). */
+    protected function descripcionFisica(): Attribute
+    {
+        return Attribute::set(fn (?string $valor) => PuntuacionIsbd::normalizar($valor));
+    }
+
+    /** 250: igual que la descripción física («2a. ed. revisada.»). */
+    protected function edicion(): Attribute
+    {
+        return Attribute::set(fn (?string $valor) => PuntuacionIsbd::normalizar($valor));
     }
 
     public function ejemplares(): HasMany

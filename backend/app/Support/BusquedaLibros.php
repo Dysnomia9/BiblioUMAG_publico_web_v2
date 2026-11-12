@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class BusquedaLibros
 {
-    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'clasificacion', 'isbn', 'issn', 'autores', 'profesor_guia', 'codigos'];
+    public const CAMPOS_PERSONAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'clasificacion', 'isbn', 'issn', 'autores', 'profesor_guia', 'codigos'];
 
-    public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'autores', 'categorias', 'isbn_sin_guiones'];
+    public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'autores', 'categorias', 'isbn_sin_guiones'];
 
     /**
      * Ids de los libros en que aparece el texto en alguno de los campos pedidos.
@@ -29,11 +29,19 @@ final class BusquedaLibros
         $tal = "%{$texto}%";
         $libros = fn () => DB::table('libros')->select('id');
 
+        // Los códigos de barras, de lomo, registros, ISBN e ISSN siempre llevan dígitos: con
+        // «talcahuano» no se recorren las ~115.000 copias ni esas columnas.
+        if (! Busqueda::tieneDigito($texto)) {
+            $campos = array_diff($campos, ['codigos', 'isbn', 'issn', 'isbn_sin_guiones']);
+        }
+
         $partes = [];
         foreach ($campos as $campo) {
             $partes[] = match ($campo) {
                 'titulo' => $libros()->whereRaw(Busqueda::sinTildes('titulo').' ilike ?', [$sinTildes]),
                 'titulo_alternativo' => $libros()->whereRaw(Busqueda::sinTildes('titulo_alternativo').' ilike ?', [$sinTildes]),
+                // 245 $c: hay personas que solo figuran ahí, sin un 700 («Shara L. Schwartzberg»)
+                'mencion_responsabilidad' => $libros()->whereRaw(Busqueda::sinTildes('mencion_responsabilidad').' ilike ?', [$sinTildes]),
                 'clasificacion' => $libros()->where('clasificacion', 'ilike', $tal),
                 // El profesor guía de las tesis (texto en el libro, no un autor del catálogo).
                 'profesor_guia' => $libros()->whereRaw(Busqueda::sinTildes('profesor_guia').' ilike ?', [$sinTildes]),
@@ -59,7 +67,8 @@ final class BusquedaLibros
         }
 
         $partes = array_values(array_filter($partes));
-        $union = array_shift($partes);
+        // Sin ningún campo que buscar (p. ej. solo campos de códigos y una palabra sin dígitos)
+        $union = array_shift($partes) ?? $libros()->whereRaw('false');
         foreach ($partes as $parte) {
             $union->unionAll($parte);
         }

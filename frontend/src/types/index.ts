@@ -320,6 +320,8 @@ export type Libro = {
   nota_interna: string | null
   nota_publica: string | null
   titulo_alternativo?: string | null
+  /** 245 $c, como en la portada: «Margot C. Howe, Shara L. Schwartzberg». */
+  mencion_responsabilidad?: string | null
   edicion?: string | null
   lugar_publicacion?: string | null
   descripcion_fisica?: string | null

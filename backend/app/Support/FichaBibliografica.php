@@ -32,6 +32,7 @@ final class FichaBibliografica
             ['entidad_corporativa', '110', 'Entidad corporativa', true],
             ['reunion', '111', 'Reunión o conferencia', true],
             ['titulo', '245', 'Título', true],
+            ['mencion_responsabilidad', '245', 'Mención de responsabilidad', true],
             ['titulo_alternativo', '246', 'Título alternativo', true],
             ['edicion', '250', 'Edición', true],
             ['pie_imprenta', '260', 'Pie de imprenta', true],
@@ -55,6 +56,7 @@ final class FichaBibliografica
             ['clasificacion', '099', 'Número de clasificación local', true],
             ['autor_principal', '100', 'Autor principal', true],
             ['titulo', '245', 'Título', true],
+            ['mencion_responsabilidad', '245', 'Mención de responsabilidad', true],
             ['titulo_alternativo', '246', 'Título alternativo', true],
             ['pie_imprenta', '260', 'Pie de imprenta', true],
             ['descripcion_fisica', '300', 'Descripción física', true],
@@ -75,6 +77,7 @@ final class FichaBibliografica
         'juego_educativo' => [
             ['clasificacion', '099', 'Número de clasificación local', true],
             ['titulo', '245', 'Título', true],
+            ['mencion_responsabilidad', '245', 'Mención de responsabilidad', true],
             ['titulo_alternativo', '246', 'Título alternativo', true],
             ['pie_imprenta', '264', 'Producción y publicación', true],
             ['descripcion_fisica', '300', 'Descripción física', true],
@@ -90,6 +93,7 @@ final class FichaBibliografica
             ['issn', '022', 'ISSN', true],
             ['clasificacion', '099', 'Número de clasificación local', true],
             ['titulo', '245', 'Título', true],
+            ['mencion_responsabilidad', '245', 'Mención de responsabilidad', true],
             ['titulo_alternativo', '246', 'Título alternativo', true],
             ['pie_imprenta', '260', 'Pie de imprenta', true],
             ['descripcion_fisica', '300', 'Descripción física', true],
@@ -183,6 +187,8 @@ final class FichaBibliografica
             'autores_secundarios' => $libro->autores->reject(fn ($a) => $a === self::principal($libro))->map(fn ($a) => self::conRol($a))->implode('; '),
             // Como en el registro (490): entre paréntesis, «(Serie Harry Potter ; 1)».
             'serie' => filled($libro->serie) ? '('.trim($libro->serie).')' : null,
+            // 245 $c solo si nombra a alguien que la ficha no muestra (casi siempre repite el 100/700)
+            'mencion_responsabilidad' => MencionResponsabilidad::aporta($libro) ? trim($libro->mencion_responsabilidad) : null,
             'materias' => $libro->categorias->pluck('nombre')->implode('; '),
             'titulo_alternativo', 'materias_personales', 'materias_geograficas' => self::lineas($libro->{$clave}),
             'pie_imprenta' => self::pieDeImprenta($libro),
@@ -220,9 +226,15 @@ final class FichaBibliografica
             'autor_principal' => self::itemsAutores(collect([self::principal($libro)])),
             'materias' => $libro->categorias->map(fn ($c) => ['texto' => $c->nombre, 'categoria_id' => $c->id])->values()->all(),
             'profesor_guia' => collect(explode(';', $valor))->map(fn ($n) => trim($n))->filter()->map(fn ($n) => ['texto' => $n, 'buscar' => $n])->values()->all(),
-            default => str_contains($valor, '; ') ? collect(explode('; ', $valor))->filter()->map(fn ($t) => ['texto' => $t])->values()->all() : null,
+            // Solo las listas se separan en chips. En el resto, « ; » es puntuación ISBD y va
+            // entero: «(Aporte al debate laboral ; 34)», «86 p. : il. ; 24 cm.».
+            default => in_array($clave, self::LISTAS, true) && str_contains($valor, '; ')
+                ? collect(explode('; ', $valor))->filter()->map(fn ($t) => ['texto' => $t])->values()->all() : null,
         };
     }
+
+    /** Campos que son listas, unidas con «; » (valor() y la migración desde Horizon). */
+    private const LISTAS = ['titulo_alternativo', 'materias_personales', 'materias_geograficas', 'entidad_secundaria', 'nota_idioma'];
 
     /** El autor principal (100): el primero, si su papel es autor (sin rol). */
     private static function principal(Libro $libro)
@@ -245,11 +257,23 @@ final class FichaBibliografica
     {
         $lugarYEditorial = collect([$libro->lugar_publicacion, $libro->editorial])->filter()->implode(' : ');
 
-        $pie = collect([$lugarYEditorial, $libro->anio_publicacion])->filter()->implode(', ');
+        $pie = collect([$lugarYEditorial, self::fechaDelPie($libro)])->filter()->implode(', ');
 
         // Como en el registro original (Horizon: «Boston : WCB/McGraw-Hill, 1997.»), el
         // 260/264 cierra siempre con punto (salvo que ya termine en uno).
         return $pie === '' ? null : (str_ends_with($pie, '.') ? $pie : "{$pie}.");
+    }
+
+    /**
+     * La fecha como la escribió Horizon («c2001», «[19--]», «1990, c1963») mientras siga
+     * calzando con el año del libro; si el año se corrigió después al catalogar, el año.
+     */
+    private static function fechaDelPie(Libro $libro): string|int|null
+    {
+        $fecha = trim((string) $libro->fecha_publicacion);
+        $anio = $libro->anio_publicacion;
+
+        return $fecha !== '' && ($anio === null || str_contains($fecha, (string) $anio)) ? $fecha : $anio;
     }
 
     private static function lineas(?string $texto): ?string

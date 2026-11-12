@@ -10,6 +10,7 @@ import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
+import PasosCatalogacion from '@/components/libros/PasosCatalogacion.vue'
 import { TONOS_FICHA, type TonoFicha } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
@@ -58,7 +59,7 @@ const guardando = ref(false)
 // Campos de la ficha que se escriben tal cual (texto libre); el resto tiene su
 // propio control en el template (autores, materias, pie de imprenta...).
 const CAMPOS_TEXTO = [
-  'isbn', 'otros_isbn', 'issn', 'clasificacion', 'titulo_alternativo', 'edicion', 'lugar_publicacion',
+  'isbn', 'otros_isbn', 'issn', 'clasificacion', 'titulo_alternativo', 'mencion_responsabilidad', 'edicion', 'lugar_publicacion',
   'descripcion_fisica', 'entidad_corporativa', 'reunion', 'entidad_secundaria',
   'materias_personales', 'materias_geograficas', 'url_acceso', 'designacion_volumen',
   'nota_tesis', 'profesor_guia', 'resumen', 'audiencia', 'idioma', 'serie',
@@ -135,6 +136,7 @@ const etiqueta = (clave: string) => camposPlantilla.value.get(clave)?.etiqueta ?
 
 const PISTAS: Partial<Record<CampoTexto, string>> = {
   titulo_alternativo: 'Otro título con que se conoce la obra',
+  mencion_responsabilidad: 'Como en la portada. Ej: Margot C. Howe, Shara L. Schwartzberg',
   entidad_corporativa: 'Institución autora',
   reunion: 'Congreso, jornada o seminario',
   entidad_secundaria: 'Ej: Universidad de Magallanes. Facultad de Ingeniería',
@@ -153,6 +155,7 @@ const PISTAS: Partial<Record<CampoTexto, string>> = {
 
 const NOMBRES: Partial<Record<CampoTexto, string>> = {
   titulo_alternativo: 'Título alternativo',
+  mencion_responsabilidad: 'Mención de responsabilidad',
   entidad_corporativa: 'Entidad corporativa',
   reunion: 'Reunión o congreso',
   entidad_secundaria: 'Entidad relacionada',
@@ -168,11 +171,12 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
 
 // Campos opcionales que quedan tras un botón «+ …» para no alargar el formulario.
 // La entidad (110) no va aquí: está siempre a la vista junto a los autores, porque la autoría es una u otra.
-const EXTRAS_TITULO = ['titulo_alternativo', 'reunion', 'entidad_secundaria'] as const
+const EXTRAS_TITULO = ['titulo_alternativo', 'mencion_responsabilidad', 'reunion', 'entidad_secundaria'] as const
 const EXTRAS_MATERIAS = ['materias_personales', 'materias_geograficas', 'url_acceso'] as const
 const NOTAS_INTERNAS = ['nota_interna', 'nota_bibliografia', 'nota_idioma', 'nota_local'] as const
 const EN_EL_BOTON: Partial<Record<CampoTexto, string>> = {
   titulo_alternativo: 'título alternativo',
+  mencion_responsabilidad: 'mención de responsabilidad',
   entidad_corporativa: 'entidad',
   reunion: 'congreso',
   entidad_secundaria: 'entidad relacionada',
@@ -367,7 +371,7 @@ function armarVista(datos: { titulo: string; autores: string[]; categorias: stri
   return {
     titulo: titulo || 'Título de la obra',
     vacio: !titulo,
-    autores: datos.autores.join(', '),
+    autores: datos.autores.join(' · '),
     detalle: [datos.tipo, datos.categorias.join(', ')].filter(Boolean).join(' · '),
     tipo: datos.tipo,
     claveTono: datos.categorias[0] ?? datos.tipo ?? (titulo || 'libro'),
@@ -1328,7 +1332,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   >
                     <p class="font-medium text-gray-900">{{ l.titulo }}</p>
                     <p class="text-xs text-gray-500">
-                      <template v-if="l.autores?.length">{{ l.autores.map((a) => a.nombre).join(', ') }} · </template>{{ l.ejemplares_count ?? l.ejemplares?.length ?? 0 }} copia(s)
+                      <template v-if="l.autores?.length">{{ l.autores.map((a) => a.nombre).join('; ') }} · </template>{{ l.ejemplares_count ?? l.ejemplares?.length ?? 0 }} copia(s)
                     </p>
                     <p v-if="l.ejemplares?.length" class="mt-0.5 truncate font-mono text-[11px] text-gray-400">
                       {{ l.ejemplares.map((e) => e.codigo_barras).join(' · ') }}
@@ -1566,7 +1570,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               <tr v-for="l in libros" :key="l.id" class="align-top transition-colors hover:bg-indigo-50/40" :class="editandoId === l.id ? 'bg-amber-50/60' : ''">
                 <td class="px-5 py-3 text-sm text-gray-900">
                   {{ l.titulo }}
-                  <p v-if="l.autores?.length" class="text-xs text-gray-500">{{ l.autores.map((a) => a.nombre).join(', ') }}</p>
+                  <p v-if="l.autores?.length" class="text-xs text-gray-500">{{ l.autores.map((a) => a.nombre).join(' · ') }}</p>
                 </td>
                 <td class="px-5 py-3 font-mono text-xs text-gray-500">{{ l.clasificacion ?? '—' }}</td>
                 <td class="px-5 py-3">
@@ -1648,21 +1652,32 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       :titulo="editandoId ? '¿Guardar los cambios de la ficha?' : '¿Catalogar este material?'"
       :confirmar="editandoId ? 'Sí, guardar' : 'Sí, crear ficha'"
       :cargando="guardando"
+      destacado
+      ancho="md"
       @confirmar="confirmarGuardar"
       @cancelar="confirmandoGuardar = false"
     >
-      <p v-if="editandoId">
+      <template v-if="!editandoId" #antesDelTitulo><PasosCatalogacion :actual="1" /></template>
+      <p v-if="editandoId" class="text-[15px] text-gray-600">
         Se guardarán los cambios de <strong class="text-gray-900">{{ form.titulo.trim() }}</strong>. Se ven de inmediato en el listado y, si tiene
         copias en estante, en el portal.
       </p>
       <template v-else>
-        <p>Se creará la ficha bibliográfica:</p>
-        <div class="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-          <p class="font-semibold text-gray-900">{{ form.titulo.trim() }}</p>
-          <p v-if="form.autores.length" class="text-xs">{{ form.autores.join('; ') }}</p>
-          <p class="mt-0.5 text-xs">{{ tipoActual?.nombre ?? 'Libro' }} · sin ejemplares</p>
+        <p class="text-[15px] text-gray-600">Se creará la ficha bibliográfica:</p>
+        <div class="mt-3 flex items-start gap-3.5 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+          <PortadaMaterial class="shadow-sm" :titulo="form.titulo.trim()" :tipo="tipoActual?.nombre ?? null" :clave-tono="vista?.claveTono ?? null" />
+          <div class="min-w-0">
+            <p class="text-base font-bold leading-snug text-gray-900">{{ form.titulo.trim() }}</p>
+            <p v-if="form.autores.length" class="mt-0.5 truncate text-[15px] text-gray-600">{{ form.autores.join(' · ') }}</p>
+            <p class="mt-2 flex flex-wrap gap-1.5 text-[13px] font-semibold">
+              <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700">{{ tipoActual?.nombre ?? 'Libro' }}</span>
+              <span class="rounded-md bg-amber-50 px-2 py-0.5 text-amber-800">Sin ejemplares</span>
+            </p>
+          </div>
         </div>
-        <p class="mt-2">Después se pasa a <strong>«Nuevo ejemplar»</strong> para agregarle sus copias con código de barras.</p>
+        <p class="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-[15px] leading-relaxed text-gray-600">
+          Después se pasa a <strong class="text-gray-900">«Nuevo ejemplar»</strong> para agregarle sus copias con código de barras.
+        </p>
       </template>
     </DialogoConfirmacion>
 
@@ -1671,14 +1686,22 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       titulo="¿Agregar esta copia?"
       confirmar="Sí, agregar"
       :cargando="guardando"
+      destacado
+      ancho="md"
       @confirmar="confirmarAgregarCopia"
       @cancelar="confirmandoCopia = false"
     >
-      <p>
-        Se agregará una copia nueva de <strong class="text-gray-900">{{ libroParaCopia?.titulo }}</strong> con código
-        <span class="font-mono text-gray-900">{{ formCopia.codigo_barras.trim() }}</span><template v-if="ubicacionCopia"> en {{ ubicacionCopia }}</template>.
-        Nace en «Inventario».
-      </p>
+      <template #antesDelTitulo><PasosCatalogacion :actual="2" /></template>
+      <p class="text-[15px] text-gray-600">Se agregará una copia nueva de <strong class="text-gray-900">{{ libroParaCopia?.titulo }}</strong>:</p>
+      <div class="mt-3 rounded-xl border border-l-4 border-gray-200 border-l-indigo-600 bg-gray-50/60 px-4 py-3.5">
+        <p class="font-mono text-2xl font-semibold tracking-wide text-gray-900">{{ formCopia.codigo_barras.trim() }}</p>
+        <p class="mt-2 flex flex-wrap items-center gap-2 text-[13px]">
+          <template v-if="ubicacionCopia">
+            en <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5 font-semibold text-gray-900">{{ ubicacionCopia }}</span>
+          </template>
+          nace en <span class="rounded-md bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">Inventario</span>
+        </p>
+      </div>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion
@@ -1687,16 +1710,35 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       confirmar="Ir a cambiar el estado"
       cancelar="Seguir catalogando"
       tono="exito"
+      destacado
+      ancho="md"
       @confirmar="irACambiarEstado"
       @cancelar="copiaCreada = null"
     >
-      <p>
-        Se creó la copia {{ copiaCreada?.numeroCopia }} de <strong class="text-gray-900">{{ copiaCreada?.titulo }}</strong> (código
-        <span class="font-mono text-gray-900">{{ copiaCreada?.codigoBarras }}</span><template v-if="copiaCreada?.codigoLomo">, lomo
-        <span class="font-mono text-gray-900">{{ copiaCreada.codigoLomo }}</span></template>). Quedó en <strong class="text-gray-900">«{{ copiaCreada?.estado }}»</strong>
-        y no se presta hasta pasar a «En estante».
+      <template #antesDelTitulo><PasosCatalogacion :actual="3" /></template>
+      <div class="flex items-start gap-3.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+        </span>
+        <div class="min-w-0">
+          <p class="text-[15px] text-emerald-900">
+            Se creó la <strong>copia {{ copiaCreada?.numeroCopia }}</strong> de <strong>{{ copiaCreada?.titulo }}</strong>
+          </p>
+          <p class="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-emerald-900/80">
+            código <span class="rounded-md border border-emerald-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ copiaCreada?.codigoBarras }}</span>
+            <template v-if="copiaCreada?.codigoLomo">
+              lomo <span class="rounded-md border border-emerald-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ copiaCreada.codigoLomo }}</span>
+            </template>
+          </p>
+        </div>
+      </div>
+      <p class="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-gray-600">
+        <span class="rounded-md bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ copiaCreada?.estado }}</span>
+        <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+        <span class="rounded-md border border-dashed border-emerald-400 bg-emerald-50/50 px-2 py-0.5 font-semibold text-emerald-700">En estante</span>
+        <span>no se presta hasta pasar a «En estante»</span>
       </p>
-      <p class="mt-2">Puedes ir ahora a Estado de ejemplares con esta copia ya elegida.</p>
+      <p class="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-[15px] text-gray-600">Puedes ir ahora a Estado de ejemplares con esta copia ya elegida.</p>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion

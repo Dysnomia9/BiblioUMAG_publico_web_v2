@@ -188,31 +188,40 @@ async function eliminar() {
       <Paginador :pagina="pagina" :paginas="paginas" :total="total" :desde="desde" :hasta="hasta" unidad="materias" :cargando="cargando" @update:pagina="irAPagina" />
     </div>
 
-    <Modal :abierto="!!edicion.materia" titulo="Renombrar materia" :bloqueado="edicion.guardando" @cerrar="edicion.materia = null">
-      <div v-if="edicion.materia" class="space-y-3 text-sm">
-        <p class="text-gray-600">
-          Está en <strong>{{ edicion.materia.libros_count.toLocaleString('es-CL') }}</strong> {{ edicion.materia.libros_count === 1 ? 'libro' : 'libros' }}; todos tendrán el nombre nuevo.
-        </p>
-        <label for="materia-nombre" class="block font-semibold text-gray-800">Nombre</label>
-        <input
-          id="materia-nombre"
-          v-model="edicion.nombre"
-          class="h-10 w-full rounded-lg border border-gray-300 px-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-          @input="edicion.existente = null"
-          @keydown.enter="guardar(false)"
-        />
-        <p class="text-[11px] text-gray-500">Para subdivisiones use «--»: <span class="font-mono">TESIS -- RECURSO ELECTRONICO</span>.</p>
-        <div v-if="edicion.existente" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900" role="alert">
-          Ya existe <strong>«{{ edicion.existente.nombre }}»</strong> ({{ edicion.existente.libros_count }} libros).
+    <Modal :abierto="!!edicion.materia" titulo="Renombrar materia" :bloqueado="edicion.guardando" destacado ancho="md" @cerrar="edicion.materia = null">
+      <div v-if="edicion.materia" class="space-y-4 text-sm">
+        <div class="flex items-center gap-4 rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3.5">
+          <span class="font-serif text-3xl font-bold tabular-nums text-indigo-900">{{ edicion.materia.libros_count.toLocaleString('es-CL') }}</span>
+          <p class="text-[15px] leading-snug text-gray-600">
+            {{ edicion.materia.libros_count === 1 ? 'libro tiene esta materia;' : 'libros tienen esta materia;' }}<br />
+            {{ edicion.materia.libros_count === 1 ? 'tendrá' : 'todos tendrán' }} el nombre nuevo.
+          </p>
+        </div>
+        <div>
+          <label for="materia-nombre" class="mb-1.5 block text-[15px] font-semibold text-gray-800">Nombre</label>
+          <input
+            id="materia-nombre"
+            v-model="edicion.nombre"
+            class="h-12 w-full rounded-xl border-2 border-gray-300 px-4 text-base outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
+            @input="edicion.existente = null"
+            @keydown.enter="guardar(false)"
+          />
+          <p class="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-gray-500">
+            Subdivisiones con <span class="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-gray-700">--</span>
+            ej. <span class="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-gray-700">TESIS -- RECURSO ELECTRONICO</span>
+          </p>
+        </div>
+        <div v-if="edicion.existente" class="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-900" role="alert">
+          Ya existe <strong>«{{ edicion.existente.nombre }}»</strong> ({{ edicion.existente.libros_count.toLocaleString('es-CL') }} libros).
           ¿Unir «{{ edicion.materia.nombre }}» con ella? Sus libros pasarán a «{{ edicion.existente.nombre }}» y esta materia desaparecerá.
         </div>
       </div>
       <template #pie>
-        <button type="button" class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100" :disabled="edicion.guardando" @click="edicion.materia = null">Cancelar</button>
+        <button type="button" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100" :disabled="edicion.guardando" @click="edicion.materia = null">Cancelar</button>
         <button
           v-if="edicion.existente"
           type="button"
-          class="flex-1 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+          class="flex-1 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] hover:bg-amber-700 disabled:opacity-60"
           :disabled="edicion.guardando"
           @click="guardar(true)"
         >
@@ -221,7 +230,7 @@ async function eliminar() {
         <button
           v-else
           type="button"
-          class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+          class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] hover:bg-indigo-700 disabled:opacity-60"
           :disabled="edicion.guardando || !edicion.nombre.trim()"
           @click="guardar(false)"
         >

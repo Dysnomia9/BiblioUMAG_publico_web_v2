@@ -16,6 +16,7 @@ import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
 import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
+import ConfirmarDevolucion from '@/components/prestamos/ConfirmarDevolucion.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
@@ -1716,42 +1717,13 @@ function formatHora(iso: string | null) {
         </div>
       </div>
 
-      <div
-        v-if="devolucionPendiente"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-        @click.self="devolucionPendiente = null"
-      >
-        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-          <h3 class="mb-1 text-lg font-bold text-gray-900">¿Confirmar devolución?</h3>
-          <p class="mb-4 text-sm text-gray-500">
-            Se registrará la devolución de <strong class="font-mono">{{ devolucionPendiente.libro_titulo }}</strong>.
-          </p>
-          <dl v-if="usuarioDevolucion" class="mb-6 space-y-1 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
-            <div class="flex justify-between gap-3"><dt class="text-gray-500">Prestado a</dt><dd class="text-right font-medium text-gray-900">{{ usuarioDevolucion.nombre }} {{ usuarioDevolucion.apellido }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-gray-500">RUT</dt><dd class="font-mono text-gray-900">{{ usuarioDevolucion.rut }}</dd></div>
-            <div v-if="devolucionPendiente.codigo_barras" class="flex justify-between gap-3"><dt class="text-gray-500">Código</dt><dd class="font-mono text-gray-900">{{ devolucionPendiente.codigo_barras }}</dd></div>
-            <div class="flex justify-between gap-3"><dt class="text-gray-500">Prestado el</dt><dd class="text-gray-900">{{ fechaCorta(devolucionPendiente.fecha_prestamo) }}</dd></div>
-            <div v-if="devolucionPendiente.fecha_devolucion" class="flex justify-between gap-3"><dt class="text-gray-500">Vence el</dt><dd class="text-gray-900">{{ fechaCorta(devolucionPendiente.fecha_devolucion) }}</dd></div>
-          </dl>
-          <div class="flex gap-3">
-            <button
-              type="button"
-              class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              @click="devolucionPendiente = null"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
-              :disabled="devolviendo"
-              @click="confirmarDevolucion"
-            >
-              {{ devolviendo ? 'Confirmando…' : 'Sí, devolver' }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ConfirmarDevolucion
+        :prestamo="devolucionPendiente"
+        :usuario="usuarioDevolucion"
+        :cargando="devolviendo"
+        @confirmar="confirmarDevolucion"
+        @cancelar="devolucionPendiente = null"
+      />
 
       <CerrarPrestamoInterbibliotecario
         :abierto="!!interbibliotecarioACerrar"
