@@ -845,6 +845,19 @@ function cambiarObra() {
   busquedaCopia.value = ''
 }
 
+/**
+ * La obra elegida es material electrónico: un «Libro electrónico» o una tesis con enlace de
+ * acceso (856). Se lee en línea, así que normalmente no lleva copias; se avisa (no se impide)
+ * por si de verdad hay una copia física, como una tesis impresa o en CD.
+ */
+const avisoElectronico = computed(() => {
+  const l = libroParaCopia.value
+  if (!l) return null
+  if (l.tipo_material?.nombre === 'Libro electrónico') return 'un libro electrónico'
+  if (l.tipo_material?.plantilla === 'trabajo_titulacion' && l.url_acceso) return 'una tesis electrónica'
+  return null
+})
+
 const confirmandoCopia = ref(false)
 const ubicacionCopia = computed(() => ubicacionesOpciones.value.find((u) => u.id === formCopia.ubicacion_id)?.nombre ?? null)
 
@@ -1443,6 +1456,19 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <button type="button" class="shrink-0 text-xs font-medium text-indigo-700 hover:underline" @click="cambiarObra">Cambiar</button>
               </div>
+              <!-- Aviso: a un libro o tesis electrónica normalmente no se le agregan copias -->
+              <div v-if="avisoElectronico" role="alert" class="mt-3 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900">
+                <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <div>
+                  <p class="font-semibold">Esta obra es {{ avisoElectronico }}.</p>
+                  <p class="mt-0.5 text-[13px] leading-relaxed text-amber-800">
+                    Se consulta en línea desde su enlace de acceso, así que normalmente no lleva copias. Agrega un ejemplar
+                    <strong>solo si la biblioteca tiene una copia física</strong> (impresa, en CD o DVD) con su propio código de barras.
+                  </p>
+                </div>
+              </div>
             </SeccionFicha>
 
             <!-- 2. Copia nueva -->
@@ -1794,6 +1820,9 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           nace en <span class="rounded-md bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">Inventario</span>
         </p>
       </div>
+      <p v-if="avisoElectronico" class="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[13px] leading-relaxed text-amber-900">
+        <strong>Ojo: es {{ avisoElectronico }}.</strong> Confirma solo si esta copia es física (impresa, en CD o DVD) y tiene este código de barras pegado.
+      </p>
     </DialogoConfirmacion>
 
     <DialogoConfirmacion
