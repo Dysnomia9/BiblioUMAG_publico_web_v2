@@ -61,12 +61,22 @@ class NumeroFichaTest extends TestCase
 
         $titulos = fn (string $q, string $en) => collect($this->getJson('/api/libros?'.http_build_query(['q' => $q, 'buscar_en' => $en]))->assertOk()->json('data'))->pluck('titulo')->all();
 
-        $this->assertSame(['Por ISBN'], $titulos('9561511674', 'isbn'));
-        $this->assertSame([], $titulos('9561511674', 'codigo'));
-        $this->assertSame(['Por código'], $titulos('30000000655316', 'codigo'));
-        $this->assertSame([], $titulos('30000000655316', 'isbn'));
+        // Por N.º de ficha: solo esa, exacta; ni el ISBN ni el código ni el título
         $this->assertSame(['Por ficha'], $titulos((string) $porFicha->numero_ficha, 'ficha'));
+        $this->assertSame([], $titulos('9561511674', 'ficha'));
+        $this->assertSame([], $titulos('30000000655316', 'ficha'));
         $this->assertSame([], $titulos('Por', 'ficha'));
+        // Todo el resto: ISBN, código de barras y nombre, pero no el N.º de ficha
+        $this->assertSame(['Por ISBN'], $titulos('9561511674', 'resto'));
+        $this->assertSame(['Por código'], $titulos('30000000655316', 'resto'));
+        $this->assertSame(['Por código'], $titulos('Por código', 'resto'));
+        $this->assertNotContains('Por ficha', $titulos((string) $porFicha->numero_ficha, 'resto'));
+        // Copiado de la pantalla, con las letras: es esa ficha, se busque donde se busque
+        foreach (["Ficha N.º {$porFicha->numero_ficha}", "ficha nº {$porFicha->numero_ficha}", "  N° {$porFicha->numero_ficha} ", "#{$porFicha->numero_ficha}", "Ficha {$porFicha->numero_ficha}"] as $pegado) {
+            foreach (['ficha', 'resto', 'todo'] as $en) {
+                $this->assertSame(['Por ficha'], $titulos($pegado, $en), "«{$pegado}» en {$en}");
+            }
+        }
         $this->assertContains('Por ISBN', $titulos('Por', 'todo'));
         $this->getJson('/api/libros?q=x&buscar_en=otra')->assertStatus(422);
     }

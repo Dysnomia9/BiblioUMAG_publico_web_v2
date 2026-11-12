@@ -761,42 +761,26 @@ function descartarBorrador() {
 // ---------- Agregar copia ----------
 // Por qué dato se busca la obra: en todo a la vez, o solo en uno de sus números (el
 // servidor busca solo en ese campo: «buscar_en» de GET /libros).
-type BuscarObraEn = 'todo' | 'ficha' | 'codigo' | 'isbn'
+type BuscarObraEn = 'ficha' | 'resto'
 const MODOS_BUSCAR_OBRA: { valor: BuscarObraEn; texto: string; escribir: string; ayuda: string; placeholder: string; numerico: boolean }[] = [
-  {
-    valor: 'todo',
-    texto: 'Todo',
-    escribir: 'Cualquier dato de la obra: una o varias palabras del título, el apellido del autor o un número (ej: «bases de datos navathe»).',
-    ayuda: 'Busca a la vez en el título, el autor, el ISBN, la clasificación, los códigos de las copias y el N.º de ficha. Sirve cuando no sabes qué dato tienes a mano.',
-    placeholder: 'Ej: Fundamentos de bases de datos',
-    numerico: false,
-  },
   {
     valor: 'ficha',
     texto: 'N.º de ficha',
-    escribir: 'Solo el número, sin puntos (ej: «48760»).',
-    ayuda: 'Es el número único de la ficha, que pone el sistema (en las que vienen de Horizon es su bib#). Trae solo esa ficha, exacta.',
+    escribir: 'El número de la ficha (ej: «48760»). También sirve pegarlo tal como se copia de la pantalla: «Ficha N.º 48760».',
+    ayuda: 'Es el número único que pone el sistema (en las fichas que vienen de Horizon, su bib#). Trae solo esa ficha, exacta: es lo más rápido si lo tienes.',
     placeholder: 'Ej: 48760',
     numerico: true,
   },
   {
-    valor: 'codigo',
-    texto: 'Código de barras',
-    escribir: 'El código de una copia de esa obra: escanéalo con el lector o escribe sus números (ej: «30000000655316»).',
-    ayuda: 'Puede ser el de 14 dígitos de una copia que la obra ya tiene, su código de lomo o su N.º de registro. Sirve para agregar otra copia de un libro que tienes en la mano: escanea la que ya está catalogada.',
-    placeholder: 'Escanea o escribe el código',
-    numerico: true,
-  },
-  {
-    valor: 'isbn',
-    texto: 'ISBN',
-    escribir: 'El ISBN que trae el libro en la contratapa o en la página de créditos, con o sin guiones (ej: «956-15-1167-4»).',
-    ayuda: 'Sirve para no confundir ediciones distintas de un mismo título.',
-    placeholder: 'Ej: 978-956-15-1167-4',
+    valor: 'resto',
+    texto: 'Código de barras, ISBN o nombre',
+    escribir: 'El código de barras de una copia que la obra ya tiene (escanéalo o escribe sus números), su ISBN con o sin guiones, o palabras del título o del autor.',
+    ayuda: 'Busca en todo lo demás de la ficha y sus copias: título, autor, ISBN, clasificación, código de barras, código de lomo y N.º de registro.',
+    placeholder: 'Ej: 30000000655316, 956-15-1167-4 o Desolación',
     numerico: false,
   },
 ]
-const buscarObraEn = ref<BuscarObraEn>('todo')
+const buscarObraEn = ref<BuscarObraEn>('ficha')
 const modoBuscarObra = computed(() => MODOS_BUSCAR_OBRA.find((m) => m.valor === buscarObraEn.value) ?? MODOS_BUSCAR_OBRA[0])
 function elegirBuscarObraEn(valor: BuscarObraEn) {
   buscarObraEn.value = valor

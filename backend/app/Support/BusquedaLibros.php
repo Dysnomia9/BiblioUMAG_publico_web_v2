@@ -46,6 +46,27 @@ final class BusquedaLibros
     }
 
     /**
+     * El N.º de ficha escrito en el texto, o null. Se entiende también copiado de la pantalla
+     * («Ficha N.º 62961», «Ficha Nº 62961», «N° 62961», «#62961», «62.961»). Con $soloElNumero
+     * (se está buscando solo por ficha) basta el número; si no, tiene que decir «ficha», «N.º»
+     * o «#»: un número suelto puede ser un código, un año o un ISBN.
+     */
+    public static function numeroDeFicha(string $texto, bool $soloElNumero = false): ?int
+    {
+        $texto = trim(preg_replace('/\s+/u', ' ', $texto));
+        if (! preg_match('/^(?:(ficha)\s*:?\s*)?(?:(n\s*[.ºo°]+|n[uú]mero|#)\s*:?\s*)?(\d{1,3}(?:\.\d{3})+|\d+)$/iu', $texto, $m)) {
+            return null;
+        }
+        $conEtiqueta = $m[1] !== '' || $m[2] !== '';
+        $numero = str_replace('.', '', $m[3]);
+        if ((! $conEtiqueta && ! $soloElNumero) || strlen($numero) > 12) {
+            return null;
+        }
+
+        return (int) $numero;
+    }
+
+    /**
      * Ids de los libros en que aparece el texto en alguno de los campos pedidos.
      *
      * @param  list<string>  $campos
@@ -91,9 +112,8 @@ final class BusquedaLibros
                 // El código de 14 dígitos o el de lomo de cualquiera de sus copias, o su número
                 // de registro de Horizon (exacto: «307» no trae todos los que lo contienen).
                 // El N.º de ficha, exacto: «307» es la ficha 307, no todas las que lo contienen.
-                // También escrito con puntos o con «#»/«N.º» delante («64.534», «#64534»).
-                'numero_ficha' => ctype_digit($numero = preg_replace('/^(n\.?º?|#)\s*|\./iu', '', trim($texto))) && strlen($numero) <= 12
-                    ? $libros()->where('numero_ficha', (int) $numero)
+                'numero_ficha' => ($numero = self::numeroDeFicha($texto, soloElNumero: true)) !== null
+                    ? $libros()->where('numero_ficha', $numero)
                     : null,
                 'codigos' => DB::table('ejemplares')->select('libro_id as id')
                     ->where(fn ($q) => $q->where('codigo_barras', 'ilike', $tal)->orWhere('codigo_lomo', 'like', $tal)->orWhere('numero_registro', trim($texto))),

@@ -24,16 +24,6 @@ use Illuminate\Validation\Rule;
 
 class LibroController extends Controller
 {
-    /** Dónde busca el texto: en todo (lo de siempre) o solo en el N.º de ficha, los códigos o el ISBN. */
-    private const BUSCAR_EN = [
-        'todo' => BusquedaLibros::CAMPOS_PERSONAL,
-        'ficha' => ['numero_ficha'],
-        // El de 14 dígitos o el de lomo de cualquiera de sus copias, o su N.º de registro
-        'codigo' => ['codigos'],
-        // El propio o los otros, con o sin guiones
-        'isbn' => ['isbn', 'isbn_sin_guiones'],
-    ];
-
     private const RELACIONES = ['autores', 'categorias', 'carreras', 'tipoMaterial', 'catalogadoPor:id,nombre'];
 
     public function index(Request $request)
@@ -45,7 +35,7 @@ class LibroController extends Controller
             'carrera_id' => ['nullable', 'integer'], 'tipo_material_id' => ['nullable', 'integer'],
             'estado_personalizado_id' => ['nullable', 'integer'],
             // Catalogación › Nuevo ejemplar: buscar la obra solo por uno de sus números.
-            'buscar_en' => ['nullable', Rule::in(array_keys(self::BUSCAR_EN))],
+            'buscar_en' => ['nullable', Rule::in(['todo', 'ficha', 'resto'])],
         ]);
 
         $query = Libro::query()->with([
@@ -61,7 +51,21 @@ class LibroController extends Controller
 
         // Cada palabra tiene que aparecer en algún campo, en cualquier orden (ver Busqueda::palabras()):
         // título, clasificación, ISBN/ISSN, autor o código de una copia (ver BusquedaLibros).
-        BusquedaLibros::filtrar($query, 'libros.id', (string) $request->query('q'), self::BUSCAR_EN[$request->query('buscar_en', 'todo')]);
+        // Dónde se busca: en todo (lo de siempre, el listado) o, en Catalogación › Nuevo ejemplar,
+        // solo por el N.º de ficha o por todo lo demás (código de barras, ISBN, nombre…).
+        // «Ficha N.º 62961» pegado tal cual (o «N.º 62961», «#62961») es esa ficha en cualquier caso.
+        $texto = (string) $request->query('q');
+        $buscarEn = $request->query('buscar_en', 'todo');
+        $ficha = BusquedaLibros::numeroDeFicha($texto, soloElNumero: $buscarEn === 'ficha');
+        if ($ficha !== null) {
+            $query->where('libros.numero_ficha', $ficha);
+        } elseif ($buscarEn === 'ficha') {
+            $query->when(trim($texto) !== '', fn ($q) => $q->whereRaw('false'));
+        } else {
+            BusquedaLibros::filtrar($query, 'libros.id', $texto, $buscarEn === 'resto'
+                ? array_values(array_diff(BusquedaLibros::CAMPOS_PERSONAL, ['numero_ficha']))
+                : BusquedaLibros::CAMPOS_PERSONAL);
+        }
 
         if ($categoriaId = $request->query('categoria_id')) {
             $query->whereHas('categorias', fn ($q) => $q->where('categorias.id', $categoriaId));
