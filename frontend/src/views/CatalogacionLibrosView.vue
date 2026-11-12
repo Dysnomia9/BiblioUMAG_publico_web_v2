@@ -759,20 +759,67 @@ function descartarBorrador() {
 }
 
 // ---------- Agregar copia ----------
+// Por qué dato se busca la obra: en todo a la vez, o solo en uno de sus números (el
+// servidor busca solo en ese campo: «buscar_en» de GET /libros).
+type BuscarObraEn = 'todo' | 'ficha' | 'codigo' | 'isbn'
+const MODOS_BUSCAR_OBRA: { valor: BuscarObraEn; texto: string; escribir: string; ayuda: string; placeholder: string; numerico: boolean }[] = [
+  {
+    valor: 'todo',
+    texto: 'Todo',
+    escribir: 'Cualquier dato de la obra: una o varias palabras del título, el apellido del autor o un número (ej: «bases de datos navathe»).',
+    ayuda: 'Busca a la vez en el título, el autor, el ISBN, la clasificación, los códigos de las copias y el N.º de ficha. Sirve cuando no sabes qué dato tienes a mano.',
+    placeholder: 'Ej: Fundamentos de bases de datos',
+    numerico: false,
+  },
+  {
+    valor: 'ficha',
+    texto: 'N.º de ficha',
+    escribir: 'Solo el número, sin puntos (ej: «48760»).',
+    ayuda: 'Es el número único de la ficha, que pone el sistema (en las que vienen de Horizon es su bib#). Trae solo esa ficha, exacta.',
+    placeholder: 'Ej: 48760',
+    numerico: true,
+  },
+  {
+    valor: 'codigo',
+    texto: 'Código de barras',
+    escribir: 'El código de una copia de esa obra: escanéalo con el lector o escribe sus números (ej: «30000000655316»).',
+    ayuda: 'Puede ser el de 14 dígitos de una copia que la obra ya tiene, su código de lomo o su N.º de registro. Sirve para agregar otra copia de un libro que tienes en la mano: escanea la que ya está catalogada.',
+    placeholder: 'Escanea o escribe el código',
+    numerico: true,
+  },
+  {
+    valor: 'isbn',
+    texto: 'ISBN',
+    escribir: 'El ISBN que trae el libro en la contratapa o en la página de créditos, con o sin guiones (ej: «956-15-1167-4»).',
+    ayuda: 'Sirve para no confundir ediciones distintas de un mismo título.',
+    placeholder: 'Ej: 978-956-15-1167-4',
+    numerico: false,
+  },
+]
+const buscarObraEn = ref<BuscarObraEn>('todo')
+const modoBuscarObra = computed(() => MODOS_BUSCAR_OBRA.find((m) => m.valor === buscarObraEn.value) ?? MODOS_BUSCAR_OBRA[0])
+function elegirBuscarObraEn(valor: BuscarObraEn) {
+  buscarObraEn.value = valor
+  resultadosCopia.value = []
+  onBuscarCopiaInput()
+  nextTick(() => document.getElementById('cat-buscar-obra')?.focus())
+}
+
 let buscarCopiaTimer: ReturnType<typeof setTimeout> | undefined
 function onBuscarCopiaInput() {
   clearTimeout(buscarCopiaTimer)
   buscarCopiaTimer = setTimeout(async () => {
     const texto = busquedaCopia.value.trim()
+    const en = buscarObraEn.value
     if (!texto) {
       resultadosCopia.value = []
       return
     }
     if (esBusquedaCorta(texto)) return
     try {
-      const { data } = await api.get<Paginado<Libro>>('/libros', { params: { q: texto, por_pagina: 15 } })
-      // Si mientras tanto se siguió escribiendo o se eligió una obra, esta respuesta ya no sirve.
-      if (texto === busquedaCopia.value.trim()) resultadosCopia.value = data.data
+      const { data } = await api.get<Paginado<Libro>>('/libros', { params: { q: texto, buscar_en: en, por_pagina: 15 } })
+      // Si mientras tanto se siguió escribiendo, se cambió por qué buscar o se eligió una obra, esta respuesta ya no sirve.
+      if (texto === busquedaCopia.value.trim() && en === buscarObraEn.value) resultadosCopia.value = data.data
     } catch {
       resultadosCopia.value = []
     }
@@ -1328,13 +1375,35 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           <template v-else>
             <!-- 1. Obra -->
             <SeccionFicha id="seccion-obra" :numero="1" titulo="Obra" detalle="Busca el título ya catalogado" tono="indigo">
-              <label for="cat-buscar-obra" :class="ETIQUETA">Título, autor, ISBN, código de barras o N.º de ficha</label>
+              <p id="cat-buscar-obra-por" :class="ETIQUETA">Buscar la obra por</p>
+              <div role="radiogroup" aria-labelledby="cat-buscar-obra-por" class="mb-2 inline-flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+                <button
+                  v-for="m in MODOS_BUSCAR_OBRA"
+                  :key="m.valor"
+                  type="button"
+                  role="radio"
+                  :aria-checked="buscarObraEn === m.valor"
+                  class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                  :class="buscarObraEn === m.valor ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'"
+                  @click="elegirBuscarObraEn(m.valor)"
+                >
+                  {{ m.texto }}
+                </button>
+              </div>
+              <!-- Para qué sirve la opción elegida -->
+              <p id="cat-buscar-obra-ayuda" class="mb-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs leading-relaxed text-indigo-900">
+                <span class="block"><strong>Qué escribir:</strong> {{ modoBuscarObra.escribir }}</span>
+                <span class="mt-0.5 block text-indigo-800/80">{{ modoBuscarObra.ayuda }}</span>
+              </p>
               <div class="relative">
                 <input autocomplete="off"
                   id="cat-buscar-obra"
                   v-model="busquedaCopia"
                   type="text"
-                  placeholder="Ej: Fundamentos de bases de datos"
+                  :inputmode="modoBuscarObra.numerico ? 'numeric' : 'text'"
+                  :placeholder="modoBuscarObra.placeholder"
+                  :aria-label="`Buscar la obra por ${modoBuscarObra.texto.toLowerCase()}`"
+                  aria-describedby="cat-buscar-obra-ayuda"
                   :class="CAMPO"
                   @input="onBuscarCopiaInput"
                 />

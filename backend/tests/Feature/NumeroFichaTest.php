@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Ejemplar;
 use App\Models\Libro;
 use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,5 +48,26 @@ class NumeroFichaTest extends TestCase
         $this->assertTrue($titulos((string) $buscada->numero_ficha)->contains('La buscada'));
         $this->assertTrue($titulos('#'.$buscada->numero_ficha)->contains('La buscada'));
         $this->assertFalse($titulos((string) $buscada->numero_ficha)->contains('Otra'));
+    }
+
+    public function test_nuevo_ejemplar_busca_solo_en_el_campo_elegido(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $sinNada = ['clasificacion' => null, 'otros_isbn' => null, 'issn' => null];
+        Libro::factory()->create(['titulo' => 'Por ISBN', 'isbn' => '956-15-1167-4', ...$sinNada]);
+        $porCodigo = Libro::factory()->create(['titulo' => 'Por código', 'isbn' => null, ...$sinNada]);
+        Ejemplar::factory()->for($porCodigo)->create(['codigo_barras' => '30000000655316']);
+        $porFicha = Libro::factory()->create(['titulo' => 'Por ficha', 'isbn' => null, ...$sinNada])->fresh();
+
+        $titulos = fn (string $q, string $en) => collect($this->getJson('/api/libros?'.http_build_query(['q' => $q, 'buscar_en' => $en]))->assertOk()->json('data'))->pluck('titulo')->all();
+
+        $this->assertSame(['Por ISBN'], $titulos('9561511674', 'isbn'));
+        $this->assertSame([], $titulos('9561511674', 'codigo'));
+        $this->assertSame(['Por código'], $titulos('30000000655316', 'codigo'));
+        $this->assertSame([], $titulos('30000000655316', 'isbn'));
+        $this->assertSame(['Por ficha'], $titulos((string) $porFicha->numero_ficha, 'ficha'));
+        $this->assertSame([], $titulos('Por', 'ficha'));
+        $this->assertContains('Por ISBN', $titulos('Por', 'todo'));
+        $this->getJson('/api/libros?q=x&buscar_en=otra')->assertStatus(422);
     }
 }
