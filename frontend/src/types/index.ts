@@ -242,9 +242,11 @@ export type LibroCatalogo = {
   /** Libro electrónico: se lee en línea con url_acceso; no se reserva. */
   digital?: boolean
   url_acceso?: string | null
+  /** Obra en varios tomos: cada tomo con sus copias en estante y cuántas están libres. */
+  tomos?: { tomo: string; copias: number; disponibles: number }[]
   ficha: FilaFicha[]
   /** Copias en estante: colección (la de la copia o, si no tiene, la del libro) y nota pública. */
-  copias?: { numero_copia: number; volumen: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
+  copias?: { numero_copia: number; volumen: string | null; tomo?: string | null; disponible: boolean; ubicacion: string | null; coleccion: string | null; nota_publica: string | null }[]
 }
 
 /** Qué etiquetas lleva la ficha de un tipo de material y cuáles ve el usuario. */
@@ -276,6 +278,9 @@ export type Ejemplar = {
   ubicacion_id: number | null
   ubicacion?: Ubicacion | null
   volumen: string | null
+  /** Tomo y copia de ese tomo («t.1» y 3 en «t.1 c.3»). */
+  tomo?: string | null
+  copia_tomo?: number | null
   precio: string | null
   forma_adquisicion: 'compra' | 'donacion' | 'canje' | null
   fecha_inventario: string | null
@@ -438,6 +443,8 @@ export type ReservaLibro = {
   usuario_id: number
   libro_id: number
   ejemplar_id: number | null
+  /** Tomo pedido, en obras en varios tomos. */
+  tomo?: string | null
   fecha_reserva: string
   fecha_retiro: string | null
   estado: 'pendiente' | 'retirado' | 'cancelado' | 'en_cola'

@@ -14,6 +14,7 @@ use App\Support\Paginacion;
 use App\Services\BajaEjemplarService;
 use App\Services\ReservaLibroService;
 use App\Support\Bitacora;
+use App\Support\TomoEjemplar;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +50,8 @@ class EjemplarController extends Controller
             'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
             'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
             'volumen' => ['nullable', 'string', 'max:100'],
+            // Obra en varios tomos: el tomo de esta copia; la copia dentro del tomo se calcula sola.
+            'tomo' => ['nullable', 'string', 'max:50'],
             'precio' => ['nullable', 'numeric', 'min:0'],
             'forma_adquisicion' => ['nullable', Rule::in(Ejemplar::FORMAS_ADQUISICION)],
             ...self::reglasNotasYColeccion(),
@@ -56,6 +59,16 @@ class EjemplarController extends Controller
 
         $ejemplar = DB::transaction(function () use ($data) {
             $siguienteNumero = Ejemplar::siguienteNumero((int) $data['libro_id']);
+            // Con tomo: la copia que sigue de ese tomo y el volumen como en Horizon («t.1 c.3»).
+            $tomo = TomoEjemplar::normalizar($data['tomo'] ?? null);
+            [$tomoDelVolumen, $copiaDelVolumen] = TomoEjemplar::desdeEtiqueta($data['volumen'] ?? null);
+            if ($tomo) {
+                Ejemplar::where('libro_id', $data['libro_id'])->lockForUpdate()->get(['id']);
+                $copiaTomo = TomoEjemplar::siguienteCopia((int) $data['libro_id'], $tomo);
+                $data['volumen'] = TomoEjemplar::etiqueta($tomo, $copiaTomo);
+            } else {
+                [$tomo, $copiaTomo] = [$tomoDelVolumen, $copiaDelVolumen];
+            }
 
             return Ejemplar::create([
                 'libro_id' => $data['libro_id'],
@@ -63,6 +76,8 @@ class EjemplarController extends Controller
                 'codigo_barras' => $data['codigo_barras'],
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
                 'volumen' => $data['volumen'] ?? null,
+                'tomo' => $tomo,
+                'copia_tomo' => $copiaTomo,
                 'precio' => $data['precio'] ?? null,
                 'forma_adquisicion' => $data['forma_adquisicion'] ?? null,
                 'nota_publica' => $data['nota_publica'] ?? null,
@@ -102,6 +117,11 @@ class EjemplarController extends Controller
 
         // Texto en blanco = sin dato: la copia vuelve a mostrar la colección del libro.
         $data = array_map(fn ($valor) => is_string($valor) && trim($valor) === '' ? null : $valor, $data);
+
+        // Si se corrige el volumen a mano, el tomo y la copia del tomo lo siguen.
+        if (array_key_exists('volumen', $data)) {
+            [$data['tomo'], $data['copia_tomo']] = TomoEjemplar::desdeEtiqueta($data['volumen']);
+        }
 
         $antes = $ejemplar->only(array_keys($data));
         $ejemplar->update($data);

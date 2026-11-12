@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\TomoEjemplar;
 use App\Models\Ejemplar;
 use App\Models\Prestamo;
 use App\Models\ReservaLibro;
@@ -38,7 +39,8 @@ class ReservaLibroService
                 return [null, 'Código de barras no encontrado en el sistema', 404];
             }
 
-            return $this->procesarReserva($ejemplar, $usuarioId, $fechaReserva, $fechaRetiro, $registradoPorStaffId);
+            // El mesón escanea una copia concreta: si espera, espera ese mismo tomo.
+            return $this->procesarReserva($ejemplar, $usuarioId, $fechaReserva, $fechaRetiro, $registradoPorStaffId, $ejemplar->tomo);
         });
     }
 
@@ -53,12 +55,16 @@ class ReservaLibroService
      *
      * @return array{0: ReservaLibro|null, 1: string|null, 2: int}
      */
-    public function reservarOEncolarPorLibro(int $libroId, int $usuarioId, ?string $fechaReserva = null, ?string $fechaRetiro = null): array
+    public function reservarOEncolarPorLibro(int $libroId, int $usuarioId, ?string $fechaReserva = null, ?string $fechaRetiro = null, ?string $tomo = null): array
     {
-        return DB::transaction(function () use ($libroId, $usuarioId, $fechaReserva, $fechaRetiro) {
+        // Obra en varios tomos: solo cuentan las copias del tomo pedido.
+        $tomo = TomoEjemplar::normalizar($tomo);
+
+        return DB::transaction(function () use ($libroId, $usuarioId, $fechaReserva, $fechaRetiro, $tomo) {
             // Se salta lo de otra biblioteca que ya tiene que volver a ella (no se aparta para nadie),
             // salvo que no haya otra copia: entonces la reserva responde por qué no.
             $copias = Ejemplar::where('libro_id', $libroId)
+                ->when($tomo, fn ($q) => $q->where('tomo', $tomo))
                 ->where('estado_proceso', 'en_estante')
                 ->orderByDesc('disponible')
                 ->orderBy('id')
@@ -67,15 +73,15 @@ class ReservaLibroService
             $ejemplar = $copias->first(fn (Ejemplar $e) => ! $e->prestamoInterbibliotecarioVigente()?->motivoRechazo()) ?? $copias->first();
 
             if (! $ejemplar) {
-                return [null, 'Este libro no tiene copias disponibles para préstamo', 404];
+                return [null, $tomo ? "El {$tomo} no tiene copias disponibles para préstamo" : 'Este libro no tiene copias disponibles para préstamo', 404];
             }
 
-            return $this->procesarReserva($ejemplar, $usuarioId, $fechaReserva, $fechaRetiro);
+            return $this->procesarReserva($ejemplar, $usuarioId, $fechaReserva, $fechaRetiro, tomoEnCola: $tomo);
         });
     }
 
     /** @return array{0: ReservaLibro|null, 1: string|null, 2: int} */
-    private function procesarReserva(Ejemplar $ejemplar, int $usuarioId, ?string $fechaReserva, ?string $fechaRetiro, ?int $registradoPorStaffId = null): array
+    private function procesarReserva(Ejemplar $ejemplar, int $usuarioId, ?string $fechaReserva, ?string $fechaRetiro, ?int $registradoPorStaffId = null, ?string $tomoEnCola = null): array
     {
         if ($ejemplar->estado_proceso !== 'en_estante') {
             return [null, "Este libro no está disponible para préstamo (estado: {$ejemplar->estado_proceso})", 409];
@@ -109,6 +115,7 @@ class ReservaLibroService
                 'usuario_id' => $usuarioId,
                 'libro_id' => $ejemplar->libro_id,
                 'ejemplar_id' => $ejemplar->id,
+                'tomo' => $ejemplar->tomo,
                 'fecha_reserva' => $fechaReserva ?? now()->toDateString(),
                 'fecha_retiro' => $fechaRetiro ?? $this->fechaLimiteDeRetiro(),
                 'estado' => 'pendiente',
@@ -127,6 +134,9 @@ class ReservaLibroService
             'usuario_id' => $usuarioId,
             'libro_id' => $ejemplar->libro_id,
             'ejemplar_id' => null,
+            // En una obra en varios tomos, la fila espera una copia de este tomo (ver liberarLibro());
+            // sin tomo pedido, cualquiera del título.
+            'tomo' => $tomoEnCola,
             'fecha_reserva' => $fechaReserva ?? now()->toDateString(),
             'fecha_retiro' => null,
             'estado' => 'en_cola',
@@ -155,6 +165,7 @@ class ReservaLibroService
             }
 
             $posicion = ReservaLibro::where('libro_id', $reserva->libro_id)
+                ->when($reserva->tomo, fn ($q) => $q->where(fn ($t) => $t->whereNull('tomo')->orWhere('tomo', $reserva->tomo)))
                 ->where('estado', 'en_cola')
                 ->where('id', '<', $reserva->id)
                 ->count() + 1;
@@ -214,6 +225,8 @@ class ReservaLibroService
     {
         $abiertas = ReservaLibro::where('usuario_id', $usuarioId)
             ->where('libro_id', $prestada->libro_id)
+            // Llevarse el t.2 no cierra la reserva del t.1.
+            ->where(fn ($q) => $q->whereNull('tomo')->orWhere('tomo', $prestada->tomo))
             ->whereIn('estado', ['pendiente', 'en_cola'])
             ->get();
 
@@ -319,7 +332,10 @@ class ReservaLibroService
         // tendrían el mismo timestamp y empatarían el orden FIFO; el id autoincremental
         // no tiene esa ambigüedad.
         // Lo de otra biblioteca que ya tiene que volver a ella no se aparta para la fila.
+        // En una obra en varios tomos, la copia que vuelve se aparta para quien espera ese tomo
+        // (o quien pidió el título sin elegir tomo).
         $siguiente = $ejemplar->prestamoInterbibliotecarioVigente()?->motivoRechazo() ? null : ReservaLibro::where('libro_id', $ejemplar->libro_id)
+            ->where(fn ($q) => $q->whereNull('tomo')->orWhere('tomo', $ejemplar->tomo))
             ->where('estado', 'en_cola')
             ->oldest('id')
             ->lockForUpdate()

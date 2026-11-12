@@ -220,8 +220,18 @@ function reservarDesdeFicha() {
 // Reservar o unirse a la espera siempre pasa por una confirmación.
 const libroPorConfirmar = ref<LibroCatalogo | null>(null)
 
+// Obra en varios tomos: al reservar se elige el tomo (la fila espera una copia de ese tomo).
+const tomoElegido = ref('')
+const tomosDe = (libro: LibroCatalogo | null) => (libro?.tomos?.length ?? 0) > 1 ? libro!.tomos! : []
+const tomoActual = computed(() => tomosDe(libroPorConfirmar.value).find((t) => t.tomo === tomoElegido.value) ?? null)
+/** Si hay copia libre para lo que se va a reservar: del tomo elegido o, sin tomos, del título. */
+const disponibleParaReservar = computed(() =>
+  !libroPorConfirmar.value ? false : tomoActual.value ? tomoActual.value.disponibles > 0 : hayDisponible(libroPorConfirmar.value),
+)
+
 // Al abrir el diálogo se vuelve a pedir el plazo, por si la página quedó abierta de un día para otro.
 watch(libroPorConfirmar, (libro) => {
+  tomoElegido.value = ''
   if (libro) cargarCondiciones()
 })
 
@@ -239,14 +249,14 @@ const limiteAlcanzado = computed(() => {
 
 async function confirmarReserva() {
   if (!libroPorConfirmar.value) return
-  await reservar(libroPorConfirmar.value)
+  await reservar(libroPorConfirmar.value, tomoElegido.value || null)
   libroPorConfirmar.value = null
 }
 
-async function reservar(libro: LibroCatalogo) {
+async function reservar(libro: LibroCatalogo, tomo: string | null = null) {
   reservandoId.value = libro.id
   try {
-    const { data } = await apiUsuario.post<ReservaLibro>('/mi/reservas-libro', { libro_id: libro.id })
+    const { data } = await apiUsuario.post<ReservaLibro>('/mi/reservas-libro', { libro_id: libro.id, tomo })
     toast.success(
       data.estado === 'pendiente' && data.fecha_retiro
         ? `Reservaste "${libro.titulo}". Retíralo hasta el ${fechaConDia(data.fecha_retiro)}.`
@@ -383,7 +393,7 @@ async function cancelar(reserva: ReservaLibro) {
             </div>
             <div class="mt-3 border-t border-gray-100 divide-y divide-gray-100">
               <div v-for="r in misReservas" :key="r.id" class="py-3">
-                <p class="text-sm font-semibold text-gray-900">{{ r.libro?.titulo }}</p>
+                <p class="text-sm font-semibold text-gray-900">{{ r.libro?.titulo }}<span v-if="r.tomo" class="ml-1.5 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">{{ r.tomo }}</span></p>
                 <span class="mt-1.5 inline-block text-[11px] font-medium px-2 py-0.5 rounded-full border" :class="reservaBadges[r.estado]?.cls">
                   {{ reservaBadges[r.estado]?.label }}
                 </span>
@@ -589,26 +599,44 @@ async function cancelar(reserva: ReservaLibro) {
 
     <DialogoConfirmacion
       :abierto="libroPorConfirmar !== null"
-      :titulo="libroPorConfirmar && hayDisponible(libroPorConfirmar) ? '¿Reservar este libro?' : '¿Te avisamos cuando vuelva?'"
+      :titulo="disponibleParaReservar ? '¿Reservar este libro?' : '¿Te avisamos cuando vuelva?'"
       confirmar="Confirmar"
       tono="primario"
       :cargando="reservandoId !== null"
-      :deshabilitado="limiteAlcanzado !== null"
+      :deshabilitado="limiteAlcanzado !== null || (tomosDe(libroPorConfirmar).length > 0 && !tomoElegido)"
       @confirmar="confirmarReserva"
       @cancelar="libroPorConfirmar = null"
     >
       <template v-if="libroPorConfirmar">
         <p class="font-medium text-gray-900">{{ libroPorConfirmar.titulo }}</p>
         <p v-if="libroPorConfirmar.autores.length" class="text-xs">{{ libroPorConfirmar.autores.map((a) => a.nombre).join(', ') }}</p>
+        <div v-if="tomosDe(libroPorConfirmar).length && !limiteAlcanzado" class="mt-3">
+          <p class="mb-1.5 text-xs font-semibold text-gray-700">¿Qué tomo quieres?</p>
+          <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Tomo">
+            <button
+              v-for="t in tomosDe(libroPorConfirmar)"
+              :key="t.tomo"
+              type="button"
+              role="radio"
+              :aria-checked="tomoElegido === t.tomo"
+              class="rounded-lg border px-3 py-1.5 text-left text-xs transition-colors"
+              :class="tomoElegido === t.tomo ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'"
+              @click="tomoElegido = t.tomo"
+            >
+              <span class="block font-semibold">{{ t.tomo }}</span>
+              <span class="block opacity-80">{{ t.disponibles ? `${t.disponibles} ${t.disponibles === 1 ? 'disponible' : 'disponibles'}` : 'Prestado' }}</span>
+            </button>
+          </div>
+        </div>
         <p v-if="limiteAlcanzado" class="mt-3 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
           <svg class="mt-0.5 w-4 h-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           {{ limiteAlcanzado }}
         </p>
-        <template v-else-if="hayDisponible(libroPorConfirmar)">
+        <template v-else-if="disponibleParaReservar">
           <p class="mt-3">
-            Se apartará una copia a tu nombre. Retírala en el mesón de préstamo con tu RUT<template v-if="condiciones">
+            Se apartará una copia<template v-if="tomoElegido"> del {{ tomoElegido }}</template> a tu nombre. Retírala en el mesón de préstamo con tu RUT<template v-if="condiciones">
             dentro de este plazo:</template><template v-else>, antes de la fecha límite que verás en «Mis reservas».</template>
           </p>
           <div v-if="condiciones" class="mt-3 flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">

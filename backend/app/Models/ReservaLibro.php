@@ -15,6 +15,8 @@ class ReservaLibro extends Model
         'usuario_id',
         'libro_id',
         'ejemplar_id',
+        // El tomo pedido (obras en varios tomos): la fila espera una copia de ese tomo.
+        'tomo',
         'fecha_reserva',
         'fecha_retiro',
         'estado',

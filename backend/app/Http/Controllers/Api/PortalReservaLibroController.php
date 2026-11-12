@@ -61,6 +61,8 @@ class PortalReservaLibroController extends Controller
     {
         $data = $request->validate([
             'libro_id' => ['required', 'integer', 'exists:libros,id'],
+            // Obras en varios tomos: el tomo que quiere (si no, cualquier copia del título).
+            'tomo' => ['nullable', 'string', 'max:50'],
         ]);
 
         if ($bloqueo = $this->multaService->mensajeBloqueo($request->user(), paraElUsuario: true)) {
@@ -78,6 +80,7 @@ class PortalReservaLibroController extends Controller
         [$reserva, $error, $status] = $this->reservaLibroService->reservarOEncolarPorLibro(
             $data['libro_id'],
             $request->user()->id,
+            tomo: $data['tomo'] ?? null,
         );
 
         if ($error) {

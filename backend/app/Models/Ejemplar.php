@@ -27,6 +27,9 @@ class Ejemplar extends Model
         'estado_personalizado_id',
         'ubicacion_id',
         'volumen',
+        // Tomo y copia de ese tomo («t.1» y 3 en «t.1 c.3»): ver App\Support\TomoEjemplar.
+        'tomo',
+        'copia_tomo',
         'precio',
         'forma_adquisicion',
         'fecha_inventario',

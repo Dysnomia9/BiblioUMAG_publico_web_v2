@@ -100,6 +100,28 @@ const form = reactive({ ...formVacio, rolesAutores: {} as Record<string, string>
 // Papeles de cada persona en la obra (700 $e): se administran en Administración → Catálogos.
 const rolesAutor = ref<{ clave: string; nombre: string }[]>([])
 const ROLES_AUTOR = computed(() => [{ valor: '', texto: 'Autor' }, ...rolesAutor.value.map((r) => ({ valor: r.clave, texto: r.nombre }))])
+const sinTildesMin = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+/** El nombre del papel para mostrar en la caja (vacío = Autor; uno desactivado se muestra igual). */
+const nombreRol = (clave?: string) => (!clave ? '' : ROLES_AUTOR.value.find((r) => r.valor === clave)?.texto ?? `${clave} (desactivado)`)
+/**
+ * Lo escrito en la caja del papel: el que coincide (sin tildes ni mayúsculas) o, si es el
+ * comienzo de uno solo («patroc»), ese. Vacío o «Autor» = autor. Si no calza, vuelve al anterior.
+ */
+function elegirRol(nombre: string, caja: HTMLInputElement) {
+  const texto = sinTildesMin(caja.value)
+  if (!texto || texto === 'autor') {
+    delete form.rolesAutores[nombre]
+    caja.value = ''
+    return
+  }
+  const exacto = ROLES_AUTOR.value.find((r) => sinTildesMin(r.texto) === texto)
+  const comienzan = ROLES_AUTOR.value.filter((r) => r.valor && sinTildesMin(r.texto).includes(texto))
+  const elegido = exacto ?? (comienzan.length === 1 ? comienzan[0] : null)
+  if (elegido?.valor) form.rolesAutores[nombre] = elegido.valor
+  else if (elegido) delete form.rolesAutores[nombre]
+  caja.value = nombreRol(form.rolesAutores[nombre])
+  if (!elegido) toast.error(comienzan.length ? `«${caja.value || texto}»: hay varios papeles con eso, elija uno de la lista` : 'Ese papel no existe: créelo en Administración → Catálogos')
+}
 
 const plantillas = ref<PlantillaFicha[]>([])
 const catalogadorEditado = ref<string | null>(null)
@@ -278,8 +300,29 @@ const obligatoriosNuevo = computed<Requisito[]>(() => {
 const libroParaCopia = ref<Libro | null>(null)
 const busquedaCopia = ref('')
 const resultadosCopia = ref<Libro[]>([])
-const copiaVacia = () => ({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', precio: '' as number | '', forma_adquisicion: '', coleccion: '', nota_publica: '', nota_interna: '' })
+const copiaVacia = () => ({ codigo_barras: '', ubicacion_id: '' as number | '', volumen: '', tomo: '', precio: '' as number | '', forma_adquisicion: '', coleccion: '', nota_publica: '', nota_interna: '' })
 const formCopia = reactive(copiaVacia())
+
+// ---------- Tomo de la copia (obras en varios tomos, como en Horizon: «t.1 c.2») ----------
+/** «Tomo 1», «T1», «t. 1» → «t.1»; «Vol 2» → «v.2» (lo mismo que App\Support\TomoEjemplar). */
+function normalizarTomo(texto: string) {
+  const t = texto.replace(/\s+/g, ' ').trim()
+  const m = t.match(/^(t|tomo|v|vol|volumen)\.?\s*(\d+[a-z]?)$/i)
+  return m ? `${m[1].charAt(0).toLowerCase()}.${m[2].toLowerCase()}` : t
+}
+/** Los tomos que ya tiene la obra elegida, con cuántas copias, para elegir uno o escribir otro. */
+const tomosDeLaObra = computed(() => {
+  const cuenta = new Map<string, number>()
+  for (const e of libroParaCopia.value?.ejemplares ?? []) if (e.tomo) cuenta.set(e.tomo, (cuenta.get(e.tomo) ?? 0) + 1)
+  return [...cuenta.entries()].map(([tomo, copias]) => ({ tomo, copias })).sort((a, b) => a.tomo.localeCompare(b.tomo, 'es', { numeric: true }))
+})
+/** La copia que va a tener dentro del tomo (la calcula también el servidor al guardar). */
+const copiaDelTomo = computed(() => {
+  const tomo = normalizarTomo(formCopia.tomo)
+  if (!tomo) return null
+  const delTomo = (libroParaCopia.value?.ejemplares ?? []).filter((e) => e.tomo === tomo)
+  return Math.max(0, ...delTomo.map((e) => e.copia_tomo ?? 1), delTomo.length) + 1
+})
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
   { texto: 'Obra elegida', listo: !!libroParaCopia.value, seccion: 'obra' },
@@ -757,19 +800,23 @@ async function confirmarAgregarCopia() {
       libro_id: libroParaCopia.value.id,
       codigo_barras: formCopia.codigo_barras,
       ubicacion_id: formCopia.ubicacion_id === '' ? null : Number(formCopia.ubicacion_id),
-      volumen: formCopia.volumen || null,
+      volumen: formCopia.tomo.trim() ? null : formCopia.volumen || null,
+      tomo: formCopia.tomo.trim() || null,
       precio: formCopia.precio === '' ? null : Number(formCopia.precio),
       forma_adquisicion: formCopia.forma_adquisicion || null,
       coleccion: formCopia.coleccion.trim() || null,
       nota_publica: formCopia.nota_publica.trim() || null,
       nota_interna: formCopia.nota_interna.trim() || null,
     })
-    toast.success('Copia agregada correctamente')
+    toast.success(data.volumen ? `Copia agregada: ${data.volumen}` : 'Copia agregada correctamente')
     confirmandoCopia.value = false
     avisarCopiaCreada(titulo, data)
-    cambiarObra()
-    Object.assign(formCopia, copiaVacia())
-    await cargar()
+    // La obra queda elegida para seguir agregando copias (otro tomo, otra copia del mismo):
+    // se limpia solo el código; tomo, ubicación y colección se mantienen.
+    const libroId = libroParaCopia.value.id
+    Object.assign(formCopia, { codigo_barras: '', volumen: '', precio: '', nota_publica: '', nota_interna: '' })
+    const [, { data: libroActualizado }] = await Promise.all([cargar(), api.get<Libro>(`/libros/${libroId}`)])
+    libroParaCopia.value = libroActualizado
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'No se pudo agregar la copia')
     confirmandoCopia.value = false
@@ -779,9 +826,9 @@ async function confirmarAgregarCopia() {
 }
 
 const MODOS = [
-  { id: 'nuevo' as const, label: 'Nueva ficha', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700' },
-  { id: 'copia' as const, label: 'Nuevo ejemplar', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700' },
-  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600' },
+  { id: 'nuevo' as const, label: 'Nueva ficha', detalle: 'El registro del título, sin código', icono: 'M12 4.5v15m7.5-7.5h-15', tono: 'bg-indigo-50 text-indigo-700', activo: 'border-indigo-600 bg-indigo-600 shadow-indigo-600/30', anillo: 'hover:border-indigo-300' },
+  { id: 'copia' as const, label: 'Nuevo ejemplar', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700', activo: 'border-emerald-600 bg-emerald-600 shadow-emerald-600/30', anillo: 'hover:border-emerald-300', detalle: 'Una copia con su código de barras' },
+  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600', activo: 'border-amber-600 bg-amber-600 shadow-amber-600/30', anillo: 'hover:border-amber-300', detalle: 'Material que llega de otra biblioteca' },
 ]
 
 function abrirMenuGestion() {
@@ -834,21 +881,36 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           <PestanasLibros actual="catalogacion-libros" en-banda class="relative mt-3 px-5" />
         </div>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-2xl p-3">
-          <div class="flex max-w-full flex-wrap gap-2" role="tablist" aria-label="Qué catalogar">
+          <!-- Botones grandes, tipo tarjeta: cada uno dice qué hace; el elegido, en su color. -->
+          <div class="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-3" role="tablist" aria-label="Qué catalogar">
             <button
               v-for="m in MODOS"
               :key="m.id"
               type="button"
               role="tab"
               :aria-selected="modo === m.id"
-              class="inline-flex items-center gap-2 rounded-xl border py-1 pl-1 pr-3.5 text-sm font-semibold shadow-sm transition-colors"
-              :class="modo === m.id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'"
+              class="group flex items-center gap-3 rounded-xl border-2 px-3.5 py-3 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 active:translate-y-0 active:scale-[0.99]"
+              :class="modo === m.id ? `${m.activo} text-white shadow-lg` : `border-gray-200 bg-white text-gray-800 ${m.anillo}`"
               @click="modo = m.id"
             >
-              <span class="flex h-7 w-7 items-center justify-center rounded-lg" :class="modo === m.id ? 'bg-blanco/20 text-white' : m.tono">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="m.icono" /></svg>
+              <span
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105"
+                :class="modo === m.id ? 'bg-blanco/20 text-white' : m.tono"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="m.icono" /></svg>
               </span>
-              {{ m.id === 'nuevo' && editandoId ? 'Editando ficha' : m.label }}
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-bold leading-tight">{{ m.id === 'nuevo' && editandoId ? 'Editando ficha' : m.label }}</span>
+                <span class="mt-0.5 block truncate text-xs" :class="modo === m.id ? 'text-white/80' : 'text-gray-500'">{{ m.detalle }}</span>
+              </span>
+              <svg
+                class="h-4 w-4 shrink-0 transition-transform"
+                :class="modo === m.id ? 'text-white' : 'text-gray-300 group-hover:translate-x-0.5 group-hover:text-gray-500'"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"
+              >
+                <path v-if="modo === m.id" stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                <path v-else stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
             </button>
           </div>
         </div>
@@ -1004,20 +1066,26 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     placeholder="Apellido, Nombre: escribe para buscar o crear"
                     :clase-ficha="TONOS_FICHA.dorado.chip"
                   />
+                  <datalist id="roles-autor-lista">
+                    <option v-for="r in ROLES_AUTOR" :key="r.valor" :value="r.texto" />
+                  </datalist>
                   <ul v-if="form.autores.length" class="mt-2 divide-y divide-amber-100 rounded-lg border border-amber-200 bg-white">
                     <li v-for="(nombre, i) in form.autores" :key="nombre" class="flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm">
                       <span class="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold" :class="i === 0 && !form.rolesAutores[nombre] ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'">{{ i === 0 && !form.rolesAutores[nombre] ? '100' : '700' }}</span>
                       <span class="min-w-0 flex-1 truncate text-gray-900">{{ nombre }}</span>
                       <label class="sr-only" :for="`rol-autor-${i}`">Papel de {{ nombre }}</label>
-                      <select
+                      <!-- Se escribe para filtrar el papel («ases» → Asesor…); con la lista también se elige. -->
+                      <input
                         :id="`rol-autor-${i}`"
-                        :value="form.rolesAutores[nombre] ?? ''"
-                        class="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800"
-                        @change="(e) => { const v = (e.target as HTMLSelectElement).value; if (v) form.rolesAutores[nombre] = v; else delete form.rolesAutores[nombre] }"
-                      >
-                        <option v-for="r in ROLES_AUTOR" :key="r.valor" :value="r.valor">{{ r.texto }}</option>
-                        <option v-if="form.rolesAutores[nombre] && !ROLES_AUTOR.some((r) => r.valor === form.rolesAutores[nombre])" :value="form.rolesAutores[nombre]">{{ form.rolesAutores[nombre] }} (desactivado)</option>
-                      </select>
+                        :value="nombreRol(form.rolesAutores[nombre])"
+                        list="roles-autor-lista"
+                        autocomplete="off"
+                        placeholder="Autor"
+                        class="h-8 w-48 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        @focus="(e) => (e.target as HTMLInputElement).select()"
+                        @change="(e) => elegirRol(nombre, e.target as HTMLInputElement)"
+                        @keydown.enter.prevent="(e) => elegirRol(nombre, e.target as HTMLInputElement)"
+                      />
                     </li>
                   </ul>
                   <p class="mt-1 text-[11px] font-semibold text-gray-700">
@@ -1314,8 +1382,28 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </select>
                 </div>
                 <div class="sm:col-span-3">
-                  <label for="copia-volumen" :class="ETIQUETA">Volumen</label>
-                  <input autocomplete="off" id="copia-volumen" v-model="formCopia.volumen" placeholder="Tomo I" :class="CAMPO" />
+                  <label for="copia-tomo" :class="ETIQUETA">Tomo <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
+                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1" :class="CAMPO" />
+                  <datalist id="tomos-de-la-obra">
+                    <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
+                  </datalist>
+                  <p v-if="copiaDelTomo" class="mt-1 text-[11px] font-semibold text-indigo-700">
+                    Quedará como <span class="font-mono">{{ normalizarTomo(formCopia.tomo) }} c.{{ copiaDelTomo }}</span> (copia {{ copiaDelTomo }} de ese tomo)
+                  </p>
+                  <p v-else-if="tomosDeLaObra.length" class="mt-1 text-[11px] text-gray-500">
+                    Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${t.tomo} (${t.copias})`).join(' · ') }}
+                  </p>
+                </div>
+                <div class="sm:col-span-3">
+                  <label for="copia-volumen" :class="ETIQUETA">Volumen u otra designación</label>
+                  <input
+                    autocomplete="off"
+                    id="copia-volumen"
+                    v-model="formCopia.volumen"
+                    :disabled="!!formCopia.tomo.trim()"
+                    :placeholder="formCopia.tomo.trim() ? 'Se arma con el tomo' : 'Ej: Atlas, Anexo'"
+                    :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400']"
+                  />
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>

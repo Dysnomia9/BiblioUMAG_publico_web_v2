@@ -1505,7 +1505,7 @@ function formatHora(iso: string | null) {
                   </svg>
                 </span>
                 <span class="min-w-0">
-                  <span class="block truncate font-semibold text-gray-900">{{ r.libro?.titulo }}</span>
+                  <span class="block truncate font-semibold text-gray-900">{{ r.libro?.titulo }}<template v-if="r.tomo"> · {{ r.tomo }}</template></span>
                   <span class="block truncate text-xs text-gray-500">{{ r.ejemplar?.codigo_barras ? `Copia · ${r.ejemplar.codigo_barras}` : 'Sin copia asignada todavía' }}</span>
                 </span>
               </div>
