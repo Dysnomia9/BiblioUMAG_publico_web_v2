@@ -215,6 +215,25 @@ function quitarTituloAlternativo(i: number) {
   if (!titulosAlternativos.value.length) titulosAlternativos.value.push('')
   guardarTitulosAlternativos()
 }
+
+/** 490 también es repetible: cada serie en su casilla; se guardan una por línea («Serie Harry Potter ; 1»). */
+const series = ref<string[]>([''])
+function cargarSeries() {
+  const lista = (form.serie ?? '').split(/\r?\n/).map((t) => t.trim()).filter(Boolean)
+  series.value = lista.length ? lista : ['']
+}
+function guardarSeries() {
+  form.serie = series.value.map((t) => t.trim()).filter(Boolean).join('\n')
+}
+function agregarSerie() {
+  series.value.push('')
+  nextTick(() => document.getElementById(`cat-serie-${series.value.length - 1}`)?.focus())
+}
+function quitarSerie(i: number) {
+  series.value.splice(i, 1)
+  if (!series.value.length) series.value.push('')
+  guardarSeries()
+}
 const verMasMaterias = ref(false)
 
 /** «Título alternativo, entidad o congreso (246 · 110 · 111)». */
@@ -227,6 +246,7 @@ function textoExtras(claves: readonly CampoTexto[]) {
 function abrirExtrasConDatos() {
   verMasTitulo.value = EXTRAS_TITULO.some((c) => form[c].trim())
   cargarTitulosAlternativos()
+  cargarSeries()
   verMasMaterias.value = EXTRAS_MATERIAS.some((c) => form[c].trim())
 }
 
@@ -525,6 +545,7 @@ function resetForm() {
   catalogadorEditado.value = null
   verMasTitulo.value = false
   titulosAlternativos.value = ['']
+  series.value = ['']
   verMasMaterias.value = false
 }
 
@@ -1232,8 +1253,27 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm.":class="CAMPO" />
                 </div>
                 <div v-if="tiene('serie')" class="sm:col-span-3">
-                  <label for="cat-serie" :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie</label>
-                  <textarea id="cat-serie" v-model="form.serie" rows="1" placeholder="Opcional · si son varias, una por línea" :class="CAMPO"></textarea>
+                  <p :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie <span class="font-normal text-gray-500">(opcional; puede haber varias)</span></p>
+                  <div class="space-y-2">
+                    <div v-for="(_, i) in series" :key="i" class="flex gap-2">
+                      <input autocomplete="off"
+                        :id="`cat-serie-${i}`"
+                        v-model="series[i]"
+                        placeholder="Ej: Serie Harry Potter ; 1"
+                        :aria-label="`Serie ${i + 1}`"
+                        :class="CAMPO"
+                        @input="guardarSeries"
+                      />
+                      <button
+                        v-if="series.length > 1 || series[i]"
+                        type="button"
+                        class="shrink-0 rounded-lg border border-gray-300 px-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-red-600"
+                        :aria-label="`Quitar serie ${i + 1}`"
+                        @click="quitarSerie(i)"
+                      >✕</button>
+                    </div>
+                  </div>
+                  <button type="button" class="mt-2 text-xs font-semibold text-teal-700 hover:underline" @click="agregarSerie">+ Agregar otra serie</button>
                 </div>
                 <div v-if="tiene('designacion_volumen')" class="sm:col-span-3">
                   <label for="cat-designacion" :class="ETIQUETA"><Marc :codigo="etiqueta('designacion_volumen')" tono="teal" /> Fecha de publicación y volumen</label>
