@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia } from '@/utils/tomo'
 import { computed, reactive, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import api from '@/services/api'
@@ -33,7 +34,7 @@ watch(
   { immediate: true },
 )
 
-const titulo = computed(() => (props.copia ? `Copia ${props.copia.numero_copia} · ${props.copia.codigo_barras}` : ''))
+const titulo = computed(() => (props.copia ? [nombreDeCopia(props.copia), props.copia.codigo_barras].filter(Boolean).join(' · ') : ''))
 
 async function guardar() {
   if (!props.copia) return

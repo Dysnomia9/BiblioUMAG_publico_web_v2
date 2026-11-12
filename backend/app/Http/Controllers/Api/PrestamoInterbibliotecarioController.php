@@ -31,7 +31,7 @@ use Illuminate\Validation\Rule;
 class PrestamoInterbibliotecarioController extends Controller
 {
     private const RELACIONES = [
-        'ejemplar:id,libro_id,numero_copia,codigo_barras,codigo_lomo,estado_proceso,disponible,ubicacion_id',
+        'ejemplar:id,libro_id,numero_copia,copia_tomo,fecha_ingreso_horizon,codigo_barras,codigo_lomo,estado_proceso,disponible,ubicacion_id',
         'ejemplar.libro:id,titulo,isbn,tipo_material_id',
         'ejemplar.libro.autores:id,nombre',
         'ejemplar.ubicacion:id,nombre',
@@ -160,7 +160,7 @@ class PrestamoInterbibliotecarioController extends Controller
         $ejemplar = $prestamo->ejemplar;
         Bitacora::registrar(
             'libros.recibir_interbibliotecario',
-            "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} (copia {$ejemplar->numero_copia}, {$ejemplar->codigo_barras}, por colocar): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}",
+            "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} ({$ejemplar->copiaEnTexto()}, {$ejemplar->codigo_barras}, por colocar): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}",
             entidad: $prestamo,
             datos: ['codigo_barras' => $ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'fecha_limite' => $prestamo->fecha_limite->toDateString()],
         );
@@ -297,7 +297,7 @@ class PrestamoInterbibliotecarioController extends Controller
         $prestamo = $resultado['prestamo']->load(self::RELACIONES)->loadCount('prestamos as total_prestamos');
         Bitacora::registrar(
             'libros.devolver_interbibliotecario',
-            "Devolvió a {$prestamo->biblioteca} «{$prestamo->ejemplar->libro->titulo}» (copia {$prestamo->ejemplar->numero_copia}, {$prestamo->ejemplar->codigo_barras}), préstamo interbibliotecario"
+            "Devolvió a {$prestamo->biblioteca} «{$prestamo->ejemplar->libro->titulo}» ({$prestamo->ejemplar->copiaEnTexto()}, {$prestamo->ejemplar->codigo_barras}), préstamo interbibliotecario"
                 .($resultado['en_cola'] ? ". {$resultado['en_cola']} ".($resultado['en_cola'] === 1 ? 'reserva en espera cancelada' : 'reservas en espera canceladas') : ''),
             entidad: $prestamo,
             datos: ['codigo_barras' => $prestamo->ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'en_cola' => $resultado['en_cola'], 'prestamo_cerrado' => $resultado['cerrado']?->id],

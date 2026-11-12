@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { numeroDeCopia } from '@/utils/tomo'
 import { computed, reactive, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
@@ -205,7 +206,7 @@ function secciones(): SeccionCsv[] {
           e.codigo_barras,
           e.codigo_lomo,
           l.titulo,
-          e.numero_copia,
+          numeroDeCopia(e) ?? '',
           e.volumen ?? '',
           nombreEstado(e),
           situacionCopia(e).texto,

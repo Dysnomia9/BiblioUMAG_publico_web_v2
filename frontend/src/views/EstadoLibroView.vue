@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -314,7 +315,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                   <span class="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-600">
                     <span class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono">{{ c.codigo_barras }}</span>
                     <span class="rounded border border-gray-200 bg-white px-1.5">lomo {{ c.codigo_lomo }}</span>
-                    <span class="rounded border border-gray-200 bg-white px-1.5">Copia {{ c.numero_copia }}</span>
+                    <span v-if="nombreDeCopia(c)" class="rounded border border-gray-200 bg-white px-1.5">{{ nombreDeCopia(c) }}</span>
                     <span v-if="c.prestado || c.reservado" class="rounded px-1.5 font-semibold" :class="c.prestado ? 'bg-amber-100 text-amber-800' : 'bg-violet-100 text-violet-700'">{{ c.prestado ? 'Prestada' : 'Reservada' }}</span>
                   </span>
                 </span>
@@ -356,7 +357,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
                 <div class="min-w-0">
                   <h2 class="font-serif text-xl font-bold text-gray-900 sm:text-2xl">{{ seleccionada.libro.titulo }}</h2>
                   <p class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
-                    <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5">Copia {{ seleccionada.numero_copia }}</span>
+                    <span v-if="nombreDeCopia(seleccionada)" class="rounded-md border border-gray-200 bg-white px-2 py-0.5">{{ nombreDeCopia(seleccionada) }}</span>
                     <span class="rounded-md border border-gray-200 bg-white px-2 py-0.5 font-mono text-gray-800">{{ seleccionada.codigo_barras }}</span>
                     <span
                       v-if="seleccionada.prestado || seleccionada.reservado"
@@ -525,7 +526,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
       @cancelar="confirmando = false"
     >
       <p>
-        <strong class="text-gray-900">{{ seleccionada?.libro.titulo }}</strong> (copia {{ seleccionada?.numero_copia }} ·
+        <strong class="text-gray-900">{{ seleccionada?.libro.titulo }}</strong> (<template v-if="nombreDeCopia(seleccionada)">{{ nombreDeCopia(seleccionada)!.toLowerCase() }} · </template>
         <span class="font-mono">{{ seleccionada?.codigo_barras }}</span>) saldrá de circulación y dejará de verse en el catálogo y el portal.
       </p>
       <p v-if="seleccionada?.prestado" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
@@ -544,7 +545,7 @@ function nombreEstadoHistorial(h: EjemplarEstadoHistorial) {
       @cancelar="confirmando = false"
     >
       <p>
-        <strong class="text-gray-900">{{ seleccionada?.libro.titulo }}</strong> (copia {{ seleccionada?.numero_copia }} ·
+        <strong class="text-gray-900">{{ seleccionada?.libro.titulo }}</strong> (<template v-if="nombreDeCopia(seleccionada)">{{ nombreDeCopia(seleccionada)!.toLowerCase() }} · </template>
         <span class="font-mono">{{ seleccionada?.codigo_barras }}</span>) pasará de
         <strong class="text-gray-900">{{ seleccionada ? nombreEstado(seleccionada) : '' }}</strong> a <strong class="text-gray-900">{{ textoObjetivo }}</strong>.
       </p>

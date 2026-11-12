@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import FondoPrestamos from '@/components/ui/FondoPrestamos.vue'
@@ -389,7 +390,7 @@ const codigoCompleto = (codigo: string) => codigo.length === 8 || codigo.length 
 async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; enEstante: boolean; ubicacionId: number | null } | null> {
   try {
     const { data } = await api.get(`/ejemplares/${codigo}`)
-    const titulo = data.numero_copia > 0 ? `${data.libro?.titulo} (Copia ${data.numero_copia})` : data.libro?.titulo
+    const titulo = nombreDeCopia(data) ? `${data.libro?.titulo} (${nombreDeCopia(data)})` : data.libro?.titulo
     // Solo una copia en estante puede estar prestada o reservada: la que está en inventario, procesos técnicos, etc. simplemente no está disponible.
     const enEstante = data.estado_proceso === 'en_estante'
     return { titulo, disponible: data.disponible && enEstante, enEstante, ubicacionId: data.ubicacion_id ?? null }

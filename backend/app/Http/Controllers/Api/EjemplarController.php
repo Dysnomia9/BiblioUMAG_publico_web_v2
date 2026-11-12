@@ -91,7 +91,7 @@ class EjemplarController extends Controller
         $ejemplar->refresh()->load(['libro', 'ubicacion']);
         Bitacora::registrar(
             'libros.agregar_copia',
-            "Agregó la copia {$ejemplar->numero_copia} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras}, lomo {$ejemplar->codigo_lomo})",
+            "Agregó la {$ejemplar->copiaEnTexto()} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras}, lomo {$ejemplar->codigo_lomo})",
             entidad: $ejemplar,
             datos: ['codigo_barras' => $ejemplar->codigo_barras, 'codigo_lomo' => $ejemplar->codigo_lomo],
         );
@@ -129,7 +129,7 @@ class EjemplarController extends Controller
 
         Bitacora::registrar(
             'libros.editar_copia',
-            "Editó la copia {$ejemplar->numero_copia} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras})",
+            "Editó la {$ejemplar->copiaEnTexto()} de «{$ejemplar->libro?->titulo}» ({$ejemplar->codigo_barras})",
             entidad: $ejemplar,
             datos: Bitacora::cambios($antes, $ejemplar->only(array_keys($data))),
         );
@@ -227,7 +227,7 @@ class EjemplarController extends Controller
         $ejemplar->refresh()->loadMissing('libro:id,titulo');
         Bitacora::registrar(
             $data['estado_proceso'] === 'de_baja' ? 'libros.dar_de_baja' : 'libros.cambiar_estado',
-            "Cambió el estado de «{$ejemplar->libro?->titulo}» copia {$ejemplar->numero_copia} ({$ejemplar->codigo_barras}): ".self::nombreEstado($estadoAnterior).' → '.self::nombreEstado($data['estado_proceso'])
+            "Cambió el estado de «{$ejemplar->libro?->titulo}» {$ejemplar->copiaEnTexto()} ({$ejemplar->codigo_barras}): ".self::nombreEstado($estadoAnterior).' → '.self::nombreEstado($data['estado_proceso'])
                 .(! empty($data['motivo']) ? ". Motivo: {$data['motivo']}" : '')
                 .($prestamoCerrado ? ". Estaba prestada a {$prestamoCerrado->usuario?->descripcion()}: el préstamo quedó cerrado por la baja" : '')
                 .($apartada ? ". Quedó apartada para {$apartada->usuario?->descripcion()}, primera en la lista de espera" : ''),
@@ -292,7 +292,7 @@ class EjemplarController extends Controller
 
         $query = $this->filtrarEjemplares($request);
         $total = (clone $query)->count();
-        $muestra = (clone $query)->with(['libro:id,titulo', 'ubicacion:id,nombre'])->orderBy('id')->limit(10)->get(['id', 'libro_id', 'codigo_barras', 'numero_copia', 'estado_proceso', 'ubicacion_id']);
+        $muestra = (clone $query)->with(['libro:id,titulo', 'ubicacion:id,nombre'])->orderBy('id')->limit(10)->get(['id', 'libro_id', 'codigo_barras', 'numero_copia', 'copia_tomo', 'fecha_ingreso_horizon', 'estado_proceso', 'ubicacion_id']);
 
         return response()->json(['total' => $total, 'muestra' => $muestra]);
     }
@@ -392,7 +392,7 @@ class EjemplarController extends Controller
     public function historialEstado(Request $request)
     {
         $query = EjemplarEstadoHistorial::with([
-            'ejemplar:id,libro_id,codigo_barras,numero_copia',
+            'ejemplar:id,libro_id,codigo_barras,numero_copia,copia_tomo,fecha_ingreso_horizon',
             'ejemplar.libro:id,titulo',
             'staff:id,nombre',
             'estadoPersonalizadoAnterior:id,nombre',

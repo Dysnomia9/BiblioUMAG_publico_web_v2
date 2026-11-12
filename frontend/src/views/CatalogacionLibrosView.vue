@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type FunctionalComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -586,7 +587,7 @@ function pedirConfirmacionGuardar() {
 // ---------- Recién creada: ofrecer ir a cambiar su estado ----------
 // Toda copia nueva nace en «Inventario»; quien puede cambiar estados tiene a mano el
 // paso siguiente (Estado de ejemplares, con esa copia ya elegida).
-const copiaCreada = ref<{ titulo: string; numeroCopia: number; codigoBarras: string; codigoLomo: string | null; estado: string } | null>(null)
+const copiaCreada = ref<{ titulo: string; numeroCopia: string | null; codigoBarras: string; codigoLomo: string | null; estado: string } | null>(null)
 const puedeCambiarEstado = computed(() => auth.puede('libros.estado'))
 
 // ---------- Dar de baja el título ----------
@@ -619,9 +620,9 @@ async function darDeBajaTitulo() {
 }
 
 /** La de préstamo interbibliotecario nace «Por colocar»; las demás, en «Inventario». */
-function avisarCopiaCreada(titulo: string, copia: Pick<Ejemplar, 'numero_copia' | 'codigo_barras' | 'codigo_lomo'> | undefined, estado = 'Inventario') {
+function avisarCopiaCreada(titulo: string, copia: Pick<Ejemplar, 'etiqueta_copia' | 'codigo_barras' | 'codigo_lomo'> | undefined, estado = 'Inventario') {
   if (!copia || !puedeCambiarEstado.value) return
-  copiaCreada.value = { titulo, numeroCopia: copia.numero_copia, codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null, estado }
+  copiaCreada.value = { titulo, numeroCopia: numeroDeCopia(copia), codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null, estado }
 }
 
 function irACambiarEstado() {
@@ -1580,7 +1581,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       :key="e.id"
                       class="whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-xs font-medium"
                       :class="estadoBadges[e.estado_proceso]?.cls"
-                      :title="`Copia ${e.numero_copia} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
+                      :title="`${nombreDeCopia(e) ?? e.codigo_barras} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
                     >
                       {{ e.etiqueta_copia ? `${e.etiqueta_copia} · ` : '' }}{{ e.codigo_barras }}
                     </span>
@@ -1722,7 +1723,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </span>
         <div class="min-w-0">
           <p class="text-[15px] text-emerald-900">
-            Se creó la <strong>copia {{ copiaCreada?.numeroCopia }}</strong> de <strong>{{ copiaCreada?.titulo }}</strong>
+            Se creó <template v-if="copiaCreada?.numeroCopia">la <strong>copia {{ copiaCreada.numeroCopia }}</strong></template><template v-else>una copia</template> de <strong>{{ copiaCreada?.titulo }}</strong>
           </p>
           <p class="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-emerald-900/80">
             código <span class="rounded-md border border-emerald-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ copiaCreada?.codigoBarras }}</span>

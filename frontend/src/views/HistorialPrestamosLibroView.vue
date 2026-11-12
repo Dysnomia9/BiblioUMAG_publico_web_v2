@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -121,7 +122,7 @@ const prestamos = computed(() => {
         else resultado = atraso ? { texto: `Vencido ${atraso} d`, clase: 'bg-red-50 text-red-700' } : { texto: p.en_sala ? 'En sala' : 'En curso', clase: 'bg-indigo-50 text-indigo-700' }
         return {
           id: p.id,
-          copia: ej.numero_copia,
+          copia: numeroDeCopia(ej),
           codigo: ej.codigo_barras,
           usuario: p.usuario ?? 'Usuario eliminado',
           prestado: fecha(p.fecha_prestamo),
@@ -316,7 +317,7 @@ async function verFicha() {
                     class="grid grid-cols-2 gap-x-3 gap-y-1 px-4 py-3 text-sm md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_6.5rem_6.5rem_3.5rem_7rem] md:items-center md:gap-y-0"
                   >
                     <span class="min-w-0">
-                      <span class="block font-medium text-gray-900">Copia {{ p.copia }}</span>
+                      <span class="block font-medium text-gray-900">{{ p.copia ? `Copia ${p.copia}` : 'Sin número de copia' }}</span>
                       <span class="mt-0.5 inline-block rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-600">{{ p.codigo }}</span>
                     </span>
                     <span class="flex min-w-0 items-center gap-2">

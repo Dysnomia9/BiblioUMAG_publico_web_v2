@@ -139,7 +139,7 @@ class LibroController extends Controller
 
             foreach ($copias as $copia) {
                 if ($bloqueo = $bajas->bloqueo($copia)) {
-                    return ['error' => "La copia {$copia->numero_copia} ({$copia->codigo_barras}): {$bloqueo}"];
+                    return ['error' => 'La '.$copia->copiaEnTexto()." ({$copia->codigo_barras}): {$bloqueo}"];
                 }
             }
 

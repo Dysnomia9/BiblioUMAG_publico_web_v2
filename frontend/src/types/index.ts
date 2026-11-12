@@ -397,6 +397,8 @@ export type CambioMasivoPreview = {
 export type LibroHistorialEjemplar = {
   id: number
   numero_copia: number
+  /** «c.2», la copia como en Horizon y el lomo (null si no tiene). */
+  etiqueta_copia?: string | null
   codigo_barras: string
   total_prestamos: number
   prestamos: {
@@ -674,7 +676,7 @@ export type Fasciculo = {
   id: number
   libro_id: number
   ejemplar_id: number | null
-  ejemplar?: Pick<Ejemplar, 'id' | 'codigo_barras' | 'numero_copia' | 'disponible' | 'estado_proceso'> | null
+  ejemplar?: Pick<Ejemplar, 'id' | 'codigo_barras' | 'numero_copia' | 'etiqueta_copia' | 'disponible' | 'estado_proceso'> | null
   enumeracion: string | null
   cronologia: string | null
   fecha_publicacion: string | null

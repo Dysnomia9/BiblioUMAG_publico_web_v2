@@ -51,6 +51,11 @@ class Ejemplar extends Model
     public function getEtiquetaCopiaAttribute(): ?string
     {
         $atributos = $this->getAttributes();
+        // Cargada con solo algunas columnas: sin saber si vino de Horizon no se puede decir su
+        // «c.N», y numero_copia (interno) daría otro número.
+        if (! array_key_exists('copia_tomo', $atributos) || ! array_key_exists('fecha_ingreso_horizon', $atributos)) {
+            return null;
+        }
         if (! empty($atributos['copia_tomo'])) {
             return "c.{$atributos['copia_tomo']}";
         }
@@ -59,6 +64,12 @@ class Ejemplar extends Model
         }
 
         return ($atributos['numero_copia'] ?? 0) > 0 ? "c.{$atributos['numero_copia']}" : null;
+    }
+
+    /** Para los mensajes: «copia 2» (la de Horizon y el lomo) o «copia sin número». */
+    public function copiaEnTexto(): string
+    {
+        return ($etiqueta = $this->etiqueta_copia) ? 'copia '.preg_replace('/^c\.\s*/i', '', $etiqueta) : 'copia sin número';
     }
 
     protected function casts(): array
@@ -156,12 +167,13 @@ class Ejemplar extends Model
         return $this->coleccion ?: $this->libro?->coleccion;
     }
 
-    /** "Título (Copia N)", o el título tal cual para la copia 0 (la que no lleva «c.»). */
+    /** "Título (Copia N)" con la copia de Horizon y el lomo («c.N»), o el título tal cual si no tiene. */
     public function tituloConCopia(): string
     {
         $titulo = $this->libro->titulo;
+        $etiqueta = $this->etiqueta_copia;
 
-        return $this->numero_copia > 0 ? "{$titulo} (Copia {$this->numero_copia})" : $titulo;
+        return $etiqueta ? "{$titulo} (Copia ".preg_replace('/^c\.\s*/i', '', $etiqueta).')' : $titulo;
     }
 
     /**

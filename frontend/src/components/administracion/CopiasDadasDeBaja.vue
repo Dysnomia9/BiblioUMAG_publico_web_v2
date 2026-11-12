@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia } from '@/utils/tomo'
 import { onMounted, ref } from 'vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -141,7 +142,7 @@ onMounted(cargar)
             <td class="border-l-[3px] border-l-gray-300 px-4 py-2.5">
               <span class="block text-sm font-semibold text-gray-900">{{ c.libro.titulo }}</span>
               <span class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                Copia {{ c.numero_copia }}
+                {{ nombreDeCopia(c) ?? 'Sin número de copia' }}
                 <span class="rounded border border-gray-200 bg-white px-1.5 py-px font-mono text-gray-700">{{ c.codigo_barras }}</span>
                 <span v-if="c.libro.tipo_material" class="rounded bg-indigo-50 px-1.5 py-px font-semibold text-indigo-700">{{ c.libro.tipo_material.nombre }}</span>
               </span>
@@ -190,7 +191,7 @@ onMounted(cargar)
       <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
         <p class="font-bold text-gray-900">{{ aReincorporar?.libro.titulo }}</p>
         <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-          Copia {{ aReincorporar?.numero_copia }}
+          {{ nombreDeCopia(aReincorporar) ?? 'Sin número de copia' }}
           <span class="rounded border border-gray-200 bg-white px-1.5 py-px font-mono text-gray-700">{{ aReincorporar?.codigo_barras }}</span>
         </p>
       </div>

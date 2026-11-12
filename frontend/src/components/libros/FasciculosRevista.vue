@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia } from '@/utils/tomo'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
@@ -147,7 +148,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <div class="min-w-0">
           <p class="text-sm font-semibold text-gray-900">{{ nombre(f) }}</p>
           <p class="text-xs text-gray-500">
-            {{ detalle(f) }}<template v-if="f.ejemplar"> · copia {{ f.ejemplar.numero_copia }} (<span class="font-mono">{{ f.ejemplar.codigo_barras }}</span>)</template
+            {{ detalle(f) }}<template v-if="f.ejemplar"> · {{ nombreDeCopia(f.ejemplar)?.toLowerCase() ?? 'copia' }} (<span class="font-mono">{{ f.ejemplar.codigo_barras }}</span>)</template
             ><template v-if="f.nota"> · {{ f.nota }}</template>
           </p>
         </div>
@@ -201,7 +202,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <label for="fasciculo-copia" class="mb-1 block text-xs font-medium text-gray-600">Copia prestable (opcional)</label>
           <select id="fasciculo-copia" v-model="nuevo.datos.ejemplar_id" :class="CAMPO">
             <option value="">Ninguna</option>
-            <option v-for="c in copias" :key="c.id" :value="c.id">Copia {{ c.numero_copia }}{{ c.volumen ? ` · ${c.volumen}` : '' }} · {{ c.codigo_barras }}</option>
+            <option v-for="c in copias" :key="c.id" :value="c.id">{{ [nombreDeCopia(c), c.volumen, c.codigo_barras].filter(Boolean).join(' · ') }}</option>
           </select>
         </div>
         <div>

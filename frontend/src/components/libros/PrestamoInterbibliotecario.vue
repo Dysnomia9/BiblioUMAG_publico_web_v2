@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia } from '@/utils/tomo'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
@@ -752,7 +753,7 @@ async function guardarEdicion() {
       @cancelar="aDevolver = null"
     >
       <p>
-        <strong class="text-gray-900">{{ aDevolver?.ejemplar.libro.titulo }}</strong> (copia {{ aDevolver?.ejemplar.numero_copia }} ·
+        <strong class="text-gray-900">{{ aDevolver?.ejemplar.libro.titulo }}</strong> (<template v-if="nombreDeCopia(aDevolver?.ejemplar)">{{ nombreDeCopia(aDevolver?.ejemplar)!.toLowerCase() }} · </template>
         <span class="font-mono">{{ aDevolver?.ejemplar.codigo_barras }}</span>) vuelve a su biblioteca y deja de verse en el catálogo y el portal.
         <template v-if="!aDevolver?.total_prestamos">No se borra: queda registrado que estuvo aquí.</template>
         <template v-else-if="aDevolver.total_prestamos === 1">No se borra: su préstamo sigue en el historial y en los reportes.</template>

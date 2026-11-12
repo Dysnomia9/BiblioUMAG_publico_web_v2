@@ -20,7 +20,7 @@ class FasciculoController extends Controller
     public function index(Libro $libro)
     {
         $fasciculos = $libro->fasciculos()
-            ->with('ejemplar:id,codigo_barras,numero_copia,disponible,estado_proceso')
+            ->with('ejemplar:id,codigo_barras,numero_copia,copia_tomo,fecha_ingreso_horizon,disponible,estado_proceso')
             // Los más recientes arriba; los que no tienen fecha, al final.
             ->orderByRaw('COALESCE(fecha_publicacion, fecha_esperada, fecha_recepcion) DESC NULLS LAST')
             ->orderByDesc('id')
@@ -51,7 +51,7 @@ class FasciculoController extends Controller
             entidad: $fasciculo,
         );
 
-        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,disponible,estado_proceso'), 201);
+        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,copia_tomo,fecha_ingreso_horizon,disponible,estado_proceso'), 201);
     }
 
     public function update(Request $request, Fasciculo $fasciculo)
@@ -68,7 +68,7 @@ class FasciculoController extends Controller
             datos: Bitacora::cambios($antes, $fasciculo->only(array_keys($data))),
         );
 
-        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,disponible,estado_proceso'));
+        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,copia_tomo,fecha_ingreso_horizon,disponible,estado_proceso'));
     }
 
     /** Llegó el número: queda «recibido» con su fecha de recepción (hoy, si no se indica). */
@@ -97,7 +97,7 @@ class FasciculoController extends Controller
             datos: ['fecha_recepcion' => $fasciculo->fecha_recepcion?->toDateString()],
         );
 
-        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,disponible,estado_proceso'));
+        return response()->json($fasciculo->fresh('ejemplar:id,codigo_barras,numero_copia,copia_tomo,fecha_ingreso_horizon,disponible,estado_proceso'));
     }
 
     private function reglas(Libro $libro): array

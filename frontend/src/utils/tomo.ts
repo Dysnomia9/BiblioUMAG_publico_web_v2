@@ -25,3 +25,12 @@ export function textoCopia(volumen?: string | null, etiquetaCopia?: string | nul
   const partes = [tomo ?? otro, copia ? `Copia ${copia}` : null].filter(Boolean)
   return partes.length ? partes.join(' · ') : null
 }
+
+/**
+ * El número de copia que se ve en el lomo y en Horizon («c.2» → «2»), o null si la copia no
+ * tiene. No es numero_copia: ese es interno de BiblioUMAG y no coincide con el de Horizon.
+ */
+export const numeroDeCopia = (e?: { etiqueta_copia?: string | null } | null) => e?.etiqueta_copia?.replace(/^c\.\s*/i, '') || null
+
+/** «Copia 2», o null si la copia no tiene número. */
+export const nombreDeCopia = (e?: { etiqueta_copia?: string | null } | null) => (numeroDeCopia(e) ? `Copia ${numeroDeCopia(e)}` : null)

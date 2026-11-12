@@ -678,7 +678,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                           v-if="puedeCatalogar"
                           type="button"
                           class="rounded-lg px-2 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-50"
-                          :aria-label="`Editar la copia ${e.numero_copia} (${e.codigo_barras})`"
+                          :aria-label="`Editar la copia ${e.codigo_barras}`"
                           @click="copiaAEditar = { copia: e, libro: f.libro }"
                         >
                           Editar
@@ -688,8 +688,8 @@ function copiaGuardada(actualizada: Ejemplar) {
                           v-if="puedeCambiarEstado"
                           :to="{ name: 'estado-libro', query: { q: e.codigo_barras } }"
                           class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
-                          :title="`Cambiar el estado de la copia ${e.numero_copia}`"
-                          :aria-label="`Cambiar el estado de la copia ${e.numero_copia} (${e.codigo_barras})`"
+                          :title="`Cambiar el estado de la copia ${e.codigo_barras}`"
+                          :aria-label="`Cambiar el estado de la copia ${e.codigo_barras}`"
                         >
                           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -157,7 +158,7 @@ function resumenLote(h: EjemplarEstadoHistorial) {
   const anteriores = new Set(filas.map((x) => etiquetaEstado(x, 'anterior')))
   const copias = filas.slice(0, COPIAS_EN_RESUMEN).map((x) => {
     const palabras = (x.ejemplar?.libro?.titulo ?? 'Libro eliminado').split(/\s+/)
-    return `${palabras.slice(0, 3).join(' ')}${palabras.length > 3 ? '…' : ''} (c.${x.ejemplar?.numero_copia ?? '?'})`
+    return `${palabras.slice(0, 3).join(' ')}${palabras.length > 3 ? '…' : ''} ${numeroDeCopia(x.ejemplar) ? ` (c.${numeroDeCopia(x.ejemplar)})` : ''}`
   })
   return {
     total,
@@ -300,7 +301,7 @@ const CAMPO =
                       <div class="min-w-0">
                         <p class="text-sm font-semibold leading-snug text-gray-900">{{ h.ejemplar?.libro?.titulo ?? 'Libro eliminado' }}</p>
                         <p class="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-600">
-                          <span class="rounded border border-gray-200 bg-white px-1.5">Copia {{ h.ejemplar?.numero_copia }}</span>
+                          <span v-if="nombreDeCopia(h.ejemplar)" class="rounded border border-gray-200 bg-white px-1.5">{{ nombreDeCopia(h.ejemplar) }}</span>
                           <span class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono">{{ h.ejemplar?.codigo_barras }}</span>
                         </p>
                       </div>
