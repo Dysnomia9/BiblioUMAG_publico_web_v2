@@ -132,7 +132,6 @@ export type RespuestaEntradas = {
   fecha?: string
   entradas: Entrada[]
   hoy: { personas: number; entradas: number; qr: number; portal: number; manuales: number; sala: number }
-  aforo: number
   horario: HorarioBiblioteca
 }
 

@@ -43,7 +43,6 @@ const entradas = ref<Entrada[]>([])
 const resumenHoy = ref<RespuestaEntradas['hoy']>({ personas: 0, entradas: 0, qr: 0, portal: 0, manuales: 0, sala: 0 })
 // Aviso (no error) cuando la persona ya estaba presente hoy: no se registra dos veces.
 const yaPresente = ref('')
-const aforo = ref(0)
 const horario = ref<HorarioBiblioteca | null>(null)
 const apiError = ref(false)
 const cargando = ref(true)
@@ -92,7 +91,6 @@ async function cargar() {
     const { data } = await api.get<RespuestaEntradas>('/entrada', { params })
     entradas.value = data.entradas
     resumenHoy.value = data.hoy
-    aforo.value = data.aforo
     horario.value = data.horario
     apiError.value = false
   } catch {
@@ -282,9 +280,6 @@ async function registrarConvenio() {
     registrandoConvenio.value = false
   }
 }
-
-// ---------- Recuadro de hoy ----------
-const porcentajeAforo = computed(() => (aforo.value ? Math.round((resumenHoy.value.personas / aforo.value) * 100) : 0))
 
 // ---------- Listado ----------
 const TIPOS: Record<string, { texto: string; badge: string; avatar: string }> = {
@@ -532,30 +527,26 @@ function verSusPrestamos(e: Entrada) {
             <div class="flex items-center gap-2.5">
               <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25" />
                 </svg>
               </span>
               <p>
-                <span class="font-serif text-2xl font-bold tabular-nums text-gray-900">{{ resumenHoy.personas }}</span>
-                <span v-if="aforo" class="ml-1 text-sm text-gray-500">de {{ aforo }}</span>
+                <span class="font-serif text-2xl font-bold tabular-nums text-gray-900">{{ resumenHoy.entradas }}</span>
+                <span class="ml-1 text-sm text-gray-500">{{ resumenHoy.entradas === 1 ? 'ingreso' : 'ingresos' }}</span>
               </p>
             </div>
-            <p v-if="aforo" class="text-right leading-tight">
-              <span class="block text-sm font-semibold tabular-nums text-gray-900">{{ porcentajeAforo }}%</span>
-              <span class="text-[11px] text-gray-500">del aforo</span>
-            </p>
           </div>
-          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-            <div class="h-full rounded-full bg-emerald-600 transition-all" :style="{ width: `${Math.min(100, porcentajeAforo)}%` }" />
-          </div>
-          <p class="mt-1 text-[11px] text-gray-500">Personas distintas que marcaron su entrada hoy.</p>
+          <!-- Sin aforo: no se registra la salida, así que no se sabe cuántos siguen adentro. -->
+          <p class="mt-1 text-[11px] text-gray-500">
+            Ingresos totales de hoy<template v-if="resumenHoy.personas !== resumenHoy.entradas"> · {{ resumenHoy.personas }} {{ resumenHoy.personas === 1 ? 'persona distinta' : 'personas distintas' }}</template>.
+          </p>
           <div class="mt-2 grid grid-cols-2 gap-1.5">
             <div
               v-for="k in [
-                { valor: resumenHoy.entradas, texto: 'Entradas hoy', tono: 'bg-indigo-50 text-indigo-600', icono: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25' },
+                { valor: resumenHoy.sala, texto: 'Por llegada a sala', tono: 'bg-indigo-50 text-indigo-600', icono: 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z' },
                 { valor: resumenHoy.qr, texto: 'Por QR', tono: 'bg-violet-50 text-violet-600', icono: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z' },
                 { valor: resumenHoy.portal, texto: 'Portal digital', tono: 'bg-sky-50 text-sky-600', icono: 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3' },
-                { valor: resumenHoy.manuales + resumenHoy.sala, texto: resumenHoy.sala ? `Manuales · ${resumenHoy.sala} al llegar a sala` : 'Manuales', tono: 'bg-amber-50 text-amber-600', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
+                { valor: resumenHoy.manuales, texto: 'Manuales', tono: 'bg-amber-50 text-amber-600', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
               ]"
               :key="k.texto"
               class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1"

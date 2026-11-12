@@ -220,7 +220,7 @@ class EntradaTest extends TestCase
         $this->getJson('/api/entrada?fecha='.now()->subDay()->toDateString())->assertOk()
             ->assertJsonCount(1, 'entradas')
             ->assertJsonPath('hoy', ['personas' => 4, 'entradas' => 5, 'qr' => 1, 'portal' => 1, 'manuales' => 3, 'sala' => 0])
-            ->assertJsonPath('aforo', config('biblioteca.aforo'));
+            ->assertJsonMissingPath('aforo');
     }
 
     public function test_la_busqueda_en_el_historial_encuentra_por_nombre_completo_sin_tildes_y_por_rut_sin_puntos(): void

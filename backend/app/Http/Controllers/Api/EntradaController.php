@@ -95,8 +95,8 @@ class EntradaController extends Controller
 
     /**
      * El recuadro de hoy de la pantalla Entradas, se esté mirando el día que sea:
-     * personas distintas que vinieron (contra el aforo), cuántas entradas hubo y cómo
-     * se registraron. Más el horario, para el aviso «Abierta · cierra a las…».
+     * cuántas entradas hubo, de cuántas personas distintas y cómo se registraron (sin
+     * aforo: no se marca la salida, así que no se sabe cuántos siguen adentro). Más el horario, para el aviso «Abierta · cierra a las…».
      */
     private function resumenDeHoy(): array
     {
@@ -112,7 +112,6 @@ class EntradaController extends Controller
                 // Marcadas solas al confirmar la llegada del grupo a una sala reservada.
                 'sala' => $hoy()->where('via', 'sala')->count(),
             ],
-            'aforo' => config('biblioteca.aforo'),
             'horario' => HorarioBiblioteca::semana(),
         ];
     }
