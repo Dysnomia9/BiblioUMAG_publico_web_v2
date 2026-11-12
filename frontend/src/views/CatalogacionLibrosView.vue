@@ -1678,8 +1678,8 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       <span class="font-mono text-gray-700">Ficha N.º {{ l.numero_ficha }}</span> ·
                       <template v-if="l.autores?.length">{{ l.autores.map((a) => a.nombre).join('; ') }} · </template>{{ l.ejemplares_count ?? l.ejemplares?.length ?? 0 }} copia(s)
                     </p>
-                    <p v-if="l.ejemplares?.length" class="mt-0.5 truncate font-mono text-[11px] text-gray-400">
-                      {{ l.ejemplares.map((e) => e.codigo_barras).join(' · ') }}
+                    <p v-if="l.ejemplares?.length" class="mt-0.5 line-clamp-2 text-[11px] text-gray-500">
+                      {{ l.ejemplares.map((e) => rotuloCopia(e)).join('  |  ') }}
                     </p>
                   </button>
                 </div>
@@ -1764,7 +1764,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <label for="copia-tomo" :class="ETIQUETA">Tomo <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
                   <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1" :class="CAMPO" />
                   <datalist id="tomos-de-la-obra">
-                    <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
+                    <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ partesCopia(t.tomo, null).tomo ?? t.tomo }} · {{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
                   <p v-if="copiaDelTomo === 0" class="mt-1 text-[11px] font-semibold text-indigo-700">
                     Quedará como <strong>{{ textoCopia(normalizarTomo(formCopia.tomo), null) ?? normalizarTomo(formCopia.tomo) }}</strong> <span class="font-mono font-normal text-indigo-500">({{ normalizarTomo(formCopia.tomo) }})</span>, la primera de ese tomo
