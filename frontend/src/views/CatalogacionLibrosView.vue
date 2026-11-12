@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
+import { nombreDeCopia, numeroDeCopia, partesCopia, textoCopia } from '@/utils/tomo'
+import EditarCopia from '@/components/libros/EditarCopia.vue'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type FunctionalComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -400,6 +401,22 @@ const tomosDeLaObra = computed(() => {
  * La «c.N» que va a tener dentro del tomo (la calcula también el servidor al guardar), como en
  * Horizon: la primera del tomo va sin «c.» (0 = «t.4» sola), la segunda es la c.1, la tercera la c.2…
  */
+/** La copia como se ve en el listado: «Tomo 1 · Copia 2 · 30000…» (sin tomo ni «c.», solo el código). */
+const rotuloCopia = (e: Pick<Ejemplar, 'volumen' | 'etiqueta_copia' | 'codigo_barras'>) => {
+  const texto = textoCopia(e.volumen, e.etiqueta_copia)
+  return texto ? `${texto} · ${e.codigo_barras}` : e.codigo_barras
+}
+
+// ---------- Editar una copia (ubicación, volumen, colección y notas), aquí mismo ----------
+const copiaAEditar = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
+function copiaGuardada(actualizada: Ejemplar) {
+  for (const libro of [copiaAEditar.value?.libro, libroParaCopia.value, ...libros.value]) {
+    const i = libro?.ejemplares?.findIndex((e) => e.id === actualizada.id) ?? -1
+    if (libro?.ejemplares && i >= 0) libro.ejemplares[i] = { ...libro.ejemplares[i], ...actualizada, libro: undefined }
+  }
+  copiaAEditar.value = null
+}
+
 const copiaDelTomo = computed(() => {
   const tomo = normalizarTomo(formCopia.tomo)
   if (!tomo) return null
@@ -735,7 +752,7 @@ function pedirConfirmacionGuardar() {
 // ---------- Recién creada: ofrecer ir a cambiar su estado ----------
 // Toda copia nueva nace en «Inventario»; quien puede cambiar estados tiene a mano el
 // paso siguiente (Estado de ejemplares, con esa copia ya elegida).
-const copiaCreada = ref<{ titulo: string; numeroCopia: string | null; codigoBarras: string; codigoLomo: string | null; estado: string } | null>(null)
+const copiaCreada = ref<{ titulo: string; numeroCopia: string | null; rotulo: string | null; codigoBarras: string; codigoLomo: string | null; estado: string } | null>(null)
 const puedeCambiarEstado = computed(() => auth.puede('libros.estado'))
 
 // ---------- Dar de baja el título ----------
@@ -768,9 +785,9 @@ async function darDeBajaTitulo() {
 }
 
 /** La de préstamo interbibliotecario nace «Por colocar»; las demás, en «Inventario». */
-function avisarCopiaCreada(titulo: string, copia: Pick<Ejemplar, 'etiqueta_copia' | 'codigo_barras' | 'codigo_lomo'> | undefined, estado = 'Inventario') {
+function avisarCopiaCreada(titulo: string, copia: Pick<Ejemplar, 'etiqueta_copia' | 'codigo_barras' | 'codigo_lomo'> & { volumen?: string | null } | undefined, estado = 'Inventario') {
   if (!copia || !puedeCambiarEstado.value) return
-  copiaCreada.value = { titulo, numeroCopia: numeroDeCopia(copia), codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null, estado }
+  copiaCreada.value = { titulo, numeroCopia: numeroDeCopia(copia), rotulo: textoCopia(copia.volumen, copia.etiqueta_copia), codigoBarras: copia.codigo_barras, codigoLomo: copia.codigo_lomo ?? null, estado }
 }
 
 function irACambiarEstado() {
@@ -1673,13 +1690,16 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-0.5 text-xs font-semibold text-indigo-800">Ficha N.º <span class="font-mono">{{ libroParaCopia.numero_ficha }}</span></p>
                   <p class="text-xs text-gray-500">{{ libroParaCopia.ejemplares_count ?? libroParaCopia.ejemplares?.length ?? 0 }} copia(s) ya catalogada(s)</p>
                   <div v-if="libroParaCopia.ejemplares?.length" class="mt-2 flex flex-wrap gap-1">
-                    <span
+                    <button
                       v-for="e in libroParaCopia.ejemplares"
                       :key="e.id"
-                      class="whitespace-nowrap rounded-full border border-indigo-100 bg-white px-2 py-0.5 font-mono text-[11px] text-gray-600"
+                      type="button"
+                      class="whitespace-nowrap rounded-full border border-indigo-100 bg-white px-2 py-0.5 text-[11px] text-gray-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+                      :title="`Editar la copia ${e.codigo_barras}`"
+                      @click="copiaAEditar = { copia: e, libro: libroParaCopia }"
                     >
-                      {{ e.etiqueta_copia ? `${e.etiqueta_copia} · ` : '' }}{{ e.codigo_barras }}
-                    </span>
+                      {{ rotuloCopia(e) }}
+                    </button>
                   </div>
                 </div>
                 <button type="button" class="shrink-0 text-xs font-medium text-indigo-700 hover:underline" @click="cambiarObra">Cambiar</button>
@@ -1725,6 +1745,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       Corto <span class="font-mono font-normal text-gray-500">· 8 dígitos</span>
                     </button>
                   </div>
+                  <p class="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] leading-snug text-amber-900">
+                    <strong>Generar</strong> crea un código <strong>nuevo, que no usa ninguna copia ni equipo</strong>. Úsalo solo si la copia no trae
+                    código de barras pegado, y después imprime su etiqueta. Si ya trae uno, escanéalo en la casilla.
+                  </p>
                   <p v-if="/^[1-9][0-9]{7}$/.test(formCopia.codigo_barras.trim())" class="mt-1 text-[11px] text-gray-500">
                     Código corto: queda también como su código de lomo (la copia tendrá un solo número).
                   </p>
@@ -1743,13 +1767,13 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
                   <p v-if="copiaDelTomo === 0" class="mt-1 text-[11px] font-semibold text-indigo-700">
-                    Quedará como <span class="font-mono">{{ normalizarTomo(formCopia.tomo) }}</span> (la primera de ese tomo, sin «c.»)
+                    Quedará como <strong>{{ textoCopia(normalizarTomo(formCopia.tomo), null) ?? normalizarTomo(formCopia.tomo) }}</strong> <span class="font-mono font-normal text-indigo-500">({{ normalizarTomo(formCopia.tomo) }})</span>, la primera de ese tomo
                   </p>
                   <p v-else-if="copiaDelTomo" class="mt-1 text-[11px] font-semibold text-indigo-700">
-                    Quedará como <span class="font-mono">{{ normalizarTomo(formCopia.tomo) }} c.{{ copiaDelTomo }}</span> (copia {{ copiaDelTomo }} de ese tomo)
+                    Quedará como <strong>{{ textoCopia(`${normalizarTomo(formCopia.tomo)} c.${copiaDelTomo}`, null) }}</strong> <span class="font-mono font-normal text-indigo-500">({{ normalizarTomo(formCopia.tomo) }} c.{{ copiaDelTomo }})</span>
                   </p>
                   <p v-else-if="tomosDeLaObra.length" class="mt-1 text-[11px] text-gray-500">
-                    Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${t.tomo} (${t.copias})`).join(' · ') }}
+                    Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${partesCopia(t.tomo, null).tomo ?? t.tomo} (${t.copias} ${t.copias === 1 ? 'copia' : 'copias'})`).join(' · ') }}
                   </p>
                 </div>
                 <div class="sm:col-span-3">
@@ -1931,20 +1955,26 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <td class="px-5 py-3 font-mono text-xs text-gray-500">{{ l.clasificacion ?? '—' }}</td>
                 <td class="px-5 py-3">
                   <div class="flex flex-wrap gap-1">
-                    <span
+                    <!-- En «Nuevo ejemplar», cada copia abre su edición; en «Nueva ficha», solo se muestra -->
+                    <component
+                      :is="modo === 'copia' ? 'button' : 'span'"
                       v-for="e in l.ejemplares"
                       :key="e.id"
-                      class="whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-xs font-medium"
-                      :class="estadoBadges[e.estado_proceso]?.cls"
-                      :title="`${nombreDeCopia(e) ?? e.codigo_barras} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
+                      :type="modo === 'copia' ? 'button' : undefined"
+                      class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+                      :class="[estadoBadges[e.estado_proceso]?.cls, modo === 'copia' ? 'ring-indigo-300 transition hover:ring-2' : '']"
+                      :title="`${modo === 'copia' ? 'Editar la copia · ' : ''}${nombreDeCopia(e) ?? e.codigo_barras} · ${estadoBadges[e.estado_proceso]?.label ?? e.estado_proceso}`"
+                      @click="modo === 'copia' && (copiaAEditar = { copia: e, libro: l })"
                     >
-                      {{ e.etiqueta_copia ? `${e.etiqueta_copia} · ` : '' }}{{ e.codigo_barras }}
-                    </span>
+                      {{ rotuloCopia(e) }}
+                    </component>
                   </div>
+                  <p v-if="modo === 'copia' && l.ejemplares?.length" class="mt-1 text-[11px] text-gray-400">Haz clic en una copia para editarla</p>
                 </td>
                 <td class="px-5 py-3">
                   <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <button type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="libroAEditar = l">Editar</button>
+                    <!-- En «Nuevo ejemplar» se editan las copias (en la columna Copias), no la ficha -->
+                    <button v-if="modo !== 'copia'" type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="libroAEditar = l">Editar</button>
                     <button type="button" class="text-sm font-medium text-emerald-700 hover:text-emerald-800" @click="agregarCopiaDe(l)">Agregar copia</button>
                   </div>
                 </td>
@@ -2054,6 +2084,14 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       </template>
     </DialogoConfirmacion>
 
+    <EditarCopia
+      :copia="copiaAEditar?.copia ?? null"
+      :coleccion-libro="copiaAEditar?.libro.coleccion ?? null"
+      :ubicaciones="ubicacionesOpciones"
+      @cerrar="copiaAEditar = null"
+      @guardada="copiaGuardada"
+    />
+
     <!-- Ficha creada: su N.º a la vista y qué hacer ahora (no se va sola como una notificación) -->
     <Modal
       :abierto="!!fichaCreada"
@@ -2151,7 +2189,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </span>
         <div class="min-w-0">
           <p class="text-[15px] text-emerald-900">
-            Se creó <template v-if="copiaCreada?.numeroCopia">la <strong>copia {{ copiaCreada.numeroCopia }}</strong></template><template v-else>una copia</template> de <strong>{{ copiaCreada?.titulo }}</strong>
+            Se creó <template v-if="copiaCreada?.rotulo"><strong>{{ copiaCreada.rotulo }}</strong></template><template v-else>una copia</template> de <strong>{{ copiaCreada?.titulo }}</strong>
           </p>
           <p class="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-emerald-900/80">
             código <span class="rounded-md border border-emerald-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ copiaCreada?.codigoBarras }}</span>
