@@ -24,13 +24,13 @@ use Illuminate\Support\Carbon;
  * - «estudiante + revista» gana a «revista» sola (fija más criterios).
  *
  * Sin regla que calce, o en los valores que la regla deja en null, sigue lo de antes
- * de las reglas: un libro a la vez, la tarifa y el tope de config/multas.php y la
- * fecha de devolución que elija quien atiende.
+ * de las reglas: sin límite de libros a la vez, la tarifa y el tope de
+ * config/multas.php y la fecha de devolución que elija quien atiende.
  */
 class ReglaPrestamoService
 {
-    /** Lo de antes de las reglas: un libro a la vez por persona. */
-    public const MAX_EJEMPLARES_SIN_REGLA = 1;
+    /** Sin regla que fije un máximo, no hay límite de libros a la vez (null = sin límite). */
+    public const MAX_EJEMPLARES_SIN_REGLA = null;
 
     public function reglaPara(?string $tipoUsuario, ?int $tipoMaterialId, ?int $ubicacionId): ?ReglaPrestamo
     {
@@ -64,8 +64,8 @@ class ReglaPrestamoService
         return $this->reglaParaPrestar($prestamo->usuario, $prestamo->ejemplar);
     }
 
-    /** Cuántos libros puede tener la persona a la vez con esta regla. */
-    public function maxEjemplares(?ReglaPrestamo $regla): int
+    /** Cuántos libros puede tener la persona a la vez con esta regla; null es sin límite. */
+    public function maxEjemplares(?ReglaPrestamo $regla): ?int
     {
         return $regla?->max_ejemplares ?? self::MAX_EJEMPLARES_SIN_REGLA;
     }
@@ -142,8 +142,11 @@ class ReglaPrestamoService
         }
 
         $maximo = $this->maxEjemplares($regla);
-        $enPrestamo = $this->librosEnPrestamo($usuario->id);
+        if ($maximo === null) {
+            return null;
+        }
 
+        $enPrestamo = $this->librosEnPrestamo($usuario->id);
         if ($enPrestamo < $maximo) {
             return null;
         }

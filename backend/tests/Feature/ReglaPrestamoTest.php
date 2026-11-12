@@ -86,14 +86,15 @@ class ReglaPrestamoTest extends TestCase
             ->assertOk()
             ->assertJsonPath('regla', null)
             ->assertJsonPath('prestable', true)
-            ->assertJsonPath('max_ejemplares', 1)
+            ->assertJsonPath('max_ejemplares', null)
             ->assertJsonPath('fecha_devolucion', null)
             ->assertJsonPath('multa_por_dia', config('multas.monto_dia'))
             ->assertJsonPath('tope_multa', config('multas.tope_maximo'));
 
+        // Sin regla que fije un máximo no hay límite de libros a la vez.
         $this->prestar($usuario, $copia)->assertCreated();
-        $this->prestar($usuario, $this->copia())->assertStatus(409)
-            ->assertJsonPath('message', 'Este usuario ya tiene un libro prestado sin devolver — debe devolverlo antes de llevarse otro.');
+        $this->prestar($usuario, $this->copia())->assertCreated();
+        $this->prestar($usuario, $this->copia())->assertCreated();
     }
 
     public function test_la_regla_propone_la_fecha_de_devolucion_corrida_al_siguiente_dia_con_atencion(): void
@@ -207,7 +208,7 @@ class ReglaPrestamoTest extends TestCase
         $this->getJson('/api/reglas-prestamo')->assertOk()
             // La otra es la de los juegos (solo uso en sala), que viene con la instalación.
             ->assertJsonCount(2, 'reglas')
-            ->assertJsonPath('sin_regla.max_ejemplares', 1);
+            ->assertJsonPath('sin_regla.max_ejemplares', null);
 
         $this->deleteJson("/api/reglas-prestamo/{$id}")->assertNoContent();
         $this->assertDatabaseCount('reglas_prestamo', 1);

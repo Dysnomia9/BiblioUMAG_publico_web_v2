@@ -14,7 +14,7 @@ import type { ReglaPrestamo, TipoMaterial, TipoUsuario, Ubicacion } from '@/type
 const toast = useToast()
 
 const reglas = ref<ReglaPrestamo[]>([])
-const sinRegla = ref<{ max_ejemplares: number; multa_por_dia: number; tope_multa: number | null } | null>(null)
+const sinRegla = ref<{ max_ejemplares: number | null; multa_por_dia: number; tope_multa: number | null } | null>(null)
 const tiposMaterial = ref<TipoMaterial[]>([])
 const ubicaciones = ref<Ubicacion[]>([])
 
@@ -49,11 +49,16 @@ function aQuien(r: Pick<ReglaPrestamo, 'tipo_usuario' | 'tipo_material_id' | 'ub
   ].join(' · ')
 }
 
+/** «3 a la vez», o «sin límite de libros» cuando no hay máximo. */
+function aLaVez(maximo: number | null) {
+  return maximo === null ? 'sin límite de libros' : `${maximo} a la vez`
+}
+
 function condiciones(r: ReglaPrestamo) {
   if (!r.prestable) return 'Solo uso en sala (no se presta a domicilio)'
   const partes = [
     r.dias_prestamo !== null ? `${r.dias_prestamo} ${r.dias_prestamo === 1 ? 'día' : 'días'}` : 'plazo a elección del mesón',
-    `${r.max_ejemplares ?? sinRegla.value?.max_ejemplares ?? 1} a la vez`,
+    aLaVez(r.max_ejemplares ?? sinRegla.value?.max_ejemplares ?? null),
     `multa ${pesos(r.multa_por_dia ?? sinRegla.value?.multa_por_dia ?? 0)} por día`,
   ]
   const tope = r.tope_multa ?? sinRegla.value?.tope_multa
@@ -176,7 +181,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
           Plazo, cuántos libros a la vez y multa según quién pide, qué material y de dónde. Un campo vacío vale para todos. Al prestar se usa la regla
           <strong>más específica</strong> que calce (la que fija más criterios; si empatan, manda el tipo de material, luego la ubicación y luego el
           tipo de usuario). Si ninguna calza:
-          <template v-if="sinRegla">{{ sinRegla.max_ejemplares === 1 ? 'un libro' : `${sinRegla.max_ejemplares} libros` }} a la vez, {{ pesos(sinRegla.multa_por_dia) }} por día de atraso{{ sinRegla.tope_multa ? `, tope ${pesos(sinRegla.tope_multa)}` : '' }}, y la fecha la elige el mesón.</template>
+          <template v-if="sinRegla">{{ sinRegla.max_ejemplares === null ? 'sin límite de libros a la vez' : sinRegla.max_ejemplares === 1 ? 'un libro a la vez' : `${sinRegla.max_ejemplares} libros a la vez` }}, {{ pesos(sinRegla.multa_por_dia) }} por día de atraso{{ sinRegla.tope_multa ? `, tope ${pesos(sinRegla.tope_multa)}` : '' }}, y la fecha la elige el mesón.</template>
         </p>
       </div>
       <button type="button" class="shrink-0 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="abrirNueva">
@@ -256,7 +261,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none
             </div>
             <div>
               <label for="regla-max" class="mb-1 block text-xs font-medium text-gray-600">Libros a la vez</label>
-              <input id="regla-max" v-model="form.ficha.max_ejemplares" inputmode="numeric" maxlength="3" :placeholder="`${sinRegla?.max_ejemplares ?? 1} (general)`" :class="CAMPO" />
+              <input id="regla-max" v-model="form.ficha.max_ejemplares" inputmode="numeric" maxlength="3" :placeholder="sinRegla?.max_ejemplares != null ? `${sinRegla.max_ejemplares} (general)` : 'Sin límite'" :class="CAMPO" />
             </div>
             <p class="text-[11px] text-gray-500">Si la fecha cae en un día sin atención, se corre al siguiente.</p>
           </div>

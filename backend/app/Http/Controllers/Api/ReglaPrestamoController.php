@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReglaPrestamo;
+use App\Services\ReglaPrestamoService;
 use App\Support\Bitacora;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -27,7 +28,7 @@ class ReglaPrestamoController extends Controller
                 ->get(),
             // Lo que se aplica cuando ninguna regla calza.
             'sin_regla' => [
-                'max_ejemplares' => 1,
+                'max_ejemplares' => ReglaPrestamoService::MAX_EJEMPLARES_SIN_REGLA, // null: sin límite
                 'multa_por_dia' => (int) config('multas.monto_dia'),
                 'tope_multa' => config('multas.tope_maximo'),
             ],

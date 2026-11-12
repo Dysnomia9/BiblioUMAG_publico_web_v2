@@ -179,7 +179,7 @@ class PrestamoLibroTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_usuario_con_libro_activo_sin_devolver_no_puede_llevarse_otro(): void
+    public function test_usuario_con_libro_activo_sin_devolver_puede_llevarse_otro_sin_limite(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
         $usuario = Usuario::factory()->create();
@@ -202,10 +202,9 @@ class PrestamoLibroTest extends TestCase
             'fecha_devolucion' => $this->fechaConAtencion(7),
         ]);
 
-        $response->assertStatus(409)
-            ->assertJsonPath('message', 'Este usuario ya tiene un libro prestado sin devolver — debe devolverlo antes de llevarse otro.');
-        // El segundo ejemplar no debe quedar marcado como prestado tras el rechazo.
-        $this->assertDatabaseHas('ejemplares', ['id' => $nuevoLibro->id, 'disponible' => true]);
+        // Sin regla que fije un máximo, no hay límite de libros a la vez.
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('ejemplares', ['id' => $nuevoLibro->id, 'disponible' => false]);
     }
 
     public function test_usuario_puede_llevarse_un_libro_nuevo_despues_de_devolver_el_anterior(): void

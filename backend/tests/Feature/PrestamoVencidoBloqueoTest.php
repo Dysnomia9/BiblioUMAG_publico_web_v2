@@ -60,10 +60,8 @@ class PrestamoVencidoBloqueoTest extends TestCase
         $this->conLibroVencido($usuario, 0);
         $ejemplar = Ejemplar::factory()->for(Libro::factory())->create();
 
-        // Sigue limitado por el máximo de libros a la vez, pero no por atraso.
-        $this->prestarLibro($usuario, $ejemplar)
-            ->assertStatus(409)
-            ->assertJsonPath('message', fn ($m) => ! str_contains($m, 'vencido'));
+        // Sin límite de libros a la vez, el que vence hoy no impide llevarse otro.
+        $this->prestarLibro($usuario, $ejemplar)->assertCreated();
     }
 
     public function test_con_un_libro_vencido_tampoco_se_presta_un_recurso_de_apoyo_ni_se_reserva(): void

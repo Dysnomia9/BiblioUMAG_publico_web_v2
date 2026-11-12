@@ -628,7 +628,8 @@ export type ReglaPrestamo = {
 export type CondicionesPrestamo = {
   regla: (Omit<ReglaPrestamo, 'tipo_material' | 'ubicacion'> & { descripcion: string }) | null
   prestable: boolean
-  max_ejemplares: number
+  /** null: sin límite de libros a la vez */
+  max_ejemplares: number | null
   libros_en_prestamo: number
   dias_prestamo: number | null
   fecha_devolucion: string | null

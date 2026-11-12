@@ -516,7 +516,7 @@ const textoRegla = computed(() => {
   if (enSala.value) return 'Uso en sala: se lee en la biblioteca y se devuelve hoy antes del cierre. No cuenta para el máximo de libros a domicilio; si no lo devuelve hoy, queda atrasado.'
   if (!c || !c.prestable) return ''
   const plazo = c.dias_prestamo !== null ? `${c.dias_prestamo} ${c.dias_prestamo === 1 ? 'día' : 'días'}` : 'plazo a elección del mesón'
-  return `${c.regla ? `Regla ${c.regla.descripcion}` : 'Regla general'}: ${plazo} · hasta ${c.max_ejemplares} ${c.max_ejemplares === 1 ? 'libro' : 'libros'} a la vez · multa ${formatMonto(c.multa_por_dia)} por día`
+  return `${c.regla ? `Regla ${c.regla.descripcion}` : 'Regla general'}: ${plazo} · ${c.max_ejemplares === null ? 'sin límite de libros' : `hasta ${c.max_ejemplares} ${c.max_ejemplares === 1 ? 'libro' : 'libros'} a la vez`} · multa ${formatMonto(c.multa_por_dia)} por día`
 })
 
 // La copia apartada para esta misma persona (reserva lista para retirar) sí se le presta.
@@ -1479,7 +1479,7 @@ function formatHora(iso: string | null) {
             </ul>
             <div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
               <p class="text-gray-500">
-                {{ librosEnPrestamo }} {{ librosEnPrestamo === 1 ? 'libro' : 'libros' }} en préstamo · {{ condiciones ? `máximo ${condiciones.max_ejemplares} a la vez` : 'el máximo a la vez depende de la regla de préstamo' }}
+                {{ librosEnPrestamo }} {{ librosEnPrestamo === 1 ? 'libro' : 'libros' }} en préstamo · {{ !condiciones ? 'el máximo a la vez depende de la regla de préstamo' : condiciones.max_ejemplares === null ? 'sin límite a la vez' : `máximo ${condiciones.max_ejemplares} a la vez` }}
                 <template v-if="devueltosOcultables">
                   ·
                   <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="mostrarDevueltos = !mostrarDevueltos">
