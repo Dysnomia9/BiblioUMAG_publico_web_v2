@@ -325,12 +325,16 @@ const tomosDeLaObra = computed(() => {
   for (const e of libroParaCopia.value?.ejemplares ?? []) if (e.tomo) cuenta.set(e.tomo, (cuenta.get(e.tomo) ?? 0) + 1)
   return [...cuenta.entries()].map(([tomo, copias]) => ({ tomo, copias })).sort((a, b) => a.tomo.localeCompare(b.tomo, 'es', { numeric: true }))
 })
-/** La copia que va a tener dentro del tomo (la calcula también el servidor al guardar). */
+/**
+ * La «c.N» que va a tener dentro del tomo (la calcula también el servidor al guardar), como en
+ * Horizon: la primera del tomo va sin «c.» (0 = «t.4» sola), la segunda es la c.1, la tercera la c.2…
+ */
 const copiaDelTomo = computed(() => {
   const tomo = normalizarTomo(formCopia.tomo)
   if (!tomo) return null
   const delTomo = (libroParaCopia.value?.ejemplares ?? []).filter((e) => e.tomo === tomo)
-  return Math.max(0, ...delTomo.map((e) => e.copia_tomo ?? 1), delTomo.length) + 1
+  if (!delTomo.length) return 0
+  return Math.max(0, ...delTomo.map((e) => e.copia_tomo ?? 0)) + 1
 })
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
@@ -1406,7 +1410,10 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <datalist id="tomos-de-la-obra">
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
-                  <p v-if="copiaDelTomo" class="mt-1 text-[11px] font-semibold text-indigo-700">
+                  <p v-if="copiaDelTomo === 0" class="mt-1 text-[11px] font-semibold text-indigo-700">
+                    Quedará como <span class="font-mono">{{ normalizarTomo(formCopia.tomo) }}</span> (la primera de ese tomo, sin «c.»)
+                  </p>
+                  <p v-else-if="copiaDelTomo" class="mt-1 text-[11px] font-semibold text-indigo-700">
                     Quedará como <span class="font-mono">{{ normalizarTomo(formCopia.tomo) }} c.{{ copiaDelTomo }}</span> (copia {{ copiaDelTomo }} de ese tomo)
                   </p>
                   <p v-else-if="tomosDeLaObra.length" class="mt-1 text-[11px] text-gray-500">

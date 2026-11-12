@@ -59,7 +59,8 @@ class Ejemplar extends Model
         if (! empty($atributos['copia_tomo'])) {
             return "c.{$atributos['copia_tomo']}";
         }
-        if (! empty($atributos['fecha_ingreso_horizon'])) {
+        // De Horizon sin «c.», o la primera copia de un tomo («t.4» sola): sin número
+        if (! empty($atributos['fecha_ingreso_horizon']) || ! empty($atributos['tomo'])) {
             return null;
         }
 

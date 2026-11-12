@@ -44,19 +44,26 @@ final class TomoEjemplar
     }
 
     /**
-     * La copia que sigue de ese tomo en el título: si ya hay «t.1 c.1» y «t.1 c.2», la 3.
-     * Una copia sin número («t.4» sola) cuenta como la 1.
+     * La «c.N» de la copia que se agrega a un tomo (o, con $tomo null, a un título sin tomos),
+     * como numera Horizon: la primera no lleva «c.» (null: «t.4» sola, o nada), la segunda es
+     * la c.1, la tercera la c.2… Con «t.1» y «t.1 c.1», la 2; con solo «t.2 c.1», también la 2.
      */
-    public static function siguienteCopia(int $libroId, string $tomo): int
+    public static function siguienteCopia(int $libroId, ?string $tomo): ?int
     {
-        $copias = Ejemplar::where('libro_id', $libroId)->where('tomo', $tomo)->get(['copia_tomo']);
+        $copias = Ejemplar::where('libro_id', $libroId)
+            ->when($tomo === null, fn ($q) => $q->whereNull('tomo'), fn ($q) => $q->where('tomo', $tomo))
+            ->get(['id', 'numero_copia', 'tomo', 'copia_tomo', 'fecha_ingreso_horizon']);
+        if ($copias->isEmpty()) {
+            return null;
+        }
 
-        return max((int) $copias->max('copia_tomo'), $copias->count()) + 1;
+        // La «c.N» que ya lleva cada una (su etiqueta_copia); sin «c.», la 0
+        return $copias->map(fn (Ejemplar $e) => (int) preg_replace('/^c\./', '', (string) $e->etiqueta_copia))->max() + 1;
     }
 
-    /** El texto de volumen que se muestra en la copia: «t.1 c.3». */
-    public static function etiqueta(string $tomo, int $copia): string
+    /** El texto de volumen que se muestra en la copia: «t.1 c.3», o «t.1» si es la primera. */
+    public static function etiqueta(string $tomo, ?int $copia): string
     {
-        return "{$tomo} c.{$copia}";
+        return $copia === null ? $tomo : "{$tomo} c.{$copia}";
     }
 }

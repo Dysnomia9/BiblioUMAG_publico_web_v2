@@ -66,6 +66,12 @@ class EjemplarController extends Controller
                 Ejemplar::where('libro_id', $data['libro_id'])->lockForUpdate()->get(['id']);
                 $copiaTomo = TomoEjemplar::siguienteCopia((int) $data['libro_id'], $tomo);
                 $data['volumen'] = TomoEjemplar::etiqueta($tomo, $copiaTomo);
+            } elseif (blank($data['volumen'] ?? null)) {
+                // Sin tomo: la primera copia del título va sin «c.» y las demás siguen la
+                // numeración que ya tiene, también la de Horizon (c.1, c.2…)
+                Ejemplar::where('libro_id', $data['libro_id'])->lockForUpdate()->get(['id']);
+                $tomo = null;
+                $copiaTomo = TomoEjemplar::siguienteCopia((int) $data['libro_id'], null);
             } else {
                 [$tomo, $copiaTomo] = [$tomoDelVolumen, $copiaDelVolumen];
             }

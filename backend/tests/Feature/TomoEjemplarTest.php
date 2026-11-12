@@ -30,16 +30,46 @@ class TomoEjemplarTest extends TestCase
     {
         Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
         $libro = Libro::factory()->create();
-        // Como vino de Horizon: «t.1» sola (cuenta como la 1) y «t.2 c.1»
+        // Como vino de Horizon: «t.1» sola (la primera, sin «c.») y «t.2 c.1»
         Ejemplar::factory()->for($libro)->create(['volumen' => 't.1', 'tomo' => 't.1', 'copia_tomo' => null]);
         Ejemplar::factory()->for($libro)->create(['volumen' => 't.2 c.1', 'tomo' => 't.2', 'copia_tomo' => 1]);
 
+        // Después de la «t.1» sola viene la c.1, no la c.2
         $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000000201', 'tomo' => 'Tomo 1'])
-            ->assertStatus(201)->assertJsonPath('volumen', 't.1 c.2')->assertJsonPath('copia_tomo', 2);
+            ->assertStatus(201)->assertJsonPath('volumen', 't.1 c.1')->assertJsonPath('copia_tomo', 1);
         $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000000202', 'tomo' => 't.1'])
-            ->assertStatus(201)->assertJsonPath('volumen', 't.1 c.3');
+            ->assertStatus(201)->assertJsonPath('volumen', 't.1 c.2');
         $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000000203', 'tomo' => 't.2'])
             ->assertStatus(201)->assertJsonPath('volumen', 't.2 c.2');
+        // Un tomo nuevo: su primera copia va sin «c.»
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000000204', 'tomo' => 't.3'])
+            ->assertStatus(201)->assertJsonPath('volumen', 't.3')->assertJsonPath('copia_tomo', null)
+            ->assertJsonPath('etiqueta_copia', null);
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000000205', 'tomo' => 't.3'])
+            ->assertStatus(201)->assertJsonPath('volumen', 't.3 c.1')->assertJsonPath('etiqueta_copia', 'c.1');
+    }
+
+    public function test_sin_tomo_la_primera_copia_no_lleva_c_y_las_demas_siguen_la_de_horizon(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'admin']));
+
+        // Título nuevo: la primera sin «c.», luego c.1 y c.2
+        $nuevo = Libro::factory()->create();
+        $this->postJson('/api/ejemplares', ['libro_id' => $nuevo->id, 'codigo_barras' => '30000000000301'])
+            ->assertStatus(201)->assertJsonPath('etiqueta_copia', null);
+        $this->postJson('/api/ejemplares', ['libro_id' => $nuevo->id, 'codigo_barras' => '30000000000302'])
+            ->assertStatus(201)->assertJsonPath('etiqueta_copia', 'c.1');
+        $this->postJson('/api/ejemplares', ['libro_id' => $nuevo->id, 'codigo_barras' => '30000000000303'])
+            ->assertStatus(201)->assertJsonPath('etiqueta_copia', 'c.2');
+
+        // Migrado de Horizon (sin «c.», c.1 y c.2, con otros números internos): la que sigue es la c.3
+        $migrado = Libro::factory()->create();
+        foreach ([[1, null], [2, 1], [3, 2]] as [$numero, $copia]) {
+            $e = Ejemplar::factory()->for($migrado)->create(['numero_copia' => $numero, 'copia_tomo' => $copia]);
+            Ejemplar::whereKey($e->id)->update(['fecha_ingreso_horizon' => '2011-04-18']);
+        }
+        $this->postJson('/api/ejemplares', ['libro_id' => $migrado->id, 'codigo_barras' => '30000000000304'])
+            ->assertStatus(201)->assertJsonPath('etiqueta_copia', 'c.3')->assertJsonPath('numero_copia', 4);
     }
 
     public function test_corregir_el_volumen_a_mano_actualiza_el_tomo(): void

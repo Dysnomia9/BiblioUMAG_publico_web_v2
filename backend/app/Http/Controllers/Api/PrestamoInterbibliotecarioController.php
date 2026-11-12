@@ -15,6 +15,7 @@ use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
 use App\Support\HorarioBiblioteca;
 use App\Support\Paginacion;
+use App\Support\TomoEjemplar;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -141,6 +142,8 @@ class PrestamoInterbibliotecarioController extends Controller
             $ejemplar = Ejemplar::create([
                 'libro_id' => $libro->id,
                 'numero_copia' => Ejemplar::siguienteNumero($libro->id),
+                // La primera sin «c.», las demás c.1, c.2… (ver TomoEjemplar::siguienteCopia)
+                'copia_tomo' => TomoEjemplar::siguienteCopia($libro->id, null),
                 'codigo_barras' => trim($data['codigo_barras']),
                 'ubicacion_id' => $data['ubicacion_id'] ?? null,
                 'estado_proceso' => 'por_colocar',
