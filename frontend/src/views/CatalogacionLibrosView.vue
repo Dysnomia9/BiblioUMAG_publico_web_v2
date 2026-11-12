@@ -146,7 +146,7 @@ const PISTAS: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'Una por línea',
   materias_geograficas: 'Una por línea. Ej: Magallanes (Chile)',
   url_acceso: 'https://...',
-  otros_enlaces: 'Uno por línea: la dirección y, si quiere, un texto. Ej: https://... Versión digital, v.2',
+  otros_enlaces: 'https://...',
   designacion_volumen: 'Ej: Vol. 12, n.º 3 (2024)',
   nota_tesis: 'Ej: Tesis (Ingeniero Civil en Computación e Informática) -- Universidad de Magallanes, 2023',
   resumen: 'De qué trata y cómo se usa',
@@ -166,7 +166,7 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'Materia de persona',
   materias_geograficas: 'Materia de lugar',
   url_acceso: 'Enlace (acceso electrónico)',
-  otros_enlaces: 'Otros enlaces (uno por línea)',
+  otros_enlaces: 'Otros enlaces',
   nota_interna: 'Notas generales (nota interna, solo la ve el personal)',
   nota_publica: 'Nota pública (la ve el usuario en el portal)',
   nota_bibliografia: 'Nota de bibliografía (interna)',
@@ -241,6 +241,32 @@ const guiaClasificacion = computed<{ ejemplo: string; partes: { valor: string; p
   }
 })
 
+/**
+ * 856 repetible (los demás enlaces, además del de acceso): cada uno en su fila, con la
+ * dirección y, si se quiere, un texto. Se guardan uno por línea: «URL texto».
+ */
+const enlaces = ref<{ url: string; texto: string }[]>([{ url: '', texto: '' }])
+function cargarEnlaces() {
+  const lista = (form.otros_enlaces ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    .map((l) => {
+      const [url, ...texto] = l.split(/\s+/)
+      return { url, texto: texto.join(' ') }
+    })
+  enlaces.value = lista.length ? lista : [{ url: '', texto: '' }]
+}
+function guardarEnlaces() {
+  form.otros_enlaces = enlaces.value.map((e) => `${e.url.trim()} ${e.texto.trim()}`.trim()).filter(Boolean).join('\n')
+}
+function agregarEnlace() {
+  enlaces.value.push({ url: '', texto: '' })
+  nextTick(() => document.getElementById(`cat-enlace-${enlaces.value.length - 1}`)?.focus())
+}
+function quitarEnlace(i: number) {
+  enlaces.value.splice(i, 1)
+  if (!enlaces.value.length) enlaces.value.push({ url: '', texto: '' })
+  guardarEnlaces()
+}
+
 /** 490 también es repetible: cada serie en su casilla; se guardan una por línea («Serie Harry Potter ; 1»). */
 const series = ref<string[]>([''])
 function cargarSeries() {
@@ -272,6 +298,7 @@ function abrirExtrasConDatos() {
   verMasTitulo.value = EXTRAS_TITULO.some((c) => form[c].trim())
   cargarTitulosAlternativos()
   cargarSeries()
+  cargarEnlaces()
   verMasMaterias.value = EXTRAS_MATERIAS.some((c) => form[c].trim())
 }
 
@@ -571,6 +598,7 @@ function resetForm() {
   verMasTitulo.value = false
   titulosAlternativos.value = ['']
   series.value = ['']
+  enlaces.value = [{ url: '', texto: '' }]
   verMasMaterias.value = false
 }
 
@@ -1406,9 +1434,44 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </div>
                   <template v-else>
                     <div v-for="c in extrasMaterias" :key="c" :class="c === 'url_acceso' || c === 'otros_enlaces' ? 'sm:col-span-6' : 'sm:col-span-3'">
-                      <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="pizarra" /> {{ NOMBRES[c] }}</label>
-                      <input autocomplete="off" v-if="c === 'url_acceso'" :id="`cat-${c}`" v-model="form.url_acceso" type="url" :placeholder="PISTAS.url_acceso" :class="CAMPO" />
-                      <textarea v-else :id="`cat-${c}`" v-model="form[c]" rows="2" :placeholder="PISTAS[c]" :class="CAMPO"></textarea>
+                      <template v-if="c === 'otros_enlaces'">
+                        <p :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="pizarra" /> {{ NOMBRES[c] }} <span class="font-normal text-gray-500">(opcional; puede haber varios)</span></p>
+                        <div class="space-y-2">
+                          <div v-for="(e, i) in enlaces" :key="i" class="flex flex-col gap-2 sm:flex-row">
+                            <input autocomplete="off"
+                              :id="`cat-enlace-${i}`"
+                              v-model="e.url"
+                              type="url"
+                              placeholder="https://..."
+                              :aria-label="`Dirección del enlace ${i + 1}`"
+                              :class="[CAMPO, 'sm:flex-[3]']"
+                              @input="guardarEnlaces"
+                            />
+                            <div class="flex gap-2 sm:flex-[2]">
+                              <input autocomplete="off"
+                                v-model="e.texto"
+                                placeholder="Texto (opcional). Ej: Versión digital, v.2"
+                                :aria-label="`Texto del enlace ${i + 1}`"
+                                :class="CAMPO"
+                                @input="guardarEnlaces"
+                              />
+                              <button
+                                v-if="enlaces.length > 1 || e.url || e.texto"
+                                type="button"
+                                class="shrink-0 rounded-lg border border-gray-300 px-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-red-600"
+                                :aria-label="`Quitar enlace ${i + 1}`"
+                                @click="quitarEnlace(i)"
+                              >✕</button>
+                            </div>
+                          </div>
+                        </div>
+                        <button type="button" class="mt-2 text-xs font-semibold text-pizarra-600 hover:underline" @click="agregarEnlace">+ Agregar otro enlace</button>
+                      </template>
+                      <template v-else>
+                        <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="pizarra" /> {{ NOMBRES[c] }}</label>
+                        <input autocomplete="off" v-if="c === 'url_acceso'" :id="`cat-${c}`" v-model="form.url_acceso" type="url" :placeholder="PISTAS.url_acceso" :class="CAMPO" />
+                        <textarea v-else :id="`cat-${c}`" v-model="form[c]" rows="2" :placeholder="PISTAS[c]" :class="CAMPO"></textarea>
+                      </template>
                     </div>
                   </template>
                 </template>
