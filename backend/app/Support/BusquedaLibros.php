@@ -19,6 +19,31 @@ final class BusquedaLibros
     public const CAMPOS_PORTAL = ['titulo', 'titulo_alternativo', 'mencion_responsabilidad', 'autores', 'categorias', 'isbn_sin_guiones'];
 
     /**
+     * Deja en la consulta solo los libros en que aparece cada palabra del texto (en cualquier
+     * campo y orden). Los ids de cada palabra se cruzan con INTERSECT: así cada una se busca
+     * una sola vez. Con un «whereIn» por palabra, Postgres a veces repetía la búsqueda de una
+     * palabra común por cada resultado de las otras («Jose canuman chacon»: «jose» está en
+     * ~2.800 menciones, y se buscaba 61 veces; 2,4 s en vez de 0,2 s).
+     *
+     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $consulta
+     * @param  list<string>  $campos
+     */
+    public static function filtrar($consulta, string $columna, string $texto, array $campos): void
+    {
+        $partes = array_map(fn (string $palabra) => self::ids($palabra, $campos), Busqueda::palabras($texto));
+        if (count($partes) <= 1) {
+            if ($partes) {
+                $consulta->whereIn($columna, $partes[0]);
+            }
+
+            return;
+        }
+
+        $sql = implode(' INTERSECT ', array_map(fn (Builder $parte) => '('.$parte->toSql().')', $partes));
+        $consulta->whereRaw("{$columna} in ({$sql})", array_merge(...array_map(fn (Builder $parte) => $parte->getBindings(), $partes)));
+    }
+
+    /**
      * Ids de los libros en que aparece el texto en alguno de los campos pedidos.
      *
      * @param  list<string>  $campos
@@ -30,7 +55,9 @@ final class BusquedaLibros
         $libros = fn () => DB::table('libros')->select('id');
 
         // Los códigos de barras, de lomo, registros, ISBN e ISSN siempre llevan dígitos: con
-        // «talcahuano» no se recorren las ~115.000 copias ni esas columnas.
+        // «talcahuano» no se recorren las ~115.000 copias ni esas columnas (issn no tiene
+        // índice). La clasificación se busca siempre: ~1.250 revistas se ubican por un nombre
+        // sin dígitos («Memoria anualFulbright», «Acanthus»), y tiene su índice de trigramas.
         if (! Busqueda::tieneDigito($texto)) {
             $campos = array_diff($campos, ['codigos', 'isbn', 'issn', 'isbn_sin_guiones']);
         }

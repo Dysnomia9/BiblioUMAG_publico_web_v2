@@ -130,7 +130,7 @@ async function cargarCondiciones() {
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 watch(busqueda, () => {
   clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => cargar(), 300)
+  debounceTimer = setTimeout(() => cargar(), 350)
 })
 onUnmounted(() => clearTimeout(debounceTimer))
 

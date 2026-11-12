@@ -28,18 +28,24 @@ final class Busqueda
      * busca como «puerto talcahuano». Se conservan las cortas con dígitos o símbolos
      * («2», «v1», «c#»), y si todas son cortas («de», «ph») se busca tal cual.
      *
+     * La puntuación pegada al borde se quita: «Canumán Chacón, José» busca «Chacón», no
+     * «Chacón,». Los signos de «c++» o «c#» se quedan.
+     *
      * @return list<string>
      */
     public static function palabras(string $texto): array
     {
-        $palabras = preg_split('/\s+/u', trim($texto), -1, PREG_SPLIT_NO_EMPTY);
+        $palabras = array_values(array_filter(array_map(
+            fn (string $p) => preg_replace('/^[\p{Ps}\p{Pe}\p{Pi}\p{Pf},;:.¿?¡!"\']+|[\p{Ps}\p{Pe}\p{Pi}\p{Pf},;:.¿?¡!"\']+$/u', '', $p),
+            preg_split('/\s+/u', trim($texto), -1, PREG_SPLIT_NO_EMPTY),
+        ), fn (string $p) => $p !== ''));
         $utiles = array_values(array_filter($palabras, fn (string $p) => ! self::esVacia($p)));
 
         return $utiles ?: $palabras;
     }
 
     private const VACIAS = ['el', 'la', 'lo', 'los', 'las', 'de', 'del', 'y', 'e', 'o', 'u', 'en', 'a', 'al',
-        'un', 'una', 'unos', 'unas', 'por', 'para', 'con', 'sin', 'que', 'se', 'su', 'sus'];
+        'un', 'una', 'unos', 'unas', 'por', 'para', 'con', 'sin', 'sobre', 'que', 'se', 'su', 'sus'];
 
     /** Palabra que no filtra nada: un artículo, preposición o conjunción, o solo 1 o 2 letras. */
     private static function esVacia(string $palabra): bool

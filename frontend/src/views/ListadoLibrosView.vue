@@ -217,7 +217,7 @@ function filtrarPorAutor(a: Autor | null) {
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
 function onBuscarInput() {
   clearTimeout(buscarTimer)
-  buscarTimer = setTimeout(filtrar, 250)
+  buscarTimer = setTimeout(filtrar, 350)
 }
 
 /** El botón «Buscar» y Enter: sin esperar la pausa al escribir. */

@@ -248,9 +248,7 @@ class PortalController extends Controller
         // Cada palabra tiene que aparecer en algún campo, en cualquier orden (ver Busqueda::palabras()):
         // título, autor, área o ISBN (sin guiones, para que "9789567189501" encuentre
         // "978-956-7189-50-1"). Ver BusquedaLibros.
-        foreach (Busqueda::palabras((string) $request->query('q')) as $palabra) {
-            $query->whereIn('libros.id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PORTAL));
-        }
+        BusquedaLibros::filtrar($query, 'libros.id', (string) $request->query('q'), BusquedaLibros::CAMPOS_PORTAL);
 
         // De la A a la Z, con los títulos que empiezan con un número o un signo al final.
         OrdenAlfabetico::porTitulo($query)->orderBy('id');

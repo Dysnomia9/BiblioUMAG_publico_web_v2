@@ -40,9 +40,7 @@ class LibroController extends Controller
 
         // Cada palabra tiene que aparecer en algún campo, en cualquier orden (ver Busqueda::palabras()):
         // título, clasificación, ISBN/ISSN, autor o código de una copia (ver BusquedaLibros).
-        foreach (Busqueda::palabras((string) $request->query('q')) as $palabra) {
-            $query->whereIn('libros.id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PERSONAL));
-        }
+        BusquedaLibros::filtrar($query, 'libros.id', (string) $request->query('q'), BusquedaLibros::CAMPOS_PERSONAL);
 
         if ($categoriaId = $request->query('categoria_id')) {
             $query->whereHas('categorias', fn ($q) => $q->where('categorias.id', $categoriaId));

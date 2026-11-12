@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Autor;
 use App\Models\Ejemplar;
 use App\Models\Libro;
 use App\Models\Staff;
 use App\Models\Usuario;
 use App\Support\Busqueda;
+use App\Support\BusquedaLibros;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -40,6 +42,55 @@ class BusquedaPalabrasVaciasTest extends TestCase
         $this->assertSame(['harry', 'potter', 'v1'], Busqueda::palabras('harry potter v1'));
         $this->assertSame(['c#', 'programacion'], Busqueda::palabras('c# programacion'));
         $this->assertSame(['c++'], Busqueda::palabras('el c++'));
+        $this->assertSame(['tomo', 'v2'], Busqueda::palabras('tomo v2'));
+    }
+
+    public function test_quita_la_puntuacion_pegada_y_sobre(): void
+    {
+        $this->assertSame(['Canumán', 'Chacón', 'José', 'Diego'], Busqueda::palabras('Canumán Chacón, José Diego'));
+        $this->assertSame(['ensayo', 'física'], Busqueda::palabras('«ensayo» sobre la física.'));
+        $this->assertSame(['Qué', 'hacer'], Busqueda::palabras('¿Qué hacer?'));
+        $this->assertSame(['c++'], Busqueda::palabras('(c++)'));
+        $this->assertSame(['O.C'], Busqueda::palabras('O.C.'));
+        $this->assertSame(['de'], Busqueda::palabras('de,'));
+    }
+
+    public function test_una_palabra_sin_digitos_no_busca_en_codigos_isbn_ni_issn(): void
+    {
+        $sinDigitos = strtolower(BusquedaLibros::ids('talcahuano', BusquedaLibros::CAMPOS_PERSONAL)->toSql());
+        foreach (['issn', 'isbn', 'ejemplares'] as $columna) {
+            $this->assertStringNotContainsString($columna, $sinDigitos, "«talcahuano» no debería consultar {$columna}");
+        }
+        // La clasificación sí: hay revistas ubicadas por un nombre sin dígitos («Acanthus»)
+        $this->assertStringContainsString('clasificacion', $sinDigitos);
+
+        $conDigitos = strtolower(BusquedaLibros::ids('35606200182220', BusquedaLibros::CAMPOS_PERSONAL)->toSql());
+        foreach (['issn', 'isbn', 'ejemplares', 'clasificacion'] as $columna) {
+            $this->assertStringContainsString($columna, $conDigitos);
+        }
+    }
+
+    public function test_todas_las_palabras_tienen_que_aparecer_en_el_panel_y_el_portal(): void
+    {
+        $libro = Libro::factory()->create(['titulo' => 'Historia de Magallanes']);
+        $libro->autores()->attach(Autor::factory()->create(['nombre' => 'Canumán Chacón, José Diego']));
+        $soloUna = Libro::factory()->create(['titulo' => 'Historia de Chile']);
+        foreach ([$libro, $soloUna] as $l) {
+            Ejemplar::factory()->for($l)->create();
+        }
+
+        Sanctum::actingAs(Staff::factory()->create());
+        foreach (['Canumán Chacón, José Diego', 'magallanes chacon', 'historia jose'] as $busqueda) {
+            $ids = collect($this->getJson('/api/libros?q='.urlencode($busqueda))->assertOk()->json('data'))->pluck('id')->all();
+            $this->assertSame([$libro->id], $ids, "panel: «{$busqueda}»");
+        }
+        $this->assertCount(2, $this->getJson('/api/libros?q=historia')->assertOk()->json('data'));
+
+        Sanctum::actingAs(Usuario::factory()->create());
+        foreach (['Canumán Chacón, José Diego', 'magallanes chacon'] as $busqueda) {
+            $ids = collect($this->getJson('/api/mi/catalogo?q='.urlencode($busqueda))->assertOk()->json('data'))->pluck('id')->all();
+            $this->assertSame([$libro->id], $ids, "portal: «{$busqueda}»");
+        }
     }
 
     public function test_el_listado_encuentra_igual_con_o_sin_palabras_vacias(): void
