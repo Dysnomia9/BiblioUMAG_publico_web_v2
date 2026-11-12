@@ -6,6 +6,7 @@ import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
+import CampoPrecio from '@/components/ui/CampoPrecio.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
@@ -448,7 +449,12 @@ const buscandoCopiaAEditar = ref(false)
 const copiaEditando = ref<{ copia: Ejemplar; libro: Libro } | null>(null)
 const formEditarVacio = () => ({
   ubicacion_id: '' as number | '',
-  volumen: '',
+  // El texto de volumen se arma con estas partes: tomo, volumen dentro del tomo y copia
+  // («t.1-v.II c.2»), o es otra designación si no es un tomo (el número de una revista).
+  tomo: '',
+  parte: '',
+  copia: '',
+  otra: '',
   coleccion: '',
   precio: '' as number | string,
   forma_adquisicion: '',
@@ -460,14 +466,39 @@ const formEditar = reactive(formEditarVacio())
 const fotoEditar = ref('')
 const editarConCambios = computed(() => !!copiaEditando.value && JSON.stringify(formEditar) !== fotoEditar.value)
 
+/** Lo escrito en Tomo, Volumen y Copia, leído; y el texto de volumen que queda («t.1-v.II c.2»). */
+const tomoEditar = computed(() => leerTomo(formEditar.tomo))
+const parteEditar = computed<string | null>(() => {
+  const t = formEditar.parte.trim()
+  if (!t) return ''
+  const m = t.match(/^(?:(?:t|tomo|v|vol|volumen)\.?\s*)?(\d+|[ivxlc]+)$/i)
+  return m ? (/^\d/.test(m[1]) ? m[1] : m[1].toUpperCase()) : null
+})
+const copiaEditarValida = computed(() => /^(?:c\.?\s*)?\d{0,4}$/i.test(formEditar.copia.trim()))
+const volumenEditar = computed(() => {
+  if (!formEditar.tomo.trim()) return formEditar.otra.trim()
+  const t = tomoEditar.value
+  if (!t.valido || parteEditar.value === null) return ''
+  const segunda = t.tomo.startsWith('v') ? 't' : 'v'
+  const clave = parteEditar.value && !t.conVolumen ? `${t.tomo}-${segunda}.${parteEditar.value}` : t.tomo
+  const copia = formEditar.copia.trim().replace(/^c\.?\s*/i, '')
+  return copia ? `${clave} c.${copia}` : clave
+})
+const edicionValida = computed(() => !formEditar.tomo.trim() || (tomoEditar.value.valido && parteEditar.value !== null && copiaEditarValida.value))
+
 /** Abre la copia en la pestaña «Editar ejemplar», con sus datos en el formulario. */
 function editarCopia(copia: Ejemplar, libro: Libro) {
   modo.value = 'editar_copia'
   copiaEditando.value = { copia, libro }
   codigoAEditar.value = copia.codigo_barras
+  const leido = leerTomoCopia(copia.volumen)
+  const [tomo, parte] = (leido?.clave ?? '').split('-')
   Object.assign(formEditar, {
     ubicacion_id: copia.ubicacion_id ?? '',
-    volumen: copia.volumen ?? '',
+    tomo: tomo ?? '',
+    parte: (parte ?? '').replace(/^[tv]\./, ''),
+    copia: leido?.copia ?? '',
+    otra: leido ? '' : copia.volumen ?? '',
     coleccion: copia.coleccion ?? '',
     precio: copia.precio ?? '',
     forma_adquisicion: copia.forma_adquisicion ?? '',
@@ -510,11 +541,16 @@ async function guardarEdicionCopia() {
     irA('ejemplar')
     return
   }
+  if (!edicionValida.value) {
+    toast.error('Revisa el tomo, el volumen y la copia: mira los ejemplos bajo cada casilla')
+    irA('datos')
+    return
+  }
   guardando.value = true
   try {
     const { data } = await api.patch<Ejemplar>(`/ejemplares/${actual.copia.id}`, {
       ubicacion_id: formEditar.ubicacion_id === '' ? null : formEditar.ubicacion_id,
-      volumen: formEditar.volumen.trim() || null,
+      volumen: volumenEditar.value || null,
       coleccion: formEditar.coleccion.trim() || null,
       precio: formEditar.precio === '' ? null : Number(formEditar.precio),
       forma_adquisicion: formEditar.forma_adquisicion || null,
@@ -1741,10 +1777,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="false" class="sm:col-span-2">
                   <label for="cat-precio" :class="ETIQUETA">Precio (CLP)</label>
-                  <div class="relative">
-                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                    <input autocomplete="off" id="cat-precio" v-model="form.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
-                  </div>
+                  <CampoPrecio id="cat-precio" v-model="form.precio" :clase="CAMPO" />
                 </div>
                 <div v-if="false" class="sm:col-span-2">
                   <label for="cat-adquisicion" :class="ETIQUETA">Forma de adquisición</label>
@@ -1962,10 +1995,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>
-                  <div class="relative">
-                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                    <input autocomplete="off" id="copia-precio" v-model="formCopia.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
-                  </div>
+                  <CampoPrecio id="copia-precio" v-model="formCopia.precio" :clase="CAMPO" />
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-adquisicion" :class="ETIQUETA">Forma de adquisición</label>
@@ -1993,6 +2023,20 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
 
           <!-- Editar ejemplar: la copia por su código y todos sus datos -->
           <template v-else>
+            <!-- Qué es esta pestaña: solo copias, por su código de barras -->
+            <div class="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 px-5 py-4 shadow-sm">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white" aria-hidden="true">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM16.5 13.5v6m3-3h-6" /></svg>
+              </span>
+              <div>
+                <p class="font-serif text-lg font-bold leading-tight text-violet-950">Editor de ejemplares</p>
+                <p class="mt-1 text-sm leading-relaxed text-violet-900/80">
+                  Corrige los datos de <strong>una copia</strong> ya catalogada: escanea su código de barras. Lo que es del título (autor, materias,
+                  clasificación, editorial…) se cambia en la ficha, con «Editar» en «Nueva ficha» o en el listado.
+                </p>
+              </div>
+            </div>
+
             <!-- 1. Ejemplar -->
             <SeccionFicha id="seccion-ejemplar" :numero="1" titulo="Ejemplar" detalle="Escanea el código de la copia" tono="indigo">
               <form class="flex gap-2" @submit.prevent="buscarCopiaParaEditar()">
@@ -2062,12 +2106,37 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </select>
                 </div>
                 <div class="sm:col-span-3">
-                  <label for="editar-volumen" :class="ETIQUETA">Tomo y copia, o designación</label>
-                  <input id="editar-volumen" v-model="formEditar.volumen" autocomplete="off" maxlength="100" placeholder="Ej: t.1 c.2 · t.1-v.II · Anexo" :class="[CAMPO, 'font-mono']" />
-                  <p class="mt-1 text-[11px] text-gray-500">
-                    Se ve como <strong class="text-gray-700">{{ textoCopia(formEditar.volumen, copiaEditando.copia.etiqueta_copia) ?? 'sin tomo ni copia' }}</strong>. Como en Horizon: «t.1 c.2», «t.1-v.II»…
+                  <p :class="ETIQUETA">Cómo queda</p>
+                  <p class="flex min-h-[2.75rem] items-center rounded-lg border border-dashed border-violet-200 bg-violet-50/50 px-3 text-sm">
+                    <strong v-if="volumenEditar" class="text-violet-900">{{ textoCopia(volumenEditar, null) }}</strong>
+                    <span v-else class="text-gray-400">Sin tomo ni copia</span>
+                    <span v-if="volumenEditar" class="ml-2 font-mono text-xs text-violet-500">({{ volumenEditar }})</span>
                   </p>
                 </div>
+                <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
+                <div class="sm:col-span-2">
+                  <label for="editar-tomo" :class="ETIQUETA">Tomo</label>
+                  <input id="editar-tomo" v-model="formEditar.tomo" autocomplete="off" placeholder="t.1" :aria-invalid="!tomoEditar.valido" :class="[CAMPO, !tomoEditar.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">t.1</span>, <span class="font-mono">Tomo 2</span> o <span class="font-mono">v.3</span> · vacío si no tiene</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="editar-parte" :class="ETIQUETA">{{ tomoEditar.tomo.startsWith('v') ? 'Tomo dentro del volumen' : 'Volumen dentro del tomo' }}</label>
+                  <input id="editar-parte" v-model="formEditar.parte" autocomplete="off" placeholder="II" :disabled="!formEditar.tomo.trim()" :aria-invalid="parteEditar === null" :class="[CAMPO, 'disabled:bg-gray-50', parteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">II</span> o <span class="font-mono">2</span> · solo si el tomo tiene varios</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="editar-copia-num" :class="ETIQUETA">Copia</label>
+                  <input id="editar-copia-num" v-model="formEditar.copia" autocomplete="off" inputmode="numeric" placeholder="2" :disabled="!formEditar.tomo.trim()" :aria-invalid="!copiaEditarValida" :class="[CAMPO, 'disabled:bg-gray-50', !copiaEditarValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacío en la primera (va sin «c.»)</p>
+                </div>
+                <div class="sm:col-span-6">
+                  <label for="editar-otra" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no es un tomo)</span></label>
+                  <input id="editar-otra" v-model="formEditar.otra" autocomplete="off" :disabled="!!formEditar.tomo.trim()" placeholder="Ej: Anexo · Atlas · Año IV No. 4 (Jul.-Aug., 1985)" :class="[CAMPO, 'disabled:bg-gray-50']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es un tomo, como el número de una revista. Con tomo, se deja vacía.</p>
+                </div>
+                <p v-if="!edicionValida" class="text-[11px] font-semibold text-red-700 sm:col-span-6">
+                  Hay algo que no se reconoce: el tomo va como «t.1», el volumen como «II» o «2» y la copia como «2».
+                </p>
                 <div class="sm:col-span-6">
                   <label for="editar-coleccion" :class="ETIQUETA">Colección de la copia</label>
                   <input
@@ -2082,10 +2151,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div class="sm:col-span-2">
                   <label for="editar-precio" :class="ETIQUETA">Precio (CLP)</label>
-                  <div class="relative">
-                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                    <input id="editar-precio" v-model="formEditar.precio" autocomplete="off" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
-                  </div>
+                  <CampoPrecio id="editar-precio" v-model="formEditar.precio" :clase="CAMPO" />
                 </div>
                 <div class="sm:col-span-2">
                   <label for="editar-adquisicion" :class="ETIQUETA">Forma de adquisición</label>

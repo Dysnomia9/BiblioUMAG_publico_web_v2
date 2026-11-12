@@ -2,6 +2,7 @@
 import { textoCopia } from '@/utils/tomo'
 import { computed, reactive, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
+import CampoPrecio from '@/components/ui/CampoPrecio.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import type { Ejemplar, Ubicacion } from '@/types'
@@ -94,10 +95,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
       </div>
       <div>
         <label for="copia-editar-precio" class="mb-1 block text-xs font-medium text-gray-600">Precio (CLP)</label>
-        <div class="relative">
-          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-          <input autocomplete="off" id="copia-editar-precio" v-model="form.precio" type="number" min="0" placeholder="0" :class="[CAMPO, 'pl-7']" />
-        </div>
+        <CampoPrecio id="copia-editar-precio" v-model="form.precio" :clase="CAMPO" />
       </div>
       <div>
         <label for="copia-editar-adquisicion" class="mb-1 block text-xs font-medium text-gray-600">Forma de adquisición</label>
