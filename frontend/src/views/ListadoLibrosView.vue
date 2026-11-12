@@ -735,7 +735,13 @@ function copiaGuardada(actualizada: Ejemplar) {
                 <div class="overflow-hidden rounded-xl border border-indigo-100 bg-white">
                   <p class="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2">
                     <span class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-indigo-800"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Ficha bibliográfica</span>
-                    <span class="rounded-md border border-indigo-200 bg-white px-1.5 py-px font-mono text-[11px] font-semibold text-indigo-700">MARC 21</span>
+                    <span class="flex shrink-0 items-center gap-1.5">
+                      <!-- El N.º de ficha que pone el sistema (en las de Horizon, su bib#): con él se busca la ficha -->
+                      <span class="whitespace-nowrap rounded-full bg-indigo-600 px-2.5 py-0.5 text-[11px] font-semibold text-white" title="N.º de ficha: con él se busca esta ficha en Catalogación y en el listado">
+                        Ficha N.º <span class="font-mono">{{ f.libro.numero_ficha }}</span>
+                      </span>
+                      <span class="rounded-md border border-indigo-200 bg-white px-1.5 py-px font-mono text-[11px] font-semibold text-indigo-700">MARC 21</span>
+                    </span>
                   </p>
                   <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas filtrable @filtrar="filtrarDesdeFicha" />
                   <p v-if="textoIngreso(f.libro)" class="border-t border-indigo-100 px-4 py-2.5 text-xs text-gray-500">{{ textoIngreso(f.libro) }}</p>
