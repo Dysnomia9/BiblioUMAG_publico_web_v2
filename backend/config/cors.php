@@ -22,7 +22,11 @@ return [
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    // El frontend y la API están en otro origen (otro puerto), así que antes de cada solicitud el
+    // navegador pregunta si puede hacerla (preflight OPTIONS). Con 0 lo preguntaba cada vez: cada
+    // pantalla hacía el doble de viajes (120-340 ms más por solicitud). Con 2 horas lo recuerda;
+    // Chrome y Brave no guardan más de 7200 s.
+    'max_age' => 7200,
 
     'supports_credentials' => true,
 ];
