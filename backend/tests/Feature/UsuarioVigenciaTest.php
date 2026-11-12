@@ -50,6 +50,9 @@ class UsuarioVigenciaTest extends TestCase
 
     public function test_una_cuenta_vencida_no_se_lleva_material_ni_marca_entrada(): void
     {
+        // Un lunes: «en 3 días» cae jueves, con atención. Sin fijar el día, un jueves la devolución
+        // caía domingo y el préstamo se rechazaba por la fecha (422) antes de mirar la cuenta (409).
+        Carbon::setTestNow('2026-11-09 10:00:00');
         Sanctum::actingAs(Staff::factory()->admin()->create());
         $usuario = Usuario::factory()->create(['activo' => true, 'vigente_hasta' => '2026-03-31']);
 

@@ -7,6 +7,7 @@ use App\Models\Autor;
 use App\Models\Carrera;
 use App\Models\Categoria;
 use App\Models\Usuario;
+use App\Support\Materia;
 use App\Support\OpcionesCatalogo;
 use App\Support\Texto;
 use Illuminate\Http\Request;
@@ -25,7 +26,8 @@ class CatalogoLibroController extends Controller
 
     public function categorias(Request $request)
     {
-        return response()->json(OpcionesCatalogo::buscar(Categoria::class, $request->query('q'), conLibros: $request->boolean('con_libros')));
+        // «mapuches--his» sugiere «MAPUCHES -- HISTORIA»: el texto con las subdivisiones ordenadas
+        return response()->json(OpcionesCatalogo::buscar(Categoria::class, Materia::normalizar($request->query('q')), conLibros: $request->boolean('con_libros')));
     }
 
     /**

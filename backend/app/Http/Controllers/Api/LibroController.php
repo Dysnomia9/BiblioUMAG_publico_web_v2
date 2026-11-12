@@ -11,6 +11,7 @@ use App\Models\Libro;
 use App\Models\ReservaLibro;
 use App\Services\BajaEjemplarService;
 use App\Support\Busqueda;
+use App\Support\Materia;
 use App\Support\BusquedaLibros;
 use App\Support\Bitacora;
 use App\Support\FichaBibliografica;
@@ -363,6 +364,8 @@ class LibroController extends Controller
         // autores como pasaba en el sistema anterior. La ñ no se iguala a la n (año ≠ ano).
         return collect($nombres)
             ->map(fn ($nombre) => trim(preg_replace('/\s+/u', ' ', (string) $nombre)))
+            // Las materias, además, con sus subdivisiones escritas siempre igual (« -- »)
+            ->map(fn ($nombre) => $modelClass === Categoria::class ? Materia::normalizar($nombre) : $nombre)
             ->filter()
             ->unique(fn ($nombre) => self::claveNombre($nombre))
             ->map(fn ($nombre) => $modelClass::query()

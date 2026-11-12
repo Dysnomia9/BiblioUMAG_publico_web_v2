@@ -12,6 +12,7 @@ import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
 import PasosCatalogacion from '@/components/libros/PasosCatalogacion.vue'
+import { normalizarMateria } from '@/utils/materia'
 import { TONOS_FICHA, type TonoFicha } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
@@ -573,6 +574,16 @@ function confirmarEditar() {
   }
   editar(libro)
 }
+
+// Cada materia agregada queda con sus subdivisiones escritas siempre igual (« -- »), y sin
+// repetirse si dos se escribieron distinto («mapuches--historia» y «mapuches -- historia»).
+watch(
+  () => form.categorias.slice(),
+  (lista) => {
+    const normalizadas = [...new Map(lista.map((m) => normalizarMateria(m)).filter(Boolean).map((m) => [m.toLowerCase(), m])).values()]
+    if (normalizadas.join('\n') !== lista.join('\n')) form.categorias = normalizadas
+  },
+)
 
 const confirmandoGuardar = ref(false)
 const ubicacionElegida = computed(() => ubicacionesOpciones.value.find((u) => u.id === form.ubicacion_id)?.nombre ?? null)

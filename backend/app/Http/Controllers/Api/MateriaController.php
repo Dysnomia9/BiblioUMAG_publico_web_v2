@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Categoria;
 use App\Support\Bitacora;
+use App\Support\Materia;
 use App\Support\Busqueda;
 use App\Support\Paginacion;
 use Illuminate\Http\Request;
@@ -47,7 +48,7 @@ class MateriaController extends Controller
             'nombre' => ['required', 'string', 'max:255'],
             'unir' => ['nullable', 'boolean'],
         ]);
-        $nombre = trim(preg_replace('/\s+/u', ' ', $data['nombre']));
+        $nombre = Materia::normalizar($data['nombre']);
         $antes = $categoria->nombre;
 
         $otra = Categoria::where('id', '!=', $categoria->id)
