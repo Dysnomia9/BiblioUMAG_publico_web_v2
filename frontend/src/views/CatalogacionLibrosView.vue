@@ -1242,13 +1242,13 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <option value="">Sin especificar (ficha de libro)</option>
                     <option v-for="t in tiposMaterialOpciones" :key="t.id" :value="t.id">{{ t.nombre }}</option>
                   </select>
-                </div>
-                <!-- El tipo cambia la ficha: cada plantilla pide sus propios campos -->
-                <div class="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3" :class="editandoId ? 'sm:col-span-3' : 'sm:col-span-4'">
-                  <svg class="h-5 w-5 shrink-0 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                  </svg>
-                  <p class="text-sm font-semibold leading-relaxed text-indigo-950">El tipo de material cambia los campos de la ficha.</p>
+                  <!-- El tipo cambia la ficha: cada plantilla pide sus propios campos -->
+                  <p class="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-indigo-700">
+                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                    </svg>
+                    El tipo de material cambia los campos de la ficha.
+                  </p>
                 </div>
                 <div v-if="tiene('isbn')" class="sm:col-span-3">
                   <label for="cat-isbn" :class="ETIQUETA"><Marc :codigo="etiqueta('isbn')" tono="indigo" /> ISBN</label>
@@ -1271,13 +1271,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     :class="[CAMPO, 'font-mono']"
                   />
                   <!-- Guía: el ejemplo separado en sus partes, con qué es cada una -->
-                  <div id="cat-clasificacion-guia" class="mt-2 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                    <p v-if="guiaClasificacion.partes.length" class="text-[11px] font-semibold text-indigo-900">Cómo se escribe, separado por espacios:</p>
-                    <div v-if="guiaClasificacion.partes.length" class="mt-1.5 flex flex-wrap items-start gap-1.5">
+                  <div id="cat-clasificacion-guia" class="mt-1.5 rounded-lg border border-indigo-100 bg-indigo-50/50 px-2.5 py-1.5">
+                    <div v-if="guiaClasificacion.partes.length" class="flex flex-wrap items-start gap-x-2 gap-y-1">
                       <div v-for="p in guiaClasificacion.partes" :key="p.parte" class="text-center">
-                        <span class="block rounded-md border border-indigo-200 bg-white px-2 py-0.5 font-mono text-sm font-semibold text-gray-900">{{ p.valor }}</span>
-                        <span class="mt-0.5 block text-[11px] font-semibold text-indigo-800">{{ p.parte }}</span>
-                        <span class="block text-[10px] leading-tight text-gray-500">{{ p.que }}</span>
+                        <span class="block rounded border border-indigo-200 bg-white px-1.5 font-mono text-xs font-semibold text-gray-900">{{ p.valor }}</span>
+                        <span class="block text-[10px] leading-tight text-indigo-800"><strong>{{ p.parte }}</strong> · {{ p.que }}</span>
                       </div>
                     </div>
                     <p v-if="guiaClasificacion.nota" class="text-[11px] leading-snug text-indigo-900" :class="guiaClasificacion.partes.length ? 'mt-1.5' : ''">{{ guiaClasificacion.nota }}</p>
