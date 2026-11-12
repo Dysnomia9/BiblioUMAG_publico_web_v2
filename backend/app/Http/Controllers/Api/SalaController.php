@@ -201,6 +201,8 @@ class SalaController extends Controller
             // En el mesón (el portal tiene su propio rango, config/salas.php).
             'personas_minimas' => Sala::personasDelMeson()[0],
             'personas_maximas' => Sala::personasDelMeson()[1],
+            // El mínimo de las logias (Administración › Salas) o null si está apagado
+            'personas_minimas_logias' => ($logias = Sala::minimoLogias()) === null ? null : min($logias, Sala::personasDelMeson()[1]),
             'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),

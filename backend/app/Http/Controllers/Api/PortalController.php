@@ -337,6 +337,8 @@ class PortalController extends Controller
             'cuota_diaria' => config('salas.cuota_diaria'),
             'personas_minimas' => Sala::personasDelPortal()[0],
             'personas_maximas' => Sala::personasDelPortal()[1],
+            // El mínimo de las logias (Administración › Salas) o null si está apagado
+            'personas_minimas_logias' => ($logias = Sala::minimoLogias()) === null ? null : min($logias, Sala::personasDelPortal()[1]),
             'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $vista,
@@ -353,7 +355,9 @@ class PortalController extends Controller
 
     public function reservarSala(Request $request)
     {
-        [$minimo, $maximo] = Sala::personasDelPortal();
+        // El rango del portal, con el mínimo de las logias si está encendido
+        $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
+        [$minimo, $maximo] = $sala?->personasEnElPortal() ?? Sala::personasDelPortal();
         $data = $request->validate([
             'sala_id' => ['required', Sala::reglaDisponible()],
             'fecha' => ['required', 'date'],
@@ -535,7 +539,7 @@ class PortalController extends Controller
 
             // Con menos personas que el mínimo la reserva ya no vale: se cancela.
             $quedan = $reserva->participantes()->whereKeyNot($usuario->id)->count();
-            if ($quedan < config('salas.personas_minimas')) {
+            if ($quedan < $reserva->sala->personasEnElPortal()[0]) {
                 $reserva->update(['estado' => 'cancelada']);
 
                 return [null, true];
@@ -555,7 +559,7 @@ class PortalController extends Controller
         Bitacora::registrar(
             $cancelada ? 'salas.cancelar' : 'salas.integrantes',
             "Se salió desde el portal de {$reserva->descripcion()}"
-                .($cancelada ? ': como quedaban menos de '.config('salas.personas_minimas').' personas, la reserva se canceló' : ''),
+                .($cancelada ? ': como quedaban menos de '.$reserva->sala->personasEnElPortal()[0].' personas, la reserva se canceló' : ''),
             entidad: $reserva,
             datos: ['quitados' => $usuario->descripcion()],
             afectado: $usuario,

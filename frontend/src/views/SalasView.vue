@@ -208,6 +208,7 @@ async function cargar() {
     cuotaDiaria.value = data.cuota_diaria
     minutosPresentarse.value = data.minutos_para_presentarse
     cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_MESON
+    minimoLogias.value = data.personas_minimas_logias ?? null
     cantidadMaxima.value = data.personas_maximas ?? PERSONAS_MAXIMAS_MESON
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
@@ -370,7 +371,11 @@ const horaInicioOpciones = computed(() => {
 })
 
 /** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
-const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : cantidadMinima.value)
+/** El mínimo de las logias (Administración › Salas), o null si está apagado. */
+const minimoLogias = ref<number | null>(null)
+const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : sala.tipo === 'logia' && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
+/** El mínimo de la sala elegida: el de las opciones de «Cantidad de personas». */
+const minimoElegida = computed(() => (selectedSala.value ? minimoDe(selectedSala.value) : cantidadMinima.value))
 
 function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHORA) {
   selectedSala.value = sala
@@ -1237,8 +1242,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 v-model.number="cantidadPersonas"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option v-for="n in cantidadMaxima - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
-                  {{ cantidadMinima + n - 1 }} {{ cantidadMinima + n - 1 === 1 ? 'persona' : 'personas' }}
+                <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
+                  {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
                 </option>
               </select>
             </div>

@@ -228,6 +228,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/plazo-salas/periodos', [PlazoSalaController::class, 'crearPeriodo']);
         Route::delete('/plazo-salas/periodos/{periodoPlazoSala}', [PlazoSalaController::class, 'eliminarPeriodo']);
         Route::get('/mantenedor-salas', [MantenedorSalasController::class, 'index']);
+        Route::put('/mantenedor-salas/minimo-logias', [MantenedorSalasController::class, 'minimoLogiasActualizar']);
         Route::post('/mantenedor-salas', [MantenedorSalasController::class, 'store']);
         Route::put('/mantenedor-salas/{sala}', [MantenedorSalasController::class, 'update']);
         Route::patch('/mantenedor-salas/{sala}/activa', [MantenedorSalasController::class, 'cambiarActiva']);

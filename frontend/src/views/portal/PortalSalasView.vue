@@ -130,6 +130,11 @@ const pctTrasCierre = computed(() => (pctPasado.value >= 100 ? 0 : 100 - pctDesd
 
 const modalOpen = ref(false)
 const selectedSala = ref<Sala | null>(null)
+/** El mínimo de las logias (Administración › Salas), o null si está apagado. */
+const minimoLogias = ref<number | null>(null)
+const minimoDe = (sala: Sala | null | undefined) => (sala?.tipo === 'logia' && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
+/** El mínimo de la sala elegida: el de las opciones de «Cantidad de personas». */
+const minimoElegida = computed(() => minimoDe(selectedSala.value))
 const modalHoraInicio = ref('')
 const modalDuracion = ref(60)
 // Como en el mesón, la hora de inicio y la de término también se pueden escribir a mano
@@ -192,6 +197,7 @@ async function cargar() {
     cuotaDiaria.value = data.cuota_diaria
     minutosPresentarse.value = data.minutos_para_presentarse
     cantidadMinima.value = data.personas_minimas ?? PERSONAS_MINIMAS_SALA
+    minimoLogias.value = data.personas_minimas_logias ?? null
     cantidadMaxima.value = data.personas_maximas ?? PERSONAS_MAXIMAS_SALA
     diaCerrado.value = data.cerrado
     atencion.value = data.atencion
@@ -237,7 +243,7 @@ const filteredSalas = computed(() => {
 
 const pasosAyuda = computed(() => [
   'Busca un espacio <strong>verde</strong> en la sala que quieras, a la derecha de la línea azul <strong>Ahora</strong>: lo rayado ya pasó o está fuera del horario de la biblioteca. En <strong>Mapa</strong> ves las salas como están en cada piso: toca una para ver sus horarios libres de hoy.',
-  `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${cantidadMaxima.value} personas). El tuyo ya viene escrito.`,
+  `Tócalo o haz clic, elige la <strong>duración</strong> (hasta ${formatMinutos(duracionMaxima.value)}) y escribe el <strong>RUT de cada integrante</strong> (de ${cantidadMinima.value} a ${cantidadMaxima.value} personas${minimoLogias.value !== null && minimoLogias.value !== cantidadMinima.value ? `; en las logias, desde ${minimoLogias.value}` : ''}). El tuyo ya viene escrito.`,
   'Pulsa <strong>Confirmar</strong>: tu reserva queda en <strong>azul</strong> en la línea de tiempo.',
   `Preséntate con tu grupo en el mesón dentro de <strong>${textoMinutos(minutosPresentarse.value)}</strong> desde la hora de inicio; si no, la sala se libera sola.`,
 ])
@@ -324,8 +330,8 @@ function abrirModal(sala: Sala, inicioSugeridoMin: number) {
   modalHoraInicioEscrita.value = ''
   terminoAMano.value = false
   modalHoraFin.value = ''
-  cantidadPersonas.value = cantidadMinima.value
-  rutsReserva.value = Array.from({ length: cantidadMinima.value }, (_, idx) => (idx === 0 ? (auth.usuario?.rut ?? '') : ''))
+  cantidadPersonas.value = minimoDe(sala)
+  rutsReserva.value = Array.from({ length: minimoDe(sala) }, (_, idx) => (idx === 0 ? (auth.usuario?.rut ?? '') : ''))
   reiniciarModos([modoDe(auth.usuario?.tipo_documento)])
   rutErrores.value = {}
   modalOpen.value = true
@@ -463,7 +469,7 @@ const cancelando = ref(false)
 
 const saliendo = computed(() => !!reservaPorCancelar.value && meIncluyeron(reservaPorCancelar.value.tramo))
 // Si al salir uno el grupo queda bajo el mínimo de personas, la reserva se cancela.
-const salirLaCancela = computed(() => saliendo.value && reservaPorCancelar.value!.tramo.cantidad_personas <= cantidadMinima.value)
+const salirLaCancela = computed(() => saliendo.value && reservaPorCancelar.value!.tramo.cantidad_personas <= minimoDe(reservaPorCancelar.value!.sala))
 
 /** Qué significa cancelar esta reserva para la espera: solo pesa en quien la hizo. */
 const avisoCancelacion = computed(() => {
@@ -480,10 +486,11 @@ async function confirmarCancelacion() {
   if (!reservaPorCancelar.value) return
   cancelando.value = true
   const id = reservaPorCancelar.value.tramo.reserva_id
+  const minimo = minimoDe(reservaPorCancelar.value.sala)
   try {
     if (saliendo.value) {
       const { data } = await apiUsuario.patch<{ cancelada: boolean }>(`/mi/reservas/${id}/salir`)
-      toast.success(data.cancelada ? `Saliste de la reserva: como quedaban menos de ${cantidadMinima.value} personas, se canceló` : 'Saliste de la reserva')
+      toast.success(data.cancelada ? `Saliste de la reserva: como quedaban menos de ${minimo} personas, se canceló` : 'Saliste de la reserva')
     } else {
       await apiUsuario.delete(`/mi/reservas/${id}`)
       toast.success('Reserva cancelada')
@@ -785,8 +792,8 @@ async function confirmarCancelacion() {
                 v-model.number="cantidadPersonas"
                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option v-for="n in cantidadMaxima - cantidadMinima + 1" :key="n" :value="cantidadMinima + n - 1">
-                  {{ cantidadMinima + n - 1 }} personas
+                <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
+                  {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
                 </option>
               </select>
             </div>
@@ -854,7 +861,7 @@ async function confirmarCancelacion() {
         El resto del grupo la mantiene, y tú quedas libre para reservar otra sala.
       </p>
       <p v-else-if="reservaPorCancelar && saliendo">
-        Como en el grupo quedarían menos de {{ cantidadMinima }} personas, la reserva de <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
+        Como en el grupo quedarían menos de {{ minimoDe(reservaPorCancelar.sala) }} personas, la reserva de <strong>{{ reservaPorCancelar.sala.nombre }}</strong> de
         <strong>{{ reservaPorCancelar.tramo.hora_inicio.slice(0, 5) }} a {{ reservaPorCancelar.tramo.hora_fin.slice(0, 5) }}</strong>
         se cancelará y la sala quedará disponible para otras personas.
       </p>

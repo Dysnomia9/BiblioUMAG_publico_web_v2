@@ -65,7 +65,44 @@ class Sala extends Model
      */
     public function personasPermitidas(): array
     {
-        return $this->solo_responsable ? [1, 1] : self::personasDelMeson();
+        if ($this->solo_responsable) {
+            return [1, 1];
+        }
+        [$minimo, $maximo] = self::personasDelMeson();
+
+        return [$this->minimoPropio($minimo, $maximo), $maximo];
+    }
+
+    /**
+     * Cuántas personas lleva una reserva de esta sala hecha en el portal, [mínimo, máximo]:
+     * el rango del portal (config/salas.php), con el mínimo de las logias si está encendido.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public function personasEnElPortal(): array
+    {
+        [$minimo, $maximo] = self::personasDelPortal();
+
+        return [$this->minimoPropio($minimo, $maximo), $maximo];
+    }
+
+    /**
+     * El mínimo de personas de todas las logias (Administración › Salas), o null si está
+     * apagado y valen los de config/salas.php.
+     */
+    public static function minimoLogias(): ?int
+    {
+        $configuracion = ConfiguracionInstitucional::actual();
+
+        return $configuracion->minimo_personas_logias_activo ? $configuracion->minimo_personas_logias : null;
+    }
+
+    /** El mínimo de las logias, si está encendido, sin pasar del máximo del rango (si no, el del rango). */
+    private function minimoPropio(int $minimo, int $maximo): int
+    {
+        $logias = $this->tipo === 'logia' ? self::minimoLogias() : null;
+
+        return $logias === null ? $minimo : min($logias, $maximo);
     }
 
     /** @return array{0: int, 1: int} */

@@ -558,6 +558,8 @@ export type VistaSalasDia = {
   /** Personas por reserva (config/salas.php): en el mesón el rango es más amplio que en el portal. */
   personas_minimas: number
   personas_maximas: number
+  /** El mínimo de las logias (Administración › Salas), o null si está apagado y vale personas_minimas. */
+  personas_minimas_logias?: number | null
   /** Tiempo para presentarse en una reserva de ese día (Administración › Salas). */
   minutos_para_presentarse: number
   salas: Sala[]

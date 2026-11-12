@@ -11,11 +11,16 @@ class ConfiguracionInstitucional extends Model
 
     protected $table = 'configuracion_institucional';
 
-    protected $fillable = ['jefe_unidad_nombre', 'jefe_unidad_cargo', 'plazo_confirmacion_sala'];
+    protected $fillable = ['jefe_unidad_nombre', 'jefe_unidad_cargo', 'plazo_confirmacion_sala',
+        'minimo_personas_logias_activo', 'minimo_personas_logias'];
 
     protected function casts(): array
     {
-        return ['plazo_confirmacion_sala' => 'integer'];
+        return [
+            'plazo_confirmacion_sala' => 'integer',
+            'minimo_personas_logias_activo' => 'boolean',
+            'minimo_personas_logias' => 'integer',
+        ];
     }
 
     /** Siempre hay exactamente una fila (id=1, sembrada por la migración) — mismo patrón que CodigoAcceso::vigente(). */

@@ -22,11 +22,36 @@ const personas = ref<{ meson: Rango; portal: Rango }>({ meson: { minimo: 1, maxi
 const apiError = ref(false)
 const cargando = ref(true)
 
+// ---------- Mínimo de personas para salas o logias ----------
+// Encendido, el número es el mínimo de todas las logias en el mesón y en el portal (en el
+// portal, sin pasar de su máximo); apagado, vuelven los rangos de siempre.
+type MinimoLogias = { activo: boolean; minimo: number; maximo: number; portal: Rango; logias_chicas: string[] }
+const minimoLogias = ref<MinimoLogias | null>(null)
+const guardandoMinimo = ref(false)
+
+async function guardarMinimoLogias(cambio: Partial<Pick<MinimoLogias, 'activo' | 'minimo'>>) {
+  if (!minimoLogias.value) return
+  const anterior = { ...minimoLogias.value }
+  Object.assign(minimoLogias.value, cambio)
+  guardandoMinimo.value = true
+  try {
+    const { data } = await api.put<MinimoLogias>('/mantenedor-salas/minimo-logias', { activo: minimoLogias.value.activo, minimo: minimoLogias.value.minimo })
+    minimoLogias.value = data
+    toast.success(data.activo ? `Las logias piden al menos ${data.minimo} ${data.minimo === 1 ? 'persona' : 'personas'}` : 'Las logias vuelven al mínimo de siempre')
+  } catch (e) {
+    minimoLogias.value = anterior
+    toast.error(mensajeDeError(e, 'No se pudo guardar el mínimo de las logias'))
+  } finally {
+    guardandoMinimo.value = false
+  }
+}
+
 async function cargar() {
   try {
-    const { data } = await api.get<{ salas: SalaAdministrada[]; personas: { meson: Rango; portal: Rango } }>('/mantenedor-salas')
+    const { data } = await api.get<{ salas: SalaAdministrada[]; personas: { meson: Rango; portal: Rango }; minimo_logias: MinimoLogias }>('/mantenedor-salas')
     salas.value = data.salas
     personas.value = data.personas
+    minimoLogias.value = data.minimo_logias
     apiError.value = false
   } catch {
     apiError.value = true
@@ -213,6 +238,49 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
       </div>
       <button type="button" class="shrink-0 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="nueva">+ Nueva sala</button>
     </header>
+
+    <!-- Mínimo de personas para salas o logias: un interruptor y el número -->
+    <div v-if="minimoLogias" class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-start gap-3">
+        <button
+          type="button"
+          role="switch"
+          :aria-checked="minimoLogias.activo"
+          aria-labelledby="minimo-logias-titulo"
+          :disabled="guardandoMinimo"
+          class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:opacity-60"
+          :class="minimoLogias.activo ? 'bg-indigo-600' : 'bg-gray-300'"
+          @click="guardarMinimoLogias({ activo: !minimoLogias.activo })"
+        >
+          <span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform" :class="minimoLogias.activo ? 'translate-x-[1.375rem]' : 'translate-x-0.5'"></span>
+        </button>
+        <div>
+          <p id="minimo-logias-titulo" class="text-sm font-semibold text-gray-900">Mínimo de personas para salas o logias</p>
+          <p class="mt-0.5 max-w-2xl text-xs text-gray-500">
+            <template v-if="minimoLogias.activo">
+              Todas las logias piden al menos <strong class="text-gray-800">{{ minimoLogias.minimo }} {{ minimoLogias.minimo === 1 ? 'persona' : 'personas' }}</strong>, en el mesón y en el portal<template v-if="minimoLogias.minimo > minimoLogias.portal.maximo"> (en el portal, que admite hasta {{ minimoLogias.portal.maximo }}, piden {{ minimoLogias.portal.maximo }})</template>.
+            </template>
+            <span v-if="minimoLogias.activo && minimoLogias.logias_chicas.length" class="mt-1 block text-amber-700">
+              {{ minimoLogias.logias_chicas.length === 1 ? 'La logia' : 'Las logias' }} {{ minimoLogias.logias_chicas.join(', ') }} {{ minimoLogias.logias_chicas.length === 1 ? 'tiene' : 'tienen' }} capacidad para menos de {{ minimoLogias.minimo }}: revisa su capacidad o baja el mínimo.
+            </span>
+            <template v-if="!minimoLogias.activo">
+              Apagado: las logias usan el mínimo de siempre, {{ personas.portal.minimo }} en el portal y {{ personas.meson.minimo }} en el mesón. Al encenderlo, el número que elijas vale para todas las logias.
+            </template>
+          </p>
+        </div>
+      </div>
+      <label class="flex shrink-0 items-center gap-2 text-sm text-gray-700" :class="minimoLogias.activo ? '' : 'opacity-50'">
+        Mínimo
+        <select
+          :value="minimoLogias.minimo"
+          :disabled="!minimoLogias.activo || guardandoMinimo"
+          class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
+          @change="guardarMinimoLogias({ minimo: Number(($event.target as HTMLSelectElement).value) })"
+        >
+          <option v-for="n in minimoLogias.maximo" :key="n" :value="n">{{ n }} {{ n === 1 ? 'persona' : 'personas' }}</option>
+        </select>
+      </label>
+    </div>
 
     <div class="overflow-x-auto">
       <table class="w-full min-w-[46rem]">

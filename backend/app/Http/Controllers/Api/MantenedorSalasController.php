@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ConfiguracionInstitucional;
 use App\Models\Sala;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
@@ -34,7 +35,59 @@ class MantenedorSalasController extends Controller
                 'meson' => array_combine(['minimo', 'maximo'], Sala::personasDelMeson()),
                 'portal' => array_combine(['minimo', 'maximo'], Sala::personasDelPortal()),
             ],
+            'minimo_logias' => $this->minimoLogias(),
         ]);
+    }
+
+    /**
+     * «Mínimo de personas para salas o logias»: encendido, el número vale como mínimo en todas
+     * las logias, en el mesón y en el portal (sin pasar del máximo de cada uno); apagado,
+     * vuelven los de config/salas.php.
+     */
+    public function minimoLogiasActualizar(Request $request)
+    {
+        $maximo = Sala::personasDelMeson()[1];
+        $data = $request->validate([
+            'activo' => ['required', 'boolean'],
+            'minimo' => ['required', 'integer', 'min:1', 'max:'.$maximo],
+        ], [
+            'minimo.min' => "El mínimo va de 1 a {$maximo} personas.",
+            'minimo.max' => "El mínimo va de 1 a {$maximo} personas.",
+        ]);
+
+        $configuracion = ConfiguracionInstitucional::actual();
+        $antes = $configuracion->only(['minimo_personas_logias_activo', 'minimo_personas_logias']);
+        $despues = ['minimo_personas_logias_activo' => $data['activo'], 'minimo_personas_logias' => $data['minimo']];
+        $configuracion->update($despues);
+
+        Bitacora::registrar(
+            'configuracion.minimo_logias',
+            $data['activo'] ? "Fijó en {$data['minimo']} el mínimo de personas para las logias" : 'Desactivó el mínimo de personas para las logias',
+            entidad: $configuracion,
+            datos: Bitacora::cambios($antes, $despues),
+        );
+
+        return response()->json($this->minimoLogias());
+    }
+
+    /** @return array{activo: bool, minimo: int, maximo: int, portal: array{minimo: int, maximo: int}, logias_chicas: list<string>} */
+    private function minimoLogias(): array
+    {
+        $configuracion = ConfiguracionInstitucional::actual();
+
+        return [
+            'activo' => $configuracion->minimo_personas_logias_activo,
+            'minimo' => $configuracion->minimo_personas_logias,
+            'maximo' => Sala::personasDelMeson()[1],
+            // Lo que rige en el portal, que llega solo hasta su máximo
+            'portal' => array_combine(['minimo', 'maximo'], Sala::personasDelPortal()),
+            // Logias activas con capacidad menor que el mínimo: un aviso, no un bloqueo (el mesón
+            // ya anota hasta 7 en una logia de 3)
+            'logias_chicas' => $configuracion->minimo_personas_logias_activo
+                ? Sala::where('tipo', 'logia')->where('activa', true)->where('solo_responsable', false)
+                    ->where('capacidad', '<', $configuracion->minimo_personas_logias)->enOrden()->pluck('codigo')->all()
+                : [],
+        ];
     }
 
     public function store(Request $request)
