@@ -23,7 +23,7 @@ class Libro extends Model
         'anio_publicacion', 'tipo_material_id', 'nota_interna', 'nota_publica',
         'titulo_alternativo', 'mencion_responsabilidad', 'edicion', 'lugar_publicacion', 'descripcion_fisica',
         'entidad_corporativa', 'reunion', 'entidad_secundaria', 'materias_personales',
-        'materias_geograficas', 'url_acceso', 'issn', 'designacion_volumen',
+        'materias_geograficas', 'url_acceso', 'otros_enlaces', 'issn', 'designacion_volumen',
         'nota_tesis', 'profesor_guia', 'resumen', 'audiencia',
         'idioma', 'serie', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
     ];

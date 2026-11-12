@@ -44,6 +44,7 @@ final class FichaBibliografica
             ['autores_secundarios', '700', 'Autores secundarios', true],
             ['entidad_secundaria', '710', 'Entidad corporativa relacionada', true],
             ['url_acceso', '856', 'Acceso electrónico', true],
+            ['otros_enlaces', '856', 'Otros enlaces', true],
             ['nota_publica', '500', 'Nota pública', true],
             ['creacion_registro', '008', 'Creación del registro', false],
             ['idioma', '041', 'Idioma', false],
@@ -67,6 +68,7 @@ final class FichaBibliografica
             ['profesor_guia', '700', 'Profesor guía', true],
             ['entidad_secundaria', '710', 'Entidad corporativa relacionada', true],
             ['url_acceso', '856', 'Acceso electrónico', true],
+            ['otros_enlaces', '856', 'Otros enlaces', true],
             ['nota_publica', '500', 'Nota pública', true],
             ['creacion_registro', '008', 'Creación del registro', false],
             ['idioma', '041', 'Idioma', false],
@@ -100,6 +102,7 @@ final class FichaBibliografica
             ['designacion_volumen', '362', 'Fecha de publicación y volumen', true],
             ['materias', '650', 'Materias', true],
             ['url_acceso', '856', 'Acceso electrónico', true],
+            ['otros_enlaces', '856', 'Otros enlaces', true],
             ['nota_publica', '500', 'Nota pública', true],
             ['creacion_registro', '008', 'Creación del registro', false],
             ['idioma', '041', 'Idioma', false],
@@ -186,7 +189,8 @@ final class FichaBibliografica
             'autor_principal' => self::principal($libro)?->nombre,
             'autores_secundarios' => $libro->autores->reject(fn ($a) => $a === self::principal($libro))->map(fn ($a) => self::conRol($a))->implode('; '),
             // Como en el registro (490): entre paréntesis, «(Serie Harry Potter ; 1)».
-            'serie' => filled($libro->serie) ? '('.trim($libro->serie).')' : null,
+            // Cada una entre paréntesis, «(Notas de matemática ; 85) (North-Holland mathematics studies ; 67)»
+            'serie' => filled($libro->serie) ? collect(preg_split('/\R/', $libro->serie))->map(fn ($s) => trim($s))->filter()->map(fn ($s) => "({$s})")->implode(' ') : null,
             // 245 $c solo si nombra a alguien que la ficha no muestra (casi siempre repite el 100/700)
             'mencion_responsabilidad' => MencionResponsabilidad::aporta($libro) ? trim($libro->mencion_responsabilidad) : null,
             'materias' => $libro->categorias->pluck('nombre')->implode('; '),
@@ -225,6 +229,9 @@ final class FichaBibliografica
         return match ($clave) {
             'autor_principal' => self::itemsAutores(collect([self::principal($libro)])),
             'materias' => $libro->categorias->map(fn ($c) => ['texto' => $c->nombre, 'categoria_id' => $c->id])->values()->all(),
+            // Cada enlace con su texto, o «Abrir enlace»
+            'otros_enlaces' => collect(preg_split('/\R/', (string) $libro->otros_enlaces))->map(fn ($l) => trim($l))->filter()
+                ->map(fn ($l) => ['texto' => trim(substr($l, strlen(strtok($l, ' ')))) ?: 'Abrir enlace', 'url' => strtok($l, ' ')])->values()->all(),
             'profesor_guia' => collect(explode(';', $valor))->map(fn ($n) => trim($n))->filter()->map(fn ($n) => ['texto' => $n, 'buscar' => $n])->values()->all(),
             // Solo las listas se separan en chips. En el resto, « ; » es puntuación ISBD y va
             // entero: «(Aporte al debate laboral ; 34)», «86 p. : il. ; 24 cm.».

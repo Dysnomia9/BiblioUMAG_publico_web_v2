@@ -31,4 +31,27 @@ class FichaPuntuacionIsbdTest extends TestCase
         $this->assertNull($ficha['Descripción física']['items']);
         $this->assertSame(['Magallanes (Chile)', 'Patagonia'], array_column($ficha['Materia (nombre geográfico)']['items'], 'texto'));
     }
+
+    public function test_varias_series_y_otros_enlaces(): void
+    {
+        $libro = Libro::factory()->create([
+            'serie' => "Notas de matemática ; 85\nNorth-Holland mathematics studies ; 67",
+            'url_acceso' => 'https://drive.example/v1',
+            'otros_enlaces' => "https://drive.example/v2 Vea aquí versión digital, v.2\nhttps://drive.example/v3",
+        ]);
+        Ejemplar::factory()->for($libro)->create();
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $ficha = collect($this->getJson('/api/libros')->assertOk()->json('data.0.ficha'))->keyBy('campo');
+        $this->assertSame('(Notas de matemática ; 85) (North-Holland mathematics studies ; 67)', $ficha['Serie']['valor']);
+        $this->assertSame([
+            ['texto' => 'Vea aquí versión digital, v.2', 'url' => 'https://drive.example/v2'],
+            ['texto' => 'Abrir enlace', 'url' => 'https://drive.example/v3'],
+        ], $ficha['Otros enlaces']['items']);
+
+        // Al catalogar, cada línea tiene que empezar con una dirección web
+        $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'otros_enlaces' => "no es un enlace"])
+            ->assertStatus(422)->assertJsonValidationErrors('otros_enlaces');
+        $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'otros_enlaces' => "https://x.example/a Tomo 1\nhttps://x.example/b"])->assertOk();
+    }
 }

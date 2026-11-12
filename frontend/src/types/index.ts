@@ -225,7 +225,7 @@ export type TipoMaterial = { id: number; nombre: string; plantilla: PlantillaFic
 
 /** Una fila de la ficha bibliográfica (etiqueta MARC, nombre del campo y su valor). */
 /** Un valor de una fila de la ficha (un autor, una materia…), con lo que sirve para filtrar por él. */
-export type ItemFicha = { texto: string; autor_id?: number; categoria_id?: number; carrera_id?: number; buscar?: string }
+export type ItemFicha = { texto: string; autor_id?: number; categoria_id?: number; carrera_id?: number; buscar?: string; /** Un enlace (otros 856): se abre en otra pestaña. */ url?: string }
 export type FilaFicha = { etiqueta: string; campo: string; valor: string; interno: boolean; items?: ItemFicha[] | null }
 
 /** Título tal como lo entrega el catálogo del portal: solo datos públicos. */
@@ -331,6 +331,8 @@ export type Libro = {
   materias_personales?: string | null
   materias_geograficas?: string | null
   url_acceso?: string | null
+  /** Los demás 856, uno por línea: «URL texto». */
+  otros_enlaces?: string | null
   issn?: string | null
   designacion_volumen?: string | null
   nota_tesis?: string | null

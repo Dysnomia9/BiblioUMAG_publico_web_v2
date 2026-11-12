@@ -35,8 +35,9 @@ const verInternas = ref(true)
           <!-- Varios valores (autores, materias…): una etiqueta cada uno, no unidos con «;». -->
           <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
             <template v-for="(item, k) in f.items" :key="k">
+              <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
               <button
-                v-if="sePuedeFiltrar(item)"
+                v-else-if="sePuedeFiltrar(item)"
                 type="button"
                 class="rounded-md border border-indigo-100 bg-indigo-50/60 px-2 py-0.5 text-left text-[13px] font-medium text-indigo-800 transition-colors hover:border-indigo-300 hover:bg-indigo-100"
                 :title="`Ver los libros de ${item.texto}`"
@@ -69,7 +70,10 @@ const verInternas = ref(true)
           <dt class="text-gray-500">{{ f.campo }}</dt>
           <dd class="col-start-2 whitespace-pre-line break-words text-gray-600 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
             <span v-if="f.items?.length" class="flex flex-wrap gap-1.5">
-              <span v-for="(item, k) in f.items" :key="k" class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[13px]">{{ item.texto }}</span>
+              <template v-for="(item, k) in f.items" :key="k">
+                <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline">{{ item.texto }}</a>
+                <span v-else class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[13px]">{{ item.texto }}</span>
+              </template>
             </span>
             <template v-else>{{ f.valor }}</template>
           </dd>
@@ -88,7 +92,10 @@ const verInternas = ref(true)
           Abrir recurso electrónico
         </a>
         <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
-          <span v-for="(item, k) in f.items" :key="k" class="rounded-md bg-gray-100 px-2 py-0.5">{{ item.texto }}</span>
+          <template v-for="(item, k) in f.items" :key="k">
+            <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
+            <span v-else class="rounded-md bg-gray-100 px-2 py-0.5">{{ item.texto }}</span>
+          </template>
         </span>
         <template v-else>{{ f.valor }}</template>
       </dd>

@@ -62,7 +62,7 @@ const guardando = ref(false)
 const CAMPOS_TEXTO = [
   'isbn', 'otros_isbn', 'issn', 'clasificacion', 'titulo_alternativo', 'mencion_responsabilidad', 'edicion', 'lugar_publicacion',
   'descripcion_fisica', 'entidad_corporativa', 'reunion', 'entidad_secundaria',
-  'materias_personales', 'materias_geograficas', 'url_acceso', 'designacion_volumen',
+  'materias_personales', 'materias_geograficas', 'url_acceso', 'otros_enlaces', 'designacion_volumen',
   'nota_tesis', 'profesor_guia', 'resumen', 'audiencia', 'idioma', 'serie',
   'nota_interna', 'nota_publica', 'nota_bibliografia', 'frecuencia', 'nota_idioma', 'nota_local', 'contenido',
 ] as const
@@ -144,6 +144,7 @@ const PISTAS: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'Una por línea',
   materias_geograficas: 'Una por línea. Ej: Magallanes (Chile)',
   url_acceso: 'https://...',
+  otros_enlaces: 'Uno por línea: la dirección y, si quiere, un texto. Ej: https://... Versión digital, v.2',
   designacion_volumen: 'Ej: Vol. 12, n.º 3 (2024)',
   nota_tesis: 'Ej: Tesis (Ingeniero Civil en Computación e Informática) -- Universidad de Magallanes, 2023',
   resumen: 'De qué trata y cómo se usa',
@@ -163,6 +164,7 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'Materia de persona',
   materias_geograficas: 'Materia de lugar',
   url_acceso: 'Enlace (acceso electrónico)',
+  otros_enlaces: 'Otros enlaces (uno por línea)',
   nota_interna: 'Notas generales (nota interna, solo la ve el personal)',
   nota_publica: 'Nota pública (la ve el usuario en el portal)',
   nota_bibliografia: 'Nota de bibliografía (interna)',
@@ -173,7 +175,7 @@ const NOMBRES: Partial<Record<CampoTexto, string>> = {
 // Campos opcionales que quedan tras un botón «+ …» para no alargar el formulario.
 // La entidad (110) no va aquí: está siempre a la vista junto a los autores, porque la autoría es una u otra.
 const EXTRAS_TITULO = ['titulo_alternativo', 'mencion_responsabilidad', 'reunion', 'entidad_secundaria'] as const
-const EXTRAS_MATERIAS = ['materias_personales', 'materias_geograficas', 'url_acceso'] as const
+const EXTRAS_MATERIAS = ['materias_personales', 'materias_geograficas', 'url_acceso', 'otros_enlaces'] as const
 const NOTAS_INTERNAS = ['nota_interna', 'nota_bibliografia', 'nota_idioma', 'nota_local'] as const
 const EN_EL_BOTON: Partial<Record<CampoTexto, string>> = {
   titulo_alternativo: 'título alternativo',
@@ -184,6 +186,7 @@ const EN_EL_BOTON: Partial<Record<CampoTexto, string>> = {
   materias_personales: 'materia de persona',
   materias_geograficas: 'lugar',
   url_acceso: 'enlace',
+  otros_enlaces: 'otros enlaces',
 }
 
 const extrasTitulo = computed(() => EXTRAS_TITULO.filter((c) => tiene(c)))
@@ -1174,7 +1177,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('serie')" class="sm:col-span-3">
                   <label for="cat-serie" :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie</label>
-                  <input autocomplete="off" id="cat-serie" v-model="form.serie" placeholder="Opcional" :class="CAMPO" />
+                  <textarea id="cat-serie" v-model="form.serie" rows="1" placeholder="Opcional · si son varias, una por línea" :class="CAMPO"></textarea>
                 </div>
                 <div v-if="tiene('designacion_volumen')" class="sm:col-span-3">
                   <label for="cat-designacion" :class="ETIQUETA"><Marc :codigo="etiqueta('designacion_volumen')" tono="teal" /> Fecha de publicación y volumen</label>
@@ -1236,7 +1239,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     </button>
                   </div>
                   <template v-else>
-                    <div v-for="c in extrasMaterias" :key="c" :class="c === 'url_acceso' ? 'sm:col-span-6' : 'sm:col-span-3'">
+                    <div v-for="c in extrasMaterias" :key="c" :class="c === 'url_acceso' || c === 'otros_enlaces' ? 'sm:col-span-6' : 'sm:col-span-3'">
                       <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="pizarra" /> {{ NOMBRES[c] }}</label>
                       <input autocomplete="off" v-if="c === 'url_acceso'" :id="`cat-${c}`" v-model="form.url_acceso" type="url" :placeholder="PISTAS.url_acceso" :class="CAMPO" />
                       <textarea v-else :id="`cat-${c}`" v-model="form[c]" rows="2" :placeholder="PISTAS[c]" :class="CAMPO"></textarea>

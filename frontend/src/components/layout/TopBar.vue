@@ -306,19 +306,19 @@ async function guardarClave() {
       >
         <!-- Panel: línea morada arriba, encabezado en lavanda y cuerpo con el fondo elegido.
              my-auto lo centra en la pantalla y, si no cabe, deja desplazar sin cortar el borde de arriba. -->
-        <div class="w-full max-w-3xl lg:max-w-[75rem] my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
+        <div class="w-full max-w-3xl lg:max-w-[60rem] my-2 sm:my-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl">
           <div class="h-1" style="background: linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);" aria-hidden="true"></div>
-          <div class="flex items-start justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-5 py-5 sm:px-8 sm:py-6">
+          <div class="flex items-center justify-between gap-4 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-3 sm:px-5">
             <div class="flex items-stretch gap-3">
               <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
               <div>
-                <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900">Menú de Gestión</h2>
-                <p class="text-sm text-gray-600 mt-1">Selecciona un módulo para continuar · se muestran solo los que tu rol puede usar</p>
+                <h2 class="text-lg font-serif font-bold text-gray-900">Menú de Gestión</h2>
+                <p class="text-xs text-gray-600">Se muestran solo los módulos que tu rol puede usar</p>
               </div>
             </div>
             <button
               @click="cerrarMenuGestion"
-              class="shrink-0 h-10 w-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:border-gray-300 shadow-sm transition-colors"
+              class="shrink-0 h-8 w-8 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-800 hover:border-gray-300 shadow-sm transition-colors"
               aria-label="Cerrar menú de gestión"
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -327,7 +327,7 @@ async function guardarClave() {
             </button>
           </div>
 
-          <div class="fondo-elegido px-5 py-6 sm:px-8 sm:py-7">
+          <div class="fondo-elegido px-3 py-3 sm:px-4 sm:py-4">
             <!-- En celular, el menú también trae los módulos de la barra superior -->
             <div class="lg:hidden mb-5">
               <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-800 mb-2.5">
@@ -359,39 +359,40 @@ async function guardarClave() {
             <!-- Cada sección es un recuadro con su encabezado de color. Van una al lado de la
                  otra mientras quepan y se estiran para llenar la fila (en una pantalla ancha,
                  todo entra en dos filas sin desplazarse); en las angostas se apilan. -->
-            <div class="flex flex-wrap gap-5">
+            <div class="flex flex-wrap gap-3">
               <section
                 v-for="seccion in secciones"
                 :key="seccion.titulo"
                 class="w-full overflow-hidden rounded-2xl border bg-white/75 shadow-sm backdrop-blur-sm sm:w-auto sm:max-w-full sm:flex-auto"
                 :class="TONOS_SECCION[seccion.tono].marco"
               >
-                <h3 class="flex items-center gap-2.5 border-b px-4 py-2.5 font-sans" :class="TONOS_SECCION[seccion.tono].cabecera">
-                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-sm" :class="TONOS_SECCION[seccion.tono].icono" aria-hidden="true">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <h3 class="flex items-center gap-2 border-b px-3 py-1.5 font-sans" :class="TONOS_SECCION[seccion.tono].cabecera">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-white shadow-sm" :class="TONOS_SECCION[seccion.tono].icono" aria-hidden="true">
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="seccion.icono" />
                     </svg>
                   </span>
-                  <span class="text-xs font-bold uppercase tracking-[0.14em]" :class="TONOS_SECCION[seccion.tono].titulo">{{ seccion.titulo }}</span>
+                  <span class="text-[11px] font-bold uppercase tracking-[0.12em]" :class="TONOS_SECCION[seccion.tono].titulo">{{ seccion.titulo }}</span>
                 </h3>
-                <div class="flex flex-wrap gap-2.5 p-3 sm:gap-3 sm:p-4">
+                <!-- Filas compactas (ícono y nombre lado a lado): todo cerca, sin recorrer tarjetas grandes -->
+                <div class="grid grid-cols-2 gap-1 p-1.5 sm:flex sm:flex-wrap sm:p-2">
                   <router-link
                     v-for="link in seccion.tarjetas"
                     :key="link.name"
                     :to="{ name: link.name }"
                     @click="cerrarMenuGestion"
-                    class="group flex min-h-[6.75rem] min-w-[7.25rem] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-t-[3px] border-gray-200 bg-white px-2 py-3 text-center shadow-sm transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 active:scale-[0.98] sm:w-[7.25rem] sm:flex-none"
-                    :class="[ADMIN_COLORS[link.color].border, ADMIN_COLORS[link.color].topBorder, route.name === link.name ? 'ring-2 ring-indigo-400' : '']"
+                    class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left transition-colors hover:bg-white hover:shadow-sm sm:w-[10.5rem]"
+                    :class="[ADMIN_COLORS[link.color].border, route.name === link.name ? 'bg-white ring-2 ring-indigo-400' : '']"
                   >
-                    <div
-                      class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors group-hover:text-white"
+                    <span
+                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors group-hover:text-white"
                       :class="[ADMIN_COLORS[link.color].icon, ADMIN_COLORS[link.color].iconHover]"
                     >
-                      <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                         <path stroke-linecap="round" stroke-linejoin="round" :d="link.icon" />
                       </svg>
-                    </div>
-                    <div class="text-xs font-semibold text-gray-900 leading-tight">{{ link.label }}</div>
+                    </span>
+                    <span class="text-[13px] font-semibold leading-tight text-gray-800">{{ link.label }}</span>
                   </router-link>
                 </div>
               </section>

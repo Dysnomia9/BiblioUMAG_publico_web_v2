@@ -411,6 +411,15 @@ class LibroController extends Controller
             'materias_personales' => ['nullable', 'string'],
             'materias_geograficas' => ['nullable', 'string'],
             'url_acceso' => ['nullable', 'url', 'max:2048'],
+            // Los demás 856, uno por línea: «URL» o «URL texto»
+            'otros_enlaces' => ['nullable', 'string', 'max:10000', function (string $campo, mixed $valor, \Closure $falla) {
+                foreach (preg_split('/\R/', (string) $valor) as $linea) {
+                    $url = strtok(trim($linea), ' ');
+                    if ($url !== false && trim($linea) !== '' && ! filter_var($url, FILTER_VALIDATE_URL)) {
+                        $falla("Cada línea de «Otros enlaces» empieza con una dirección web (https://…): «{$url}» no lo es.");
+                    }
+                }
+            }],
             'issn' => ['nullable', 'string', 'max:32'],
             'designacion_volumen' => ['nullable', 'string', 'max:255'],
             'nota_tesis' => ['nullable', 'string'],
@@ -418,7 +427,7 @@ class LibroController extends Controller
             'resumen' => ['nullable', 'string'],
             'audiencia' => ['nullable', 'string', 'max:255'],
             'idioma' => ['nullable', 'string', 'max:100'],
-            'serie' => ['nullable', 'string', 'max:255'],
+            'serie' => ['nullable', 'string', 'max:2000'], // 490 repetible: una por línea
             'nota_bibliografia' => ['nullable', 'string'],
             'frecuencia' => ['nullable', 'string', 'max:100'],
             'nota_idioma' => ['nullable', 'string', 'max:255'],
