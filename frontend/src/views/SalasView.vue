@@ -245,6 +245,10 @@ async function cargar() {
   try {
     const { data } = await api.get('/salas', { params: { fecha: selectedDate.value } })
     salas.value = data.salas
+    // Las ventanas abiertas siguen a la sala recién cargada: si alguien reserva mientras se
+    // ajusta la hora, su bloque aparece en la tira.
+    if (selectedSala.value) selectedSala.value = data.salas.find((x: Sala) => x.id === selectedSala.value?.id) ?? selectedSala.value
+    if (detalleSala.value) detalleSala.value = data.salas.find((x: Sala) => x.id === detalleSala.value?.id) ?? detalleSala.value
     apertura.value = data.apertura
     cierre.value = data.cierre
     granularidad.value = data.granularidad

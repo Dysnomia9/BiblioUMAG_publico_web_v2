@@ -189,6 +189,9 @@ async function cargar() {
     const { data } = await apiUsuario.get('/mi/salas', { params: { fecha: hoy } })
     if (data.cancelaciones) cancelaciones.value = data.cancelaciones
     salas.value = data.salas
+    // El formulario abierto sigue a la sala recién cargada: si alguien reserva mientras
+    // se ajusta la hora, su bloque aparece en la tira.
+    if (selectedSala.value) selectedSala.value = data.salas.find((x: Sala) => x.id === selectedSala.value?.id) ?? selectedSala.value
     apertura.value = data.apertura
     cierre.value = data.cierre
     granularidad.value = data.granularidad
@@ -234,6 +237,14 @@ watch(vista, (v) => {
   if (v === 'linea') mostrarHoraActual()
 })
 useRefrescoPeriodico(cargar, 30000)
+// Con el formulario abierto se consulta más seguido (cada 5 s), como en el mesón, para
+// que la tira muestre al tiro lo que otros reservan.
+let refrescoFormulario: ReturnType<typeof setInterval> | undefined
+watch(modalOpen, (abierto) => {
+  clearInterval(refrescoFormulario)
+  if (abierto) refrescoFormulario = setInterval(() => document.visibilityState === 'visible' && cargar(), 5000)
+})
+onUnmounted(() => clearInterval(refrescoFormulario))
 
 const filteredSalas = computed(() => {
   if (!busqueda.value.trim()) return salas.value
@@ -337,6 +348,30 @@ function abrirModal(sala: Sala, inicioSugeridoMin: number) {
   modalOpen.value = true
 }
 
+// Tira de la sala en el formulario: lo libre, lo ocupado y el bloque que se está eligiendo.
+// Un clic en lo verde elige esa hora de inicio y ajusta la duración a lo libre.
+function elegirEnTira(evento: MouseEvent) {
+  const sala = selectedSala.value
+  if (!sala) return
+  const rect = (evento.currentTarget as HTMLElement).getBoundingClientRect()
+  const minuto = aperturaMin.value + ((evento.clientX - rect.left) / rect.width) * totalMin.value
+  const bloque = Math.floor(minuto / granularidad.value) * granularidad.value
+  const inicio = [bloque, bloque + granularidad.value]
+    .filter((m) => horaInicioOpciones.value.includes(minutesToTime(m)))
+    .find((m) => disponibilidadDesde(sala, m) >= duracionMinima.value)
+  if (inicio === undefined) {
+    toast.error('Esa hora no está libre: elige un espacio verde de la tira.')
+    return
+  }
+  inicioAMano.value = false
+  modalHoraInicioEscrita.value = ''
+  modalHoraInicio.value = minutesToTime(inicio)
+  terminoAMano.value = false
+  modalHoraFin.value = ''
+  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, inicio))
+  modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
+}
+
 function onTimelineClick(sala: Sala, event: MouseEvent) {
   if (diaCerrado.value) {
     toast.error(textoDiaCerrado)
@@ -409,6 +444,9 @@ function primerMensajeError(e: any): string | undefined {
   return e?.response?.data?.message
 }
 
+// Después de confirmar: el aviso de presentarse en el mesón con el grupo a la hora de inicio.
+const reservaHecha = ref<{ sala: string; inicio: string; fin: string; personas: number } | null>(null)
+
 async function confirmarReserva() {
   if (!selectedSala.value) return
   if (avisoHoras.value) {
@@ -436,7 +474,7 @@ async function confirmarReserva() {
       cantidad_personas: cantidadPersonas.value,
       ruts: rutsReserva.value,
     })
-    toast.success(`${selectedSala.value.nombre} reservada de ${data.hora_inicio.slice(0, 5)} a ${data.hora_fin.slice(0, 5)}`)
+    reservaHecha.value = { sala: selectedSala.value.nombre, inicio: data.hora_inicio.slice(0, 5), fin: data.hora_fin.slice(0, 5), personas: cantidadPersonas.value }
     modalOpen.value = false
     await cargar()
   } catch (e: any) {
@@ -720,11 +758,90 @@ async function confirmarCancelacion() {
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="modalOpen = false"
       >
-        <div class="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-full max-w-sm">
-          <h3 class="text-lg font-semibold text-gray-900 mb-1">Confirmar reserva</h3>
-          <p class="text-sm text-gray-500 mb-5">{{ selectedSala.nombre }}</p>
+        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <!-- Encabezado morado: la sala y el horario elegido, bien visible -->
+          <div
+            class="shrink-0 px-5 pb-4 pt-3.5 text-white"
+            style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 35%, #4338CA 65%, #4F46E5 100%);"
+          >
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/90">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+              Confirmar reserva
+            </span>
+            <div class="mt-2.5 flex flex-wrap items-end justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="truncate font-serif text-2xl font-bold leading-tight">{{ selectedSala.nombre }}</h3>
+                <p class="mt-0.5 text-sm text-white/80">Hoy<template v-if="selectedSala.codigo"> · {{ selectedSala.codigo }}</template></p>
+              </div>
+              <div v-if="!errorInicio && modalFinMin > modalInicioMin" class="flex shrink-0 items-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5">
+                <div class="text-center">
+                  <p class="text-[9px] font-bold uppercase tracking-widest text-white/70">Desde</p>
+                  <p class="font-mono text-lg font-bold leading-tight">{{ minutesToTime(modalInicioMin) }}</p>
+                </div>
+                <svg class="h-3.5 w-3.5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                <div class="text-center">
+                  <p class="text-[9px] font-bold uppercase tracking-widest text-white/70">Hasta</p>
+                  <p class="font-mono text-lg font-bold leading-tight">{{ minutesToTime(modalFinMin) }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <div class="space-y-4 mb-5">
+          <div class="space-y-4 overflow-y-auto px-5 py-4">
+            <!-- Tu reserva: la tira de la sala hoy (lo libre, lo ocupado y el bloque elegido) -->
+            <section>
+              <div class="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">Tu reserva</p>
+                <p class="text-[11px] text-gray-500">Toca lo verde para elegir la hora</p>
+              </div>
+              <div
+                class="relative h-10 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
+                role="img"
+                :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
+                title="Clic en lo verde para elegir la hora de inicio"
+                @click="elegirEnTira($event)"
+              >
+                <div v-for="h in horasIntermedias" :key="h" class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10" :style="{ left: pct(`${h}:00`) + '%' }" />
+                <div v-if="pctPasado > 0" class="franja-pasada pointer-events-none absolute inset-y-0 left-0" :style="{ width: pctPasado + '%' }" />
+                <div v-if="pctTrasCierre > 0" class="franja-pasada pointer-events-none absolute inset-y-0 right-0" :style="{ width: pctTrasCierre + '%' }" />
+                <div
+                  v-for="t in selectedSala.tramos.filter((x) => posicionTramo(x.hora_inicio, x.hora_fin).visible)"
+                  :key="t.reserva_id"
+                  class="pointer-events-none absolute inset-y-1.5 flex items-center justify-center overflow-hidden rounded-lg border border-rose-300 bg-rose-200/90 text-[10px] font-semibold text-rose-900"
+                  :style="{ left: posicionTramo(t.hora_inicio, t.hora_fin).izquierda + '%', width: posicionTramo(t.hora_inicio, t.hora_fin).ancho + '%' }"
+                  :title="`Ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`"
+                >
+                  <span v-if="posicionTramo(t.hora_inicio, t.hora_fin).ancho >= 12">{{ t.hora_inicio.slice(0, 5) }}–{{ t.hora_fin.slice(0, 5) }}</span>
+                </div>
+                <!-- El bloque que estás eligiendo: se mueve al cambiar la hora o la duración -->
+                <div
+                  v-if="!errorInicio && modalFinMin > modalInicioMin"
+                  class="pointer-events-none absolute inset-y-0 z-10 flex items-center justify-center overflow-hidden rounded-lg border-[3px] border-indigo-600 bg-indigo-500/15 text-[10px] font-semibold text-indigo-950 transition-all"
+                  :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
+                >
+                  <span v-if="pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) >= 12" class="whitespace-nowrap">{{ minutesToTime(modalInicioMin) }}–{{ minutesToTime(modalFinMin) }}</span>
+                </div>
+                <div v-if="!diaCerrado" class="pointer-events-none absolute inset-y-0 w-[2px] bg-indigo-800" :style="{ left: nowPct + '%' }" />
+              </div>
+              <div class="relative mt-1 h-4 font-mono text-[10px] text-gray-400" aria-hidden="true">
+                <span class="absolute left-0">{{ minutesToTime(aperturaMin) }}</span>
+                <span
+                  v-for="h in horasIntermedias.filter((x) => x % 4 === 0 && pct(`${x}:00`) > 12 && pct(`${x}:00`) < 86)"
+                  :key="h"
+                  class="absolute -translate-x-1/2"
+                  :style="{ left: pct(`${h}:00`) + '%' }"
+                >{{ String(h).padStart(2, '0') }}:00</span>
+                <span class="absolute right-0">{{ minutesToTime(cierreMin) }}</span>
+              </div>
+              <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-200 bg-emerald-50"></span> Libre</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border-2 border-indigo-600 bg-indigo-500/15"></span> Tu reserva</span>
+              </div>
+            </section>
+
             <!-- Inicio y duración de la lista, o escritos a mano (como en el mesón) -->
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -826,21 +943,61 @@ async function confirmarCancelacion() {
             </div>
           </div>
 
-          <div class="flex gap-3">
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
             <button
               @click="modalOpen = false"
-              class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm"
+              class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               @click="confirmarReserva"
               :disabled="enviando || modalDisponibleMin < duracionMinima || !!avisoHoras"
-              class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-60"
+              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-60"
             >
-              {{ enviando ? 'Reservando…' : 'Confirmar' }}
+              <svg v-if="!enviando" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              {{ enviando ? 'Reservando…' : 'Confirmar reserva' }}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reserva lista: qué hacer ahora (presentarse en el mesón con el grupo) -->
+    <div
+      v-if="reservaHecha"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      @click.self="reservaHecha = null"
+    >
+      <div class="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="reserva-hecha-titulo">
+        <div class="px-5 pb-4 pt-5 text-center text-white" style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 35%, #4338CA 65%, #4F46E5 100%);">
+          <span class="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/30">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          </span>
+          <h3 id="reserva-hecha-titulo" class="mt-2.5 font-serif text-xl font-bold">¡Sala reservada!</h3>
+          <p class="mt-0.5 text-sm text-white/80">{{ reservaHecha.sala }} · hoy de <span class="font-mono font-semibold text-white">{{ reservaHecha.inicio }}</span> a <span class="font-mono font-semibold text-white">{{ reservaHecha.fin }}</span></p>
+        </div>
+        <div class="space-y-3 px-5 py-4">
+          <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+            </svg>
+            <p class="text-sm text-amber-950">
+              A las <strong class="font-mono">{{ reservaHecha.inicio }}</strong>, preséntate en el <strong>mesón de la biblioteca</strong>{{ reservaHecha.personas > 1 ? ` con los ${reservaHecha.personas} integrantes` : '' }} para solicitar la sala.
+            </p>
+          </div>
+          <p class="text-xs text-gray-600">
+            Tienes <strong class="text-gray-900">{{ textoMinutos(minutosPresentarse) }}</strong> desde la hora de inicio para presentarte; si no, la sala se libera sola.
+          </p>
+        </div>
+        <div class="border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+          <button
+            type="button"
+            class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700"
+            @click="reservaHecha = null"
+          >
+            Entendido
+          </button>
         </div>
       </div>
     </div>
