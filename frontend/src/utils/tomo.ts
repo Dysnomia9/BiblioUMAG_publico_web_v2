@@ -31,6 +31,14 @@ export function leerTomoCopia(texto?: string | null): { tomo: string; copia: str
 export function partesCopia(volumen?: string | null, etiquetaCopia?: string | null) {
   const texto = (volumen ?? '').trim().replace(/\s+/g, ' ')
   const leido = leerTomoCopia(texto)
+  if (!leido) {
+    // Tomo o volumen junto a otra designación («t.5 Apéndice», «Anexo v.1»), como algunas de Horizon
+    const junto = separarTomoYDesignacion(texto)
+    if (junto) return { tomo: junto.tomo, otro: junto.otra, copia: junto.copia ?? etiquetaCopia?.replace(/^c\.\s*/i, '') ?? null }
+    // Otra designación con su copia al final («Cuadernillo-c.1», «p.2-c.1»)
+    const conCopia = texto.match(/^(.*?[a-záéíóúñ0-9.)])[\s,;/-]+c\.?\s*(\d{1,4})\.?$/i)
+    if (conCopia) return { tomo: null, otro: conCopia[1], copia: conCopia[2] }
+  }
   return {
     tomo: leido?.tomo ?? null,
     otro: leido || !texto ? null : texto,
@@ -39,12 +47,40 @@ export function partesCopia(volumen?: string | null, etiquetaCopia?: string | nu
 }
 
 /**
+ * Tomo o volumen junto a otra designación, en el orden en que se escribió: «t.5 Apéndice»,
+ * «t.2-planos», «t.1-v.II Atlas c.2», «Anexo v.1». null si no es eso (un tomo solo, una
+ * designación sola o el número de una revista).
+ */
+export function separarTomoYDesignacion(texto?: string | null): { tomo: string; clave: string; otra: string; copia: string | null; otraPrimero: boolean } | null {
+  const t = (texto ?? '').trim().replace(/\s+/g, ' ')
+  if (!t || leerTomoCopia(t)) return null
+  // La «c.N» del final es la copia
+  const conCopia = t.match(/^(.*?)[\s,;/-]+c\.?\s*(\d{1,4})\.?$/i)
+  const sinCopia = conCopia ? conCopia[1] : t
+  const copia = conCopia ? conCopia[2] : null
+  const palabras = sinCopia.split(/[\s,]+|-(?=[a-záéíóúñ])/i).filter(Boolean)
+  // El tomo al comienzo («t.5 Apéndice»): el prefijo más largo que se lee como tomo
+  for (let n = Math.min(2, palabras.length - 1); n >= 1; n--) {
+    const tomo = leerTomoCopia(palabras.slice(0, n).join('-'))
+    const otra = palabras.slice(n).join(' ')
+    if (tomo && !tomo.copia && /[a-záéíóúñ]{2,}/i.test(otra)) return { tomo: tomo.tomo, clave: tomo.clave, otra, copia, otraPrimero: false }
+  }
+  // O al final («Anexo v.1»)
+  for (let n = Math.min(2, palabras.length - 1); n >= 1; n--) {
+    const tomo = leerTomoCopia(palabras.slice(-n).join('-'))
+    const otra = palabras.slice(0, -n).join(' ')
+    if (tomo && !tomo.copia && /[a-záéíóúñ]{2,}/i.test(otra)) return { tomo: tomo.tomo, clave: tomo.clave, otra, copia, otraPrimero: true }
+  }
+  return null
+}
+
+/**
  * La copia en una línea, para el portal: «t.72» → «Tomo 72», «v.1 c.2» → «Volumen 1 ·
  * Copia 2», una copia sin tomo con «c.3» → «Copia 3». null si no hay ni tomo ni copia.
  */
 export function textoCopia(volumen?: string | null, etiquetaCopia?: string | null): string | null {
   const { tomo, otro, copia } = partesCopia(volumen, etiquetaCopia)
-  const partes = [tomo ?? otro, copia ? `Copia ${copia}` : null].filter(Boolean)
+  const partes = [tomo, otro, copia ? `Copia ${copia}` : null].filter(Boolean)
   return partes.length ? partes.join(' · ') : null
 }
 

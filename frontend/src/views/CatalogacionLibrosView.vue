@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { leerTomoCopia, nombreDeCopia, numeroDeCopia, partesCopia, textoCopia } from '@/utils/tomo'
+import { leerTomoCopia, nombreDeCopia, numeroDeCopia, partesCopia, separarTomoYDesignacion, textoCopia } from '@/utils/tomo'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type FunctionalComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -481,6 +481,8 @@ const editarConCambios = computed(() => !!copiaEditando.value && JSON.stringify(
 const tomoParteEditar = computed(() => leerParte(formEditar.tomo, 't'))
 const volumenParteEditar = computed(() => leerParte(formEditar.parte, 'v'))
 const volumenPrimeroEditar = ref(false)
+/** «Anexo v.1»: la designación va antes del volumen, como se escribió en Horizon. */
+const otraPrimeroEditar = ref(false)
 function alSalirDelTomoEditar() {
   const volumenPrimero = repartirTomo(formEditar)
   if (volumenPrimero !== null) volumenPrimeroEditar.value = volumenPrimero
@@ -490,7 +492,9 @@ const numeroDeCopiaEscrito = (texto: string) => texto.trim().replace(/^(?:copia|
 const copiaEditarValida = computed(() => /^\d{0,4}$/.test(numeroDeCopiaEscrito(formEditar.copia)) && numeroDeCopiaEscrito(formEditar.copia) !== '0')
 const volumenEditar = computed(() => {
   if (tomoParteEditar.value === null || volumenParteEditar.value === null) return ''
-  const base = claveDe(tomoParteEditar.value, volumenParteEditar.value, volumenPrimeroEditar.value) || formEditar.otra.trim()
+  const clave = claveDe(tomoParteEditar.value, volumenParteEditar.value, volumenPrimeroEditar.value)
+  const otra = formEditar.otra.trim()
+  const base = (otraPrimeroEditar.value ? [otra, clave] : [clave, otra]).filter(Boolean).join(' ')
   const copia = numeroDeCopiaEscrito(formEditar.copia)
   return copia ? `${base} c.${copia}`.trim() : base
 })
@@ -501,16 +505,20 @@ function editarCopia(copia: Ejemplar, libro: Libro) {
   modo.value = 'editar_copia'
   copiaEditando.value = { copia, libro }
   codigoAEditar.value = copia.codigo_barras
+  // El texto se lee en sus partes (tomo, volumen, otra designación y copia), sin cambiarlo:
+  // «t.1-v.II c.2», «t.5 Apéndice», «Anexo v.1», «Cuadernillo-c.1», como los escribe Horizon.
   const leido = leerTomoCopia(copia.volumen)
-  const partes = (leido?.clave ?? '').split('-').filter(Boolean)
+  const junto = leido ? null : separarTomoYDesignacion(copia.volumen)
+  const partes = (leido?.clave ?? junto?.clave ?? '').split('-').filter(Boolean)
   volumenPrimeroEditar.value = partes.length === 2 && partes[0].startsWith('v')
+  otraPrimeroEditar.value = !!junto?.otraPrimero
+  const soloOtra = leido || junto ? null : (copia.volumen ?? '').match(/^(.*?)[\s\-,;/]*c\.?\s*(\d{1,4})\.?$/i)
   Object.assign(formEditar, {
     ubicacion_id: copia.ubicacion_id ?? '',
     tomo: partes.find((p) => p.startsWith('t'))?.slice(2) ?? '',
     parte: partes.find((p) => p.startsWith('v'))?.slice(2) ?? '',
-    copia: leido?.copia ?? numeroDeCopia(copia) ?? '',
-    // Otra designación, sin la «c.N» del final («Cuadernillo-c.1»): la copia va en su casilla
-    otra: leido ? '' : (copia.volumen ?? '').replace(/[\s\-,;/]*c\.?\s*\d+\.?$/i, ''),
+    copia: leido?.copia ?? junto?.copia ?? soloOtra?.[2] ?? numeroDeCopia(copia) ?? '',
+    otra: junto?.otra ?? (leido ? '' : soloOtra ? soloOtra[1] : copia.volumen ?? ''),
     coleccion: copia.coleccion ?? '',
     precio: copia.precio ?? '',
     forma_adquisicion: copia.forma_adquisicion ?? '',
@@ -546,9 +554,43 @@ function soltarCopiaEditando() {
   nextTick(() => document.getElementById('editar-copia-codigo')?.focus())
 }
 
-async function guardarEdicionCopia() {
+// ---------- Confirmar antes de guardar o de descartar los cambios de una copia ----------
+const confirmandoGuardarCopia = ref(false)
+const confirmandoDescartarCopia = ref(false)
+/** Lo que cambió (campo, antes y después), para verlo antes de guardar o de descartar. */
+const cambiosEdicion = computed(() => {
   const actual = copiaEditando.value
-  if (!actual) {
+  if (!actual || !fotoEditar.value) return []
+  const antes = JSON.parse(fotoEditar.value) as ReturnType<typeof formEditarVacio>
+  const lista: { campo: string; antes: string; despues: string }[] = []
+  const agregar = (campo: string, a: string, d: string) => {
+    if (a !== d) lista.push({ campo, antes: a, despues: d })
+  }
+  const texto = (v: unknown) => String(v ?? '').trim() || '—'
+  const ubicacion = (id: number | '') => ubicacionesOpciones.value.find((u) => u.id === id)?.nombre ?? 'Sin especificar'
+  const forma = (v: string) => FORMAS_ADQUISICION.find((f) => f.valor === v)?.nombre ?? 'Sin especificar'
+  const precio = (v: number | string) => (v === '' || v === null ? 'Sin precio' : `$${Number(v).toLocaleString('es-CL', { maximumFractionDigits: 2 })}`)
+  const coleccion = (v: string) => v.trim() || `${actual.libro.coleccion ?? 'Sin colección'} (la del libro)`
+  if ([antes.tomo, antes.parte, antes.copia, antes.otra].join('|') !== [formEditar.tomo, formEditar.parte, formEditar.copia, formEditar.otra].join('|')) {
+    lista.push({
+      campo: 'Tomo, volumen y copia',
+      antes: textoCopia(actual.copia.volumen, actual.copia.etiqueta_copia) ?? 'Sin tomo ni copia',
+      despues: textoCopia(volumenEditar.value, null) ?? 'Sin tomo ni copia',
+    })
+  }
+  agregar('Ubicación física', ubicacion(antes.ubicacion_id), ubicacion(formEditar.ubicacion_id))
+  agregar('Colección', coleccion(antes.coleccion), coleccion(formEditar.coleccion))
+  agregar('Precio', precio(antes.precio), precio(formEditar.precio))
+  agregar('Forma de adquisición', forma(antes.forma_adquisicion), forma(formEditar.forma_adquisicion))
+  agregar('N.º de registro', texto(antes.numero_registro), texto(formEditar.numero_registro))
+  agregar('Nota pública', texto(antes.nota_publica), texto(formEditar.nota_publica))
+  agregar('Nota interna', texto(antes.nota_interna), texto(formEditar.nota_interna))
+  return lista
+})
+
+/** «Guardar cambios»: se revisa lo escrito y se muestra qué cambia antes de guardar. */
+function pedirGuardarEdicionCopia() {
+  if (!copiaEditando.value) {
     toast.error('Primero escanea o escribe el código de la copia')
     irA('ejemplar')
     return
@@ -558,6 +600,28 @@ async function guardarEdicionCopia() {
     irA('datos')
     return
   }
+  if (!editarConCambios.value) {
+    toast.error('No hay cambios por guardar')
+    return
+  }
+  confirmandoGuardarCopia.value = true
+}
+
+/** «Descartar y editar otra»: con cambios sin guardar, se avisa qué se pierde. */
+function pedirDescartarCopia() {
+  if (editarConCambios.value) confirmandoDescartarCopia.value = true
+  else soltarCopiaEditando()
+}
+
+/** Confirmado el descarte: la copia queda como estaba y se puede escanear otra. */
+function descartarCambiosCopia() {
+  confirmandoDescartarCopia.value = false
+  soltarCopiaEditando()
+}
+
+async function guardarEdicionCopia() {
+  const actual = copiaEditando.value
+  if (!actual) return
   guardando.value = true
   try {
     const { data } = await api.patch<Ejemplar>(`/ejemplares/${actual.copia.id}`, {
@@ -571,6 +635,7 @@ async function guardarEdicionCopia() {
       nota_interna: formEditar.nota_interna.trim() || null,
     })
     toast.success(`Copia ${data.codigo_barras} actualizada`)
+    confirmandoGuardarCopia.value = false
     editarCopia({ ...actual.copia, ...data, libro: undefined }, actual.libro)
     await cargar()
   } catch (e) {
@@ -599,8 +664,8 @@ const copiaEscritaValida = computed(() => /^\d{0,4}$/.test(copiaEscrita.value) &
 /** Cómo queda el texto de la copia: «t.1-v.II c.2», «Anexo» (con «c.2» aparte) o nada. */
 const volumenCopiaNueva = computed(() => {
   const copia = copiaEscrita.value ? ` c.${copiaEscrita.value}` : ''
-  if (claveTomo.value && tomoValido.value) return `${claveTomo.value}${copia}`
-  return `${formCopia.volumen.trim()}${copia}`.trim()
+  const clave = tomoValido.value ? claveTomo.value : ''
+  return `${[clave, formCopia.volumen.trim()].filter(Boolean).join(' ')}${copia}`.trim()
 })
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
@@ -1270,8 +1335,9 @@ async function confirmarAgregarCopia() {
       libro_id: libroParaCopia.value.id,
       codigo_barras: formCopia.codigo_barras,
       ubicacion_id: formCopia.ubicacion_id === '' ? null : Number(formCopia.ubicacion_id),
-      volumen: claveTomo.value ? null : formCopia.volumen || null,
-      tomo: claveTomo.value || null,
+      // Tomo y otra designación juntos («t.5 Apéndice»): va como texto, igual que en Horizon
+      volumen: claveTomo.value ? (formCopia.volumen.trim() ? `${claveTomo.value} ${formCopia.volumen.trim()}` : null) : formCopia.volumen || null,
+      tomo: claveTomo.value && !formCopia.volumen.trim() ? claveTomo.value : null,
       // La «c.N» escrita, o null: sin número (no se inventa)
       copia: copiaEscrita.value ? Number(copiaEscrita.value) : null,
       precio: formCopia.precio === '' ? null : Number(formCopia.precio),
@@ -1309,7 +1375,7 @@ function abrirMenuGestion() {
 }
 
 function accionPrincipal() {
-  if (modo.value === 'editar_copia') guardarEdicionCopia()
+  if (modo.value === 'editar_copia') pedirGuardarEdicionCopia()
   else if (modo.value === 'copia') pedirConfirmacionCopia()
   else pedirConfirmacionGuardar()
 }
@@ -1990,7 +2056,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
                 <div class="sm:col-span-2">
-                  <label for="copia-tomo" :class="ETIQUETA">Tomo</label>
+                  <label for="copia-tomo" :class="ETIQUETA"><Marc codigo="863 $a" tono="violeta" /> Tomo</label>
                   <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="1" :aria-invalid="tomoParte === null" :class="[CAMPO, tomoParte === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoCopia" />
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span>, <span class="font-mono">I</span>, <span class="font-mono">t.1</span> o <span class="font-mono">t.I</span> · vacío si no tiene</p>
                   <datalist id="tomos-de-la-obra">
@@ -1998,7 +2064,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </datalist>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="copia-parte" :class="ETIQUETA">Volumen</label>
+                  <label for="copia-parte" :class="ETIQUETA"><Marc codigo="863 $b" tono="violeta" /> Volumen</label>
                   <input
                     autocomplete="off"
                     id="copia-parte"
@@ -2010,7 +2076,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">II</span>, <span class="font-mono">v.2</span> o <span class="font-mono">v.II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="copia-numero" :class="ETIQUETA">Copia</label>
+                  <label for="copia-numero" :class="ETIQUETA"><Marc codigo="852 $t" tono="violeta" /> Copia</label>
                   <div class="flex gap-2">
                     <input id="copia-numero" v-model="formCopia.copia" autocomplete="off" inputmode="numeric" placeholder="2" :aria-invalid="!copiaEscritaValida" :class="[CAMPO, !copiaEscritaValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
                     <button
@@ -2037,16 +2103,15 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   </p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-volumen" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo ni volumen)</span></label>
+                  <label for="copia-volumen" :class="ETIQUETA"><Marc codigo="852 $3" tono="violeta" /> Otra designación <span class="font-normal text-gray-400">(sola o junto al tomo)</span></label>
                   <input
                     autocomplete="off"
                     id="copia-volumen"
                     v-model="formCopia.volumen"
-                    :disabled="!!(formCopia.tomo.trim() || formCopia.parte.trim())"
                     placeholder="Ej: Anexo · Atlas · Año IV No. 4 (Jul.-Aug., 1985)"
                     :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es tomo ni volumen: Ficha, Cuadernillo, Anexo o el número de una revista. Con tomo o volumen, se deja vacía.</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Lo que no es tomo, volumen ni copia: Ficha, Cuadernillo, Apéndice, Anexo o el número de una revista. Puede ir junto al tomo («t.5 Apéndice»).</p>
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>
@@ -2170,24 +2235,24 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
                 <div class="sm:col-span-2">
-                  <label for="editar-tomo" :class="ETIQUETA">Tomo</label>
+                  <label for="editar-tomo" :class="ETIQUETA"><Marc codigo="863 $a" tono="violeta" /> Tomo</label>
                   <input id="editar-tomo" v-model="formEditar.tomo" autocomplete="off" placeholder="1" :aria-invalid="tomoParteEditar === null" :class="[CAMPO, tomoParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoEditar" />
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span>, <span class="font-mono">I</span>, <span class="font-mono">t.1</span> o <span class="font-mono">t.I</span> · vacío si no tiene</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="editar-parte" :class="ETIQUETA">Volumen</label>
+                  <label for="editar-parte" :class="ETIQUETA"><Marc codigo="863 $b" tono="violeta" /> Volumen</label>
                   <input id="editar-parte" v-model="formEditar.parte" autocomplete="off" placeholder="2" :aria-invalid="volumenParteEditar === null" :class="[CAMPO, volumenParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" />
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">II</span>, <span class="font-mono">v.2</span> o <span class="font-mono">v.II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="editar-copia-num" :class="ETIQUETA">Copia</label>
+                  <label for="editar-copia-num" :class="ETIQUETA"><Marc codigo="852 $t" tono="violeta" /> Copia</label>
                   <input id="editar-copia-num" v-model="formEditar.copia" autocomplete="off" inputmode="numeric" placeholder="2" :aria-invalid="!copiaEditarValida" :class="[CAMPO, !copiaEditarValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">c.2</span> o <span class="font-mono">copia 2</span> · vacía = sin número</p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="editar-otra" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo ni volumen)</span></label>
-                  <input id="editar-otra" v-model="formEditar.otra" autocomplete="off" :disabled="!!(formEditar.tomo.trim() || formEditar.parte.trim())" placeholder="Ej: Ficha · Cuadernillo · Anexo · Año IV No. 4 (Jul.-Aug., 1985)" :class="[CAMPO, 'disabled:bg-gray-50']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es tomo ni volumen, como un anexo o el número de una revista. Con tomo o volumen, se deja vacía.</p>
+                  <label for="editar-otra" :class="ETIQUETA"><Marc codigo="852 $3" tono="violeta" /> Otra designación <span class="font-normal text-gray-400">(sola o junto al tomo)</span></label>
+                  <input id="editar-otra" v-model="formEditar.otra" autocomplete="off" placeholder="Ej: Ficha · Cuadernillo · Anexo · Año IV No. 4 (Jul.-Aug., 1985)" :class="[CAMPO, 'disabled:bg-gray-50']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Lo que no es tomo, volumen ni copia: Ficha, Cuadernillo, Apéndice, Anexo o el número de una revista. Puede ir junto al tomo («t.5 Apéndice»).</p>
                 </div>
                 <p v-if="!edicionValida" class="text-[11px] font-semibold text-red-700 sm:col-span-6">
                   Hay algo que no se reconoce: el tomo va como «1», el volumen como «2» o «II» y la copia como «2» o «c.2».
@@ -2300,7 +2365,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               v-if="modo === 'editar_copia' && copiaEditando"
               type="button"
               class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
-              @click="soltarCopiaEditando"
+              @click="pedirDescartarCopia"
             >
               {{ editarConCambios ? 'Descartar y editar otra' : 'Editar otra copia' }}
             </button>
@@ -2510,6 +2575,59 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           podrás elegir entre catalogar otra o agregarle ejemplares.
         </p>
       </template>
+    </DialogoConfirmacion>
+
+    <!-- Editar ejemplar: confirmar los cambios antes de guardarlos -->
+    <DialogoConfirmacion
+      :abierto="confirmandoGuardarCopia && !!copiaEditando"
+      titulo="¿Guardar los cambios de la copia?"
+      confirmar="Sí, guardar cambios"
+      :cargando="guardando"
+      destacado
+      ancho="md"
+      @confirmar="guardarEdicionCopia"
+      @cancelar="confirmandoGuardarCopia = false"
+    >
+      <p class="text-[15px] text-gray-600">
+        Copia <strong class="font-mono text-gray-900">{{ copiaEditando?.copia.codigo_barras }}</strong> de
+        <strong class="text-gray-900">«{{ copiaEditando?.libro.titulo }}»</strong>. Esto es lo que cambia:
+      </p>
+      <ul class="mt-3 divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
+        <li v-for="c in cambiosEdicion" :key="c.campo" class="px-4 py-2.5 text-sm">
+          <p class="text-xs font-semibold text-gray-500">{{ c.campo }}</p>
+          <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span class="text-gray-400 line-through">{{ c.antes }}</span>
+            <span class="text-gray-400" aria-hidden="true">→</span>
+            <strong class="text-gray-900">{{ c.despues }}</strong>
+          </p>
+        </li>
+      </ul>
+    </DialogoConfirmacion>
+
+    <!-- Editar ejemplar: descartar los cambios sin guardar -->
+    <DialogoConfirmacion
+      :abierto="confirmandoDescartarCopia && !!copiaEditando"
+      titulo="¿Descartar los cambios?"
+      confirmar="Sí, descartar y editar otra"
+      cancelar="Seguir editando"
+      tono="peligro"
+      destacado
+      ancho="md"
+      @confirmar="descartarCambiosCopia"
+      @cancelar="confirmandoDescartarCopia = false"
+    >
+      <p class="text-[15px] text-gray-600">
+        Estos cambios de la copia <strong class="font-mono text-gray-900">{{ copiaEditando?.copia.codigo_barras }}</strong>
+        <strong class="text-gray-900">no se van a guardar</strong>:
+      </p>
+      <ul class="mt-3 divide-y divide-gray-100 overflow-hidden rounded-xl border border-red-100 bg-red-50/40">
+        <li v-for="c in cambiosEdicion" :key="c.campo" class="px-4 py-2 text-sm">
+          <span class="text-xs font-semibold text-gray-500">{{ c.campo }}:</span>
+          <span class="ml-1 text-gray-900">{{ c.despues }}</span>
+          <span class="ml-1 text-xs text-gray-500">(queda {{ c.antes }})</span>
+        </li>
+      </ul>
+      <p class="mt-3 text-xs text-gray-500">La copia queda como estaba y se puede escanear otra.</p>
     </DialogoConfirmacion>
 
     <!-- Ficha creada: su N.º a la vista y qué hacer ahora (no se va sola como una notificación) -->
