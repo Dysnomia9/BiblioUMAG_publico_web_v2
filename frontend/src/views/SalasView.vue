@@ -1373,39 +1373,39 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="modalOpen = false"
       >
-        <div class="flex max-h-[94vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-indigo-100">
+        <div class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-indigo-100">
           <!-- Encabezado: qué se hace, la sala y la hora con la que valen las reservas -->
-          <div class="flex shrink-0 items-start justify-between gap-4 px-6 pb-5 pt-5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
+          <div class="flex shrink-0 items-start justify-between gap-3 px-5 pb-3.5 pt-3.5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
             <div class="min-w-0">
-              <p class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white/90">
+              <p class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/90">
                 <svg v-if="renovacionDe" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                 <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 {{ renovacionDe ? 'Renovación' : 'Nueva reserva' }}
               </p>
-              <h3 class="mt-2 truncate font-serif text-3xl font-bold leading-tight">{{ selectedSala.nombre }}</h3>
-              <p class="mt-1 text-sm text-white/80 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}<template v-if="selectedSala.codigo"> · {{ selectedSala.codigo }}</template></p>
+              <h3 class="mt-1.5 truncate font-serif text-xl font-bold leading-tight">{{ selectedSala.nombre }}</h3>
+              <p class="mt-0.5 text-xs text-white/80 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}<template v-if="selectedSala.codigo"> · {{ selectedSala.codigo }}</template></p>
             </div>
-            <div class="shrink-0 rounded-2xl border border-white/25 bg-white/15 px-4 py-2 text-right backdrop-blur-sm" aria-live="off">
+            <div class="shrink-0 rounded-xl border border-white/25 bg-white/15 px-3 py-1.5 text-right backdrop-blur-sm" aria-live="off">
               <p class="text-[9px] font-bold uppercase tracking-widest text-white/75">Hora actual · Punta Arenas</p>
-              <p class="font-mono text-2xl font-bold leading-tight tabular-nums text-white">{{ ahoraEnPuntaArenas.conSegundos }}</p>
+              <p class="font-mono text-lg font-bold leading-tight tabular-nums text-white">{{ ahoraEnPuntaArenas.conSegundos }}</p>
             </div>
           </div>
 
-          <div class="space-y-5 overflow-y-auto px-6 py-5">
+          <div class="space-y-3.5 overflow-y-auto px-5 py-4">
             <!-- Renovación: el préstamo anterior a la vista; el grupo ya está puesto, solo se elige la hora -->
             <div v-if="renovacionDe" class="overflow-hidden rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white shadow-sm">
               <p class="flex items-center gap-1.5 border-b border-violet-100 bg-violet-50/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-violet-700">
                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                 Préstamo anterior
               </p>
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5">
-                <p class="font-mono text-xl font-bold tabular-nums text-violet-950">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
+                <p class="font-mono text-lg font-bold tabular-nums text-violet-950">
                   {{ renovacionDe.tramo.hora_inicio }} <span class="font-sans text-sm font-semibold text-violet-400">a</span> {{ renovacionDe.tramo.hora_fin }}
                 </p>
                 <div class="text-xs leading-relaxed text-gray-600">
                   <p>{{ selectedSala.nombre }} · {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'persona' : 'personas' }}</p>
                   <p v-if="renovacionDe.tramo.hora_prestamo_real">
-                    Llegaron a las {{ horaReal(renovacionDe.tramo.hora_prestamo_real) }}<template v-if="renovacionDe.tramo.hora_devolucion_real"> · devolvieron la llave a las {{ horaReal(renovacionDe.tramo.hora_devolucion_real) }}</template><template v-else> · siguen en la sala</template>
+                    Llegaron a las {{ horaReal(renovacionDe.tramo.hora_prestamo_real) }}<template v-if="renovacionDe.tramo.hora_devolucion_real"> · devolvieron la llave a las {{ horaReal(renovacionDe.tramo.hora_devolucion_real) }}</template><template v-else>.</template>
                   </p>
                 </div>
               </div>
@@ -1421,11 +1421,11 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <section>
               <div class="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">Su reserva</p>
-                <p v-if="!errorInicio && modalDisponibleMin >= duracionMinima" class="text-sm font-bold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
-                <p v-else-if="!errorInicio" class="text-sm font-bold text-red-600">Libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
+                <p v-if="!errorInicio && modalDisponibleMin >= duracionMinima" class="text-xs font-bold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
+                <p v-else-if="!errorInicio" class="text-xs font-bold text-red-600">Libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
               </div>
               <div
-                class="relative h-14 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
+                class="relative h-11 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
                 role="img"
                 :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
                 title="Clic en lo verde para elegir la hora de inicio"
@@ -1447,7 +1447,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <!-- El bloque que se está eligiendo, con su horario -->
                 <div
                   v-if="!errorInicio && modalFinMin > modalInicioMin"
-                  class="pointer-events-none absolute inset-y-0 flex items-center overflow-hidden rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 px-2 font-mono text-[13px] font-bold leading-tight text-white shadow-md ring-2 ring-indigo-700"
+                  class="pointer-events-none absolute inset-y-0 flex items-center overflow-hidden rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 px-2 font-mono text-xs font-bold leading-tight text-white shadow-md ring-2 ring-indigo-700"
                   :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
                 >
                   <span v-if="pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) >= 11" class="whitespace-normal">{{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}</span>
@@ -1474,11 +1474,11 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </div>
             </section>
 
-            <div class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-              <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div class="grid grid-cols-2 gap-3">
                 <div>
                   <template v-if="inicioAMano">
-                    <label for="reserva-hora-inicio" class="mb-1.5 block text-sm font-semibold text-gray-800">Desde las</label>
+                    <label for="reserva-hora-inicio" class="mb-1 block text-xs font-semibold text-gray-800">Desde las</label>
                     <CampoHora
                       id="reserva-hora-inicio"
                       ref="campoHoraInicio"
@@ -1488,10 +1488,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                     />
                   </template>
                   <template v-else>
-                    <label class="mb-1.5 block text-sm font-semibold text-gray-800">Hora de inicio</label>
+                    <label class="mb-1 block text-xs font-semibold text-gray-800">Hora de inicio</label>
                     <select
                       v-model="modalHoraInicio"
-                      class="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-indigo-500"
+                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
                       <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
@@ -1504,14 +1504,14 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 </div>
                 <div>
                   <template v-if="terminoAMano">
-                    <label for="reserva-hora-fin" class="mb-1.5 block text-sm font-semibold text-gray-800">Hasta las</label>
+                    <label for="reserva-hora-fin" class="mb-1 block text-xs font-semibold text-gray-800">Hasta las</label>
                     <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
                   </template>
                   <template v-else>
-                    <label class="mb-1.5 block text-sm font-semibold text-gray-800">Duración</label>
+                    <label class="mb-1 block text-xs font-semibold text-gray-800">Duración</label>
                     <select
                       v-model.number="modalDuracion"
-                      class="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-indigo-500"
+                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
                         {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
@@ -1545,7 +1545,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <p v-if="selectedSala.solo_responsable" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
               {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
             </p>
-            <section class="space-y-2.5">
+            <section class="space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">
                   {{ selectedSala.solo_responsable ? 'A cargo' : 'Integrantes' }}
@@ -1554,17 +1554,17 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   v-if="!selectedSala.solo_responsable"
                   v-model.number="cantidadPersonas"
                   aria-label="Cantidad de personas"
-                  class="rounded-xl border border-indigo-200 bg-white py-2 pl-3.5 pr-9 text-sm font-semibold text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  class="rounded-lg border border-indigo-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
                     {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
                   </option>
                 </select>
               </div>
-              <div class="space-y-2.5 rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
+              <div class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
                 <div v-for="(_, idx) in rutsReserva" :key="idx">
-                  <div class="flex flex-wrap items-center gap-2.5">
-                    <span v-if="!selectedSala.solo_responsable" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span v-if="!selectedSala.solo_responsable" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
                     <input
                       :value="rutsReserva[idx]"
                       @input="onRutInput(idx, $event)"
@@ -1572,7 +1572,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                       :aria-label="selectedSala.solo_responsable ? 'Documento del docente o funcionario a cargo' : `Documento de la persona ${idx + 1}`"
                       :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                       :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
-                      class="min-w-0 flex-1 rounded-xl border bg-white px-3.5 py-2.5 font-mono text-[15px] outline-none focus:ring-2"
+                      class="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 font-mono text-sm outline-none focus:ring-2"
                       :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
                     />
                     <SelectorDocumento :model-value="modosReserva[idx] ?? 'rut'" compacto :etiqueta="`Documento de la persona ${idx + 1}`" @update:model-value="cambiarModoFila(idx, $event)" />
@@ -1584,12 +1584,12 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </section>
           </div>
 
-          <div class="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4">
-            <button @click="modalOpen = false" class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50">Cancelar</button>
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="modalOpen = false" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50">Cancelar</button>
             <button
               @click="confirmarReserva()"
               :disabled="!puedeConfirmarReserva"
-              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
               {{ renovacionDe ? 'Confirmar renovación' : 'Confirmar reserva' }}
@@ -1837,37 +1837,37 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="!confirmandoLlegada && cerrarLlegada()"
       >
-        <div class="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-indigo-100">
+        <div class="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-indigo-100">
           <!-- Encabezado: la sala, y el horario en una tarjeta clara que se lee de un vistazo -->
-          <div class="relative flex shrink-0 flex-wrap items-end justify-between gap-4 overflow-hidden px-6 pb-6 pt-5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
+          <div class="relative flex shrink-0 flex-wrap items-end justify-between gap-3 overflow-hidden px-5 pb-4 pt-3.5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
             <div class="min-w-0">
-              <p class="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white/90">Confirmar llegada</p>
-              <h3 class="mt-3 truncate font-serif text-3xl font-bold leading-tight">{{ llegadaPendiente.salaNombre }}</h3>
-              <p class="mt-1 text-sm text-white/80">
+              <p class="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/90">Confirmar llegada</p>
+              <h3 class="mt-1.5 truncate font-serif text-xl font-bold leading-tight">{{ llegadaPendiente.salaNombre }}</h3>
+              <p class="mt-0.5 text-xs text-white/80">
                 {{ formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(llegadaPendiente.horaFin) - timeToMinutes(llegadaPendiente.horaInicio)) }} ·
                 {{ llegadaPendiente.personas.length }} {{ llegadaPendiente.personas.length === 1 ? 'integrante' : 'integrantes' }}
               </p>
             </div>
-            <div class="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-2.5 text-indigo-950 shadow-lg ring-1 ring-black/5">
+            <div class="flex shrink-0 items-center gap-2.5 rounded-xl bg-white px-3 py-1.5 text-indigo-950 shadow-lg ring-1 ring-black/5">
               <div class="text-center">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Desde</p>
-                <p class="font-mono text-3xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaInicio }}</p>
+                <p class="text-[9px] font-bold uppercase tracking-widest text-indigo-500">Desde</p>
+                <p class="font-mono text-xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaInicio }}</p>
               </div>
-              <svg class="h-5 w-5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              <svg class="h-4 w-4 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               <div class="text-center">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Hasta</p>
-                <p class="font-mono text-3xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaFin }}</p>
+                <p class="text-[9px] font-bold uppercase tracking-widest text-indigo-500">Hasta</p>
+                <p class="font-mono text-xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaFin }}</p>
               </div>
             </div>
           </div>
-          <div class="space-y-4 overflow-y-auto px-6 py-5 text-sm text-gray-500">
-            <div class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700" aria-hidden="true">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+          <div class="space-y-3 overflow-y-auto px-5 py-4 text-sm text-gray-500">
+            <div class="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-white text-amber-700" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
               </span>
               <div class="text-amber-900">
-                <p class="font-bold">Antes de entregar la llave</p>
-                <p class="mt-0.5 text-[13px] leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
+                <p class="text-[13px] font-bold">Antes de entregar la llave</p>
+                <p class="mt-0.5 text-xs leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
               </div>
             </div>
             <div>
@@ -1910,12 +1910,12 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               Quienes no hayan marcado su entrada hoy quedarán presentes en la biblioteca.
             </p>
           </div>
-          <div class="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4">
-            <button @click="cerrarLlegada" :disabled="confirmandoLlegada" class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60">Cancelar</button>
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="cerrarLlegada" :disabled="confirmandoLlegada" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60">Cancelar</button>
             <button
               @click="confirmarLlegadaAction"
               :disabled="confirmandoLlegada || editandoIntegrantesLlegada"
-              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
               {{ confirmandoLlegada ? 'Guardando…' : 'Confirmar llegada' }}
