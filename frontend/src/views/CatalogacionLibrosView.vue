@@ -10,6 +10,7 @@ import CampoPrecio from '@/components/ui/CampoPrecio.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
+import CampoEntidad from '@/components/libros/CampoEntidad.vue'
 import RevisionMaterias from '@/components/libros/RevisionMaterias.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
@@ -276,10 +277,20 @@ function quitarEnlace(i: number) {
   guardarEnlaces()
 }
 
-/** 490 también es repetible: cada serie en su casilla; se guardan una por línea («Serie Harry Potter ; 1»). */
+/**
+ * 490 también es repetible: cada serie en su casilla; se guardan una por línea («Serie Harry
+ * Potter ; 1»). Los paréntesis van fijos a los lados de la casilla y la ficha los pone al
+ * mostrarla, «(Serie Harry Potter ; 1)», como el punto final del 300: si se escriben, el
+ * servidor los quita (PuntuacionIsbd::serie) para que no queden dobles.
+ */
 const series = ref<string[]>([''])
+const sinParentesis = (t: string) => t.trim().replace(/^\((.*)\)$/, '$1').trim()
+/** Quien cataloga escribió los paréntesis: los fijos de la casilla se ocultan. */
+const parentesisAMano = (t: string) => /^\s*\(/.test(t) || /\)\s*$/.test(t)
+/** Abrió más paréntesis de los que cerró: «(Serie Harry Potter ; 1». */
+const faltaCerrar = (t: string) => (t.match(/\(/g)?.length ?? 0) > (t.match(/\)/g)?.length ?? 0)
 function cargarSeries() {
-  const lista = (form.serie ?? '').split(/\r?\n/).map((t) => t.trim()).filter(Boolean)
+  const lista = (form.serie ?? '').split(/\r?\n/).map(sinParentesis).filter(Boolean)
   series.value = lista.length ? lista : ['']
 }
 function guardarSeries() {
@@ -1653,7 +1664,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       <span class="h-px flex-1 bg-amber-200"></span>o<span class="h-px flex-1 bg-amber-200"></span>
                     </div>
                     <label for="cat-entidad_corporativa" :class="ETIQUETA"><Marc :codigo="etiqueta('entidad_corporativa')" tono="dorado" /> Entidad institucional (autor corporativo)</label>
-                    <input autocomplete="off" id="cat-entidad_corporativa" v-model="form.entidad_corporativa" :placeholder="PISTAS.entidad_corporativa" :class="CAMPO" />
+                    <CampoEntidad id-campo="cat-entidad_corporativa" v-model="form.entidad_corporativa" :placeholder="PISTAS.entidad_corporativa" :clase-campo="CAMPO" />
                   </template>
                 </div>
                 <div v-if="tiene('profesor_guia')" class="sm:col-span-3">
@@ -1695,7 +1706,8 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     </div>
                     <div v-for="c in extrasTitulo.filter((x) => x !== 'titulo_alternativo')" :key="c" class="sm:col-span-3">
                       <label :for="`cat-${c}`" :class="ETIQUETA"><Marc :codigo="etiqueta(c)" tono="dorado" /> {{ NOMBRES[c] }}</label>
-                      <input autocomplete="off" :id="`cat-${c}`" v-model="form[c]" :placeholder="PISTAS[c]" :class="CAMPO" />
+                      <CampoEntidad v-if="c === 'entidad_secundaria'" :id-campo="`cat-${c}`" v-model="form[c]" :placeholder="PISTAS[c]" :clase-campo="CAMPO" varias />
+                      <input v-else autocomplete="off" :id="`cat-${c}`" v-model="form[c]" :placeholder="PISTAS[c]" :class="CAMPO" />
                     </div>
                   </template>
                 </template>
@@ -1728,14 +1740,28 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie <span class="font-normal text-gray-500">(opcional; puede haber varias)</span></p>
                   <div class="space-y-2">
                     <div v-for="(_, i) in series" :key="i" class="flex gap-2">
-                      <input autocomplete="off"
-                        :id="`cat-serie-${i}`"
-                        v-model="series[i]"
-                        placeholder="Ej: Serie Harry Potter ; 1"
-                        :aria-label="`Serie ${i + 1}`"
-                        :class="CAMPO"
-                        @input="guardarSeries"
-                      />
+                      <div class="min-w-0 flex-1">
+                        <div class="relative">
+                          <!-- Paréntesis fijos: el «)» va justo tras lo escrito (o el ejemplo). Si se escriben a mano, se ocultan. -->
+                          <template v-if="!parentesisAMano(series[i])">
+                            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-bold text-gray-700" aria-hidden="true">(</span>
+                            <span class="pointer-events-none absolute inset-y-0 left-0 right-3 flex items-center overflow-hidden whitespace-pre pl-[calc(1.1rem+1px)] text-sm" aria-hidden="true">
+                              <span class="invisible">{{ series[i] || 'Ej: Serie Harry Potter ; 1' }}</span><span class="font-bold text-gray-700">)</span>
+                            </span>
+                          </template>
+                          <input autocomplete="off"
+                            :id="`cat-serie-${i}`"
+                            v-model="series[i]"
+                            placeholder="Ej: Serie Harry Potter ; 1"
+                            :aria-label="`Serie ${i + 1}`"
+                            :aria-invalid="faltaCerrar(series[i])"
+                            :aria-describedby="faltaCerrar(series[i]) ? `cat-serie-aviso-${i}` : undefined"
+                            :class="[CAMPO, parentesisAMano(series[i]) ? '' : '!pl-[1.1rem] !pr-6', faltaCerrar(series[i]) ? '!border-amber-400 ring-1 ring-amber-300' : '']"
+                            @input="guardarSeries"
+                          />
+                        </div>
+                        <p v-if="faltaCerrar(series[i])" :id="`cat-serie-aviso-${i}`" class="mt-1 text-[11px] font-semibold text-amber-700">Falta cerrar el paréntesis «)».</p>
+                      </div>
                       <button
                         v-if="series.length > 1 || series[i]"
                         type="button"
@@ -1745,6 +1771,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       >✕</button>
                     </div>
                   </div>
+                  <p class="mt-1 text-[11px] text-gray-500">Los paréntesis se ponen solos en la ficha, pero también se pueden escribir a mano.</p>
                   <button type="button" class="mt-2 text-xs font-semibold text-teal-700 hover:underline" @click="agregarSerie">+ Agregar otra serie</button>
                 </div>
                 <div v-if="tiene('designacion_volumen')" class="sm:col-span-3">

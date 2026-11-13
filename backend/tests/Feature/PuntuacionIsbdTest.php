@@ -9,7 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** La descripción física (300) y la edición (250) quedan como lo migrado de Horizon. */
+/** La descripción física (300) y la edición (250) quedan como lo migrado de Horizon; la serie (490), sin paréntesis. */
 class PuntuacionIsbdTest extends TestCase
 {
     use RefreshDatabase;
@@ -45,5 +45,27 @@ class PuntuacionIsbdTest extends TestCase
         $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'descripcion_fisica' => 'xvii, 267 p : il', 'edicion' => ''])->assertOk();
         $this->assertSame('xvii, 267 p : il.', $libro->fresh()->descripcion_fisica);
         $this->assertNull($libro->fresh()->edicion);
+    }
+
+    public function test_la_serie_se_guarda_sin_parentesis_y_la_ficha_los_pone(): void
+    {
+        $casos = [
+            'Serie Harry Potter ; 1' => 'Serie Harry Potter ; 1',
+            '(Serie Harry Potter ; 1)' => 'Serie Harry Potter ; 1',
+            '(HARRY POTTER)' => 'HARRY POTTER',
+            '(La Ley / Thomson Reuters' => 'La Ley / Thomson Reuters',
+            'Serie (2a. época) ; 3' => 'Serie (2a. época) ; 3',   // los de adentro se quedan
+            "(Notas de matemática ; 85)\n\n North-Holland mathematics studies ; 67 " => "Notas de matemática ; 85\nNorth-Holland mathematics studies ; 67",
+            ' ( ) ' => null,
+            null => null,
+        ];
+        foreach ($casos as $entrada => $esperado) {
+            $this->assertSame($esperado, PuntuacionIsbd::serie($entrada === '' ? null : (string) $entrada), "«{$entrada}»");
+        }
+
+        Sanctum::actingAs(Staff::factory()->create());
+        $libro = Libro::factory()->create();
+        $this->patchJson("/api/libros/{$libro->id}", ['titulo' => $libro->titulo, 'serie' => '(Serie Harry Potter ; 1)'])->assertOk();
+        $this->assertSame('Serie Harry Potter ; 1', $libro->fresh()->serie);
     }
 }

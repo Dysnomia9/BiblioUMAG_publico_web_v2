@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Reserva;
+use App\Models\Rol;
 use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\Usuario;
@@ -20,6 +21,18 @@ class SalaSoloAdministracionTest extends TestCase
     {
         Carbon::setTestNow();
         parent::tearDown();
+    }
+
+    /**
+     * Con «Salas de la administración» pero sin «Reservas especiales» (salas.repetir): las
+     * reglas de siempre. Los administradores tienen las especiales (SalaReservaQueSeRepiteTest).
+     */
+    private function administracionSinEspeciales(): Staff
+    {
+        Rol::firstOrCreate(['clave' => 'adm_salas'], ['nombre' => 'Salas de la administración', 'nivel' => 5,
+            'permisos' => ['salas.gestionar', 'salas.administracion', 'reservas.editar', 'listados.ver']]);
+
+        return Staff::factory()->create(['rol' => 'adm_salas']);
     }
 
     private function seminarios(): Sala
@@ -72,7 +85,7 @@ class SalaSoloAdministracionTest extends TestCase
 
     public function test_la_administracion_la_reserva_para_un_docente_pero_no_para_un_estudiante(): void
     {
-        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Sanctum::actingAs($this->administracionSinEspeciales());
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
 
@@ -86,7 +99,7 @@ class SalaSoloAdministracionTest extends TestCase
     public function test_el_seminario_se_reserva_solo_a_nombre_del_docente_a_cargo(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00');
-        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Sanctum::actingAs($this->administracionSinEspeciales());
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
         $this->assertTrue($this->seminarios()->solo_responsable);
@@ -117,7 +130,7 @@ class SalaSoloAdministracionTest extends TestCase
     public function test_un_grupo_no_pasa_al_seminario_y_el_seminario_si_a_una_logia(): void
     {
         Carbon::setTestNow('2026-07-10 09:00:00');
-        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Sanctum::actingAs($this->administracionSinEspeciales());
         $logia = Sala::where('codigo', 'L01')->sole();
         // Un grupo a cargo de un funcionario: como el seminario no es para estudiantes, solo falta que sea uno.
         $uno = Usuario::factory()->create(['tipo' => 'funcionario']);

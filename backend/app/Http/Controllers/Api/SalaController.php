@@ -13,12 +13,14 @@ use App\Services\MultaService;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
 use App\Support\Documento;
+use App\Support\HorarioBiblioteca;
 use App\Support\Notificar;
 use App\Support\Paginacion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SalaController extends Controller
@@ -79,7 +81,7 @@ class SalaController extends Controller
             ...$pagina->toArray(),
             'data' => collect($pagina->items())->map(fn (Reserva $r) => ReservaSalaService::paraListado($r))->all(),
             'conteos' => collect(self::VISTAS_LISTADO)->map(fn ($estado, $v) => $filtro($v)(clone $base)->count()),
-            'salas' => Sala::enOrden()->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion', 'solo_responsable', 'activa']),
+            'salas' => Sala::enOrden()->get(['id', 'nombre', 'codigo', 'tipo', 'solo_administracion', 'reserva_exclusiva', 'solo_responsable', 'activa']),
         ]);
     }
 
@@ -136,7 +138,7 @@ class SalaController extends Controller
         // Un seminario lleva solo a quien queda a cargo y una logia, un grupo: al cambiar de
         // sala, los integrantes tienen que calzar con la nueva (se corrigen antes, si no).
         $destino = Sala::findOrFail($data['sala_id']);
-        if ($destino->id !== $reserva->sala_id && ($mensaje = $destino->mensajePersonas($integrantes->count()))) {
+        if ($destino->id !== $reserva->sala_id && ($mensaje = $destino->mensajePersonas($integrantes->count(), $request->user()->puede('salas.repetir')))) {
             return response()->json(['message' => "{$mensaje} Esta reserva tiene {$integrantes->count()} ".($integrantes->count() === 1 ? 'persona' : 'personas').": corrige los integrantes antes de pasarla a {$destino->nombre}."], 409);
         }
 
@@ -219,8 +221,8 @@ class SalaController extends Controller
     {
         // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
-        [$minimo, $maximo] = $sala?->personasPermitidas() ?? Sala::personasDelMeson();
-        $soloResponsable = $sala?->solo_responsable ? $sala->mensajePersonas(0) : null;
+        [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
+        $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 
         $data = $request->validate([
             'sala_id' => ['required', Sala::reglaDisponible()],
@@ -280,7 +282,8 @@ class SalaController extends Controller
                 return response()->json(['message' => 'Ese tramo ya se encuentra reservado'], 409);
             }
 
-            if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'])) {
+            // En el mesón, una pendiente por persona y por día (otro día no choca).
+            if ($pendiente = $this->reservaSalaService->participanteConReservaPendiente($data['ruts'], fecha: $data['fecha'])) {
                 return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
             }
 
@@ -349,6 +352,210 @@ class SalaController extends Controller
         });
     }
 
+    /** Cuántas fechas puede tener una serie, y hasta cuán lejos llega: un año. */
+    private const SERIE_MAXIMO_FECHAS = 200;
+
+    /**
+     * Reserva que se repite semana a semana (permiso salas.repetir): «todos los lunes y
+     * miércoles, del 2 de marzo al 3 de julio, de 10:00 a 12:00». Las mismas reglas que una
+     * reserva del mesón, fecha por fecha; las que no se pueden (feriado o día sin atención,
+     * sala ya ocupada, alguien del grupo con otra sala a esa hora) se saltan y se dice por qué.
+     *
+     * Sin `confirmar`, solo responde qué fechas quedarían y cuáles no, sin reservar nada; con
+     * `confirmar`, reserva las que se pueden. Todas comparten el mismo `serie`, para verlas y
+     * cancelarlas juntas (cancelarSerie).
+     */
+    public function repetirReserva(Request $request)
+    {
+        $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
+        [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
+        $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
+
+        $data = $request->validate([
+            'sala_id' => ['required', Sala::reglaDisponible()],
+            'desde' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'hasta' => ['required', 'date_format:Y-m-d', 'after_or_equal:desde'],
+            'dias' => ['required', 'array', 'min:1'],
+            'dias.*' => ['integer', 'between:1,7'],
+            'hora_inicio' => ['required', 'date_format:H:i'],
+            'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
+            'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
+            'ruts' => ['required', 'array'],
+            'ruts.*' => ['required', 'string'],
+            'confirmar' => ['sometimes', 'boolean'],
+        ], [
+            'desde.after_or_equal' => 'La serie empieza hoy o un día próximo.',
+            'hasta.after_or_equal' => 'La fecha de término va después de la de inicio.',
+            'dias.required' => 'Elige al menos un día de la semana.',
+            'cantidad_personas.min' => $soloResponsable ?? $sala?->mensajePersonas($minimo - 1) ?? "La reserva necesita al menos {$minimo} personas.",
+            'cantidad_personas.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
+        ]);
+
+        if (Carbon::parse($data['hasta'])->gt(Carbon::parse($data['desde'])->addYear())) {
+            return response()->json(['message' => 'Una serie dura a lo más un año: elige una fecha de término más cercana.'], 422);
+        }
+
+        $data['ruts'] = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
+        if (count($data['ruts']) !== $data['cantidad_personas']) {
+            return response()->json(['message' => 'Debe ingresar un RUT por cada persona indicada'], 422);
+        }
+        if ($rechazo = $this->rechazoSoloAdministracion($request, (int) $data['sala_id'], $data['ruts'][0] ?? null)) {
+            return $rechazo;
+        }
+
+        $fechas = [];
+        $dias = array_map('intval', $data['dias']);
+        for ($dia = Carbon::parse($data['desde']); $dia->lte(Carbon::parse($data['hasta'])); $dia->addDay()) {
+            if (in_array($dia->dayOfWeekIso, $dias, true)) {
+                $fechas[] = $dia->toDateString();
+            }
+        }
+        if (! $fechas) {
+            return response()->json(['message' => 'Entre esas fechas no cae ninguno de los días elegidos.'], 422);
+        }
+        if (count($fechas) > self::SERIE_MAXIMO_FECHAS) {
+            return response()->json(['message' => 'Son '.count($fechas).' fechas: una serie tiene a lo más '.self::SERIE_MAXIMO_FECHAS.'. Acorta el período o elige menos días.'], 422);
+        }
+
+        $sinMaximo = $request->user()->puede('salas.sin_limite');
+        $usuarios = Usuario::whereIn('rut', $data['ruts'])->get()->keyBy('rut');
+
+        // Por qué no se puede reservar en esa fecha, o null si se puede.
+        $motivo = function (string $fecha) use ($data, $sinMaximo): ?string {
+            if ($sinAtencion = HorarioBiblioteca::motivoSinAtencion(Carbon::parse($fecha))) {
+                return 'La biblioteca no atiende: '.$sinAtencion.'.';
+            }
+            $tramo = ['fecha' => $fecha, 'hora_inicio' => $data['hora_inicio'], 'hora_fin' => $data['hora_fin']];
+            if ($error = $this->reservaSalaService->validarTramo($tramo, false, false, alMinuto: true, sinMaximo: $sinMaximo)) {
+                return $error;
+            }
+            if ($this->reservaSalaService->existeSolapamiento((int) $data['sala_id'], $fecha, $tramo['hora_inicio'], $tramo['hora_fin'])) {
+                return 'La sala ya está reservada en ese horario.';
+            }
+            if ($rut = $this->reservaSalaService->participanteConReservaSolapada($data['ruts'], $fecha, $tramo['hora_inicio'], $tramo['hora_fin'])) {
+                return "El RUT {$rut} ya tiene otra sala a esa hora.";
+            }
+            if ($cuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($data['ruts'], $fecha, $tramo['hora_inicio'], $tramo['hora_fin'])) {
+                return $this->reservaSalaService->mensajeCuotaExcedida($cuota);
+            }
+
+            return null;
+        };
+
+        if (! ($data['confirmar'] ?? false)) {
+            return response()->json(['fechas' => array_map(fn (string $f) => ['fecha' => $f, 'motivo' => $motivo($f)], $fechas)]);
+        }
+
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($data['sala_id'], $usuarios->pluck('id'), function () use ($data, $fechas, $motivo, $usuarios, $sala) {
+            $serie = (string) Str::uuid();
+            $resultado = [];
+            foreach ($fechas as $fecha) {
+                // Se revisa de nuevo: entre la vista previa y la confirmación pudo reservarse algo.
+                $porQueNo = $motivo($fecha);
+                if ($porQueNo === null) {
+                    $reserva = Reserva::create([
+                        'sala_id' => $data['sala_id'],
+                        'usuario_id' => $usuarios[$data['ruts'][0]]->id,
+                        'rut_usuario' => $data['ruts'][0],
+                        'cantidad_personas' => $data['cantidad_personas'],
+                        'fecha' => $fecha,
+                        'hora_inicio' => $data['hora_inicio'],
+                        'hora_fin' => $data['hora_fin'],
+                        'estado' => 'activa',
+                        'serie' => $serie,
+                    ]);
+                    $reserva->participantes()->attach($usuarios->pluck('id'));
+                }
+                $resultado[] = ['fecha' => $fecha, 'motivo' => $porQueNo];
+            }
+
+            $hechas = collect($resultado)->whereNull('motivo')->count();
+            if ($hechas === 0) {
+                return response()->json(['message' => 'No se pudo reservar ninguna de esas fechas.', 'fechas' => $resultado], 409);
+            }
+
+            $nombresDias = collect($data['dias'])->sort()->map(fn ($d) => Carbon::now()->startOfWeek()->addDays($d - 1)->locale('es')->dayName)->implode(', ');
+            Bitacora::registrar(
+                'salas.reservar',
+                "Reservó {$sala->nombre} {$hechas} ".($hechas === 1 ? 'vez' : 'veces').", los {$nombresDias} de {$data['hora_inicio']} a {$data['hora_fin']}, del "
+                    .Carbon::parse($data['desde'])->format('d/m/Y').' al '.Carbon::parse($data['hasta'])->format('d/m/Y'),
+                datos: ['serie' => $serie, 'integrantes' => $data['ruts'], 'saltadas' => collect($resultado)->whereNotNull('motivo')->values()->all()],
+                afectado: $usuarios[$data['ruts'][0]],
+            );
+
+            return response()->json(['serie' => $serie, 'reservadas' => $hechas, 'fechas' => $resultado], 201);
+        });
+    }
+
+    /**
+     * El panel de las reservas que se repiten (permiso salas.repetir): cada serie que todavía
+     * tiene reservas por delante, con su sala, quién queda a cargo, los días y el horario, el
+     * período y cuántas le quedan.
+     */
+    public function series()
+    {
+        $hoy = now()->toDateString();
+        $vigentes = Reserva::whereNotNull('serie')->where('estado', 'activa')->where('fecha', '>=', $hoy)->distinct()->pluck('serie');
+
+        $series = Reserva::whereIn('serie', $vigentes)->with(['sala:id,nombre,codigo', 'usuario:id,nombre,apellido,rut'])
+            ->orderBy('fecha')->get()->groupBy('serie')
+            ->map(function ($reservas, $serie) use ($hoy) {
+                $primera = $reservas->first();
+                $porDelante = $reservas->filter(fn (Reserva $r) => $r->estado === 'activa' && $r->fecha->toDateString() >= $hoy);
+
+                return [
+                    'serie' => $serie,
+                    'sala' => $primera->sala?->only(['id', 'nombre', 'codigo']),
+                    'a_cargo' => ['rut' => $primera->rut_usuario, 'nombre' => $primera->usuario ? trim("{$primera->usuario->nombre} {$primera->usuario->apellido}") : null],
+                    'cantidad_personas' => $primera->cantidad_personas,
+                    'dias' => $reservas->map(fn (Reserva $r) => $r->fecha->dayOfWeekIso)->unique()->sort()->values(),
+                    'hora_inicio' => substr($primera->hora_inicio, 0, 5),
+                    'hora_fin' => substr($primera->hora_fin, 0, 5),
+                    'desde' => $primera->fecha->toDateString(),
+                    'hasta' => $reservas->last()->fecha->toDateString(),
+                    'proxima' => $porDelante->first()?->fecha->toDateString(),
+                    'total' => $reservas->count(),
+                    'quedan' => $porDelante->count(),
+                    'canceladas' => $reservas->where('estado', 'cancelada')->count(),
+                ];
+            })
+            ->sortBy('proxima')->values();
+
+        return response()->json($series);
+    }
+
+    /**
+     * Cancela lo que queda de una serie (permiso salas.repetir): las reservas activas desde hoy
+     * a las que el grupo todavía no llega. Las ya usadas o pasadas quedan como registro. Con
+     * `desde` (la del día que se abrió en Salas, «quitar las futuras»), solo desde ese día.
+     */
+    public function cancelarSerie(Request $request, string $serie)
+    {
+        $desde = $request->validate(['desde' => ['nullable', 'date_format:Y-m-d']])['desde'] ?? null;
+        $pendientes = Reserva::where('serie', $serie)->where('estado', 'activa')->whereNull('hora_prestamo_real')
+            ->when($desde, fn ($q) => $q->where('fecha', '>=', $desde))
+            ->where(fn ($q) => $q->where('fecha', '>', now()->toDateString())
+                ->orWhere(fn ($hoy) => $hoy->where('fecha', now()->toDateString())->where('hora_inicio', '>', now()->format('H:i:s'))))
+            ->with('sala')->get();
+        if ($pendientes->isEmpty()) {
+            return response()->json(['message' => 'A esta serie no le quedan reservas por delante.'], 404);
+        }
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $pendientes->first()->sala_id, null)) {
+            return $rechazo;
+        }
+
+        Reserva::whereKey($pendientes->modelKeys())->update(['estado' => 'cancelada']);
+        $primera = $pendientes->sortBy('fecha')->first();
+        Bitacora::registrar(
+            'salas.cancelar',
+            "Canceló {$pendientes->count()} ".($pendientes->count() === 1 ? 'reserva' : 'reservas')." de la serie de {$primera->sala->nombre} (desde el {$primera->fecha->format('d/m/Y')})",
+            datos: ['serie' => $serie, 'reservas' => $pendientes->modelKeys()],
+            afectado: $primera->usuario,
+        );
+
+        return response()->json(['canceladas' => $pendientes->count()]);
+    }
+
     /**
      * Corrige quiénes vienen en una reserva activa, típicamente al confirmar la llegada:
      * alguien no vino, se sumó otra persona o un RUT quedó mal escrito. Mismas reglas que
@@ -359,8 +566,8 @@ class SalaController extends Controller
     public function actualizarIntegrantes(Request $request, Reserva $reserva, EntradaService $entradas)
     {
         $sala = $reserva->sala;
-        [$minimo, $maximo] = $sala->personasPermitidas();
-        $soloResponsable = $sala->solo_responsable ? $sala->mensajePersonas(0) : null;
+        [$minimo, $maximo] = $sala->personasPermitidas($request->user()->puede('salas.repetir'));
+        $soloResponsable = $sala->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 
         $data = $request->validate([
             'ruts' => ['required', 'array', 'min:'.$minimo, 'max:'.$maximo],
@@ -394,7 +601,7 @@ class SalaController extends Controller
             // quien se suma no puede tener ya otra.
             $quienesSeSuman = array_values(array_diff($ruts, $reserva->participantes()->pluck('rut')->all()));
             if (! $reserva->hora_prestamo_real && $quienesSeSuman
-                && $pendiente = $this->reservaSalaService->participanteConReservaPendiente($quienesSeSuman, $reserva->id)) {
+                && $pendiente = $this->reservaSalaService->participanteConReservaPendiente($quienesSeSuman, $reserva->id, $reserva->fecha->toDateString())) {
                 return response()->json(['message' => $this->reservaSalaService->mensajeReservaPendiente($pendiente)], 409);
             }
 
@@ -611,11 +818,16 @@ class SalaController extends Controller
             return null;
         }
 
-        if (! $request->user()->puede('salas.administracion')) {
+        if ($sala->reserva_exclusiva && ! $request->user()->puede('salas.exclusivas')) {
+            return response()->json(['message' => "{$sala->nombre} es de reserva exclusiva: la reservan solo quienes tienen ese permiso. Pídeles que hagan o cambien la reserva."], 403);
+        }
+
+        if (! $sala->reserva_exclusiva && ! $request->user()->puede('salas.administracion')) {
             return response()->json(['message' => "{$sala->nombre} la gestiona solo la administración: pide a un administrador que haga o cambie la reserva."], 403);
         }
 
-        if ($rutACargo && Usuario::where('rut', $rutACargo)->value('tipo') === 'estudiante') {
+        // Con «Reservas especiales» (salas.repetir) la administración sí la puede prestar a estudiantes.
+        if ($rutACargo && ! $request->user()->puede('salas.repetir') && Usuario::where('rut', $rutACargo)->value('tipo') === 'estudiante') {
             return response()->json(['message' => "{$sala->nombre} no se presta a estudiantes: quien queda a cargo (el primer RUT) debe ser docente o funcionario."], 422);
         }
 

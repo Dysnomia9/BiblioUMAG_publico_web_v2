@@ -29,6 +29,8 @@ class Reserva extends Model
         'hora_prestamo_real',
         'hora_devolucion_real',
         'via',
+        // Las creadas juntas al repetir una reserva semana a semana (SalaController::repetirReserva).
+        'serie',
     ];
 
     /**

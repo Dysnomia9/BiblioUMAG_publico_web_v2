@@ -232,6 +232,9 @@ final class FichaBibliografica
             // Cada enlace con su texto, o «Abrir enlace»
             'otros_enlaces' => collect(preg_split('/\R/', (string) $libro->otros_enlaces))->map(fn ($l) => trim($l))->filter()
                 ->map(fn ($l) => ['texto' => trim(substr($l, strlen(strtok($l, ' ')))) ?: 'Abrir enlace', 'url' => strtok($l, ' ')])->values()->all(),
+            // Las entidades (110 y cada una del 710) se pulsan para ver sus títulos en el listado.
+            'entidad_corporativa', 'entidad_secundaria' => collect(preg_split('/\s*;\s*/u', $valor))->map(fn ($e) => trim($e))->filter()
+                ->map(fn ($e) => ['texto' => $e, 'entidad' => $e])->values()->all(),
             'profesor_guia' => collect(explode(';', $valor))->map(fn ($n) => trim($n))->filter()->map(fn ($n) => ['texto' => $n, 'buscar' => $n])->values()->all(),
             // Solo las listas se separan en chips. En el resto, « ; » es puntuación ISBD y va
             // entero: «(Aporte al debate laboral ; 34)», «86 p. : il. ; 24 cm.».

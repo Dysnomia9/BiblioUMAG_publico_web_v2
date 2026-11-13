@@ -9,7 +9,7 @@ import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
 import SelectorBuscable from '@/components/ui/SelectorBuscable.vue'
 import apiUsuario from '@/services/apiUsuario'
-import { esBusquedaCorta } from '@/utils/busqueda'
+import { esBusquedaCorta, tituloAlternativoEncontrado } from '@/utils/busqueda'
 import { useToast } from '@/composables/useToast'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
 import type { CondicionesReservaLibro, LibroCatalogo, Paginado, ReservaLibro } from '@/types'
@@ -51,6 +51,8 @@ const parametros = (numero: number) => ({
 // Al escribir salen varias búsquedas seguidas: si no se cancela la anterior, su respuesta
 // puede llegar última y reemplazar la lista de la búsqueda nueva (el «tirón»).
 let busquedaEnCurso: AbortController | undefined
+/** Lo buscado en la lista que se muestra (no lo que se está escribiendo), para el 246 que coincidió. */
+const busquedaHecha = ref('')
 
 async function cargar(agregar = false) {
   busquedaEnCurso?.abort()
@@ -62,6 +64,7 @@ async function cargar(agregar = false) {
       signal: peticion.signal,
       params: parametros(agregar ? pagina.value + 1 : 1),
     })
+    busquedaHecha.value = busqueda.value
     libros.value = agregar ? [...libros.value, ...data.data] : data.data
     pagina.value = data.current_page
     ultimaPagina.value = data.last_page
@@ -209,6 +212,7 @@ const filas = computed(() =>
       reserva: reservaDe(libro),
       estado: estadoLibro(libro),
       detalle: [libro.tipo_material, libro.categorias?.map((c) => c.nombre).join(', ')].filter(Boolean).join(' · '),
+      alternativo: tituloAlternativoEncontrado(libro, busquedaHecha.value),
     })),
 )
 
@@ -460,6 +464,7 @@ async function cancelar(reserva: ReservaLibro) {
                   <PortadaMaterial :titulo="fila.libro.titulo" :tipo="fila.libro.tipo_material" :clave-tono="fila.libro.categorias?.[0]?.nombre" />
                   <div class="min-w-0">
                     <p class="text-[15px] sm:text-sm font-semibold text-gray-900 leading-snug">{{ fila.libro.titulo }}</p>
+                    <p v-if="fila.alternativo" class="mt-0.5 text-xs text-gray-600 leading-snug">También titulado: <span class="font-medium text-gray-800">{{ fila.alternativo }}</span></p>
                     <p class="mt-0.5 text-xs text-gray-600 truncate">{{ fila.libro.autores?.map((a) => a.nombre).join(' · ') }}</p>
                     <p class="mt-0.5 text-xs text-gray-500">
                       {{ fila.detalle }}<template v-if="fila.detalle"> · </template>

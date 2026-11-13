@@ -222,13 +222,15 @@ export type TipoMaterial = { id: number; nombre: string; plantilla: PlantillaFic
 
 /** Una fila de la ficha bibliográfica (etiqueta MARC, nombre del campo y su valor). */
 /** Un valor de una fila de la ficha (un autor, una materia…), con lo que sirve para filtrar por él. */
-export type ItemFicha = { texto: string; autor_id?: number; categoria_id?: number; carrera_id?: number; buscar?: string; /** Un enlace (otros 856): se abre en otra pestaña. */ url?: string }
+export type ItemFicha = { texto: string; autor_id?: number; categoria_id?: number; carrera_id?: number; buscar?: string; /** Una entidad (110/710): se ven sus títulos. */ entidad?: string; /** Un enlace (otros 856): se abre en otra pestaña. */ url?: string }
 export type FilaFicha = { etiqueta: string; campo: string; valor: string; interno: boolean; items?: ItemFicha[] | null }
 
 /** Título tal como lo entrega el catálogo del portal: solo datos públicos. */
 export type LibroCatalogo = {
   id: number
   titulo: string
+  /** 246, uno por línea: para mostrar el que coincidió con la búsqueda. */
+  titulo_alternativo?: string | null
   tipo_material: string | null
   autores: { id: number; nombre: string }[]
   categorias: { id: number; nombre: string }[]
@@ -504,6 +506,8 @@ export type TiempoSinUsar = {
 
 export type TramoReserva = {
   reserva_id: number
+  /** Las reservas que se repiten semana a semana comparten este código (SalaController::repetirReserva). */
+  serie?: string | null
   hora_inicio: string
   hora_fin: string
   /** Hasta qué hora estaba reservada, si se liberó el resto al devolverla antes. */
@@ -534,6 +538,8 @@ export type Sala = {
   codigo: string
   /** No se presta a estudiantes (seminarios, Cooperación, Moraga): la reserva quien tiene salas.administracion. */
   solo_administracion?: boolean
+  /** De la administración y además exclusiva: la reserva solo quien tiene salas.exclusivas. */
+  reserva_exclusiva?: boolean
   /** Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin anotar a cada asistente: los seminarios. */
   solo_responsable?: boolean
   /** False: dada de baja. Ya no se ofrece ni se reserva, y su historial se conserva. */
@@ -570,6 +576,7 @@ export type VistaSalasDia = {
 /** Una sala en Administración › Salas, con sus reservas de toda la historia y las que siguen activas. */
 export type SalaAdministrada = Pick<Sala, 'id' | 'nombre' | 'codigo' | 'capacidad' | 'tipo'> & {
   solo_administracion: boolean
+  reserva_exclusiva: boolean
   solo_responsable: boolean
   activa: boolean
   reservas_count: number
@@ -940,6 +947,8 @@ export type SituacionReserva = 'pendiente' | 'en_uso' | 'sin_devolver' | 'finali
 /** Una reserva de sala en el Listado de reservas (ReservaSalaService::paraListado()). */
 export type ReservaListado = {
   id: number
+  /** Las reservas que se repiten semana a semana comparten este código. */
+  serie?: string | null
   sala: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo'> | null
   fecha: string
   hora_inicio: string
@@ -967,6 +976,6 @@ export type ReservaListado = {
 /** Listado de reservas: la página de la pestaña elegida, cuántas hay en cada pestaña y las salas para filtrar. */
 export type ListadoReservas = Paginado<ReservaListado> & {
   conteos: Record<VistaReservas, number>
-  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo' | 'solo_administracion' | 'solo_responsable' | 'activa'>[]
+  salas: Pick<Sala, 'id' | 'nombre' | 'codigo' | 'tipo' | 'solo_administracion' | 'reserva_exclusiva' | 'solo_responsable' | 'activa'>[]
 }
 

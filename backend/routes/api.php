@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/equipos/{codigo}', [EquipoController::class, 'buscarPorCodigo']);
     Route::get('/estados-libro-personalizados', [EstadoLibroPersonalizadoController::class, 'index']);
     Route::get('/autores', [CatalogoLibroController::class, 'autores']);
+    Route::get('/entidades', [CatalogoLibroController::class, 'entidades']);
     Route::get('/categorias', [CatalogoLibroController::class, 'categorias']);
     Route::post('/categorias/revisar', [CatalogoLibroController::class, 'revisarMaterias']);
     Route::get('/carreras', [CatalogoLibroController::class, 'carreras']);
@@ -133,6 +134,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::get('/salas', [SalaController::class, 'index']);
         Route::post('/salas/llave', [SalaController::class, 'llave']);
         Route::post('/reservas', [SalaController::class, 'storeReserva']);
+        // Reservas que se repiten semana a semana: además del mesón de salas, su propio permiso.
+        Route::post('/reservas/repetir', [SalaController::class, 'repetirReserva'])->middleware('permiso:salas.repetir');
+        Route::get('/reservas/series', [SalaController::class, 'series'])->middleware('permiso:salas.repetir');
+        Route::delete('/reservas/serie/{serie}', [SalaController::class, 'cancelarSerie'])->middleware('permiso:salas.repetir')->whereUuid('serie');
         Route::patch('/reservas/{reserva}/llegada', [SalaController::class, 'confirmarLlegada']);
         Route::patch('/reservas/{reserva}/liberar', [SalaController::class, 'liberarReserva']);
     });

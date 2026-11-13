@@ -206,14 +206,16 @@ const detalleOpen = ref(false)
 const detalleTramo = ref<TramoReserva | null>(null)
 const detalleSala = ref<Sala | null>(null)
 
-const cancelacionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
+const cancelacionPendiente = ref<{ reservaId: number; salaNombre: string; label: string; serie: string | null } | null>(null)
+/** Al cancelar una reserva de una serie: también las que vienen (permiso salas.repetir). */
+const cancelarTambienLaSerie = ref(false)
 const devolucionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
 const devolviendo = ref(false)
 // Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 // Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
 const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
-const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; horaInicio: string; horaFin: string; personas: TramoReserva['personas']; soloResponsable: boolean } | null>(null)
+const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; horaInicio: string; horaFin: string; personas: TramoReserva['personas']; soloResponsable: boolean; rango?: [number, number] | null } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
 const editandoIntegrantesLlegada = ref(false)
@@ -359,6 +361,15 @@ const bloquesSalas = computed<{ titulo: string | null; indice: number | null; sa
 )
 
 const esHoy = computed(() => selectedDate.value === hoy.value)
+/** Rol con acceso total: ven además un selector de fecha junto al listado de logias. */
+const esAdministrador = computed(() => !!auth.staff?.rol_acceso_total)
+/** Un día antes o después del que se mira (las fechas «AAAA-MM-DD», sin pasar por la zona horaria). */
+function moverDia(dias: number) {
+  const [a, m, d] = (selectedDate.value || hoy.value).split('-').map(Number)
+  selectedDate.value = new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
+}
+/** «lunes 17 de noviembre». */
+const diaLargo = (fecha: string) => new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
 const ahoraEnPuntaArenas = computed(() => enPuntaArenas(ahora.value))
 const ahoraMin = computed(() => ahoraEnPuntaArenas.value.minutos)
 const nowPct = computed(() => Math.min(100, Math.max(0, ((ahoraMin.value - aperturaMin.value) / totalMin.value) * 100)))
@@ -470,9 +481,19 @@ const horaInicioOpciones = computed(() => {
 /** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
 /** El mínimo de las logias (Administración › Salas), o null si está apagado. */
 const minimoLogias = ref<number | null>(null)
-const minimoDe = (sala: Sala) => (sala.solo_responsable ? 1 : sala.codigo?.toUpperCase().startsWith('L') && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
+/**
+ * Reservas especiales (permiso salas.repetir) en una sala de la administración: un grupo flexible,
+ * de 1 persona hasta la capacidad de la sala (un curso en el seminario), y también para estudiantes.
+ * Igual que Sala::personasPermitidas() en el servidor.
+ */
+const grupoFlexible = (sala: Sala) => !!sala.solo_administracion && auth.puede('salas.repetir')
+const soloResponsableEn = (sala: Sala) => !!sala.solo_responsable && !grupoFlexible(sala)
+const maximoDe = (sala: Sala) => (grupoFlexible(sala) ? Math.max(cantidadMaxima.value, sala.capacidad) : cantidadMaxima.value)
+const minimoDe = (sala: Sala) => (grupoFlexible(sala) || sala.solo_responsable ? 1 : sala.codigo?.toUpperCase().startsWith('L') && minimoLogias.value !== null ? minimoLogias.value : cantidadMinima.value)
 /** El mínimo de la sala elegida: el de las opciones de «Cantidad de personas». */
 const minimoElegida = computed(() => (selectedSala.value ? minimoDe(selectedSala.value) : cantidadMinima.value))
+const maximoElegida = computed(() => (selectedSala.value ? maximoDe(selectedSala.value) : cantidadMaxima.value))
+const soloResponsableElegida = computed(() => !!selectedSala.value && soloResponsableEn(selectedSala.value))
 
 function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHORA) {
   selectedSala.value = sala
@@ -582,7 +603,11 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
     toast.error(textoDiaCerrado.value)
     return
   }
-  if (sala.solo_administracion && !puedeSalasAdministracion.value) {
+  if (sala.reserva_exclusiva && !auth.puede('salas.exclusivas')) {
+    toast.error(`${sala.nombre} es de reserva exclusiva: la reservan solo quienes tienen ese permiso.`)
+    return
+  }
+  if (sala.solo_administracion && !sala.reserva_exclusiva && !puedeSalasAdministracion.value) {
     toast.error(`${sala.nombre} la gestiona solo la administración: pide a un administrador que haga la reserva.`)
     return
   }
@@ -674,6 +699,96 @@ function tramoClases(tramo: TramoReserva): string {
   return 'bg-amber-100 border-amber-300 text-amber-700'
 }
 
+// ---------- Reserva que se repite (permiso salas.repetir) ----------
+// «Todos los lunes del semestre de 10:00 a 12:00»: los días de la semana y hasta cuándo. Al
+// confirmar, primero se piden las fechas al servidor (sin reservar) y se muestran las que no se
+// pueden y por qué; con un segundo clic se reservan las demás.
+const puedeRepetir = computed(() => auth.puede('salas.repetir'))
+const DIAS_SEMANA = [
+  { iso: 1, corto: 'Lu', nombre: 'lunes' }, { iso: 2, corto: 'Ma', nombre: 'martes' }, { iso: 3, corto: 'Mi', nombre: 'miércoles' },
+  { iso: 4, corto: 'Ju', nombre: 'jueves' }, { iso: 5, corto: 'Vi', nombre: 'viernes' }, { iso: 6, corto: 'Sá', nombre: 'sábado' },
+]
+const repetir = ref(false)
+const repetirDias = ref<number[]>([])
+const repetirHasta = ref('')
+/** Hasta una fecha del calendario, o por cuántas semanas (contando la del día elegido). */
+const repetirModo = ref<'hasta' | 'semanas'>('semanas')
+const repetirSemanas = ref(12)
+const sumarDias = (fecha: string, dias: number) => {
+  const [a, m, d] = fecha.split('-').map(Number)
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
+}
+/** El último día de la serie: el de la fecha elegida o el fin de la última semana. */
+const hastaSerie = computed(() => (repetirModo.value === 'hasta' ? repetirHasta.value : repetirSemanas.value >= 1 ? sumarDias(selectedDate.value, 7 * Math.floor(repetirSemanas.value) - 1) : ''))
+const vistaSerie = ref<{ fecha: string; motivo: string | null }[] | null>(null)
+const serieLibres = computed(() => vistaSerie.value?.filter((f) => !f.motivo) ?? [])
+const serieSaltadas = computed(() => vistaSerie.value?.filter((f) => f.motivo) ?? [])
+const diaIso = (fecha: string) => ((new Date(`${fecha}T12:00:00`).getDay() + 6) % 7) + 1
+const fechaCorta = (fecha: string) => new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })
+watch(repetir, (si) => {
+  if (!si) return
+  // «Ahora» es para el grupo que está en el mesón: una serie parte en una hora fija, la del próximo bloque.
+  if (modalEsAhora.value) {
+    if (horaInicioOpciones.value.length) modalHoraInicio.value = horaInicioOpciones.value[0]
+    else {
+      repetir.value = false
+      toast.error('Hoy ya no quedan bloques libres: elija otro día para empezar la serie.')
+      return
+    }
+  }
+  repetirDias.value = [diaIso(selectedDate.value)]
+  // Por defecto, doce semanas: se ajusta al fin del semestre.
+  repetirHasta.value ||= sumarDias(selectedDate.value, 7 * 11)
+})
+watch(modalOpen, (abierto) => {
+  if (abierto) return
+  repetir.value = false
+  repetirHasta.value = ''
+  vistaSerie.value = null
+})
+// Cualquier cambio deja vieja la lista de fechas: hay que volver a revisarla.
+watch([repetir, repetirDias, hastaSerie, modalInicioMin, modalFinMin, rutsReserva, cantidadPersonas], () => (vistaSerie.value = null), { deep: true })
+// Volver a «Ahora» deja la reserva como una sola, para el grupo que está en el mesón.
+watch(modalEsAhora, (ahora) => {
+  if (ahora) repetir.value = false
+})
+function alternarDia(iso: number) {
+  repetirDias.value = repetirDias.value.includes(iso) ? repetirDias.value.filter((d) => d !== iso) : [...repetirDias.value, iso].sort()
+}
+
+async function confirmarSerie() {
+  if (!selectedSala.value) return
+  if (!repetirDias.value.length || !hastaSerie.value) {
+    toast.error(repetirModo.value === 'hasta' ? 'Elija los días de la semana y hasta qué fecha se repite' : 'Elija los días de la semana y por cuántas semanas se repite')
+    return
+  }
+  const datos = {
+    sala_id: selectedSala.value.id,
+    desde: selectedDate.value,
+    hasta: hastaSerie.value,
+    dias: repetirDias.value,
+    hora_inicio: minutesToTime(modalInicioMin.value),
+    hora_fin: minutesToTime(modalFinMin.value),
+    cantidad_personas: cantidadPersonas.value,
+    ruts: rutsReserva.value,
+  }
+  try {
+    if (!vistaSerie.value) {
+      const { data } = await api.post<{ fechas: { fecha: string; motivo: string | null }[] }>('/reservas/repetir', datos)
+      vistaSerie.value = data.fechas
+      return
+    }
+    const { data } = await api.post<{ reservadas: number }>('/reservas/repetir', { ...datos, confirmar: true })
+    const saltadas = serieSaltadas.value.length
+    toast.success(`${selectedSala.value.nombre} reservada ${data.reservadas} ${data.reservadas === 1 ? 'vez' : 'veces'}, de ${datos.hora_inicio} a ${datos.hora_fin}.${saltadas ? ` ${saltadas} ${saltadas === 1 ? 'fecha quedó' : 'fechas quedaron'} sin reservar.` : ''}`)
+    modalOpen.value = false
+    await cargar()
+  } catch (e: any) {
+    vistaSerie.value = e?.response?.data?.fechas ?? null
+    toast.error(e?.response?.data?.message ?? 'No se pudo reservar la serie')
+  }
+}
+
 // Excepción del mesón (permiso «Una persona en dos salas a la vez»): si alguien del grupo ya
 // tiene otra sala a esa hora, el servidor lo avisa y quien tiene el permiso puede confirmarlo.
 const solapePendiente = ref<{ rut: string; mensaje: string } | null>(null)
@@ -683,6 +798,7 @@ function autorizarSolape() {
 }
 
 async function confirmarReserva(permitirSolape = false) {
+  const enSerie = repetir.value && puedeRepetir.value && !renovacionDe.value && !modalEsAhora.value
   if (rutsReserva.value.some((r) => !r.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
     return
@@ -700,6 +816,7 @@ async function confirmarReserva(permitirSolape = false) {
   }
 
   rutErrores.value = {}
+  if (enSerie) return confirmarSerie()
   try {
     const { data } = await api.post('/reservas', {
       sala_id: selectedSala.value.id,
@@ -745,20 +862,46 @@ async function confirmarReserva(permitirSolape = false) {
 }
 
 function pedirCancelacion(sala: Sala, tramo: TramoReserva) {
-  cancelacionPendiente.value = { reservaId: tramo.reserva_id, salaNombre: sala.nombre, label: labelTramo(tramo.hora_inicio, tramo.hora_fin) }
+  cancelacionPendiente.value = { reservaId: tramo.reserva_id, salaNombre: sala.nombre, label: labelTramo(tramo.hora_inicio, tramo.hora_fin), serie: tramo.serie ?? null }
+  cancelarTambienLaSerie.value = false
 }
 
 async function confirmarCancelacion() {
   if (!cancelacionPendiente.value) return
   try {
+    const { serie } = cancelacionPendiente.value
     await api.delete(`/reservas/${cancelacionPendiente.value.reservaId}`)
-    toast.success('Reserva cancelada')
+    let siguientes = 0
+    if (serie && cancelarTambienLaSerie.value) {
+      // Puede que no quede ninguna por delante (404): con esta ya basta.
+      siguientes = await api.delete<{ canceladas: number }>(`/reservas/serie/${serie}`).then(({ data }) => data.canceladas, () => 0)
+    }
+    toast.success(siguientes ? `Reserva cancelada, y ${siguientes} más de la serie` : 'Reserva cancelada')
     detalleOpen.value = false
     await cargar()
   } catch {
     toast.error('No se pudo cancelar la reserva')
   } finally {
     cancelacionPendiente.value = null
+  }
+}
+
+/** «Quitar reservas periódicas futuras»: la reserva abierta y las siguientes de su serie, desde ese día. */
+const quitarSerie = ref<{ serie: string; desde: string; salaNombre: string; horario: string } | null>(null)
+const quitandoSerie = ref(false)
+async function confirmarQuitarSerie() {
+  if (!quitarSerie.value) return
+  quitandoSerie.value = true
+  try {
+    const { data } = await api.delete<{ canceladas: number }>(`/reservas/serie/${quitarSerie.value.serie}`, { params: { desde: quitarSerie.value.desde } })
+    toast.success(`Se quitaron ${data.canceladas} ${data.canceladas === 1 ? 'reserva periódica' : 'reservas periódicas'} de ${quitarSerie.value.salaNombre}`)
+    quitarSerie.value = null
+    detalleOpen.value = false
+    await cargar()
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? 'No se pudieron quitar las reservas')
+  } finally {
+    quitandoSerie.value = false
   }
 }
 
@@ -799,7 +942,8 @@ function pedirLlegada(sala: Sala, tramo: TramoReserva, modificar = false) {
     horaInicio: tramo.hora_inicio.slice(0, 5),
     horaFin: tramo.hora_fin.slice(0, 5),
     personas: tramo.personas ?? [],
-    soloResponsable: !!sala.solo_responsable,
+    soloResponsable: soloResponsableEn(sala),
+    rango: grupoFlexible(sala) ? ([1, maximoDe(sala)] as [number, number]) : null,
   }
   editandoIntegrantesLlegada.value = modificar
 }
@@ -961,7 +1105,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         :con-boton="false"
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); las salas de la administración (los seminarios, Cooperación y Moraga) van solo a nombre del docente o funcionario que las pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); las salas de la administración (los seminarios, Cooperación y Moraga) van solo a nombre del docente o funcionario que las pide. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>: se abre el formulario con los mismos RUT ya puestos, desde que termina su bloque (o desde ahora). Solo elija la hora y la duración.',
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
@@ -1000,14 +1144,32 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </div>
           </div>
         </div>
-        <div class="rounded-2xl border border-gray-200 border-t-4 border-t-[#b08d57] bg-white p-4 shadow-sm">
-          <label for="fecha-salas" class="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-gray-600">Fecha</label>
-          <input
-            id="fecha-salas"
-            v-model="selectedDate"
-            type="date"
-            class="w-full px-3.5 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-          />
+        <!-- El día que se mira y se reserva: con flechas y «Volver a hoy», para que se note que se puede reservar a futuro -->
+        <div class="rounded-2xl border border-gray-200 border-t-4 bg-white p-4 shadow-sm" :class="esHoy ? 'border-t-[#b08d57]' : 'border-t-amber-500 ring-1 ring-amber-200'">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <label for="fecha-salas" class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">Día a reservar</label>
+            <button
+              v-if="!esHoy"
+              type="button"
+              class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-200"
+              @click="selectedDate = hoy"
+            >
+              ↺ Volver a hoy
+            </button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="shrink-0 rounded-lg border border-gray-300 px-2.5 py-2 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50" aria-label="Día anterior" @click="moverDia(-1)">‹</button>
+            <input
+              id="fecha-salas"
+              v-model="selectedDate"
+              type="date"
+              class="min-w-0 flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+            <button type="button" class="shrink-0 rounded-lg border border-gray-300 px-2.5 py-2 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50" aria-label="Día siguiente" @click="moverDia(1)">›</button>
+          </div>
+          <p class="mt-1.5 text-xs" :class="esHoy ? 'text-gray-500' : 'font-semibold text-amber-800'">
+            {{ esHoy ? 'Hoy. Cambia el día para reservar a futuro.' : `Mirando el ${diaLargo(selectedDate)}` }}
+          </p>
         </div>
       </div>
 
@@ -1233,6 +1395,27 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           </svg>
           <p>{{ textoFueraDeHorario }}</p>
         </div>
+        <!-- Solo administradores: cambiar el día sin subir a la tarjeta de fecha (es la misma fecha). -->
+        <div v-if="esAdministrador" class="mb-2 flex flex-wrap items-center justify-end gap-2">
+          <span class="text-xs font-semibold" :class="esHoy ? 'text-gray-500' : 'text-amber-800'">{{ esHoy ? 'Viendo hoy' : `Viendo el ${diaLargo(selectedDate)}` }}</span>
+          <div class="flex items-center gap-1">
+            <button type="button" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50" aria-label="Día anterior" @click="moverDia(-1)">‹</button>
+            <input
+              v-model="selectedDate"
+              type="date"
+              aria-label="Día que se ve en el listado"
+              class="rounded-lg border bg-white px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              :class="esHoy ? 'border-gray-300' : 'border-amber-400'"
+            />
+            <button type="button" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-50" aria-label="Día siguiente" @click="moverDia(1)">›</button>
+          </div>
+          <button
+            v-if="!esHoy"
+            type="button"
+            class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-200"
+            @click="selectedDate = hoy"
+          >↺ Volver a hoy</button>
+        </div>
         <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <p class="flex items-center gap-2 text-[13px] text-gray-600">
             <template v-if="diaCerrado">Elija otra fecha arriba para reservar.</template>
@@ -1271,7 +1454,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         <!-- En pantallas chicas la línea de tiempo se desplaza de lado en vez de
              comprimirse, para que las horas no se encimen. -->
         <div class="overflow-x-auto">
-        <div class="min-w-[640px]">
+        <!-- px-1.5: las filas tienen -mx-1.5 para resaltarse enteras; sin este margen se salían y aparecía una barra de lado -->
+        <div class="min-w-[640px] px-1.5">
         <div v-if="esHoy && !diaCerrado && nowPct > 0 && nowPct < 100" class="flex items-end mb-1">
           <div class="w-[148px] shrink-0 self-stretch"></div>
           <div class="relative h-7 flex-1">
@@ -1552,21 +1736,21 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               llegada confirmada. Entregue la llave al reservar.
             </p>
 
-            <p v-if="selectedSala.solo_responsable" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+            <p v-if="soloResponsableElegida" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
               {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
             </p>
             <section class="space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">
-                  {{ selectedSala.solo_responsable ? 'A cargo' : 'Integrantes' }}
+                  {{ soloResponsableElegida ? 'A cargo' : 'Integrantes' }}
                 </p>
                 <select
-                  v-if="!selectedSala.solo_responsable"
+                  v-if="!soloResponsableElegida"
                   v-model.number="cantidadPersonas"
                   aria-label="Cantidad de personas"
                   class="rounded-lg border border-indigo-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
+                  <option v-for="n in maximoElegida - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
                     {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
                   </option>
                 </select>
@@ -1574,13 +1758,13 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <div class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
                 <div v-for="(_, idx) in rutsReserva" :key="idx">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span v-if="!selectedSala.solo_responsable" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
+                    <span v-if="!soloResponsableElegida" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
                     <input
                       :value="rutsReserva[idx]"
                       @input="onRutInput(idx, $event)"
                       type="text"
-                      :aria-label="selectedSala.solo_responsable ? 'Documento del docente o funcionario a cargo' : `Documento de la persona ${idx + 1}`"
-                      :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                      :aria-label="soloResponsableElegida ? 'Documento del docente o funcionario a cargo' : `Documento de la persona ${idx + 1}`"
+                      :placeholder="soloResponsableElegida ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                       :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
                       class="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 font-mono text-sm outline-none focus:ring-2"
                       :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
@@ -1590,7 +1774,58 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
                 </div>
               </div>
-              <p class="text-xs text-gray-500">{{ selectedSala.solo_responsable ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
+              <p class="text-xs text-gray-500">{{ soloResponsableElegida ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
+              <p v-if="grupoFlexible(selectedSala)" class="text-xs font-semibold text-indigo-800">Reserva especial: de 1 a {{ maximoElegida }} personas (la capacidad de la sala), y también para estudiantes.</p>
+            </section>
+
+            <!-- Repetir cada semana (permiso «Reservas que se repiten») -->
+            <section v-if="puedeRepetir && !renovacionDe" class="rounded-xl border p-3" :class="repetir ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200'">
+              <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900">
+                <input v-model="repetir" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                Repetir cada semana
+              </label>
+              <template v-if="repetir">
+                <div class="mt-2.5 flex flex-wrap items-end gap-x-4 gap-y-2">
+                  <div>
+                    <p class="mb-1 text-xs font-semibold text-gray-700">Los días</p>
+                    <div class="flex gap-1" role="group" aria-label="Días de la semana">
+                      <button
+                        v-for="d in DIAS_SEMANA"
+                        :key="d.iso"
+                        type="button"
+                        :aria-pressed="repetirDias.includes(d.iso)"
+                        :aria-label="d.nombre"
+                        class="h-8 w-8 rounded-lg border text-xs font-bold transition-colors"
+                        :class="repetirDias.includes(d.iso) ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                        @click="alternarDia(d.iso)"
+                      >{{ d.corto }}</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="mb-1 flex gap-3 text-xs font-semibold text-gray-700" role="radiogroup" aria-label="Hasta cuándo se repite">
+                      <label class="flex cursor-pointer items-center gap-1"><input v-model="repetirModo" type="radio" value="semanas" class="text-indigo-600 focus:ring-indigo-500" /> Por semanas</label>
+                      <label class="flex cursor-pointer items-center gap-1"><input v-model="repetirModo" type="radio" value="hasta" class="text-indigo-600 focus:ring-indigo-500" /> Hasta una fecha</label>
+                    </div>
+                    <div v-if="repetirModo === 'semanas'" class="flex items-center gap-1.5">
+                      <input v-model.number="repetirSemanas" type="number" min="1" max="52" aria-label="Cuántas semanas" class="w-16 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <span class="text-sm text-gray-700">semanas</span>
+                    </div>
+                    <input v-else v-model="repetirHasta" type="date" :min="selectedDate" aria-label="Hasta el" class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <p class="mt-2 text-xs text-gray-600">
+                  Desde el {{ diaLargo(selectedDate) }}<template v-if="hastaSerie"> hasta el {{ diaLargo(hastaSerie) }}</template>, en el horario elegido arriba y con los mismos integrantes.
+                </p>
+                <div v-if="vistaSerie" class="mt-2.5 rounded-lg border border-gray-200 bg-white p-2.5 text-xs">
+                  <p class="font-semibold text-emerald-800">Se reservarán {{ serieLibres.length }} {{ serieLibres.length === 1 ? 'fecha' : 'fechas' }}.</p>
+                  <template v-if="serieSaltadas.length">
+                    <p class="mt-1.5 font-semibold text-amber-800">{{ serieSaltadas.length }} {{ serieSaltadas.length === 1 ? 'fecha no se puede' : 'fechas no se pueden' }} y se saltan:</p>
+                    <ul class="mt-1 max-h-32 space-y-0.5 overflow-y-auto">
+                      <li v-for="f in serieSaltadas" :key="f.fecha"><span class="font-semibold text-gray-800">{{ fechaCorta(f.fecha) }}</span>: <span class="text-gray-600">{{ f.motivo }}</span></li>
+                    </ul>
+                  </template>
+                </div>
+              </template>
             </section>
           </div>
 
@@ -1598,11 +1833,11 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <button @click="modalOpen = false" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50">Cancelar</button>
             <button
               @click="confirmarReserva()"
-              :disabled="!puedeConfirmarReserva"
+              :disabled="!puedeConfirmarReserva || (!!vistaSerie && repetir && !serieLibres.length)"
               class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-              {{ renovacionDe ? 'Confirmar renovación' : 'Confirmar reserva' }}
+              {{ renovacionDe ? 'Confirmar renovación' : repetir && puedeRepetir && !modalEsAhora ? (vistaSerie ? `Reservar ${serieLibres.length} ${serieLibres.length === 1 ? 'fecha' : 'fechas'}` : 'Revisar fechas') : 'Confirmar reserva' }}
             </button>
           </div>
         </div>
@@ -1630,6 +1865,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <h3 class="truncate font-serif text-2xl font-bold leading-tight">{{ detalleSala.nombre }}</h3>
                 <p class="mt-0.5 text-sm text-white/80 first-letter:uppercase">
                   {{ selectedDate === hoy ? 'Hoy' : formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(detalleTramo.hora_fin) - timeToMinutes(detalleTramo.hora_inicio)) }} · {{ detalleTramo.cantidad_personas }} {{ detalleTramo.cantidad_personas === 1 ? 'persona' : 'personas' }}
+                  <span v-if="detalleTramo.serie" class="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">↻ Se repite cada semana</span>
                 </p>
               </div>
               <div class="flex shrink-0 items-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
@@ -1694,7 +1930,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 v-if="editandoIntegrantesDetalle"
                 :reserva-id="detalleTramo.reserva_id"
                 :personas="detalleTramo.personas ?? []"
-                :solo-responsable="!!detalleSala.solo_responsable"
+                :solo-responsable="soloResponsableEn(detalleSala)"
+                :rango="grupoFlexible(detalleSala) ? [1, maximoDe(detalleSala)] : null"
                 @guardado="integrantesGuardados"
                 @cancelar="editandoIntegrantesDetalle = false"
               />
@@ -1787,6 +2024,40 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 </button>
               </template>
             </template>
+            <!-- Reserva de una serie: quitar esta y las siguientes de una vez (ya no la necesitan) -->
+            <button
+              v-if="detalleTramo.serie && puedeRepetir && !detalleTramo.hora_prestamo_real"
+              type="button"
+              class="basis-full rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
+              @click="quitarSerie = { serie: detalleTramo.serie, desde: selectedDate, salaNombre: detalleSala.nombre, horario: labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }"
+            >
+              ↻ Quitar reservas periódicas futuras
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="quitarSerie"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+        @click.self="!quitandoSerie && (quitarSerie = null)"
+      >
+        <div class="w-full max-w-sm overflow-hidden rounded-2xl border-t-[3px] border-t-red-600 bg-white shadow-2xl">
+          <div class="border-b border-gray-100 bg-red-50/60 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">¿Quitar las reservas periódicas futuras?</h3>
+          </div>
+          <div class="px-5 py-4 text-sm text-gray-500">
+            <p>
+              Se cancelarán la reserva de <strong class="text-gray-900">{{ quitarSerie.salaNombre }}</strong> del {{ diaLargo(quitarSerie.desde) }}
+              ({{ quitarSerie.horario }}) y <strong class="text-gray-900">todas las siguientes</strong> de esa serie.
+            </p>
+            <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Las anteriores a ese día y las ya usadas se mantienen. Esta acción no se puede deshacer.</p>
+          </div>
+          <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button :disabled="quitandoSerie" @click="quitarSerie = null" :class="BOTON_CANCELAR">No, mantener</button>
+            <button :disabled="quitandoSerie" @click="confirmarQuitarSerie" :class="BOTON_PRINCIPAL" class="bg-red-600 hover:bg-red-700">
+              {{ quitandoSerie ? 'Quitando…' : 'Sí, quitarlas' }}
+            </button>
           </div>
         </div>
       </div>
@@ -1856,6 +2127,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               Se cancelará la reserva de <strong class="text-gray-900">{{ cancelacionPendiente.salaNombre }}</strong> para el tramo
               <strong class="text-gray-900">{{ cancelacionPendiente.label }}</strong>.
             </p>
+            <label v-if="cancelacionPendiente.serie && puedeRepetir" class="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700">
+              <input v-model="cancelarTambienLaSerie" type="checkbox" class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+              <span>Es parte de una reserva que se repite: cancelar también <strong>todas las que vienen</strong> de esa serie.</span>
+            </label>
             <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">Esta acción no se puede deshacer.</p>
           </div>
           <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
@@ -1948,6 +2223,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 :reserva-id="llegadaPendiente.reservaId"
                 :personas="llegadaPendiente.personas"
                 :solo-responsable="llegadaPendiente.soloResponsable"
+                :rango="llegadaPendiente.rango"
                 @guardado="integrantesGuardados"
                 @cancelar="editandoIntegrantesLlegada = false"
               />

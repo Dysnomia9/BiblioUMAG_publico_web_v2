@@ -46,6 +46,39 @@ class CatalogoLibroTest extends TestCase
         $this->assertCount(20, $this->nombres('/api/autores'));
     }
 
+    public function test_sugiere_entidades_de_otras_fichas_y_autores_registrados(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        Libro::factory()->count(2)->create(['entidad_corporativa' => 'Universidad de Magallanes. Facultad de Ingeniería']);
+        Libro::factory()->create(['entidad_secundaria' => 'Museo Regional de Magallanes; Universidad de Magallanes. Facultad de Ingeniería']);
+        Autor::factory()->create(['nombre' => 'Universidad de Magallanes'])->libros()->attach(Libro::factory()->create());
+        Autor::factory()->create(['nombre' => 'Neruda, Pablo']);
+
+        // El 710 con varias cuenta cada una; la misma escrita en 110 y 710 suma, y el autor también aparece.
+        $this->assertSame(
+            ['Universidad de Magallanes. Facultad de Ingeniería', 'Museo Regional de Magallanes', 'Universidad de Magallanes'],
+            $this->nombres('/api/entidades?q=magallanes'),
+        );
+        $this->assertSame(3, $this->getJson('/api/entidades?q=ingenieria')->json('0.libros'));
+        $this->assertSame([], $this->nombres('/api/entidades'));
+        $this->assertSame([], $this->nombres('/api/entidades?q=borges'));
+    }
+
+    public function test_el_listado_filtra_por_una_entidad_entera_en_el_110_o_el_710(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $autora = Libro::factory()->create(['titulo' => 'A', 'entidad_corporativa' => 'Universidad de Magallanes']);
+        $relacionada = Libro::factory()->create(['titulo' => 'B', 'entidad_secundaria' => 'CEPAL; Universidad de Magallanes']);
+        Libro::factory()->create(['titulo' => 'C', 'entidad_corporativa' => 'Universidad de Magallanes. Facultad de Ingeniería']);
+
+        $ids = collect($this->getJson('/api/libros?entidad='.urlencode('universidad de magallanes'))->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame([$autora->id, $relacionada->id], $ids);
+
+        // En la ficha cada entidad del 710 se pulsa por separado.
+        $fila = collect($this->getJson("/api/libros/{$relacionada->id}")->json('ficha'))->firstWhere('etiqueta', '710');
+        $this->assertSame(['CEPAL', 'Universidad de Magallanes'], array_column($fila['items'] ?? [], 'entidad'));
+    }
+
     public function test_busca_autores_por_cada_palabra_en_cualquier_orden_y_sin_tildes(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

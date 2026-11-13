@@ -20,6 +20,9 @@ class Sala extends Model
         // No se presta a estudiantes ni se ofrece en el portal (Sala de Seminarios): la
         // reserva quien tiene el permiso salas.administracion.
         'solo_administracion',
+        // De la administración y además exclusiva: la reserva solo quien tiene el permiso
+        // salas.exclusivas (y los administradores), no todo el que tiene salas.administracion.
+        'reserva_exclusiva',
         // Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin
         // anotar a cada asistente: los seminarios.
         'solo_responsable',
@@ -35,6 +38,7 @@ class Sala extends Model
     {
         return [
             'solo_administracion' => 'boolean',
+            'reserva_exclusiva' => 'boolean',
             'solo_responsable' => 'boolean',
             'activa' => 'boolean',
         ];
@@ -63,12 +67,18 @@ class Sala extends Model
      *
      * @return array{0: int, 1: int}
      */
-    public function personasPermitidas(): array
+    public function personasPermitidas(bool $flexible = false): array
     {
+        [$minimo, $maximo] = self::personasDelMeson();
+        // Reservas especiales (permiso salas.repetir) en una sala de la administración: de 1
+        // persona hasta su capacidad (un curso en el seminario), aunque se reserve a nombre de
+        // una persona, y no el rango del mesón.
+        if ($flexible && $this->solo_administracion) {
+            return [1, max($maximo, (int) $this->capacidad)];
+        }
         if ($this->solo_responsable) {
             return [1, 1];
         }
-        [$minimo, $maximo] = self::personasDelMeson();
 
         return [$this->minimoPropio($minimo, $maximo), $maximo];
     }
@@ -124,12 +134,12 @@ class Sala extends Model
     }
 
     /** Por qué esa cantidad de personas no vale para esta sala, o null si vale. */
-    public function mensajePersonas(int $cantidad): ?string
+    public function mensajePersonas(int $cantidad, bool $flexible = false): ?string
     {
-        [$minimo, $maximo] = $this->personasPermitidas();
+        [$minimo, $maximo] = $this->personasPermitidas($flexible);
 
         return match (true) {
-            $this->solo_responsable && $cantidad !== 1 => "{$this->nombre} se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.",
+            $this->solo_responsable && $minimo === $maximo && $cantidad !== 1 => "{$this->nombre} se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.",
             $cantidad < $minimo => $minimo === 1 ? 'La reserva necesita al menos una persona.' : "La reserva necesita al menos {$minimo} personas.",
             $cantidad > $maximo => "La reserva admite como máximo {$maximo} personas.",
             default => null,

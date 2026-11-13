@@ -9,10 +9,10 @@ import type { FilaFicha, ItemFicha } from '@/types'
  */
 const props = withDefaults(defineProps<{ filas: FilaFicha[]; conEtiquetas?: boolean; filtrable?: boolean }>(), { conEtiquetas: false, filtrable: false })
 
-/** Pulsar un autor, una materia, una carrera o un profesor guía (solo con filtrable). */
+/** Pulsar un autor, una materia, una carrera, una entidad o un profesor guía (solo con filtrable). */
 const emit = defineEmits<{ filtrar: [item: ItemFicha] }>()
 
-const sePuedeFiltrar = (item: ItemFicha) => props.filtrable && !!(item.autor_id || item.categoria_id || item.carrera_id || item.buscar)
+const sePuedeFiltrar = (item: ItemFicha) => props.filtrable && !!(item.autor_id || item.categoria_id || item.carrera_id || item.buscar || item.entidad)
 
 const esEnlace = (fila: FilaFicha) => fila.etiqueta === '856' && /^https?:\/\//.test(fila.valor)
 // ISBN, ISSN y clasificación se leen mejor en letra de código.

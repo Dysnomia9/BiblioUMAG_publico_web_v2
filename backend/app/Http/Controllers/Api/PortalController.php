@@ -262,6 +262,8 @@ class PortalController extends Controller
         return response()->json($query->paginate(Paginacion::porPagina($request, 24, 100))->through(fn (Libro $libro) => [
             'id' => $libro->id,
             'titulo' => $libro->titulo,
+            // 246: la lista muestra el que coincidió con la búsqueda (también está en la ficha).
+            'titulo_alternativo' => $libro->titulo_alternativo,
             'tipo_material' => $libro->tipoMaterial?->nombre,
             // Digital: se abre con el enlace; no tiene copias que prestar ni reservar.
             'digital' => $libro->tipoMaterial?->nombre === self::LIBRO_ELECTRONICO && filled($libro->url_acceso),

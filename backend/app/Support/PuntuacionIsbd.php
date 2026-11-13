@@ -24,4 +24,35 @@ final class PuntuacionIsbd
 
         return preg_match('/[.?!]$/u', $t) ? $t : "{$t}.";
     }
+
+    /**
+     * 490: los paréntesis los pone la ficha al mostrarla, «(Serie Harry Potter ; 1)», como
+     * el punto final del 300. Se guarda sin ellos, una serie por línea: si quien cataloga
+     * los escribe igual, o vienen así de Horizon («(HARRY POTTER)», «(La Ley / Thomson
+     * Reuters»), se quitan los de los bordes para que no queden dobles.
+     */
+    public static function serie(?string $texto): ?string
+    {
+        $series = collect(preg_split('/\R/u', (string) $texto))
+            ->map(fn (string $s) => self::sinParentesis(trim(preg_replace('/\s+/u', ' ', $s))))
+            ->filter(fn (string $s) => $s !== '');
+
+        return $series->isEmpty() ? null : $series->implode("\n");
+    }
+
+    private static function sinParentesis(string $serie): string
+    {
+        if (preg_match('/^\((.*)\)$/u', $serie, $m)) {
+            return trim($m[1]);
+        }
+        // Solo el de un lado, si no cierra uno de adentro: «(La Ley» o «Ley)», pero no «Serie (2a. época)»
+        if (str_starts_with($serie, '(') && ! str_contains($serie, ')')) {
+            return trim(substr($serie, 1));
+        }
+        if (str_ends_with($serie, ')') && ! str_contains($serie, '(')) {
+            return trim(substr($serie, 0, -1));
+        }
+
+        return $serie;
+    }
 }

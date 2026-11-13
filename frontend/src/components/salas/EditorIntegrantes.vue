@@ -17,10 +17,12 @@ const props = defineProps<{
   reservaId: number
   personas: TramoReserva['personas']
   soloResponsable?: boolean
+  /** Reserva especial en una sala de la administración: [1, capacidad] en vez del rango del mesón. */
+  rango?: [number, number] | null
 }>()
 
-const minimo = computed(() => (props.soloResponsable ? 1 : MINIMO))
-const maximo = computed(() => (props.soloResponsable ? 1 : MAXIMO))
+const minimo = computed(() => (props.soloResponsable ? 1 : props.rango?.[0] ?? MINIMO))
+const maximo = computed(() => (props.soloResponsable ? 1 : props.rango?.[1] ?? MAXIMO))
 
 const emit = defineEmits<{
   guardado: [resultado: IntegrantesReserva]

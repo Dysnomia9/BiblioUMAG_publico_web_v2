@@ -77,7 +77,8 @@ const textoReserva = (soloResponsable: boolean, soloAdministracion: boolean) => 
   const { meson, portal } = personas.value
   return soloAdministracion ? `Grupo ${rango(meson)} personas` : `Grupo ${rango(meson)} personas en el mesón, ${rango(portal)} en el portal`
 }
-const textoAcceso = (soloAdministracion: boolean) => (soloAdministracion ? 'Solo administración' : 'Mesón y portal')
+const textoAcceso = (soloAdministracion: boolean, exclusiva = false) =>
+  exclusiva && soloAdministracion ? 'Reserva exclusiva' : soloAdministracion ? 'Solo administración' : 'Mesón y portal'
 const textoCapacidad = (capacidad: number) => `${capacidad} ${capacidad === 1 ? 'persona' : 'personas'}`
 const textoReservas = (cantidad: number) => `${cantidad} ${cantidad === 1 ? 'reserva activa' : 'reservas activas'}`
 
@@ -92,11 +93,12 @@ const form = reactive({
   tipo: 'logia',
   capacidad: 3 as number | '',
   solo_administracion: false,
+  reserva_exclusiva: false,
   solo_responsable: false,
 })
 
 function nueva() {
-  Object.assign(form, { abierto: true, confirmando: false, sala: null, nombre: '', codigo: '', tipo: 'logia', capacidad: personas.value.portal.minimo, solo_administracion: false, solo_responsable: false })
+  Object.assign(form, { abierto: true, confirmando: false, sala: null, nombre: '', codigo: '', tipo: 'logia', capacidad: personas.value.portal.minimo, solo_administracion: false, reserva_exclusiva: false, solo_responsable: false })
 }
 
 function editar(sala: SalaAdministrada) {
@@ -109,6 +111,7 @@ function editar(sala: SalaAdministrada) {
     tipo: sala.tipo,
     capacidad: sala.capacidad,
     solo_administracion: sala.solo_administracion,
+    reserva_exclusiva: sala.reserva_exclusiva,
     solo_responsable: sala.solo_responsable,
   })
 }
@@ -136,7 +139,7 @@ const cambios = computed(() => {
   comparar('Tipo', TIPOS[o.tipo] ?? o.tipo, TIPOS[form.tipo] ?? form.tipo)
   comparar('Capacidad', textoCapacidad(o.capacidad), textoCapacidad(Number(form.capacidad)))
   comparar('Se reserva', textoReserva(o.solo_responsable, o.solo_administracion), textoReserva(form.solo_responsable, form.solo_administracion))
-  comparar('Acceso', textoAcceso(o.solo_administracion), textoAcceso(form.solo_administracion))
+  comparar('Acceso', textoAcceso(o.solo_administracion, o.reserva_exclusiva), textoAcceso(form.solo_administracion, form.reserva_exclusiva))
   return lista
 })
 
@@ -161,6 +164,7 @@ async function guardar() {
     tipo: form.tipo,
     capacidad: form.capacidad,
     solo_administracion: form.solo_administracion,
+    reserva_exclusiva: form.solo_administracion && form.reserva_exclusiva,
     solo_responsable: form.solo_responsable,
   }
   try {
@@ -305,7 +309,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
             <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700"><strong class="text-gray-900">{{ s.capacidad }}</strong> {{ s.capacidad === 1 ? 'persona' : 'personas' }}</td>
             <td class="px-4 py-2.5 text-sm text-gray-700">
               <p>{{ textoReserva(s.solo_responsable, s.solo_administracion) }}</p>
-              <p class="text-xs text-gray-500">{{ textoAcceso(s.solo_administracion) }}</p>
+              <p class="text-xs text-gray-500">{{ textoAcceso(s.solo_administracion, s.reserva_exclusiva) }}</p>
             </td>
             <td class="px-4 py-2.5 whitespace-nowrap">
               <span class="inline-block rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-widest" :class="s.activa ? 'border-emerald-300 bg-emerald-50/60 text-emerald-700' : 'border-gray-300 bg-gray-50 text-gray-500'">
@@ -386,6 +390,17 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
             <span class="block text-xs text-gray-500">No se presta a estudiantes ni aparece en el portal: la reserva quien tiene el permiso «Salas de la administración».</span>
           </span>
         </label>
+        <label
+          v-if="form.solo_administracion"
+          class="ml-6 flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 transition-colors hover:bg-gray-50"
+          :class="form.reserva_exclusiva ? 'border-indigo-300 bg-indigo-50/40' : ''"
+        >
+          <input v-model="form.reserva_exclusiva" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+          <span>
+            <span class="block text-sm font-semibold text-gray-900">De reserva exclusiva</span>
+            <span class="block text-xs text-gray-500">La reservan solo los administradores y quienes tengan el permiso «Salas de reserva exclusiva» (se da por rol en Personal y roles), no todo el que tiene «Salas de la administración».</span>
+          </span>
+        </label>
       </div>
       <template #pie>
         <button type="button" :disabled="form.guardando" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-100 transition-colors font-semibold text-sm" @click="form.abierto = false">Cancelar</button>
@@ -419,7 +434,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <div class="rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-indigo-50/30 px-4 py-3">
           <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Nueva sala</p>
           <p class="mt-0.5 font-bold text-gray-900">{{ form.nombre.trim() }} <span class="ml-1 rounded border border-gray-200 bg-white px-1.5 py-px font-mono text-xs font-normal text-gray-700">{{ codigoFinal }}</span></p>
-          <p class="mt-0.5 text-gray-600">{{ textoCapacidad(Number(form.capacidad)) }} · {{ textoReserva(form.solo_responsable, form.solo_administracion) }} · {{ textoAcceso(form.solo_administracion) }}</p>
+          <p class="mt-0.5 text-gray-600">{{ textoCapacidad(Number(form.capacidad)) }} · {{ textoReserva(form.solo_responsable, form.solo_administracion) }} · {{ textoAcceso(form.solo_administracion, form.reserva_exclusiva) }}</p>
         </div>
         <p class="mt-3">Se podrá reservar de inmediato.</p>
       </template>

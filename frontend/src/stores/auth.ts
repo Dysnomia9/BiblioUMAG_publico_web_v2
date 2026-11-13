@@ -7,8 +7,12 @@ export const useAuthStore = defineStore('auth', () => {
   const staff = ref<Staff | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
   // Evita repetir la validación contra /auth/me en cada navegación dentro de
-  // la misma sesión del SPA (se resetea solo con una recarga completa).
+  // la misma sesión del SPA. Pasados unos minutos se vuelven a pedir los permisos
+  // por detrás (sin esperar): si cambian los del rol, o se agrega uno nuevo, se ven
+  // sin tener que recargar la página.
   const validated = ref(false)
+  let validadoEn = 0
+  const REFRESCAR_PERMISOS_MS = 5 * 60 * 1000
 
   const permisos = computed(() => new Set(staff.value?.permisos ?? []))
 
@@ -56,12 +60,19 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function validar(): Promise<boolean> {
     if (!token.value) return false
-    if (validated.value) return true
+    if (validated.value) {
+      if (Date.now() - validadoEn > REFRESCAR_PERMISOS_MS) {
+        validadoEn = Date.now()
+        api.get<Staff>('/auth/me').then(({ data }) => (staff.value = data), () => {})
+      }
+      return true
+    }
 
     try {
       const { data } = await api.get<Staff>('/auth/me')
       staff.value = data
       validated.value = true
+      validadoEn = Date.now()
       return true
     } catch (e: any) {
       if (e?.response?.status === 401) {

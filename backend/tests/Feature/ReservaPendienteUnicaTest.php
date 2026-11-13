@@ -13,8 +13,8 @@ use Tests\TestCase;
 
 /**
  * Cada persona tiene a lo más una reserva de sala pendiente (activa y sin llegada
- * confirmada), sea del día que sea: para pedir otra, primero usa o cancela la que
- * tiene. Vale en el mesón, en el portal y al sumar integrantes a una reserva.
+ * confirmada): para pedir otra, primero usa o cancela la que tiene. En el mesón (y al sumar
+ * integrantes) cuenta por día: una pendiente otro día no choca. En el portal, sea del día que sea.
  */
 class ReservaPendienteUnicaTest extends TestCase
 {
@@ -64,14 +64,17 @@ class ReservaPendienteUnicaTest extends TestCase
         Sanctum::actingAs(Staff::factory()->create());
         [$logia1, $logia2] = Sala::factory()->count(2)->create();
         [$ana, $beto, $carla] = Usuario::factory()->count(3)->create();
-        $this->reserva($logia1, [$ana, $beto], ['fecha' => '2026-08-17']);
+        $this->reserva($logia1, [$ana, $beto]);
 
-        // Beto viene como integrante, no a cargo: igual cuenta. Y la pendiente es de otro día.
+        // Beto viene como integrante, no a cargo: igual cuenta.
         $this->reservarEnMeson($logia2, [$carla, $beto])
             ->assertStatus(409)
-            ->assertJsonPath('message', "El RUT {$beto->rut} ya tiene una reserva pendiente ({$logia1->nombre}, 17/08/2026 de 16:00 a 17:00): debe usarla o cancelarla antes de reservar otra sala.");
-
+            ->assertJsonPath('message', "El RUT {$beto->rut} ya tiene una reserva pendiente ({$logia1->nombre}, 14/08/2026 de 16:00 a 17:00): debe usarla o cancelarla antes de reservar otra sala.");
         $this->assertSame(1, Reserva::count());
+
+        // Una pendiente otro día no choca en el mesón.
+        $this->postJson('/api/reservas', ['sala_id' => $logia2->id, 'fecha' => '2026-08-17', 'hora_inicio' => '10:00', 'hora_fin' => '11:00',
+            'cantidad_personas' => 2, 'ruts' => [$carla->rut, $beto->rut]])->assertCreated();
     }
 
     public function test_una_vez_que_el_grupo_llego_o_la_reserva_termino_se_puede_pedir_otra(): void
@@ -135,11 +138,16 @@ class ReservaPendienteUnicaTest extends TestCase
         [$logia1, $logia2] = Sala::factory()->count(2)->create();
         [$ana, $beto, $carla, $dani] = Usuario::factory()->count(4)->create();
         $pendiente = $this->reserva($logia1, [$ana, $beto]);
-        $this->reserva($logia2, [$carla, $dani], ['fecha' => '2026-08-17']);
+        $otroDia = $this->reserva($logia2, [$carla, $dani], ['hora_inicio' => '18:00', 'hora_fin' => '19:00']);
 
         $this->putJson("/api/reservas/{$pendiente->id}/integrantes", ['ruts' => [$ana->rut, $beto->rut, $carla->rut]])
             ->assertStatus(409)
-            ->assertJsonPath('message', "El RUT {$carla->rut} ya tiene una reserva pendiente ({$logia2->nombre}, 17/08/2026 de 16:00 a 17:00): debe usarla o cancelarla antes de reservar otra sala.");
+            ->assertJsonPath('message', "El RUT {$carla->rut} ya tiene una reserva pendiente ({$logia2->nombre}, 14/08/2026 de 18:00 a 19:00): debe usarla o cancelarla antes de reservar otra sala.");
+
+        // Si la otra es de otro día, sí se suma.
+        $otroDia->update(['fecha' => '2026-08-17']);
+        $this->putJson("/api/reservas/{$pendiente->id}/integrantes", ['ruts' => [$ana->rut, $beto->rut, $carla->rut]])->assertOk();
+        $this->putJson("/api/reservas/{$pendiente->id}/integrantes", ['ruts' => [$ana->rut, $beto->rut]])->assertOk();
 
         // Con el grupo ya en la sala, esta deja de ser pendiente: sumarla no le da dos.
         $enUso = $this->reserva($logia1, [$ana, $beto], ['hora_inicio' => '14:00', 'hora_fin' => '15:00', 'hora_prestamo_real' => '2026-08-14 14:01:00']);

@@ -485,6 +485,9 @@ async function confirmarDesactivar() {
             </table>
           </section>
 
+          <!-- Antes que ubicaciones: es la que más se usa de esta pestaña. -->
+          <CategoriasRecurso />
+
           <section class="overflow-hidden rounded-2xl border border-t-2 border-gray-200 border-t-indigo-600 bg-white shadow-sm">
             <header class="space-y-3 border-b border-gray-100 bg-indigo-50/40 px-5 py-3">
               <div>
@@ -600,8 +603,6 @@ async function confirmarDesactivar() {
           </section>
 
           <RolesAutor />
-
-          <CategoriasRecurso />
         </template>
 
         <template v-if="seccion === 'circulacion'">

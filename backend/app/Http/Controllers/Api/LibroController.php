@@ -13,6 +13,7 @@ use App\Services\BajaEjemplarService;
 use App\Support\Busqueda;
 use App\Support\Materia;
 use App\Support\BusquedaLibros;
+use App\Support\Texto;
 use App\Support\Bitacora;
 use App\Support\FichaBibliografica;
 use App\Support\OrdenAlfabetico;
@@ -32,6 +33,7 @@ class LibroController extends Controller
         $request->validate([
             'q' => ['nullable', 'string', 'max:200'], 'materia' => ['nullable', 'string', 'max:200'],
             'categoria_id' => ['nullable', 'integer'], 'autor_id' => ['nullable', 'integer'],
+            'entidad' => ['nullable', 'string', 'max:255'],
             'carrera_id' => ['nullable', 'integer'], 'tipo_material_id' => ['nullable', 'integer'],
             'estado_personalizado_id' => ['nullable', 'integer'],
             // Catalogación › Nuevo ejemplar: buscar la obra solo por uno de sus números.
@@ -80,6 +82,16 @@ class LibroController extends Controller
 
         if ($autorId = $request->query('autor_id')) {
             $query->whereHas('autores', fn ($q) => $q->where('autores.id', $autorId));
+        }
+
+        // Una entidad pulsada en el listado: los títulos que la tienen como autora (110) o como
+        // una de sus entidades relacionadas (710, varias separadas por «;»). Entera, sin
+        // mayúsculas ni tildes: «Universidad de Magallanes» no trae a cada una de sus facultades.
+        if (($entidad = trim((string) $request->query('entidad'))) !== '') {
+            $exacta = Texto::sinTildes(str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $entidad));
+            $query->where(fn ($q) => $q
+                ->whereRaw(Busqueda::sinTildes('trim(libros.entidad_corporativa)').' ilike ?', [$exacta])
+                ->orWhereRaw(Busqueda::sinTildes("';' || regexp_replace(libros.entidad_secundaria, '\\s*;\\s*', ';', 'g') || ';'").' ilike ?', ["%;{$exacta};%"]));
         }
 
         if ($carreraId = $request->query('carrera_id')) {

@@ -11,6 +11,7 @@ use App\Support\Materia;
 use App\Support\OpcionesCatalogo;
 use App\Support\Texto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Listas de catálogo para los combobox y filtros de libros. Autores y categorías se
@@ -28,6 +29,44 @@ class CatalogoLibroController extends Controller
     {
         // «mapuches--his» sugiere «MAPUCHES -- HISTORIA»: el texto con las subdivisiones ordenadas
         return response()->json(OpcionesCatalogo::buscar(Categoria::class, Materia::normalizar($request->query('q')), conLibros: $request->boolean('con_libros')));
+    }
+
+    /**
+     * Sugerencias para la entidad (110) y la entidad relacionada (710) al catalogar: las
+     * entidades ya escritas en otras fichas y los autores registrados, como sugiere el 100.
+     * El 710 puede traer varias separadas por «;»: cada una cuenta por separado. Solo con
+     * algo escrito (cada palabra, sin tildes) y a lo más OpcionesCatalogo::LIMITE, primero
+     * las de más fichas. Si una está en ambas listas, queda una sola.
+     */
+    public function entidades(Request $request)
+    {
+        $texto = trim((string) $request->query('q'));
+        if ($texto === '') {
+            return response()->json([]);
+        }
+
+        $escritas = DB::table('libros')->select('entidad_corporativa as nombre')->where('entidad_corporativa', '<>', '')
+            ->unionAll(DB::table('libros')->selectRaw("trim(regexp_split_to_table(entidad_secundaria, ';')) as nombre")->where('entidad_secundaria', '<>', ''));
+
+        $entidades = DB::query()->fromSub($escritas, 'e')
+            ->selectRaw('nombre, count(*) as libros')
+            ->where('nombre', '<>', '')
+            ->whereCadaPalabra('nombre', $texto)
+            ->groupBy('nombre')
+            ->orderByDesc('libros')
+            ->orderBy('nombre')
+            ->limit(OpcionesCatalogo::LIMITE)
+            ->get()
+            ->map(fn ($e) => ['nombre' => $e->nombre, 'libros' => (int) $e->libros]);
+
+        $autores = collect(OpcionesCatalogo::buscar(Autor::class, $texto, conLibros: true))
+            ->map(fn (array $a) => ['nombre' => $a['nombre'], 'libros' => $a['libros'] ?? 0]);
+
+        return response()->json($entidades->concat($autores)
+            ->unique(fn (array $o) => Texto::clave($o['nombre']))
+            ->sortBy([['libros', 'desc'], ['nombre', 'asc']])
+            ->take(OpcionesCatalogo::LIMITE)
+            ->values());
     }
 
     /**

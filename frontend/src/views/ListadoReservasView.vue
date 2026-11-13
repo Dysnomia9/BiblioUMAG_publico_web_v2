@@ -5,6 +5,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import FondoListadoReservas from '@/components/salas/FondoListadoReservas.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import DetalleReserva from '@/components/salas/DetalleReserva.vue'
+import SeriesReservas from '@/components/salas/SeriesReservas.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import api from '@/services/api'
@@ -140,6 +141,9 @@ function abrirMenuGestion() {
       </div>
 
       <ApiErrorBanner v-if="apiError" />
+
+      <!-- Solo quien tiene «Reservas especiales de salas» (los administradores) -->
+      <SeriesReservas v-if="auth.puede('salas.repetir')" @cambio="cargar" />
 
       <div class="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
         <button

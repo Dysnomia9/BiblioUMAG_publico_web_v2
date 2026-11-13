@@ -604,6 +604,7 @@ class ReservaSalaService
                 'cantidad_personas' => $r->cantidad_personas,
                 'rut_usuario' => $r->rut_usuario,
                 'usuario_id' => $r->usuario_id,
+                'serie' => $r->serie,
                 'prestado_por' => $r->prestado_por,
                 'devuelto_por' => $r->devuelto_por,
                 'hora_prestamo_real' => $r->hora_prestamo_real,
@@ -625,6 +626,7 @@ class ReservaSalaService
                 'tipo' => $sala->tipo,
                 'codigo' => $sala->codigo,
                 'solo_administracion' => $sala->solo_administracion,
+                'reserva_exclusiva' => $sala->reserva_exclusiva,
                 // Los seminarios: se reservan a nombre de quien la pide, sin los asistentes.
                 'solo_responsable' => $sala->solo_responsable,
                 'libre_ahora' => $esHoy ? $disponibleHastaMin > 0 : null,
@@ -677,6 +679,7 @@ class ReservaSalaService
             'hora_prestamo_real' => $reserva->hora_prestamo_real,
             'hora_devolucion_real' => $reserva->hora_devolucion_real,
             'via' => $reserva->via,
+            'serie' => $reserva->serie,
             'plazo_confirmacion' => $reserva->plazoConfirmacion(),
             'tiempo_sin_usar' => self::tiempoSinUsar($reserva),
             'created_at' => $reserva->created_at,
@@ -745,14 +748,21 @@ class ReservaSalaService
      * o cancela la que tiene. La que ya está en uso o terminó no cuenta. Devuelve
      * `[rut, reserva]` del primero que ya tiene una, o null si nadie.
      *
+     * Con $fecha (el mesón) solo cuentan las de ese día: el personal puede dejar a alguien con
+     * una reserva hoy y otra el lunes. El portal no la pasa: ahí sigue una sola, de cualquier día.
+     *
      * @return array{0: string, 1: Reserva}|null
      */
-    public function participanteConReservaPendiente(array $ruts, ?int $ignorarReservaId = null): ?array
+    public function participanteConReservaPendiente(array $ruts, ?int $ignorarReservaId = null, ?string $fecha = null): ?array
     {
         $idPorRut = Usuario::whereIn('rut', $ruts)->pluck('id', 'rut');
 
+        // Las de una serie (reservas que se repiten, las hace el personal con permiso) no
+        // cuentan: si no, quien tiene «todos los lunes» no podría reservar nada más en el semestre.
         $pendientes = Reserva::where('estado', 'activa')
             ->whereNull('hora_prestamo_real')
+            ->whereNull('serie')
+            ->when($fecha, fn ($query) => $query->whereDate('fecha', $fecha))
             ->when($ignorarReservaId, fn ($query) => $query->where('id', '!=', $ignorarReservaId))
             ->whereHas('participantes', fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values()))
             ->with(['sala:id,nombre', 'participantes' => fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values())])

@@ -184,6 +184,7 @@ class MantenedorSalasController extends Controller
             'capacidad' => ['required', 'integer', 'min:1', 'max:500'],
             'tipo' => ['required', Rule::in(Sala::TIPOS)],
             'solo_administracion' => ['required', 'boolean'],
+            'reserva_exclusiva' => ['sometimes', 'boolean'],
             'solo_responsable' => ['required', 'boolean'],
         ], [
             'nombre.required' => 'Ponle un nombre a la sala.',
@@ -204,6 +205,9 @@ class MantenedorSalasController extends Controller
         if (! $data['solo_responsable'] && $data['capacidad'] < $minimo) {
             throw ValidationException::withMessages(['capacidad' => ["Una reserva de grupo lleva al menos {$minimo} personas: la sala necesita capacidad para ellas, o reservarse a nombre de una sola."]]);
         }
+
+        // Exclusiva es una forma de «solo administración»: sin ella, no aplica.
+        $data['reserva_exclusiva'] = $data['solo_administracion'] && ($data['reserva_exclusiva'] ?? false);
 
         return $data;
     }

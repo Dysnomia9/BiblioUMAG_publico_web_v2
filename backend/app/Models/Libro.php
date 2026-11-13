@@ -51,6 +51,12 @@ class Libro extends Model
         return Attribute::set(fn (?string $valor) => PuntuacionIsbd::normalizar($valor));
     }
 
+    /** 490: sin los paréntesis, que pone la ficha al mostrarla (PuntuacionIsbd::serie). */
+    protected function serie(): Attribute
+    {
+        return Attribute::set(fn (?string $valor) => PuntuacionIsbd::serie($valor));
+    }
+
     /** 250: igual que la descripción física («2a. ed. revisada.»). */
     protected function edicion(): Attribute
     {

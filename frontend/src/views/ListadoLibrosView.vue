@@ -12,7 +12,7 @@ import Paginador from '@/components/ui/Paginador.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import api from '@/services/api'
-import { esBusquedaCorta } from '@/utils/busqueda'
+import { esBusquedaCorta, tituloAlternativoEncontrado } from '@/utils/busqueda'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
@@ -52,6 +52,8 @@ const filtros = reactive({
   carrera_id: '' as number | '',
   // Al pulsar un autor en una fila: sus libros.
   autor_id: '' as number | '',
+  // Al pulsar una entidad (110/710): los títulos que la tienen.
+  entidad: '',
   orden: 'titulo' as Orden,
   direccion: 'asc' as 'asc' | 'desc',
 })
@@ -108,6 +110,8 @@ function textoFiltro(f: (typeof filtrosPildora.value)[number]) {
 // Al escribir salen varias búsquedas seguidas y las de palabras comunes tardan más: si no se
 // cancela la anterior, su respuesta puede llegar última y reemplazar a la más nueva.
 let busquedaEnCurso: AbortController | undefined
+/** Lo buscado en la lista que se muestra (no lo que se está escribiendo), para el 246 que coincidió. */
+const busquedaHecha = ref('')
 
 async function cargar() {
   busquedaEnCurso?.abort()
@@ -127,11 +131,13 @@ async function cargar() {
         materia: filtros.materia.trim() || undefined,
         carrera_id: filtros.carrera_id || undefined,
         autor_id: filtros.autor_id || undefined,
+        entidad: filtros.entidad || undefined,
         orden: filtros.orden,
         direccion: filtros.direccion,
       },
     })
     const { data: filas, ...resto } = data
+    busquedaHecha.value = filtros.q.trim()
     libros.value = filas
     meta.value = resto
     apiError.value = false
@@ -200,6 +206,7 @@ function filtrarPorMateria(c: Categoria) {
 /** Desde la ficha abierta: un autor, una materia, una carrera o (el profesor guía) un nombre a buscar. */
 function filtrarDesdeFicha(item: ItemFicha) {
   if (item.autor_id) return filtrarPorAutor({ id: item.autor_id, nombre: item.texto })
+  if (item.entidad) return filtrarPorEntidad(item.entidad)
   if (item.categoria_id) return filtrarPorMateria({ id: item.categoria_id, nombre: item.texto })
   if (item.carrera_id) filtros.carrera_id = item.carrera_id
   else if (item.buscar) filtros.q = item.buscar
@@ -213,6 +220,13 @@ function filtrarPorAutor(a: Autor | null) {
   filtros.autor_id = a?.id ?? ''
   filtrar()
   if (a) window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** Pulsar una entidad (110/710) en una fila o en la ficha: el listado pasa a mostrar sus títulos. */
+function filtrarPorEntidad(entidad: string) {
+  filtros.entidad = entidad
+  filtrar()
+  if (entidad) window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 let buscarTimer: ReturnType<typeof setTimeout> | undefined
@@ -259,7 +273,7 @@ function filaDe(l: Libro) {
   }
 }
 
-const filas = computed(() => libros.value.map((l) => ({ libro: l, ...filaDe(l) })))
+const filas = computed(() => libros.value.map((l) => ({ libro: l, ...filaDe(l), alternativo: tituloAlternativoEncontrado(l, busquedaHecha.value) })))
 
 // «⋯»: atajos a lo que se hace con el título en otras pantallas. El menú va al <body> con
 // posición fija: dentro de la tabla (overflow-hidden, por sus bordes redondeados) quedaba
@@ -542,6 +556,16 @@ function copiaGuardada(actualizada: Ejemplar) {
             Autor: {{ autorElegido.nombre }}
             <span class="text-base leading-none" aria-hidden="true">×</span>
           </button>
+          <button
+            v-if="filtros.entidad"
+            type="button"
+            class="inline-flex h-10 max-w-full items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 pl-3.5 pr-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+            :title="`Quitar el filtro por ${filtros.entidad}`"
+            @click="filtrarPorEntidad('')"
+          >
+            <span class="truncate">Entidad: {{ filtros.entidad }}<template v-if="!cargando"> · {{ meta.total.toLocaleString('es-CL') }} {{ meta.total === 1 ? 'título' : 'títulos' }}</template></span>
+            <span class="text-base leading-none" aria-hidden="true">×</span>
+          </button>
           <!-- Una materia exacta (desde la ficha o la pantalla Materias) -->
           <button
             v-if="filtros.categoria_id !== ''"
@@ -605,13 +629,21 @@ function copiaGuardada(actualizada: Ejemplar) {
                 />
                 <div class="min-w-0">
                   <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
+                  <p v-if="f.alternativo" class="mt-0.5 text-xs leading-snug text-gray-600">
+                    <span class="mr-1 rounded bg-amber-50 px-1 py-px font-mono text-[10px] font-semibold text-amber-800">246</span>{{ f.alternativo }}
+                  </p>
                   <p class="truncate text-xs text-gray-500">
                     <template v-if="f.libro.autores?.length">
                       <template v-for="(a, i) in f.libro.autores" :key="a.id">
                         <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los libros de ${a.nombre}`" @click="filtrarPorAutor(a)">{{ a.nombre }}</button><span v-if="i < f.libro.autores.length - 1" class="mx-1.5 font-bold text-gray-300" aria-hidden="true">·</span>
                       </template>
                     </template>
-                    <template v-else>{{ f.autores }}</template>
+                    <template v-else-if="!f.libro.entidad_corporativa">{{ f.autores }}</template>
+                    <!-- La entidad autora (110): se pulsa para ver sus títulos -->
+                    <template v-if="f.libro.entidad_corporativa">
+                      <span v-if="f.libro.autores?.length" class="mx-1.5 font-bold text-gray-300" aria-hidden="true">·</span>
+                      <button type="button" class="hover:text-indigo-700 hover:underline" :title="`Ver los títulos de ${f.libro.entidad_corporativa}`" @click="filtrarPorEntidad(f.libro.entidad_corporativa)">{{ f.libro.entidad_corporativa }}</button>
+                    </template>
                   </p>
                 </div>
               </div>
