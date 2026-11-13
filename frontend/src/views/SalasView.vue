@@ -213,7 +213,7 @@ const devolviendo = ref(false)
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 // Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
 const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
-const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; personas: TramoReserva['personas']; soloResponsable: boolean } | null>(null)
+const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; horaInicio: string; horaFin: string; personas: TramoReserva['personas']; soloResponsable: boolean } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
 const editandoIntegrantesLlegada = ref(false)
@@ -792,6 +792,8 @@ function pedirLlegada(sala: Sala, tramo: TramoReserva, modificar = false) {
     reservaId: tramo.reserva_id,
     salaNombre: sala.nombre,
     label: labelTramo(tramo.hora_inicio, tramo.hora_fin),
+    horaInicio: tramo.hora_inicio.slice(0, 5),
+    horaFin: tramo.hora_fin.slice(0, 5),
     personas: tramo.personas ?? [],
     soloResponsable: !!sala.solo_responsable,
   }
@@ -1371,20 +1373,25 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="modalOpen = false"
       >
-        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
-          <div class="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
+        <div class="flex max-h-[94vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-indigo-100">
+          <!-- Encabezado: qué se hace, la sala y la hora con la que valen las reservas -->
+          <div class="flex shrink-0 items-start justify-between gap-4 px-6 pb-5 pt-5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
             <div class="min-w-0">
-              <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">{{ renovacionDe ? 'Renovación' : 'Reservar' }} {{ selectedSala.nombre }}</h3>
-              <p class="mt-0.5 text-sm text-gray-500 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}</p>
+              <p class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white/90">
+                <svg v-if="renovacionDe" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                {{ renovacionDe ? 'Renovación' : 'Nueva reserva' }}
+              </p>
+              <h3 class="mt-2 truncate font-serif text-3xl font-bold leading-tight">{{ selectedSala.nombre }}</h3>
+              <p class="mt-1 text-sm text-white/80 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}<template v-if="selectedSala.codigo"> · {{ selectedSala.codigo }}</template></p>
             </div>
-            <!-- La hora con la que valen las reservas, para no calcularla de memoria al reservar. -->
-            <div class="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-right shadow-sm" aria-live="off">
-              <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Hora actual · Punta Arenas</p>
-              <p class="font-mono text-lg font-semibold leading-tight tabular-nums text-indigo-900">{{ ahoraEnPuntaArenas.conSegundos }}</p>
+            <div class="shrink-0 rounded-2xl border border-white/25 bg-white/15 px-4 py-2 text-right backdrop-blur-sm" aria-live="off">
+              <p class="text-[9px] font-bold uppercase tracking-widest text-white/75">Hora actual · Punta Arenas</p>
+              <p class="font-mono text-2xl font-bold leading-tight tabular-nums text-white">{{ ahoraEnPuntaArenas.conSegundos }}</p>
             </div>
           </div>
 
-          <div class="space-y-3.5 overflow-y-auto px-5 py-4">
+          <div class="space-y-5 overflow-y-auto px-6 py-5">
             <!-- Renovación: el préstamo anterior a la vista; el grupo ya está puesto, solo se elige la hora -->
             <div v-if="renovacionDe" class="overflow-hidden rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white shadow-sm">
               <p class="flex items-center gap-1.5 border-b border-violet-100 bg-violet-50/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-violet-700">
@@ -1410,11 +1417,68 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista.
               </p>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
-              <div class="grid grid-cols-2 gap-3">
+            <!-- Su reserva: la tira de la sala ese día (lo libre, lo ocupado y el bloque elegido) -->
+            <section>
+              <div class="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">Su reserva</p>
+                <p v-if="!errorInicio && modalDisponibleMin >= duracionMinima" class="text-sm font-bold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
+                <p v-else-if="!errorInicio" class="text-sm font-bold text-red-600">Libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</p>
+              </div>
+              <div
+                class="relative h-14 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
+                role="img"
+                :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
+                title="Clic en lo verde para elegir la hora de inicio"
+                @click="elegirEnTira($event)"
+              >
+                <div v-for="h in horasIntermedias" :key="h" class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10" :style="{ left: pct(`${h}:00`) + '%' }" />
+                <div v-if="pctPasado > 0" class="franja-pasada pointer-events-none absolute inset-y-0 left-0" :style="{ width: pctPasado + '%' }" />
+                <div v-if="pctTrasCierre > 0" class="franja-pasada pointer-events-none absolute inset-y-0 right-0" :style="{ width: pctTrasCierre + '%' }" />
+                <div
+                  v-for="t in selectedSala.tramos.filter((x) => posicionTramo(x.hora_inicio, x.hora_fin).visible)"
+                  :key="t.reserva_id"
+                  class="pointer-events-none absolute inset-y-1.5 flex items-center justify-center overflow-hidden rounded-lg border text-[10px] font-semibold"
+                  :class="renovacionDe?.tramo.reserva_id === t.reserva_id ? 'border-violet-400 bg-violet-200 text-violet-900' : 'border-rose-300 bg-rose-200/90 text-rose-900'"
+                  :style="{ left: posicionTramo(t.hora_inicio, t.hora_fin).izquierda + '%', width: posicionTramo(t.hora_inicio, t.hora_fin).ancho + '%' }"
+                  :title="`Ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`"
+                >
+                  <span v-if="posicionTramo(t.hora_inicio, t.hora_fin).ancho >= 9">{{ t.hora_inicio.slice(0, 5) }}–{{ t.hora_fin.slice(0, 5) }}</span>
+                </div>
+                <!-- El bloque que se está eligiendo, con su horario -->
+                <div
+                  v-if="!errorInicio && modalFinMin > modalInicioMin"
+                  class="pointer-events-none absolute inset-y-0 flex items-center overflow-hidden rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 px-2 font-mono text-[13px] font-bold leading-tight text-white shadow-md ring-2 ring-indigo-700"
+                  :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
+                >
+                  <span v-if="pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) >= 11" class="whitespace-normal">{{ minutesToTime(modalInicioMin) }} a {{ minutesToTime(modalFinMin) }}</span>
+                </div>
+                <div v-if="esHoy && !diaCerrado" class="pointer-events-none absolute inset-y-0 w-[2px] bg-indigo-800" :style="{ left: nowPct + '%' }" />
+              </div>
+              <!-- Las horas: la apertura, cada cuatro horas y el cierre -->
+              <div class="relative mt-1.5 h-4 font-mono text-[11px] text-gray-400" aria-hidden="true">
+                <span class="absolute left-0">{{ minutesToTime(aperturaMin) }}</span>
+                <span
+                  v-for="h in horasIntermedias.filter((x) => x % 4 === 0 && pct(`${x}:00`) > 10 && pct(`${x}:00`) < 88)"
+                  :key="h"
+                  class="absolute -translate-x-1/2"
+                  :style="{ left: pct(`${h}:00`) + '%' }"
+                >{{ String(h).padStart(2, '0') }}:00</span>
+                <span class="absolute right-0">{{ minutesToTime(cierreMin) }}</span>
+              </div>
+              <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre (clic para elegir)</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
+                <span v-if="renovacionDe" class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200"></span> Préstamo anterior</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-indigo-600"></span> Su reserva</span>
+                <span class="flex items-center gap-1"><span class="franja-pasada h-2.5 w-2.5 rounded-sm border border-slate-200"></span> Ya pasó o cerrado</span>
+              </div>
+            </section>
+
+            <div class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+              <div class="grid grid-cols-2 gap-4">
                 <div>
                   <template v-if="inicioAMano">
-                    <label for="reserva-hora-inicio" class="mb-1 block text-xs font-medium text-gray-600">Desde las</label>
+                    <label for="reserva-hora-inicio" class="mb-1.5 block text-sm font-semibold text-gray-800">Desde las</label>
                     <CampoHora
                       id="reserva-hora-inicio"
                       ref="campoHoraInicio"
@@ -1424,10 +1488,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                     />
                   </template>
                   <template v-else>
-                    <label class="mb-1 block text-xs font-medium text-gray-600">Hora de inicio</label>
+                    <label class="mb-1.5 block text-sm font-semibold text-gray-800">Hora de inicio</label>
                     <select
                       v-model="modalHoraInicio"
-                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      class="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option v-if="libreDesdeAhora(selectedSala) || modalEsAhora" :value="AHORA">Ahora ({{ minutesToTime(ahoraMin) }})</option>
                       <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
@@ -1440,14 +1504,14 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 </div>
                 <div>
                   <template v-if="terminoAMano">
-                    <label for="reserva-hora-fin" class="mb-1 block text-xs font-medium text-gray-600">Hasta las</label>
+                    <label for="reserva-hora-fin" class="mb-1.5 block text-sm font-semibold text-gray-800">Hasta las</label>
                     <CampoHora id="reserva-hora-fin" ref="campoHoraFin" v-model="modalHoraFin" etiqueta="Hora de término" :invalida="!!modalHoraFin && !!errorTermino" />
                   </template>
                   <template v-else>
-                    <label class="mb-1 block text-xs font-medium text-gray-600">Duración</label>
+                    <label class="mb-1.5 block text-sm font-semibold text-gray-800">Duración</label>
                     <select
                       v-model.number="modalDuracion"
-                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      class="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option v-for="d in DURACIONES" :key="d" :value="d" :disabled="!modalDuracionesValidas.includes(d)">
                         {{ formatMinutos(d) }}{{ !modalDuracionesValidas.includes(d) ? ' (no disponible)' : '' }}
@@ -1468,62 +1532,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <!-- Con una hora de inicio escrita que no sirve, basta su aviso. -->
               <template v-if="!errorInicio">
                 <p v-if="modalDisponibleMin < duracionMinima" class="mt-2 text-xs text-red-600">
-                  Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}.
-                </p>
-                <p v-else class="mt-2">
-                  <span class="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-px text-[11px] font-semibold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</span>
+                  Esta sala está libre solo {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}: elija otra hora en la tira.
                 </p>
               </template>
 
-              <!-- La disponibilidad de la sala ese día, para elegir la hora sin adivinar -->
-              <div class="mt-3 border-t border-gray-200 pt-3">
-                <p class="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 text-[11px] font-semibold text-gray-700">
-                  <span>Disponibilidad de {{ selectedSala.codigo || selectedSala.nombre }} {{ esHoy ? 'hoy' : 'ese día' }}</span>
-                  <span class="font-normal text-gray-500">Clic en lo verde para elegir la hora</span>
-                </p>
-                <div class="relative h-3.5 text-[9px] font-medium text-gray-400" aria-hidden="true">
-                  <span v-for="h in horasRotuladas" :key="h" class="absolute -translate-x-1/2" :style="{ left: pct(`${h}:00`) + '%' }">{{ String(h).padStart(2, '0') }}</span>
-                </div>
-                <div
-                  class="relative h-8 cursor-pointer overflow-hidden rounded-md border border-emerald-200 bg-emerald-100/70"
-                  role="img"
-                  :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
-                  @click="elegirEnTira($event)"
-                >
-                  <div
-                    v-for="h in horasIntermedias"
-                    :key="h"
-                    class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10"
-                    :style="{ left: pct(`${h}:00`) + '%' }"
-                  />
-                  <div v-if="pctPasado > 0" class="franja-pasada pointer-events-none absolute inset-y-0 left-0" :style="{ width: pctPasado + '%' }" />
-                  <div v-if="pctTrasCierre > 0" class="franja-pasada pointer-events-none absolute inset-y-0 right-0" :style="{ width: pctTrasCierre + '%' }" />
-                  <div
-                    v-for="t in selectedSala.tramos.filter((x) => posicionTramo(x.hora_inicio, x.hora_fin).visible)"
-                    :key="t.reserva_id"
-                    class="pointer-events-none absolute inset-y-1 flex items-center justify-center overflow-hidden rounded border text-[9px] font-semibold"
-                    :class="renovacionDe?.tramo.reserva_id === t.reserva_id ? 'border-violet-400 bg-violet-200 text-violet-900' : 'border-rose-300 bg-rose-200/90 text-rose-900'"
-                    :style="{ left: posicionTramo(t.hora_inicio, t.hora_fin).izquierda + '%', width: posicionTramo(t.hora_inicio, t.hora_fin).ancho + '%' }"
-                    :title="`Ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`"
-                  >
-                    <span v-if="posicionTramo(t.hora_inicio, t.hora_fin).ancho >= 10">{{ t.hora_inicio.slice(0, 5) }}–{{ t.hora_fin.slice(0, 5) }}</span>
-                  </div>
-                  <!-- El bloque que se está eligiendo -->
-                  <div
-                    v-if="!errorInicio && modalFinMin > modalInicioMin"
-                    class="pointer-events-none absolute inset-y-0 rounded border-2 border-indigo-600 bg-indigo-500/20"
-                    :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
-                  />
-                  <div v-if="esHoy && !diaCerrado" class="pointer-events-none absolute inset-y-0 w-[2px] bg-indigo-700" :style="{ left: nowPct + '%' }" />
-                </div>
-                <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
-                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre</span>
-                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
-                  <span v-if="renovacionDe" class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200"></span> Préstamo anterior</span>
-                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border-2 border-indigo-600 bg-indigo-500/20"></span> Su reserva</span>
-                  <span class="flex items-center gap-1"><span class="franja-pasada h-2.5 w-2.5 rounded-sm border border-slate-200"></span> Ya pasó o cerrado</span>
-                </div>
-              </div>
             </div>
             <p v-if="modalEsAhora" class="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               El grupo está en el mesón: la reserva parte en este minuto, dura lo que elija (hasta {{ formatMinutos(duracionMaxima) }}) y queda con la
@@ -1533,45 +1545,54 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <p v-if="selectedSala.solo_responsable" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
               {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
             </p>
-            <div v-else>
-              <label class="mb-1 block text-xs font-medium text-gray-600">Cantidad de personas</label>
-              <select
-                v-model.number="cantidadPersonas"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
-                  {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
-                </option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="block text-xs font-medium text-gray-600">
-                {{ selectedSala.solo_responsable ? 'RUT del docente o funcionario a cargo' : 'RUT de cada persona' }}
-                <span class="font-normal text-gray-500">(extranjeros: pasaporte o DNI)</span>
-              </label>
-              <div v-for="(_, idx) in rutsReserva" :key="idx">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span v-if="!selectedSala.solo_responsable" class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ idx + 1 }}</span>
-                  <input
-                    :value="rutsReserva[idx]"
-                    @input="onRutInput(idx, $event)"
-                    type="text"
-                    :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
-                    :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
-                    class="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-                    :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
-                  />
-                  <SelectorDocumento :model-value="modosReserva[idx] ?? 'rut'" compacto :etiqueta="`Documento de la persona ${idx + 1}`" @update:model-value="cambiarModoFila(idx, $event)" />
-                </div>
-                <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
+            <section class="space-y-2.5">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">
+                  {{ selectedSala.solo_responsable ? 'A cargo' : 'Integrantes' }}
+                </p>
+                <select
+                  v-if="!selectedSala.solo_responsable"
+                  v-model.number="cantidadPersonas"
+                  aria-label="Cantidad de personas"
+                  class="rounded-xl border border-indigo-200 bg-white py-2 pl-3.5 pr-9 text-sm font-semibold text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option v-for="n in cantidadMaxima - minimoElegida + 1" :key="n" :value="minimoElegida + n - 1">
+                    {{ minimoElegida + n - 1 }} {{ minimoElegida + n - 1 === 1 ? 'persona' : 'personas' }}
+                  </option>
+                </select>
               </div>
-            </div>
+              <div class="space-y-2.5 rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
+                <div v-for="(_, idx) in rutsReserva" :key="idx">
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <span v-if="!selectedSala.solo_responsable" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
+                    <input
+                      :value="rutsReserva[idx]"
+                      @input="onRutInput(idx, $event)"
+                      type="text"
+                      :aria-label="selectedSala.solo_responsable ? 'Documento del docente o funcionario a cargo' : `Documento de la persona ${idx + 1}`"
+                      :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                      :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
+                      class="min-w-0 flex-1 rounded-xl border bg-white px-3.5 py-2.5 font-mono text-[15px] outline-none focus:ring-2"
+                      :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
+                    />
+                    <SelectorDocumento :model-value="modosReserva[idx] ?? 'rut'" compacto :etiqueta="`Documento de la persona ${idx + 1}`" @update:model-value="cambiarModoFila(idx, $event)" />
+                  </div>
+                  <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500">{{ selectedSala.solo_responsable ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
+            </section>
           </div>
 
-          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
-            <button @click="modalOpen = false" :class="BOTON_CANCELAR">Cancelar</button>
-            <button @click="confirmarReserva()" :disabled="!puedeConfirmarReserva" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
-              Confirmar
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4">
+            <button @click="modalOpen = false" class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50">Cancelar</button>
+            <button
+              @click="confirmarReserva()"
+              :disabled="!puedeConfirmarReserva"
+              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              {{ renovacionDe ? 'Confirmar renovación' : 'Confirmar reserva' }}
             </button>
           </div>
         </div>
@@ -1816,17 +1837,39 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
         @click.self="!confirmandoLlegada && cerrarLlegada()"
       >
-        <div class="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
-          <div class="shrink-0 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
-            <h3 class="font-serif text-lg font-bold text-gray-900">Confirmar llegada</h3>
+        <div class="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-indigo-100">
+          <!-- Encabezado: la sala, y el horario en una tarjeta clara que se lee de un vistazo -->
+          <div class="relative flex shrink-0 flex-wrap items-end justify-between gap-4 overflow-hidden px-6 pb-6 pt-5 text-white" style="background: linear-gradient(120deg, #2D1B69 0%, #3B28A3 40%, #4F46E5 100%)">
+            <div class="min-w-0">
+              <p class="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white/90">Confirmar llegada</p>
+              <h3 class="mt-3 truncate font-serif text-3xl font-bold leading-tight">{{ llegadaPendiente.salaNombre }}</h3>
+              <p class="mt-1 text-sm text-white/80">
+                {{ formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(llegadaPendiente.horaFin) - timeToMinutes(llegadaPendiente.horaInicio)) }} ·
+                {{ llegadaPendiente.personas.length }} {{ llegadaPendiente.personas.length === 1 ? 'integrante' : 'integrantes' }}
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-2.5 text-indigo-950 shadow-lg ring-1 ring-black/5">
+              <div class="text-center">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Desde</p>
+                <p class="font-mono text-3xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaInicio }}</p>
+              </div>
+              <svg class="h-5 w-5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              <div class="text-center">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Hasta</p>
+                <p class="font-mono text-3xl font-bold leading-tight tabular-nums">{{ llegadaPendiente.horaFin }}</p>
+              </div>
+            </div>
           </div>
-          <div class="space-y-3 overflow-y-auto px-5 py-4 text-sm text-gray-500">
-            <p>
-              Se registrará que el grupo se presentó en <strong class="text-gray-900">{{ llegadaPendiente.salaNombre }}</strong> para el tramo
-              <strong class="text-gray-900">{{ llegadaPendiente.label }}</strong>. Quienes no hayan marcado su entrada hoy quedarán presentes en la biblioteca.
-            </p>
-            <p class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              <svg class="mt-px h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.250 11.250l.041-.020a.750.750 0 011.063.852l-.708 2.836a.750.750 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.750h.008v.008H12V8.250z" /></svg>
+          <div class="space-y-4 overflow-y-auto px-6 py-5 text-sm text-gray-500">
+            <div class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700" aria-hidden="true">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+              </span>
+              <div class="text-amber-900">
+                <p class="font-bold">Antes de entregar la llave</p>
+                <p class="mt-0.5 text-[13px] leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
+              </div>
+            </div>
               <span>Antes de entregar la llave, verifique que estén sus integrantes: si alguien no vino o se sumó otra persona, pulse <strong class="text-gray-800">Modificar</strong>.</span>
             </p>
             <div>
@@ -1864,11 +1907,20 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <p v-if="editandoIntegrantesLlegada" class="text-xs text-amber-700">
               Guarde o descarte los cambios de integrantes antes de confirmar la llegada.
             </p>
+            <p class="flex items-center gap-2 text-xs text-gray-500">
+              <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25" /></svg>
+              Quienes no hayan marcado su entrada hoy quedarán presentes en la biblioteca.
+            </p>
           </div>
-          <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
-            <button @click="cerrarLlegada" :disabled="confirmandoLlegada" :class="BOTON_CANCELAR">Cancelar</button>
-            <button @click="confirmarLlegadaAction" :disabled="confirmandoLlegada || editandoIntegrantesLlegada" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
-              {{ confirmandoLlegada ? 'Guardando…' : 'Confirmar' }}
+          <div class="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4">
+            <button @click="cerrarLlegada" :disabled="confirmandoLlegada" class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60">Cancelar</button>
+            <button
+              @click="confirmarLlegadaAction"
+              :disabled="confirmandoLlegada || editandoIntegrantesLlegada"
+              class="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              {{ confirmandoLlegada ? 'Guardando…' : 'Confirmar llegada' }}
             </button>
           </div>
         </div>
