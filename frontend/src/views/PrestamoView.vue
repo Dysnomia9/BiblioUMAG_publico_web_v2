@@ -19,6 +19,7 @@ import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
 import UsuariosMeson from '@/components/usuarios/UsuariosMeson.vue'
 import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import ConfirmarDevolucion from '@/components/prestamos/ConfirmarDevolucion.vue'
+import ConfirmarPrestamo from '@/components/prestamos/ConfirmarPrestamo.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
@@ -50,6 +51,8 @@ const today = new Date().toLocaleDateString('sv-SE')
 
 const codigoBarrasPrestamo = ref('')
 const libroEncontradoPrestamo = ref('')
+/** El título y la copia por separado, para la confirmación del préstamo. */
+const copiaEncontradaPrestamo = ref<{ titulo: string; copia: string | null } | null>(null)
 const libroDisponiblePrestamo = ref(true)
 const libroEnEstantePrestamo = ref(true)
 const ubicacionPrestamo = ref<number | null>(null)
@@ -394,13 +397,13 @@ const subtituloItem = (p: Prestamo) => `${itemPrestamo(p.tipo_item).nombre} · $
  */
 const codigoCompleto = (codigo: string) => codigo.length === 8 || codigo.length >= 10
 
-async function buscarLibroApi(codigo: string): Promise<{ titulo: string; disponible: boolean; enEstante: boolean; ubicacionId: number | null } | null> {
+async function buscarLibroApi(codigo: string): Promise<{ titulo: string; tituloLibro: string; copia: string | null; disponible: boolean; enEstante: boolean; ubicacionId: number | null } | null> {
   try {
     const { data } = await api.get(`/ejemplares/${codigo}`)
     const titulo = nombreDeCopia(data) ? `${data.libro?.titulo} (${nombreDeCopia(data)})` : data.libro?.titulo
     // Solo una copia en estante puede estar prestada o reservada: la que está en inventario, procesos técnicos, etc. simplemente no está disponible.
     const enEstante = data.estado_proceso === 'en_estante'
-    return { titulo, disponible: data.disponible && enEstante, enEstante, ubicacionId: data.ubicacion_id ?? null }
+    return { titulo, tituloLibro: data.libro?.titulo ?? titulo, copia: nombreDeCopia(data), disponible: data.disponible && enEstante, enEstante, ubicacionId: data.ubicacion_id ?? null }
   } catch {
     return null
   }
@@ -410,6 +413,7 @@ let buscarLibroPrestamoTimer: ReturnType<typeof setTimeout> | undefined
 function buscarLibroPorCodigoPrestamo(valor: string) {
   codigoBarrasPrestamo.value = valor.replace(/\D/g, '')
   libroEncontradoPrestamo.value = ''
+  copiaEncontradaPrestamo.value = null
   libroDisponiblePrestamo.value = true
   libroEnEstantePrestamo.value = true
   ubicacionPrestamo.value = null
@@ -421,6 +425,7 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
     const libro = await buscarLibroApi(codigo)
     if (codigo !== codigoBarrasPrestamo.value) return
     libroEncontradoPrestamo.value = libro?.titulo ?? ''
+    copiaEncontradaPrestamo.value = libro ? { titulo: libro.tituloLibro, copia: libro.copia } : null
     libroDisponiblePrestamo.value = libro?.disponible ?? true
     libroEnEstantePrestamo.value = libro?.enEstante ?? true
     ubicacionPrestamo.value = libro?.ubicacionId ?? null
@@ -562,7 +567,7 @@ function entregarReserva(reserva: ReservaLibro) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const prestamoPendiente = ref<{ codigoBarras: string; titulo: string; fechaPrestamo: string; fechaDevolucion: string; enSala: boolean } | null>(null)
+const prestamoPendiente = ref<{ codigoBarras: string; titulo: string; tituloLibro: string; copia: string | null; fechaPrestamo: string; fechaDevolucion: string; enSala: boolean } | null>(null)
 const creandoPrestamo = ref(false)
 
 function pedirConfirmacionPrestamo() {
@@ -594,6 +599,8 @@ function pedirConfirmacionPrestamo() {
   prestamoPendiente.value = {
     codigoBarras: codigoBarrasPrestamo.value,
     titulo: libroEncontradoPrestamo.value,
+    tituloLibro: copiaEncontradaPrestamo.value?.titulo ?? libroEncontradoPrestamo.value,
+    copia: copiaEncontradaPrestamo.value?.copia ?? null,
     fechaPrestamo: enSala.value ? today : fechaPrestamo.value,
     fechaDevolucion: enSala.value ? today : fechaDevolucion.value,
     enSala: enSala.value,
@@ -615,6 +622,7 @@ async function confirmarPrestamo() {
     modoPrestamo.value = 'domicilio'
     codigoBarrasPrestamo.value = ''
     libroEncontradoPrestamo.value = ''
+    copiaEncontradaPrestamo.value = null
     fechaPrestamo.value = today
     fechaDevolucion.value = ''
     fechaPropuesta = ''
@@ -1916,41 +1924,13 @@ function formatHora(iso: string | null) {
         </template>
       </div>
 
-      <div
-        v-if="prestamoPendiente"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-        @click.self="prestamoPendiente = null"
-      >
-        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-          <h3 class="mb-1 text-lg font-bold text-gray-900">{{ prestamoPendiente.enSala ? '¿Confirmar uso en sala?' : '¿Confirmar préstamo?' }}</h3>
-          <p v-if="prestamoPendiente.enSala" class="mb-6 text-sm text-gray-500">
-            <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong> leerá <strong class="font-mono">{{ prestamoPendiente.titulo }}</strong> en la
-            biblioteca y lo devuelve <strong>hoy, antes del cierre</strong>.
-          </p>
-          <p v-else class="mb-6 text-sm text-gray-500">
-            Se prestará <strong class="font-mono">{{ prestamoPendiente.titulo }}</strong> a
-            <strong>{{ usuario?.nombre }} {{ usuario?.apellido }}</strong>, con devolución acordada para el
-            {{ formatFecha(`${prestamoPendiente.fechaDevolucion}T12:00:00`) }}.
-          </p>
-          <div class="flex gap-3">
-            <button
-              type="button"
-              class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              @click="prestamoPendiente = null"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
-              :disabled="creandoPrestamo"
-              @click="confirmarPrestamo"
-            >
-              {{ creandoPrestamo ? 'Confirmando…' : 'Sí, prestar' }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ConfirmarPrestamo
+        :pendiente="prestamoPendiente ? { titulo: prestamoPendiente.tituloLibro, copia: prestamoPendiente.copia, codigoBarras: prestamoPendiente.codigoBarras, fechaDevolucion: prestamoPendiente.fechaDevolucion, enSala: prestamoPendiente.enSala } : null"
+        :usuario="usuario"
+        :cargando="creandoPrestamo"
+        @confirmar="confirmarPrestamo"
+        @cancelar="prestamoPendiente = null"
+      />
 
       <ConfirmarDevolucion
         :prestamo="devolucionPendiente"
