@@ -1253,6 +1253,17 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </button>
           </p>
         </div>
+        <!-- Simbología: arriba de las tiras, para no tener que bajar hasta el final a buscarla -->
+        <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Simbología</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-emerald-200 bg-emerald-50"></span>Disponible</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-amber-300 bg-amber-100"></span>Por confirmar</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-orange-300 bg-orange-100"></span>Plazo vencido</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-red-300 bg-red-100"></span>Confirmada / en uso</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-gray-300 bg-gray-100"></span>Llave devuelta</span>
+          <span class="flex items-center gap-1.5"><span class="franja-pasada h-3 w-4 rounded border border-slate-200"></span>Ya pasó o fuera de horario</span>
+          <span class="flex items-center gap-1.5"><span class="h-3 w-[3px] rounded-full bg-indigo-600"></span>Ahora</span>
+        </div>
         <!-- En pantallas chicas la línea de tiempo se desplaza de lado en vez de
              comprimirse, para que las horas no se encimen. -->
         <div class="overflow-x-auto">
@@ -1360,16 +1371,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         </div>
 
       </div>
-      </div>
-
-      <div class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 text-xs text-gray-500">
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-emerald-50 border border-emerald-100" /> Disponible (click para reservar)</div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Por confirmar</div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-orange-100 border border-orange-300" /> Plazo vencido</div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-red-100 border border-red-300" /> Confirmada / en uso</div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-gray-100 border border-gray-300" /> Llave devuelta</div>
-        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded franja-pasada border border-slate-200" /> Ya pasó o fuera de horario</div>
-        <div class="flex items-center gap-1.5"><div class="w-1 h-3 rounded-full bg-indigo-600" /> Ahora</div>
       </div>
 
       <!-- Ventanas del mesón de salas: borde de color arriba, encabezado suave, contenido y pie con fondo. -->
