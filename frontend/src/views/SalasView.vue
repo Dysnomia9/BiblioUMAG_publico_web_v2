@@ -13,6 +13,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoHora from '@/components/ui/CampoHora.vue'
 import api from '@/services/api'
 import { diaEnPlural, enPuntaArenas } from '@/utils/horario'
+import { PISOS_MAPA } from '@/utils/mapaSalas'
 import { sinTildes } from '@/utils/texto'
 import { duracion, PERSONAS_MAXIMAS_MESON, PERSONAS_MINIMAS_MESON, textoMinutos } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
@@ -38,7 +39,8 @@ const puedeReservaLarga = computed(() => auth.puede('salas.sin_limite'))
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 
 // La fecha y la hora son las de Punta Arenas, como en el servidor (utils/horario.ts), no las del computador.
-const hoy = enPuntaArenas().fecha
+// Cambia con el reloj (ver onMounted): el mesón suele quedar abierto de un día para otro.
+const hoy = ref(enPuntaArenas().fecha)
 
 const DURACIONES = [30, 60, 90, 120]
 
@@ -48,10 +50,26 @@ const cantidadMaxima = ref(PERSONAS_MAXIMAS_MESON)
 
 const salas = ref<Sala[]>([])
 const apiError = ref(false)
-const selectedDate = ref(hoy)
+const selectedDate = ref(hoy.value)
 const busqueda = ref('')
-const page = ref(0)
-const salasPerPage = 10
+// La página (Piso 1, Piso 2, Administración) que se mira: cada computador recuerda la última,
+// porque cada mesón suele atender un piso. Sin almacenamiento disponible, la primera.
+const CLAVE_PAGINA = 'salas.pagina'
+function paginaGuardada(): number {
+  try {
+    return Math.max(0, Number(localStorage.getItem(CLAVE_PAGINA)) || 0)
+  } catch {
+    return 0
+  }
+}
+const page = ref(paginaGuardada())
+watch(page, (n) => {
+  try {
+    localStorage.setItem(CLAVE_PAGINA, String(n))
+  } catch {
+    // Sin almacenamiento: vale solo mientras la página esté abierta.
+  }
+})
 
 // Ventana de atención y reglas del día — vienen del backend (config/salas.php), nunca hardcodeadas acá.
 const apertura = ref('08:00')
@@ -118,6 +136,33 @@ const FRANJA = 'linear-gradient(90deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F
 
 function pct(hhmm: string): number {
   return ((timeToMinutes(hhmm) - aperturaMin.value) / totalMin.value) * 100
+}
+
+/**
+ * Dónde va «+ Click para reservar» en la fila de una sala: el espacio libre más ancho entre
+ * ahora (o la apertura) y el cierre, aunque la sala ya tenga reservas, en % desde cada borde.
+ * Null si ningún espacio alcanza para el texto (menos del 12 % de la línea, unas 1,5 horas).
+ */
+function huecoParaReservar(sala: Sala): { izquierda: number; derecha: number } | null {
+  const desde = pctPasado.value
+  const hasta = 100 - pctTrasCierre.value
+  const ocupados = sala.tramos
+    .map((t) => posicionTramo(t.hora_inicio, t.hora_fin))
+    .filter((p) => p.visible)
+    .map((p) => [p.izquierda, p.izquierda + p.ancho] as const)
+    .sort((a, b) => a[0] - b[0])
+  let mejor: [number, number] | null = null
+  let cursor = desde
+  const considerar = (a: number, b: number) => {
+    if (b - a > (mejor ? mejor[1] - mejor[0] : 0)) mejor = [a, b]
+  }
+  for (const [inicio, fin] of ocupados) {
+    if (inicio > cursor) considerar(cursor, Math.min(inicio, hasta))
+    cursor = Math.max(cursor, fin)
+  }
+  considerar(cursor, hasta)
+  const hueco = mejor as [number, number] | null
+  return hueco && hueco[1] - hueco[0] >= 12 ? { izquierda: hueco[0], derecha: 100 - hueco[1] } : null
 }
 
 /** Ancho del bloque en % de la línea de tiempo, con un piso mínimo para que un tramo corto (ej. 30 min) siga siendo clickeable y visible. */
@@ -222,7 +267,18 @@ async function cargar() {
 
 onMounted(() => {
   cargar()
-  relojTimer = setInterval(() => (ahora.value = new Date()), 1000)
+  relojTimer = setInterval(() => {
+    ahora.value = new Date()
+    // Pasada la medianoche: si se miraba el día de hoy, se pasa al nuevo. Antes «hoy» quedaba
+    // fijo en el día en que se abrió la página, y a la mañana siguiente el menú de confirmación
+    // y la línea de tiempo seguían en el día anterior hasta recargar.
+    const fecha = enPuntaArenas(ahora.value).fecha
+    if (fecha !== hoy.value) {
+      const mirabaHoy = selectedDate.value === hoy.value
+      hoy.value = fecha
+      if (mirabaHoy) selectedDate.value = fecha
+    }
+  }, 1000)
 })
 onUnmounted(() => clearInterval(relojTimer))
 useRefrescoPeriodico(cargar, REFRESCO_SEGUNDOS * 1000)
@@ -258,10 +314,47 @@ const filteredSalas = computed(() => {
   return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q))
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredSalas.value.length / salasPerPage)))
-const salasPage = computed(() => filteredSalas.value.slice(page.value * salasPerPage, (page.value + 1) * salasPerPage))
+// Una página por piso, como el plano (utils/mapaSalas.ts), con las salas que se prestan; las de
+// la administración (seminarios, Cooperación, Moraga) van en la suya («Administración»). Antes eran 10 salas por
+// página, sin orden de piso. Una sala que no está en el plano va en «Otras».
+const CODIGOS_POR_PISO = PISOS_MAPA.map((piso) => new Set([piso.izquierda, piso.derecha].flatMap((lado) => lado.tramos.flat()).map((lugar) => lugar.codigo)))
+const paginas = computed(() => {
+  const prestables = salas.value.filter((s) => !s.solo_administracion)
+  return [
+    ...PISOS_MAPA.map((_, i) => ({ titulo: `Piso ${i + 1}`, salas: prestables.filter((s) => CODIGOS_POR_PISO[i].has(s.codigo)) })),
+    { titulo: 'Otras', salas: prestables.filter((s) => !CODIGOS_POR_PISO.some((codigos) => codigos.has(s.codigo))) },
+    { titulo: 'Administración', salas: salas.value.filter((s) => s.solo_administracion) },
+  ].filter((p) => p.salas.length)
+})
+const paginaActual = computed(() => Math.min(page.value, Math.max(0, paginas.value.length - 1)))
+// Buscando, salen las que coinciden de todas las páginas.
+const salasPage = computed(() => (busqueda.value.trim() ? filteredSalas.value : (paginas.value[paginaActual.value]?.salas ?? [])))
+function irAPagina(n: number) {
+  busqueda.value = ''
+  soloConReserva.value = false
+  page.value = n
+}
 
-const esHoy = computed(() => selectedDate.value === hoy)
+// Dentro del recuadro: todas las salas de la página o, de todos los pisos, solo las que tienen
+// una reserva que importa ahora (en curso o más tarde hoy; en otro día, cualquiera de ese
+// día), separadas por piso. Las páginas de arriba siguen llevando a cada piso completo.
+const soloConReserva = ref(false)
+function tieneReserva(sala: Sala) {
+  if (selectedDate.value < hoy.value) return sala.tramos.length > 0
+  return sala.tramos.some((t) => t.estado === 'activa' && (!esHoy.value || timeToMinutes(t.hora_fin) > ahoraMin.value))
+}
+const gruposConReserva = computed(() =>
+  (busqueda.value.trim() ? [{ titulo: 'Búsqueda', salas: filteredSalas.value }] : paginas.value)
+    .map((p, indice) => ({ titulo: p.titulo, indice: busqueda.value.trim() ? null : indice, salas: p.salas.filter(tieneReserva) }))
+    .filter((g) => g.salas.length),
+)
+const totalConReserva = computed(() => gruposConReserva.value.reduce((n, g) => n + g.salas.length, 0))
+/** Lo que se dibuja: la página sola, o los pisos con reserva, cada uno con su separador. */
+const bloquesSalas = computed<{ titulo: string | null; indice: number | null; salas: Sala[] }[]>(() =>
+  soloConReserva.value ? gruposConReserva.value : [{ titulo: null, indice: null, salas: salasPage.value }],
+)
+
+const esHoy = computed(() => selectedDate.value === hoy.value)
 const ahoraEnPuntaArenas = computed(() => enPuntaArenas(ahora.value))
 const ahoraMin = computed(() => ahoraEnPuntaArenas.value.minutos)
 const nowPct = computed(() => Math.min(100, Math.max(0, ((ahoraMin.value - aperturaMin.value) / totalMin.value) * 100)))
@@ -276,7 +369,7 @@ const horaActual = computed(() => ahoraEnPuntaArenas.value.hora)
 const alineacionAhora = computed(() => (nowPct.value < 8 ? '' : nowPct.value > 92 ? '-translate-x-full' : '-translate-x-1/2'))
 /** Lo rayado desde la izquierda: hasta ahora si es hoy (o hasta que abre), entera si es un día anterior o sin atención. */
 const pctPasado = computed(() => {
-  const pasado = diaCerrado.value || selectedDate.value < hoy ? 100 : Math.max(pctAntesDeAbrir.value, esHoy.value ? nowPct.value : 0)
+  const pasado = diaCerrado.value || selectedDate.value < hoy.value ? 100 : Math.max(pctAntesDeAbrir.value, esHoy.value ? nowPct.value : 0)
   return pasado >= pctDesdeCierre.value ? 100 : pasado
 })
 /** Lo rayado desde la derecha: después del cierre de ese día (el sábado, desde las 14:00). */
@@ -594,7 +687,7 @@ async function confirmarDevolucion() {
 }
 
 function formatFechaLarga(fecha: string) {
-  return fecha === hoy ? 'Hoy' : new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')
+  return fecha === hoy.value ? 'Hoy' : new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CL')
 }
 
 /** Con `modificar`, el modal se abre con la lista de integrantes ya en edición. */
@@ -671,7 +764,7 @@ async function confirmarLiberacion() {
  * tarde hoy no pertenece acá: nadie puede "llegar" a algo que no ha comenzado.
  */
 const pendientesConfirmacion = computed(() => {
-  if (selectedDate.value !== hoy) return []
+  if (selectedDate.value !== hoy.value) return []
   return salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
     .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
@@ -692,7 +785,7 @@ const vencidasConfirmacion = computed(() => pendientesConfirmacion.value.filter(
 
 /** Las próximas reservas de hoy sin llegada: entran al menú a su hora de inicio. */
 const proximaConfirmacion = computed(() => {
-  if (selectedDate.value !== hoy) return null
+  if (selectedDate.value !== hoy.value) return null
   const proximas = salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
     .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) > ahoraMin.value)
@@ -959,7 +1052,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         </p>
       </div>
 
-      <!-- Línea de tiempo: buscador y páginas en el encabezado, las salas debajo -->
+      <!-- Línea de tiempo: buscador y páginas (por piso) en el encabezado, las salas debajo -->
       <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div class="h-1" :style="{ background: FRANJA }" aria-hidden="true"></div>
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100/70 bg-indigo-50/50 px-4 py-3 sm:px-5">
@@ -969,27 +1062,63 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           </svg>
           <input
             v-model="busqueda"
-            @input="page = 0"
             type="text"
             placeholder="Buscar logia..."
             aria-label="Buscar logia"
             class="w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
-        <div v-if="totalPages > 1" class="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+        <div v-if="paginas.length > 1" class="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           <button
-            v-for="n in totalPages"
-            :key="n"
-            @click="page = n - 1"
-            class="rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
-            :class="page === n - 1 ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'"
+            v-for="(p, i) in paginas"
+            :key="p.titulo"
+            type="button"
+            @click="irAPagina(i)"
+            class="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
+            :class="!busqueda.trim() && !soloConReserva && paginaActual === i ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'"
+            :aria-pressed="!busqueda.trim() && !soloConReserva && paginaActual === i"
+            :title="p.titulo.startsWith('Piso') ? `Las salas del ${p.titulo.toLowerCase()}, como en el plano` : p.titulo === 'Administración' ? 'Seminarios, Cooperación y Moraga: los reserva la administración' : 'Salas que no están en el plano'"
           >
-            Página {{ n }}
+            {{ p.titulo }}
+            <span class="text-xs font-medium tabular-nums opacity-70">{{ p.salas.length }}</span>
           </button>
         </div>
       </div>
 
       <div class="p-4 sm:p-5">
+        <!-- Qué salas mostrar. Va dentro del recuadro y con otro aspecto que las páginas de
+             arriba (Piso 1, Piso 2…): un interruptor gris de esquinas rectas, no botones de color. -->
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <!-- Para qué sirve cada botón -->
+          <p class="max-w-xl text-xs leading-relaxed text-gray-500">
+            <strong class="text-gray-700">Piso 1 · Piso 2</strong> (arriba): muestran las salas de ese piso, como en el plano.
+            <strong class="text-gray-700">Con reserva</strong> (aquí): de todos los pisos, solo las salas con una reserva {{ esHoy ? 'en curso o más tarde hoy' : 'ese día' }}, para encontrarlas rápido; <strong class="text-gray-700">Todas</strong> vuelve al piso.
+          </p>
+          <div class="inline-flex rounded-md bg-gray-100 p-0.5 text-xs font-semibold ring-1 ring-inset ring-gray-300" role="radiogroup" aria-label="Qué salas mostrar">
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="!soloConReserva"
+              @click="soloConReserva = false"
+              class="rounded-sm px-3 py-1.5 transition-colors"
+              :class="!soloConReserva ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-300' : 'text-gray-500 hover:text-gray-800'"
+            >
+              Todas · {{ salasPage.length }}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="soloConReserva"
+              @click="soloConReserva = true"
+              class="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 transition-colors"
+              :class="soloConReserva ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-300' : 'text-gray-500 hover:text-gray-800'"
+              :title="esHoy ? 'De todos los pisos, las que tienen una reserva en curso o más tarde hoy' : 'De todos los pisos, las que tienen una reserva ese día'"
+            >
+              <span class="h-2 w-2 rounded-sm border border-amber-400 bg-amber-200" aria-hidden="true"></span>
+              Con reserva · {{ totalConReserva }}
+            </button>
+          </div>
+        </div>
         <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -1050,18 +1179,29 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             >{{ String(h).padStart(2, '0') }}:00</span>
           </div>
         </div>
-        <div class="space-y-2.5">
-          <div v-for="sala in salasPage" :key="sala.id" class="flex items-center gap-3">
-            <div class="w-[136px] shrink-0">
-              <div class="truncate text-sm font-medium text-gray-900">{{ sala.nombre }}</div>
-              <!-- Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
-              <div class="font-mono text-xs font-semibold text-gray-500">{{ sala.codigo }}</div>
-              <div v-if="sala.solo_administracion" class="mt-0.5 text-[11px] font-semibold text-amber-700" title="No se presta a estudiantes ni se reserva desde el portal">
-                Solo administración
-              </div>
+        <div class="space-y-1.5">
+          <template v-for="bloque in bloquesSalas" :key="bloque.titulo ?? 'pagina'">
+          <!-- Con reserva: un separador por piso; su nombre lleva a la página completa de ese piso -->
+          <div v-if="bloque.titulo" class="flex items-center gap-2 pt-2 first:pt-0">
+            <button
+              v-if="bloque.indice !== null"
+              type="button"
+              class="shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-indigo-700"
+              :title="`Ver todas las salas de ${bloque.titulo}`"
+              @click="irAPagina(bloque.indice)"
+            >{{ bloque.titulo }} · {{ bloque.salas.length }}</button>
+            <span v-else class="shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ bloque.titulo }} · {{ bloque.salas.length }}</span>
+            <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
+          </div>
+          <div v-for="sala in bloque.salas" :key="sala.id" class="flex items-center gap-3">
+            <!-- En una línea: el código (el que se busca y se escribe para la llave) y el nombre.
+                 Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
+            <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="sala.solo_administracion ? `${sala.nombre} · solo administración: no se presta a estudiantes ni se reserva desde el portal` : sala.nombre">
+              <span class="font-mono text-xs font-bold text-gray-700">{{ sala.codigo }}</span>
+              <span class="truncate text-[13px] text-gray-600">{{ sala.nombre }}</span>
             </div>
             <div
-              class="group relative h-12 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-xl overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
+              class="group relative h-9 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-lg overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
               @click="onTimelineClick(sala, $event)"
             >
               <div class="absolute inset-0 flex pointer-events-none">
@@ -1079,13 +1219,16 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 :style="{ width: pctPasado + '%' }"
               />
               <div v-if="pctTrasCierre > 0" class="absolute inset-y-0 right-0 franja-pasada pointer-events-none" :style="{ width: pctTrasCierre + '%' }" />
-              <p
-                v-if="!sala.tramos.length && 100 - pctPasado - pctTrasCierre > 12"
-                class="absolute inset-y-0 flex items-center justify-center text-[11px] font-medium text-emerald-700/60 group-hover:text-emerald-700 pointer-events-none transition-colors"
-                :style="{ left: pctPasado + '%', right: pctTrasCierre + '%' }"
-              >
-                + Click para reservar
-              </p>
+              <!-- En el espacio libre más ancho, aunque la sala ya tenga reservas (ver huecoParaReservar) -->
+              <template v-for="hueco in [huecoParaReservar(sala)]" :key="`hueco-${sala.id}`">
+                <p
+                  v-if="hueco"
+                  class="absolute inset-y-0 flex items-center justify-center whitespace-nowrap text-[11px] font-medium text-emerald-700/60 group-hover:text-emerald-700 pointer-events-none transition-colors"
+                  :style="{ left: hueco.izquierda + '%', right: hueco.derecha + '%' }"
+                >
+                  + Click para reservar
+                </p>
+              </template>
               <div
                 v-for="tramo in sala.tramos.filter((t) => posicionTramo(t.hora_inicio, t.hora_fin).visible)"
                 :key="tramo.reserva_id"
@@ -1104,32 +1247,14 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               />
             </div>
           </div>
-          <p v-if="!salasPage.length" class="text-sm text-gray-400 text-center py-6">Sin salas que coincidan con la búsqueda.</p>
+          </template>
+          <p v-if="!bloquesSalas.some((b) => b.salas.length)" class="text-sm text-gray-400 text-center py-6">
+            {{ soloConReserva && !busqueda.trim() ? (esHoy ? 'Ninguna sala tiene reservas por ahora ni más tarde hoy.' : 'Ninguna sala tiene reservas ese día.') : 'Sin salas que coincidan con la búsqueda.' }}
+          </p>
         </div>
         </div>
         </div>
 
-        <div v-if="totalPages > 1" class="flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
-          <span class="text-sm text-gray-500">
-            Mostrando {{ page * salasPerPage + 1 }}–{{ Math.min((page + 1) * salasPerPage, filteredSalas.length) }} de {{ filteredSalas.length }} salas
-          </span>
-          <div class="flex gap-1">
-            <button
-              @click="page = Math.max(0, page - 1)"
-              :disabled="page === 0"
-              class="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ‹
-            </button>
-            <button
-              @click="page = Math.min(totalPages - 1, page + 1)"
-              :disabled="page === totalPages - 1"
-              class="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ›
-            </button>
-          </div>
-        </div>
       </div>
       </div>
 
@@ -1259,7 +1384,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                     :value="rutsReserva[idx]"
                     @input="onRutInput(idx, $event)"
                     type="text"
-                    :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                    :placeholder="selectedSala.solo_responsable ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                     :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
                     class="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                     :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
