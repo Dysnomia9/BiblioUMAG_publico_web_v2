@@ -2620,11 +2620,17 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         Estos cambios de la copia <strong class="font-mono text-gray-900">{{ copiaEditando?.copia.codigo_barras }}</strong>
         <strong class="text-gray-900">no se van a guardar</strong>:
       </p>
-      <ul class="mt-3 divide-y divide-gray-100 overflow-hidden rounded-xl border border-red-100 bg-red-50/40">
-        <li v-for="c in cambiosEdicion" :key="c.campo" class="px-4 py-2 text-sm">
-          <span class="text-xs font-semibold text-gray-500">{{ c.campo }}:</span>
-          <span class="ml-1 text-gray-900">{{ c.despues }}</span>
-          <span class="ml-1 text-xs text-gray-500">(queda {{ c.antes }})</span>
+      <ul class="mt-3 divide-y divide-red-100 overflow-hidden rounded-xl border border-red-100 bg-red-50/40">
+        <li v-for="c in cambiosEdicion" :key="c.campo" class="space-y-1 px-4 py-3 text-sm">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ c.campo }}</p>
+          <p class="flex flex-wrap items-baseline gap-x-2">
+            <span class="w-24 shrink-0 text-xs text-red-700">Se descarta:</span>
+            <span class="text-gray-500 line-through">{{ c.despues }}</span>
+          </p>
+          <p class="flex flex-wrap items-baseline gap-x-2">
+            <span class="w-24 shrink-0 text-xs text-emerald-700">Queda como:</span>
+            <strong class="text-gray-900">{{ c.antes }}</strong>
+          </p>
         </li>
       </ul>
       <p class="mt-3 text-xs text-gray-500">La copia queda como estaba y se puede escanear otra.</p>

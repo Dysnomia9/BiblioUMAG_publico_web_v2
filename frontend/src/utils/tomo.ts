@@ -30,6 +30,9 @@ export function leerTomoCopia(texto?: string | null): { tomo: string; copia: str
  */
 export function partesCopia(volumen?: string | null, etiquetaCopia?: string | null) {
   const texto = (volumen ?? '').trim().replace(/\s+/g, ' ')
+  // Solo el número de copia («c.2»), sin tomo ni designación
+  const soloCopia = texto.match(/^c\.?\s*(\d{1,4})\.?$/i)
+  if (soloCopia) return { tomo: null, otro: null, copia: soloCopia[1] }
   const leido = leerTomoCopia(texto)
   if (!leido) {
     // Tomo o volumen junto a otra designación («t.5 Apéndice», «Anexo v.1»), como algunas de Horizon
