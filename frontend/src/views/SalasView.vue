@@ -1187,36 +1187,33 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
       <div class="p-4 sm:p-5">
         <!-- Qué salas mostrar. Va dentro del recuadro y con otro aspecto que las páginas de
              arriba (Piso 1, Piso 2…): un interruptor gris de esquinas rectas, no botones de color. -->
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <!-- Para qué sirve cada botón -->
-          <p class="max-w-xl text-xs leading-relaxed text-gray-500">
-            <strong class="text-gray-700">Piso 1 · Piso 2</strong> (arriba): muestran las salas de ese piso, como en el plano.
-            <strong class="text-gray-700">Con reserva</strong> (aquí): de todos los pisos, solo las salas con una reserva {{ esHoy ? 'en curso o más tarde hoy' : 'ese día' }}, para encontrarlas rápido; <strong class="text-gray-700">Todas</strong> vuelve al piso.
-          </p>
-          <div class="inline-flex rounded-md bg-gray-100 p-0.5 text-xs font-semibold ring-1 ring-inset ring-gray-300" role="radiogroup" aria-label="Qué salas mostrar">
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="!soloConReserva"
-              @click="soloConReserva = false"
-              class="rounded-sm px-3 py-1.5 transition-colors"
-              :class="!soloConReserva ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-300' : 'text-gray-500 hover:text-gray-800'"
-            >
-              Todas · {{ salasPage.length }}
-            </button>
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="soloConReserva"
-              @click="soloConReserva = true"
-              class="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 transition-colors"
-              :class="soloConReserva ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-300' : 'text-gray-500 hover:text-gray-800'"
-              :title="esHoy ? 'De todos los pisos, las que tienen una reserva en curso o más tarde hoy' : 'De todos los pisos, las que tienen una reserva ese día'"
-            >
+        <!-- Cada botón con una línea abajo que dice para qué sirve -->
+        <div class="mb-3 inline-flex rounded-lg bg-gray-100 p-1 ring-1 ring-inset ring-gray-200" role="radiogroup" aria-label="Qué salas mostrar">
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="!soloConReserva"
+            @click="soloConReserva = false"
+            class="rounded-md px-3.5 py-1.5 text-left transition-colors"
+            :class="!soloConReserva ? 'bg-white shadow-sm ring-1 ring-gray-300' : 'hover:bg-white/60'"
+          >
+            <span class="block text-xs font-semibold" :class="!soloConReserva ? 'text-gray-900' : 'text-gray-600'">Todas · {{ salasPage.length }}</span>
+            <span class="block text-[11px] leading-snug text-gray-500">Las logias del piso elegido arriba</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="soloConReserva"
+            @click="soloConReserva = true"
+            class="rounded-md px-3.5 py-1.5 text-left transition-colors"
+            :class="soloConReserva ? 'bg-white shadow-sm ring-1 ring-gray-300' : 'hover:bg-white/60'"
+          >
+            <span class="flex items-center gap-1.5 text-xs font-semibold" :class="soloConReserva ? 'text-gray-900' : 'text-gray-600'">
               <span class="h-2 w-2 rounded-sm border border-amber-400 bg-amber-200" aria-hidden="true"></span>
               Con reserva · {{ totalConReserva }}
-            </button>
-          </div>
+            </span>
+            <span class="block text-[11px] leading-snug text-gray-500">{{ esHoy ? 'De todos los pisos, reservadas ahora o más tarde' : 'De todos los pisos, reservadas ese día' }}</span>
+          </button>
         </div>
         <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1231,8 +1228,12 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           <p>{{ textoFueraDeHorario }}</p>
         </div>
         <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <p class="text-[13px] text-gray-600">
-            {{ diaCerrado ? 'Elija otra fecha arriba para reservar.' : 'Click en cualquier espacio libre (verde) de la línea de tiempo para reservar esa sala a esa hora.' }}
+          <p class="flex items-center gap-2 text-[13px] text-gray-600">
+            <template v-if="diaCerrado">Elija otra fecha arriba para reservar.</template>
+            <template v-else>
+              <span class="h-3 w-5 shrink-0 rounded border border-emerald-200 bg-emerald-50" aria-hidden="true"></span>
+              <span>Haga clic en lo <strong class="font-semibold text-emerald-700">verde</strong> de una tira para reservar esa logia a esa hora.</span>
+            </template>
           </p>
           <p v-if="actualizadoEn" class="flex items-center gap-2 text-xs text-gray-500">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -1278,7 +1279,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             >{{ String(h).padStart(2, '0') }}:00</span>
           </div>
         </div>
-        <div class="space-y-1.5">
+        <div class="space-y-0.5">
           <template v-for="bloque in bloquesSalas" :key="bloque.titulo ?? 'pagina'">
           <!-- Con reserva: un separador por piso; su nombre lleva a la página completa de ese piso -->
           <div v-if="bloque.titulo" class="flex items-center gap-2 pt-2 first:pt-0">
@@ -1292,15 +1293,17 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <span v-else class="shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ bloque.titulo }} · {{ bloque.salas.length }}</span>
             <span class="h-px flex-1 bg-gray-200" aria-hidden="true"></span>
           </div>
-          <div v-for="sala in bloque.salas" :key="sala.id" class="flex items-center gap-3">
+          <!-- Toda la fila (nombre + tira) se resalta junta al pasar el mouse, y las filas se
+               alternan con un fondo suave: así no se confunde la tira de una logia con la vecina. -->
+          <div v-for="(sala, i) in bloque.salas" :key="sala.id" class="group/fila -mx-1.5 flex items-center gap-3 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-indigo-100 hover:ring-2 hover:ring-indigo-300" :class="i % 2 === 1 ? 'bg-slate-100' : ''">
             <!-- En una línea: el código (el que se busca y se escribe para la llave) y el nombre.
                  Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
             <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="sala.solo_administracion ? `${sala.nombre} · solo administración: no se presta a estudiantes ni se reserva desde el portal` : sala.nombre">
-              <span class="font-mono text-xs font-bold text-gray-700">{{ sala.codigo }}</span>
-              <span class="truncate text-[13px] text-gray-600">{{ sala.nombre }}</span>
+              <span class="rounded px-1 font-mono text-xs font-bold text-gray-700 group-hover/fila:bg-indigo-600 group-hover/fila:text-white">{{ sala.codigo }}</span>
+              <span class="truncate text-[13px] text-gray-600 group-hover/fila:text-indigo-900">{{ sala.nombre }}</span>
             </div>
             <div
-              class="group relative h-9 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-lg overflow-hidden border border-emerald-100 shadow-inner cursor-pointer transition-colors"
+              class="group relative h-9 flex-1 bg-emerald-50/70 hover:bg-emerald-100/90 rounded-lg overflow-hidden border border-emerald-100 group-hover/fila:border-indigo-300 shadow-inner cursor-pointer transition-colors"
               @click="onTimelineClick(sala, $event)"
             >
               <div class="absolute inset-0 flex pointer-events-none">
