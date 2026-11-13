@@ -391,40 +391,51 @@ const formCopia = reactive(copiaVacia())
 // ---------- Tomo de la copia (obras en varios tomos, como en Horizon: «t.1 c.2») ----------
 /** «Tomo 1», «T1», «t. 1» → «t.1»; «Vol 2» → «v.2» (lo mismo que App\Support\TomoEjemplar). */
 /**
- * Lee lo escrito en «Tomo»: solo el tomo («t.1», «Tomo 1», «v.2») o tomo y volumen juntos,
- * como en Horizon («t.1-v.II»). Si trae también la copia («t.1 c.2»), se toma el tomo y se
- * avisa: el número de copia va en su casilla. Lo que no es un tomo («t.1 c..2», «primero») no vale:
- * se avisa y no deja guardar (el servidor tampoco lo acepta).
+ * Tomo y volumen son independientes: una copia puede tener solo tomo («t.1»), solo volumen
+ * («v.2») o los dos («t.1-v.II», como en Horizon). Cada casilla lee su número: «1», «t.1»,
+ * «Tomo 1» → «t.1»; «II», «2», «v.2», «Volumen 2» → «v.II» / «v.2». Vacía → ''; si no se
+ * entiende → null (se avisa y no deja guardar; el servidor tampoco lo acepta).
  */
-function leerTomo(texto: string): { tomo: string; valido: boolean; traiaCopia: boolean; conVolumen: boolean } {
-  const t = texto.replace(/\s+/g, ' ').trim().replace(/\bcopia\s*/gi, 'c.')
-  if (!t) return { tomo: '', valido: true, traiaCopia: false, conVolumen: false }
-  const leido = leerTomoCopia(t)
-  if (!leido) return { tomo: t, valido: false, traiaCopia: false, conVolumen: false }
-  return { tomo: leido.clave, valido: true, traiaCopia: !!leido.copia, conVolumen: leido.clave.includes('-') }
-}
-const tomoLeido = computed(() => leerTomo(formCopia.tomo))
-// Sin tomo (o con tomo y volumen ya escritos juntos) no hay segunda parte que guardar
-watch(() => formCopia.tomo, () => {
-  if (!tomoLeido.value.tomo || tomoLeido.value.conVolumen) formCopia.parte = ''
-})
-/** El segundo de la pareja: si el tomo es «t.1», un volumen; si es «v.1», un tomo («v.1-t.2», como en Horizon). */
-const segundaParte = computed(() => (tomoLeido.value.tomo.startsWith('v') ? { letra: 't', nombre: 'Tomo' } : { letra: 'v', nombre: 'Volumen' }))
-/** «II», «2», «v.II», «Volumen 2» → «II» / «2»; vacío si no se escribió; null si no se entiende. */
-const parteLeida = computed<string | null>(() => {
-  const t = formCopia.parte.trim()
+function leerParte(texto: string, letra: 't' | 'v'): string | null {
+  const t = texto.replace(/\s+/g, ' ').trim()
   if (!t) return ''
-  const m = t.match(/^(?:(?:t|tomo|v|vol|volumen)\.?\s*)?(\d+|[ivxlc]+)$/i)
-  return m ? (/^\d/.test(m[1]) ? m[1] : m[1].toUpperCase()) : null
-})
-/** El tomo de la copia que se guarda: «t.1», o con el volumen «t.1-v.II» (vacío si no tiene). */
-const claveTomo = computed(() => {
-  const { tomo, valido, conVolumen } = tomoLeido.value
-  if (!tomo || !valido) return tomo
-  return parteLeida.value && !conVolumen ? `${tomo}-${segundaParte.value.letra}.${parteLeida.value}` : tomo
-})
+  const prefijo = letra === 't' ? '(?:t|tomo)' : '(?:v|vol|volumen)'
+  const m = t.match(new RegExp(`^(?:${prefijo}\\.?\\s*)?(\\d+[a-z]?|[ivxlc]+)$`, 'i'))
+  if (!m) return null
+  return `${letra}.${/^\d/.test(m[1]) ? m[1].toLowerCase() : m[1].toUpperCase()}`
+}
+/** El tomo de la copia que se guarda: «t.1», «v.2», «t.1-v.II» («v.1-t.2» si el volumen va primero, como algunas de Horizon). */
+function claveDe(tomo: string, volumen: string, volumenPrimero = false): string {
+  if (tomo && volumen) return volumenPrimero ? `${volumen}-${tomo}` : `${tomo}-${volumen}`
+  return tomo || volumen
+}
+/**
+ * Lo pegado o elegido en «Tomo» con más de una parte («t.1-v.II», «v.3», «t.1 c.2»): se reparte
+ * en Tomo, Volumen y Copia. Al salir de la casilla, no mientras se escribe.
+ */
+function repartirTomo(form: { tomo: string; parte: string; copia: string }): boolean | null {
+  const leido = leerTomoCopia(form.tomo.replace(/\bcopia\s*/gi, 'c.'))
+  if (!leido) return null
+  const partes = leido.clave.split('-')
+  if (partes.length === 1 && partes[0].startsWith('t') && !leido.copia) return null
+  form.tomo = partes.find((p) => p.startsWith('t'))?.slice(2) ?? ''
+  form.parte = partes.find((p) => p.startsWith('v'))?.slice(2) ?? ''
+  if (leido.copia) form.copia = leido.copia
+  return partes.length === 2 && partes[0].startsWith('v')
+}
+
+// «Nuevo ejemplar»
+const tomoParte = computed(() => leerParte(formCopia.tomo, 't'))
+const volumenParte = computed(() => leerParte(formCopia.parte, 'v'))
+const volumenPrimeroCopia = ref(false)
+function alSalirDelTomoCopia() {
+  const volumenPrimero = repartirTomo(formCopia)
+  if (volumenPrimero !== null) volumenPrimeroCopia.value = volumenPrimero
+}
 /** Lo escrito en «Tomo» y «Volumen» se puede guardar. */
-const tomoValido = computed(() => tomoLeido.value.valido && parteLeida.value !== null && !(formCopia.parte.trim() && !tomoLeido.value.tomo))
+const tomoValido = computed(() => tomoParte.value !== null && volumenParte.value !== null)
+/** El tomo de la copia que se guarda («t.1», «v.2», «t.1-v.II»; vacío si no tiene). */
+const claveTomo = computed(() => (tomoValido.value ? claveDe(tomoParte.value as string, volumenParte.value as string, volumenPrimeroCopia.value) : ''))
 /** Los tomos que ya tiene la obra elegida, con cuántas copias, para elegir uno o escribir otro. */
 const tomosDeLaObra = computed(() => {
   const cuenta = new Map<string, number>()
@@ -466,25 +477,22 @@ const formEditar = reactive(formEditarVacio())
 const fotoEditar = ref('')
 const editarConCambios = computed(() => !!copiaEditando.value && JSON.stringify(formEditar) !== fotoEditar.value)
 
-/** Lo escrito en Tomo, Volumen y Copia, leído; y el texto de volumen que queda («t.1-v.II c.2»). */
-const tomoEditar = computed(() => leerTomo(formEditar.tomo))
-const parteEditar = computed<string | null>(() => {
-  const t = formEditar.parte.trim()
-  if (!t) return ''
-  const m = t.match(/^(?:(?:t|tomo|v|vol|volumen)\.?\s*)?(\d+|[ivxlc]+)$/i)
-  return m ? (/^\d/.test(m[1]) ? m[1] : m[1].toUpperCase()) : null
-})
+/** Lo escrito en Tomo, Volumen y Copia, leído; y el texto de volumen que queda («t.1-v.II c.2», «Anexo c.1»). */
+const tomoParteEditar = computed(() => leerParte(formEditar.tomo, 't'))
+const volumenParteEditar = computed(() => leerParte(formEditar.parte, 'v'))
+const volumenPrimeroEditar = ref(false)
+function alSalirDelTomoEditar() {
+  const volumenPrimero = repartirTomo(formEditar)
+  if (volumenPrimero !== null) volumenPrimeroEditar.value = volumenPrimero
+}
 const copiaEditarValida = computed(() => /^(?:c\.?\s*)?\d{0,4}$/i.test(formEditar.copia.trim()))
 const volumenEditar = computed(() => {
-  if (!formEditar.tomo.trim()) return formEditar.otra.trim()
-  const t = tomoEditar.value
-  if (!t.valido || parteEditar.value === null) return ''
-  const segunda = t.tomo.startsWith('v') ? 't' : 'v'
-  const clave = parteEditar.value && !t.conVolumen ? `${t.tomo}-${segunda}.${parteEditar.value}` : t.tomo
+  if (tomoParteEditar.value === null || volumenParteEditar.value === null) return ''
+  const base = claveDe(tomoParteEditar.value, volumenParteEditar.value, volumenPrimeroEditar.value) || formEditar.otra.trim()
   const copia = formEditar.copia.trim().replace(/^c\.?\s*/i, '')
-  return copia ? `${clave} c.${copia}` : clave
+  return copia ? `${base} c.${copia}`.trim() : base
 })
-const edicionValida = computed(() => !formEditar.tomo.trim() || (tomoEditar.value.valido && parteEditar.value !== null && copiaEditarValida.value))
+const edicionValida = computed(() => tomoParteEditar.value !== null && volumenParteEditar.value !== null && copiaEditarValida.value)
 
 /** Abre la copia en la pestaña «Editar ejemplar», con sus datos en el formulario. */
 function editarCopia(copia: Ejemplar, libro: Libro) {
@@ -492,13 +500,15 @@ function editarCopia(copia: Ejemplar, libro: Libro) {
   copiaEditando.value = { copia, libro }
   codigoAEditar.value = copia.codigo_barras
   const leido = leerTomoCopia(copia.volumen)
-  const [tomo, parte] = (leido?.clave ?? '').split('-')
+  const partes = (leido?.clave ?? '').split('-').filter(Boolean)
+  volumenPrimeroEditar.value = partes.length === 2 && partes[0].startsWith('v')
   Object.assign(formEditar, {
     ubicacion_id: copia.ubicacion_id ?? '',
-    tomo: tomo ?? '',
-    parte: (parte ?? '').replace(/^[tv]\./, ''),
-    copia: leido?.copia ?? '',
-    otra: leido ? '' : copia.volumen ?? '',
+    tomo: partes.find((p) => p.startsWith('t'))?.slice(2) ?? '',
+    parte: partes.find((p) => p.startsWith('v'))?.slice(2) ?? '',
+    copia: leido?.copia ?? numeroDeCopia(copia) ?? '',
+    // Otra designación, sin la «c.N» del final («Cuadernillo-c.1»): la copia va en su casilla
+    otra: leido ? '' : (copia.volumen ?? '').replace(/[\s\-,;/]*c\.?\s*\d+\.?$/i, ''),
     coleccion: copia.coleccion ?? '',
     precio: copia.precio ?? '',
     forma_adquisicion: copia.forma_adquisicion ?? '',
@@ -1236,7 +1246,7 @@ function pedirConfirmacionCopia() {
     return
   }
   if (!tomoValido.value) {
-    toast.error('Revisa el tomo y el volumen: por ejemplo «t.1» y «II»')
+    toast.error('Revisa el tomo y el volumen: por ejemplo Tomo «1» y Volumen «II»')
     document.getElementById('copia-tomo')?.focus()
     return
   }
@@ -1258,7 +1268,7 @@ async function confirmarAgregarCopia() {
       libro_id: libroParaCopia.value.id,
       codigo_barras: formCopia.codigo_barras,
       ubicacion_id: formCopia.ubicacion_id === '' ? null : Number(formCopia.ubicacion_id),
-      volumen: formCopia.tomo.trim() ? null : formCopia.volumen || null,
+      volumen: claveTomo.value ? null : formCopia.volumen || null,
       tomo: claveTomo.value || null,
       // La «c.N» escrita, o null: sin número (no se inventa)
       copia: copiaEscrita.value ? Number(copiaEscrita.value) : null,
@@ -1978,25 +1988,24 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
                 <div class="sm:col-span-2">
-                  <label for="copia-tomo" :class="ETIQUETA">Tomo <span class="font-normal text-gray-400">(si la obra tiene varios)</span></label>
-                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="t.1" :aria-invalid="!tomoLeido.valido" :class="[CAMPO, !tomoLeido.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">t.1</span>, <span class="font-mono">Tomo 2</span> o <span class="font-mono">v.3</span> · vacío si no tiene</p>
+                  <label for="copia-tomo" :class="ETIQUETA">Tomo</label>
+                  <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="1" :aria-invalid="tomoParte === null" :class="[CAMPO, tomoParte === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoCopia" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span> o <span class="font-mono">t.1</span> · vacío si no tiene</p>
                   <datalist id="tomos-de-la-obra">
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ partesCopia(t.tomo, null).tomo ?? t.tomo }} · {{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="copia-parte" :class="ETIQUETA">{{ segundaParte.nombre }} dentro del {{ segundaParte.nombre === 'Volumen' ? 'tomo' : 'volumen' }}</label>
+                  <label for="copia-parte" :class="ETIQUETA">Volumen</label>
                   <input
                     autocomplete="off"
                     id="copia-parte"
                     v-model="formCopia.parte"
-                    :disabled="!tomoLeido.tomo || !tomoLeido.valido || tomoLeido.conVolumen"
-                    placeholder="II"
-                    :aria-invalid="parteLeida === null"
-                    :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400', parteLeida === null ? 'border-red-400 ring-1 ring-red-300' : '']"
+                    placeholder="2"
+                    :aria-invalid="volumenParte === null"
+                    :class="[CAMPO, volumenParte === null ? 'border-red-400 ring-1 ring-red-300' : '']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">II</span> o <span class="font-mono">2</span> · solo si el tomo tiene varios</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> o <span class="font-mono">II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
                   <label for="copia-numero" :class="ETIQUETA">Copia</label>
@@ -2015,30 +2024,27 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacía = sin número de copia</p>
                 </div>
                 <div class="sm:col-span-6">
-                  <p v-if="!tomoLeido.valido" class="text-[11px] font-semibold text-red-700">
-                    No se reconoce como tomo. Escribe solo el tomo, por ejemplo «t.1» o «Tomo 1»: el número de copia va en «Copia».
+                  <p v-if="tomoParte === null" class="text-[11px] font-semibold text-red-700">
+                    En «Tomo» va solo su número, por ejemplo «1» o «t.1».
                   </p>
-                  <p v-else-if="parteLeida === null" class="text-[11px] font-semibold text-red-700">
-                    En «{{ segundaParte.nombre }}» va solo el número, por ejemplo «2» o «II».
-                  </p>
-                  <p v-else-if="tomoLeido.traiaCopia" class="text-[11px] text-amber-800">
-                    En «Tomo» va solo el tomo: se toma <strong>{{ textoCopia(tomoLeido.tomo, null) }}</strong>; el número de copia va en «Copia».
+                  <p v-else-if="volumenParte === null" class="text-[11px] font-semibold text-red-700">
+                    En «Volumen» va solo su número, por ejemplo «2» o «II».
                   </p>
                   <p v-else-if="tomosDeLaObra.length" class="text-[11px] text-gray-500">
                     Tomos de esta obra: {{ tomosDeLaObra.map((t) => `${partesCopia(t.tomo, null).tomo ?? t.tomo} (${t.copias} ${t.copias === 1 ? 'copia' : 'copias'})`).join(' · ') }}
                   </p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-volumen" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no es un tomo)</span></label>
+                  <label for="copia-volumen" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo ni volumen)</span></label>
                   <input
                     autocomplete="off"
                     id="copia-volumen"
                     v-model="formCopia.volumen"
-                    :disabled="!!formCopia.tomo.trim()"
+                    :disabled="!!(formCopia.tomo.trim() || formCopia.parte.trim())"
                     placeholder="Ej: Anexo · Atlas · Año IV No. 4 (Jul.-Aug., 1985)"
                     :class="[CAMPO, 'disabled:bg-gray-50 disabled:text-gray-400']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es un tomo, como el número de una revista. Con tomo, se deja vacía.</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es tomo ni volumen: Ficha, Cuadernillo, Anexo o el número de una revista. Con tomo o volumen, se deja vacía.</p>
                 </div>
                 <div class="sm:col-span-3">
                   <label for="copia-precio" :class="ETIQUETA">Precio (CLP)</label>
@@ -2163,26 +2169,26 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <!-- Tomo, volumen y copia por separado (el texto se arma solo, como en Horizon) -->
                 <div class="sm:col-span-2">
                   <label for="editar-tomo" :class="ETIQUETA">Tomo</label>
-                  <input id="editar-tomo" v-model="formEditar.tomo" autocomplete="off" placeholder="t.1" :aria-invalid="!tomoEditar.valido" :class="[CAMPO, !tomoEditar.valido ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">t.1</span>, <span class="font-mono">Tomo 2</span> o <span class="font-mono">v.3</span> · vacío si no tiene</p>
+                  <input id="editar-tomo" v-model="formEditar.tomo" autocomplete="off" placeholder="1" :aria-invalid="tomoParteEditar === null" :class="[CAMPO, tomoParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoEditar" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span> o <span class="font-mono">t.1</span> · vacío si no tiene</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="editar-parte" :class="ETIQUETA">{{ tomoEditar.tomo.startsWith('v') ? 'Tomo dentro del volumen' : 'Volumen dentro del tomo' }}</label>
-                  <input id="editar-parte" v-model="formEditar.parte" autocomplete="off" placeholder="II" :disabled="!formEditar.tomo.trim()" :aria-invalid="parteEditar === null" :class="[CAMPO, 'disabled:bg-gray-50', parteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">II</span> o <span class="font-mono">2</span> · solo si el tomo tiene varios</p>
+                  <label for="editar-parte" :class="ETIQUETA">Volumen</label>
+                  <input id="editar-parte" v-model="formEditar.parte" autocomplete="off" placeholder="2" :aria-invalid="volumenParteEditar === null" :class="[CAMPO, volumenParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> o <span class="font-mono">II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
                   <label for="editar-copia-num" :class="ETIQUETA">Copia</label>
-                  <input id="editar-copia-num" v-model="formEditar.copia" autocomplete="off" inputmode="numeric" placeholder="2" :disabled="!formEditar.tomo.trim()" :aria-invalid="!copiaEditarValida" :class="[CAMPO, 'disabled:bg-gray-50', !copiaEditarValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacío en la primera (va sin «c.»)</p>
+                  <input id="editar-copia-num" v-model="formEditar.copia" autocomplete="off" inputmode="numeric" placeholder="2" :aria-invalid="!copiaEditarValida" :class="[CAMPO, !copiaEditarValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacía = sin número de copia</p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="editar-otra" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no es un tomo)</span></label>
-                  <input id="editar-otra" v-model="formEditar.otra" autocomplete="off" :disabled="!!formEditar.tomo.trim()" placeholder="Ej: Anexo · Atlas · Año IV No. 4 (Jul.-Aug., 1985)" :class="[CAMPO, 'disabled:bg-gray-50']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es un tomo, como el número de una revista. Con tomo, se deja vacía.</p>
+                  <label for="editar-otra" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo ni volumen)</span></label>
+                  <input id="editar-otra" v-model="formEditar.otra" autocomplete="off" :disabled="!!(formEditar.tomo.trim() || formEditar.parte.trim())" placeholder="Ej: Ficha · Cuadernillo · Anexo · Año IV No. 4 (Jul.-Aug., 1985)" :class="[CAMPO, 'disabled:bg-gray-50']" />
+                  <p class="mt-1 text-[11px] text-gray-500">Para lo que no es tomo ni volumen, como un anexo o el número de una revista. Con tomo o volumen, se deja vacía.</p>
                 </div>
                 <p v-if="!edicionValida" class="text-[11px] font-semibold text-red-700 sm:col-span-6">
-                  Hay algo que no se reconoce: el tomo va como «t.1», el volumen como «II» o «2» y la copia como «2».
+                  Hay algo que no se reconoce: el tomo va como «1», el volumen como «2» o «II» y la copia como «2».
                 </p>
                 <div class="sm:col-span-6">
                   <label for="editar-coleccion" :class="ETIQUETA">Colección de la copia</label>

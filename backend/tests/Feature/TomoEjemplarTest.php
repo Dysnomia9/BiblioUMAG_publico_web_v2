@@ -163,4 +163,21 @@ class TomoEjemplarTest extends TestCase
         $agregar(['codigo_barras' => '30000000999005', 'tomo' => 't.2', 'copia' => 3])->assertCreated();
         $agregar(['codigo_barras' => '30000000999006', 'copia' => 2])->assertStatus(422);
     }
+
+    public function test_solo_volumen_y_designacion_con_copia_al_editar(): void
+    {
+        \Laravel\Sanctum\Sanctum::actingAs(\App\Models\Staff::factory()->admin()->create());
+        $libro = \App\Models\Libro::factory()->create();
+        // Solo volumen, sin tomo
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000000777101', 'tomo' => 'v.2', 'copia' => null])
+            ->assertCreated()->assertJsonPath('tomo', 'v.2')->assertJsonPath('volumen', 'v.2');
+        $copia = \App\Models\Ejemplar::factory()->for($libro)->create(['volumen' => 'Cuadernillo', 'copia_tomo' => 1]);
+
+        // Otra designación con su copia: no se pierde
+        $this->patchJson("/api/ejemplares/{$copia->id}", ['volumen' => 'Cuadernillo c.1'])->assertOk()->assertJsonPath('etiqueta_copia', 'c.1');
+        // Solo la copia: sin designación
+        $this->patchJson("/api/ejemplares/{$copia->id}", ['volumen' => 'c.3'])->assertOk()->assertJsonPath('volumen', null)->assertJsonPath('etiqueta_copia', 'c.3');
+        // Tomo y volumen
+        $this->patchJson("/api/ejemplares/{$copia->id}", ['volumen' => 't.1-v.II c.2'])->assertOk()->assertJsonPath('tomo', 't.1-v.II')->assertJsonPath('etiqueta_copia', 'c.2');
+    }
 }

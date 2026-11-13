@@ -162,6 +162,14 @@ class EjemplarController extends Controller
         // Si se corrige el volumen a mano, el tomo y la copia del tomo lo siguen.
         if (array_key_exists('volumen', $data)) {
             [$data['tomo'], $data['copia_tomo']] = TomoEjemplar::desdeEtiqueta($data['volumen']);
+            $texto = trim((string) $data['volumen']);
+            if ($data['tomo'] === null && preg_match('/^c\.?\s*(\d{1,4})\.?$/iu', $texto, $m)) {
+                // Solo el número de copia («c.2»): sin designación
+                [$data['volumen'], $data['copia_tomo']] = [null, (int) $m[1]];
+            } elseif ($data['tomo'] === null && preg_match('/[\s\-,;\/]c\.?\s*(\d{1,4})\.?$/iu', $texto, $m)) {
+                // Otra designación con su copia («Cuadernillo-c.1», «Anexo c.2»), como en Horizon
+                $data['copia_tomo'] = (int) $m[1];
+            }
         }
 
         $antes = $ejemplar->only(array_keys($data));
