@@ -1870,8 +1870,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <p class="mt-0.5 text-[13px] leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
               </div>
             </div>
-              <span>Antes de entregar la llave, verifique que estén sus integrantes: si alguien no vino o se sumó otra persona, pulse <strong class="text-gray-800">Modificar</strong>.</span>
-            </p>
             <div>
               <div class="mb-2 flex items-center justify-between gap-3">
                 <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ llegadaPendiente.personas.length }})</p>
