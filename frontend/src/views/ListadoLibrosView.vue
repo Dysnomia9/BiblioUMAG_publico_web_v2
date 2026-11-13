@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
-import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import DialogoEditarFicha from '@/components/libros/DialogoEditarFicha.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import EditarCopia from '@/components/libros/EditarCopia.vue'
 import FasciculosRevista from '@/components/libros/FasciculosRevista.vue'
@@ -869,18 +869,6 @@ function copiaGuardada(actualizada: Ejemplar) {
       @guardada="copiaGuardada"
     />
 
-    <DialogoConfirmacion
-      :abierto="!!libroAEditar"
-      titulo="¿Editar esta ficha?"
-      confirmar="Sí, editar"
-      @confirmar="irAEditar"
-      @cancelar="libroAEditar = null"
-    >
-      <p>
-        Se abrirá Catalogación con <strong class="text-gray-900">{{ libroAEditar?.titulo }}</strong> cargado para corregirlo. Los cambios se guardan
-        recién al pulsar «Guardar cambios».
-      </p>
-      <p class="mt-2 text-xs text-gray-500">Para abrirla en otra pestaña sin esta pregunta: Cmd/Ctrl + clic en «Editar», o «Editar en otra pestaña» en el menú ⋯.</p>
-    </DialogoConfirmacion>
+    <DialogoEditarFicha :titulo="libroAEditar?.titulo ?? null" @confirmar="irAEditar" @cancelar="libroAEditar = null" />
   </StaffLayout>
 </template>
