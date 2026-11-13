@@ -496,7 +496,7 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
 // formulario de siempre con la misma sala y todos sus RUT ya puestos, desde que termina su
 // bloque (para extenderlo) o desde ahora si ya terminó. La hora y la duración se eligen como
 // en una reserva nueva, y el servidor revisa lo de siempre (que esté libre, el máximo y la cuota).
-const renovacionDe = ref<{ tramo: TramoReserva } | null>(null)
+const renovacionDe = ref<{ tramo: TramoReserva; aviso: string | null } | null>(null)
 /** La hora (de Punta Arenas) de una llegada o devolución registrada: «08:02». */
 const horaReal = (momento: string) => enPuntaArenas(new Date(momento)).hora
 watch(modalOpen, (abierto) => {
@@ -509,11 +509,18 @@ function renovar(sala: Sala, tramo: TramoReserva) {
   }
   const finMin = timeToMinutes(tramo.hora_fin)
   const sigueEnUso = !tramo.hora_devolucion_real && finMin > ahoraMin.value
-  const inicio: number | typeof AHORA = sigueEnUso ? finMin : libreDesdeAhora(sala) ? AHORA : ahoraMin.value
+  let inicio: number | typeof AHORA = sigueEnUso ? finMin : libreDesdeAhora(sala) ? AHORA : ahoraMin.value
   const desdeMin = inicio === AHORA ? ahoraMin.value : inicio
+  // Si el bloque siguiente está ocupado, igual se abre: se propone la primera hora libre y se avisa
+  let aviso: string | null = null
   if (disponibilidadDesde(sala, desdeMin) < duracionMinima.value) {
-    toast.error(`${sala.nombre} no tiene un bloque libre desde las ${minutesToTime(desdeMin)}: elija otra hora en la línea de tiempo o haga una reserva nueva en otra sala.`)
-    return
+    const libre = primeraHoraLibre(sala, desdeMin)
+    if (libre === null) {
+      toast.error(`${sala.nombre} no tiene más bloques libres hoy desde las ${minutesToTime(desdeMin)}: haga una reserva nueva en otra sala.`)
+      return
+    }
+    inicio = libre
+    aviso = `Desde las ${minutesToTime(desdeMin)} la sala está ocupada: se propone desde las ${minutesToTime(libre)}. Ajuste la hora mirando la tira de abajo.`
   }
   detalleOpen.value = false
   abrirModalProgramado(sala, inicio)
@@ -521,7 +528,49 @@ function renovar(sala: Sala, tramo: TramoReserva) {
   cantidadPersonas.value = Math.max(ruts.length, minimoDe(sala))
   rutsReserva.value = [...ruts, ...Array.from({ length: Math.max(0, cantidadPersonas.value - ruts.length) }, () => '')]
   reiniciarModos(rutsReserva.value.map((r) => (r ? modoSegunValor(r) : 'rut')))
-  renovacionDe.value = { tramo }
+  renovacionDe.value = { tramo, aviso }
+}
+
+/** La primera hora (en bloques de la grilla) desde la que la sala queda libre al menos el mínimo, o null. */
+function primeraHoraLibre(sala: Sala, desdeMin: number): number | null {
+  for (let m = Math.ceil(desdeMin / granularidad.value) * granularidad.value; m <= cierraMin.value - duracionMinima.value; m += granularidad.value) {
+    if (disponibilidadDesde(sala, m) >= duracionMinima.value) return m
+  }
+  return null
+}
+
+// ---------- Tira de disponibilidad en el formulario de reserva ----------
+// La sala elegida, ese día: lo libre en verde, lo ocupado, lo que ya pasó y el bloque que se
+// está eligiendo. Un clic en lo libre elige esa hora de inicio, para no adivinar.
+function elegirEnTira(evento: MouseEvent) {
+  const sala = selectedSala.value
+  if (!sala) return
+  const rect = (evento.currentTarget as HTMLElement).getBoundingClientRect()
+  const minuto = aperturaMin.value + ((evento.clientX - rect.left) / rect.width) * totalMin.value
+  const bloqueActual = Math.floor(ahoraMin.value / granularidad.value) * granularidad.value
+  if (esHoy.value && minuto >= bloqueActual && minuto < bloqueActual + granularidad.value && libreDesdeAhora(sala)) {
+    abrirInicioEn(sala, AHORA)
+    return
+  }
+  const bloque = Math.floor(minuto / granularidad.value) * granularidad.value
+  const inicio = [bloque, bloque + granularidad.value]
+    .filter((m) => puedeHoraPasada.value || !esHoy.value || m >= ahoraMin.value)
+    .find((m) => m <= cierraMin.value - duracionMinima.value && disponibilidadDesde(sala, m) >= duracionMinima.value)
+  if (inicio === undefined) {
+    toast.error('Esa hora no está libre: elija un espacio verde de la tira.')
+    return
+  }
+  abrirInicioEn(sala, inicio)
+}
+/** Cambia la hora de inicio del formulario (sin tocar el grupo) y ajusta la duración a lo libre. */
+function abrirInicioEn(sala: Sala, inicio: number | typeof AHORA) {
+  inicioAMano.value = false
+  modalHoraInicioEscrita.value = ''
+  modalHoraInicio.value = inicio === AHORA ? AHORA : minutesToTime(inicio)
+  const disponibles = DURACIONES.filter((d) => d >= duracionMinima.value && d <= disponibilidadDesde(sala, modalInicioMin.value))
+  modalHoraFin.value = ''
+  terminoAMano.value = false
+  modalDuracion.value = disponibles.length ? disponibles[disponibles.length - 1] : duracionMinima.value
 }
 
 function onTimelineClick(sala: Sala, event: MouseEvent) {
@@ -1353,6 +1402,9 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   </p>
                 </div>
               </div>
+              <p v-if="renovacionDe.aviso" class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                {{ renovacionDe.aviso }}
+              </p>
               <p class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
                 Sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
                 Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista.
@@ -1422,6 +1474,56 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <span class="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-px text-[11px] font-semibold text-emerald-700">Libre {{ formatMinutos(modalDisponibleMin) }} desde {{ textoInicioModal }}</span>
                 </p>
               </template>
+
+              <!-- La disponibilidad de la sala ese día, para elegir la hora sin adivinar -->
+              <div class="mt-3 border-t border-gray-200 pt-3">
+                <p class="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 text-[11px] font-semibold text-gray-700">
+                  <span>Disponibilidad de {{ selectedSala.codigo || selectedSala.nombre }} {{ esHoy ? 'hoy' : 'ese día' }}</span>
+                  <span class="font-normal text-gray-500">Clic en lo verde para elegir la hora</span>
+                </p>
+                <div class="relative h-3.5 text-[9px] font-medium text-gray-400" aria-hidden="true">
+                  <span v-for="h in horasRotuladas" :key="h" class="absolute -translate-x-1/2" :style="{ left: pct(`${h}:00`) + '%' }">{{ String(h).padStart(2, '0') }}</span>
+                </div>
+                <div
+                  class="relative h-8 cursor-pointer overflow-hidden rounded-md border border-emerald-200 bg-emerald-100/70"
+                  role="img"
+                  :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
+                  @click="elegirEnTira($event)"
+                >
+                  <div
+                    v-for="h in horasIntermedias"
+                    :key="h"
+                    class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10"
+                    :style="{ left: pct(`${h}:00`) + '%' }"
+                  />
+                  <div v-if="pctPasado > 0" class="franja-pasada pointer-events-none absolute inset-y-0 left-0" :style="{ width: pctPasado + '%' }" />
+                  <div v-if="pctTrasCierre > 0" class="franja-pasada pointer-events-none absolute inset-y-0 right-0" :style="{ width: pctTrasCierre + '%' }" />
+                  <div
+                    v-for="t in selectedSala.tramos.filter((x) => posicionTramo(x.hora_inicio, x.hora_fin).visible)"
+                    :key="t.reserva_id"
+                    class="pointer-events-none absolute inset-y-1 flex items-center justify-center overflow-hidden rounded border text-[9px] font-semibold"
+                    :class="renovacionDe?.tramo.reserva_id === t.reserva_id ? 'border-violet-400 bg-violet-200 text-violet-900' : 'border-rose-300 bg-rose-200/90 text-rose-900'"
+                    :style="{ left: posicionTramo(t.hora_inicio, t.hora_fin).izquierda + '%', width: posicionTramo(t.hora_inicio, t.hora_fin).ancho + '%' }"
+                    :title="`Ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`"
+                  >
+                    <span v-if="posicionTramo(t.hora_inicio, t.hora_fin).ancho >= 10">{{ t.hora_inicio.slice(0, 5) }}–{{ t.hora_fin.slice(0, 5) }}</span>
+                  </div>
+                  <!-- El bloque que se está eligiendo -->
+                  <div
+                    v-if="!errorInicio && modalFinMin > modalInicioMin"
+                    class="pointer-events-none absolute inset-y-0 rounded border-2 border-indigo-600 bg-indigo-500/20"
+                    :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
+                  />
+                  <div v-if="esHoy && !diaCerrado" class="pointer-events-none absolute inset-y-0 w-[2px] bg-indigo-700" :style="{ left: nowPct + '%' }" />
+                </div>
+                <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre</span>
+                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
+                  <span v-if="renovacionDe" class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200"></span> Préstamo anterior</span>
+                  <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border-2 border-indigo-600 bg-indigo-500/20"></span> Su reserva</span>
+                  <span class="flex items-center gap-1"><span class="franja-pasada h-2.5 w-2.5 rounded-sm border border-slate-200"></span> Ya pasó o cerrado</span>
+                </div>
+              </div>
             </div>
             <p v-if="modalEsAhora" class="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
               El grupo está en el mesón: la reserva parte en este minuto, dura lo que elija (hasta {{ formatMinutos(duracionMaxima) }}) y queda con la
