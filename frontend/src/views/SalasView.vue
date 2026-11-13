@@ -1606,25 +1606,76 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         @click.self="detalleOpen = false"
       >
-        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
-          <div class="shrink-0 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
-            <h3 class="flex flex-wrap items-center gap-2 font-serif text-lg font-bold leading-snug text-gray-900">
-              {{ detalleSala.nombre }}
-              <span class="rounded border px-1.5 py-px font-sans text-[10px] font-bold uppercase tracking-widest" :class="estadoDetalle(detalleTramo).clase">{{ estadoDetalle(detalleTramo).texto }}</span>
-            </h3>
-            <p class="mt-0.5 text-sm text-gray-500">
-              {{ labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }} · {{ detalleTramo.cantidad_personas }} {{ detalleTramo.cantidad_personas === 1 ? 'persona' : 'personas' }} · {{ formatFechaLarga(selectedDate) }}
-            </p>
+        <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <!-- Encabezado: estado, sala y el horario bien visible a la derecha -->
+          <div
+            class="relative shrink-0 overflow-hidden px-5 pb-4 pt-3.5 text-white"
+            style="background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 35%, #4338CA 65%, #4F46E5 100%);"
+          >
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/90">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {{ estadoDetalle(detalleTramo).texto }}
+            </span>
+            <div class="mt-2.5 flex flex-wrap items-end justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="truncate font-serif text-2xl font-bold leading-tight">{{ detalleSala.nombre }}</h3>
+                <p class="mt-0.5 text-sm text-white/80 first-letter:uppercase">
+                  {{ selectedDate === hoy ? 'Hoy' : formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(detalleTramo.hora_fin) - timeToMinutes(detalleTramo.hora_inicio)) }} · {{ detalleTramo.cantidad_personas }} {{ detalleTramo.cantidad_personas === 1 ? 'persona' : 'personas' }}
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                <div class="text-center">
+                  <p class="text-[9px] font-bold uppercase tracking-widest text-white/70">Desde</p>
+                  <p class="font-mono text-lg font-bold leading-tight">{{ detalleTramo.hora_inicio.slice(0, 5) }}</p>
+                </div>
+                <svg class="h-3.5 w-3.5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                <div class="text-center">
+                  <p class="text-[9px] font-bold uppercase tracking-widest text-white/70">Hasta</p>
+                  <p class="font-mono text-lg font-bold leading-tight">{{ detalleTramo.hora_fin.slice(0, 5) }}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="space-y-3.5 overflow-y-auto px-5 py-4">
+            <!-- Reservada y esperando al grupo: lo primero que se ve, con qué hacer cuando lleguen. -->
+            <div
+              v-if="!detalleTramo.hora_prestamo_real && !detalleTramo.hora_devolucion_real"
+              class="flex items-center gap-3 rounded-xl border px-3.5 py-2.5"
+              :class="detalleTramo.vencida_sin_confirmar ? 'border-red-200 bg-red-50' : 'border-indigo-100 bg-indigo-50/60'"
+            >
+              <span
+                class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1"
+                :class="detalleTramo.vencida_sin_confirmar ? 'text-red-600 ring-red-200' : 'text-indigo-600 ring-indigo-200'"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span v-if="!detalleTramo.vencida_sin_confirmar" class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true"></span>
+              </span>
+              <div class="min-w-0">
+                <p class="text-sm font-bold" :class="detalleTramo.vencida_sin_confirmar ? 'text-red-800' : 'text-indigo-900'">
+                  {{ detalleTramo.vencida_sin_confirmar ? 'Llegada sin confirmar' : 'Esperando llegada del grupo' }}
+                </p>
+                <p class="text-xs" :class="detalleTramo.vencida_sin_confirmar ? 'text-red-700' : 'text-gray-600'">
+                  <template v-if="detalleTramo.vencida_sin_confirmar">Venció el plazo sin confirmar la llegada.</template>
+                  <template v-else-if="selectedDate === hoy">Cuando el grupo llegue, pulse <strong class="text-gray-900">Confirmar llegada</strong>.</template>
+                  <template v-else>La llegada se confirma el día de la reserva.</template>
+                </p>
+              </div>
+            </div>
             <div>
               <div class="mb-2 flex items-center justify-between gap-3">
-                <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ detalleTramo.personas?.length ?? 0 }})</p>
+                <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-600">
+                  Integrantes
+                  <span class="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] tabular-nums text-indigo-700">{{ detalleTramo.personas?.length ?? 0 }}</span>
+                </p>
                 <button
                   v-if="integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
                   @click="editandoIntegrantesDetalle = true"
-                  class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                  class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
                 >
                   <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
@@ -1640,13 +1691,22 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 @guardado="integrantesGuardados"
                 @cancelar="editandoIntegrantesDetalle = false"
               />
-              <ul v-else class="space-y-2">
-                <li v-for="(persona, idx) in detalleTramo.personas ?? []" :key="idx" :class="FILA_INTEGRANTE">
-                  <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-indigo-50 text-[11px] font-bold text-indigo-700">{{ idx + 1 }}</span>
-                  <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{{ persona.nombre ?? 'Sin registro en el sistema' }}</span>
-                  <span class="shrink-0 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{{ persona.rut }}</span>
+              <!-- Cada integrante: el número, el nombre y abajo su documento (RUT u otro: pasaporte o DNI) -->
+              <ul v-else class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50">
+                <li v-for="(persona, idx) in detalleTramo.personas ?? []" :key="idx" class="flex items-center gap-3 px-3 py-2">
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-indigo-700 ring-1 ring-indigo-200">{{ idx + 1 }}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-gray-900" :class="!persona.nombre && 'italic text-gray-500'">{{ persona.nombre ?? 'Sin registro en el sistema' }}</p>
+                    <p class="flex items-center gap-1.5">
+                      <span
+                        class="rounded px-1 py-px text-[9px] font-bold uppercase tracking-wider"
+                        :class="modoSegunValor(persona.rut) === 'rut' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'"
+                      >{{ modoSegunValor(persona.rut) === 'rut' ? 'RUT' : 'Otro' }}</span>
+                      <span class="font-mono text-xs text-gray-600">{{ persona.rut }}</span>
+                    </p>
+                  </div>
                 </li>
-                <li v-if="!detalleTramo.personas?.length" class="text-sm text-gray-400">Sin integrantes registrados.</li>
+                <li v-if="!detalleTramo.personas?.length" class="px-3 py-2 text-sm text-gray-400">Sin integrantes registrados.</li>
               </ul>
             </div>
 
@@ -1678,22 +1738,9 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 Liberar el resto del bloque · {{ duracion(detalleTramo.tiempo_sin_usar.minutos) }} sin usar
               </button>
             </div>
-            <!-- Reservada y esperando al grupo: qué falta, en una línea. -->
-            <p
-              v-else-if="!detalleTramo.hora_prestamo_real"
-              class="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
-              :class="detalleTramo.vencida_sin_confirmar ? 'border-red-200 bg-red-50 text-red-700' : 'border-indigo-100 bg-indigo-50/60 text-indigo-900'"
-            >
-              <svg class="mt-px h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3.500 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span v-if="detalleTramo.vencida_sin_confirmar">Venció el plazo sin confirmar la llegada.</span>
-              <span v-else-if="selectedDate === hoy">Sala reservada para este bloque. Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong>.</span>
-              <span v-else>Sala reservada para este bloque. La llegada se confirma el día de la reserva.</span>
-            </p>
           </div>
 
-          <div class="flex shrink-0 flex-wrap gap-2 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+          <div class="flex shrink-0 flex-wrap gap-2 border-t border-gray-100 bg-white px-5 py-3">
             <button @click="detalleOpen = false" :class="BOTON_CANCELAR" class="!flex-none">Cerrar</button>
             <!-- Renovación: el mismo grupo otra vez (extender el bloque o volver a usar la sala), sin escribir los RUT -->
             <button
@@ -1723,7 +1770,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   Cancelar reserva
                 </button>
                 <template v-if="!detalleTramo.hora_prestamo_real">
-                  <button v-if="selectedDate === hoy" @click="pedirLlegada(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
+                  <button v-if="selectedDate === hoy" @click="pedirLlegada(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                     Confirmar llegada
                   </button>
                 </template>
