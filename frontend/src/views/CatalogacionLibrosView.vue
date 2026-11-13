@@ -2130,11 +2130,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Vacía, vale la colección del libro.</p>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
+                  <label for="copia-nota-publica" :class="ETIQUETA"><Marc codigo="852 $z" tono="violeta" /> Nota pública de la copia (la ve el usuario en el portal)</label>
                   <textarea id="copia-nota-publica" v-model="formCopia.nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="copia-nota-interna" :class="ETIQUETA">Nota interna de la copia (solo la ve el personal)</label>
+                  <label for="copia-nota-interna" :class="ETIQUETA"><Marc codigo="852 $x" tono="violeta" /> Nota interna de la copia (solo la ve el personal)</label>
                   <textarea id="copia-nota-interna" v-model="formCopia.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
                 </div>
               </div>
@@ -2285,11 +2285,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <input id="editar-registro" v-model="formEditar.numero_registro" autocomplete="off" maxlength="50" inputmode="numeric" placeholder="Ej: 30727" :class="CAMPO" />
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="editar-nota-publica" :class="ETIQUETA">Nota pública de la copia (la ve el usuario en el portal)</label>
+                  <label for="editar-nota-publica" :class="ETIQUETA"><Marc codigo="852 $z" tono="violeta" /> Nota pública de la copia (la ve el usuario en el portal)</label>
                   <textarea id="editar-nota-publica" v-model="formEditar.nota_publica" rows="2" placeholder="Ej: Incluye CD · se ve en el portal" :class="CAMPO"></textarea>
                 </div>
                 <div class="sm:col-span-6">
-                  <label for="editar-nota-interna" :class="ETIQUETA">Nota interna de la copia (solo la ve el personal)</label>
+                  <label for="editar-nota-interna" :class="ETIQUETA"><Marc codigo="852 $x" tono="violeta" /> Nota interna de la copia (solo la ve el personal)</label>
                   <textarea id="editar-nota-interna" v-model="formEditar.nota_interna" rows="2" placeholder="Solo la ve el personal" :class="CAMPO"></textarea>
                 </div>
                 <p class="text-[11px] text-gray-500 sm:col-span-6">

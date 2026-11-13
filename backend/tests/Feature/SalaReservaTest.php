@@ -142,6 +142,32 @@ class SalaReservaTest extends TestCase
         $response->assertStatus(201);
     }
 
+    /** Excepción del mesón: con el permiso salas.solapar, una persona puede quedar en dos salas a la misma hora, confirmándolo. */
+    public function test_en_el_meson_se_puede_autorizar_a_una_persona_en_dos_salas_a_la_misma_hora(): void
+    {
+        $salaA = Sala::factory()->create();
+        $salaB = Sala::factory()->create();
+        $compartido = Usuario::factory()->create();
+        $otro = Usuario::factory()->create();
+        $tercero = Usuario::factory()->create();
+        Reserva::factory()->conParticipantes([$compartido, $otro])->create([
+            'sala_id' => $salaA->id, 'fecha' => '2026-07-10', 'hora_inicio' => '15:00', 'hora_fin' => '17:00',
+            'cantidad_personas' => 2, 'hora_prestamo_real' => '2026-07-10 15:02:00',
+        ]);
+        $pedido = ['sala_id' => $salaB->id, 'fecha' => '2026-07-10', 'hora_inicio' => '16:00', 'hora_fin' => '17:00', 'cantidad_personas' => 2, 'ruts' => [$compartido->rut, $tercero->rut]];
+
+        // Sin el permiso: no, y el aviso dice que no lo puede saltar (aunque lo pida)
+        Sanctum::actingAs(Staff::factory()->create());
+        $this->postJson('/api/reservas', [...$pedido, 'permitir_solape' => true])->assertStatus(409)
+            ->assertJsonPath('codigo', 'solape')->assertJsonPath('puede_saltar', false)->assertJsonPath('rut', $compartido->rut);
+
+        // Con el permiso (acceso total): primero avisa, y confirmado, reserva y queda en la bitácora
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $this->postJson('/api/reservas', $pedido)->assertStatus(409)->assertJsonPath('puede_saltar', true);
+        $this->postJson('/api/reservas', [...$pedido, 'permitir_solape' => true])->assertStatus(201);
+        $this->assertTrue(\Illuminate\Support\Facades\DB::table('bitacora')->where('accion', 'salas.reservar')->where('descripcion', 'like', "%excepción: el RUT {$compartido->rut} ya tenía otra sala a esa hora%")->exists());
+    }
+
     /** Renovación en el mesón: el mismo grupo, en la misma sala, justo cuando termina su bloque (en uso). */
     public function test_renovacion_del_mismo_grupo_en_la_misma_sala_al_terminar_su_bloque(): void
     {
@@ -183,6 +209,8 @@ class SalaReservaTest extends TestCase
     /** R6: una reserva 'finalizada' (llave ya devuelta) sí consume cuota diaria — a diferencia de la vieja regla de "límite de bloques", que la excluía por completo. */
     public function test_reserva_finalizada_cuenta_para_la_cuota_diaria(): void
     {
+        // La regla con una cuota de 4 h (la de la biblioteca es 12 h: config/salas.php)
+        config(['salas.cuota_diaria' => 240]);
         Sanctum::actingAs(Staff::factory()->create());
 
         $salaVieja = Sala::factory()->create();

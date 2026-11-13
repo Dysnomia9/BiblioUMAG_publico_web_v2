@@ -229,6 +229,8 @@ class SalaController extends Controller
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
             'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
             'inmediata' => ['sometimes', 'boolean'],
+            // Excepción del mesón (permiso salas.solapar): reservar aunque alguien ya tenga otra sala a esa hora
+            'permitir_solape' => ['sometimes', 'boolean'],
             'duracion' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1440'],
             'ruts' => ['required', 'array'],
             'ruts.*' => ['required', 'string'],
@@ -289,8 +291,17 @@ class SalaController extends Controller
                 $data['hora_fin'],
             );
 
-            if ($rutConflicto) {
-                return response()->json(['message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario"], 409);
+            // Excepción del mesón: quien tiene «Una persona en dos salas a la vez» puede reservar
+            // igual, confirmándolo (permitir_solape). Queda en la bitácora. El portal nunca.
+            $puedeSolapar = $request->user()->puede('salas.solapar');
+            $solapeAutorizado = $rutConflicto && $puedeSolapar && ($data['permitir_solape'] ?? false);
+            if ($rutConflicto && ! $solapeAutorizado) {
+                return response()->json([
+                    'message' => "El RUT {$rutConflicto} ya tiene otra sala reservada en ese horario",
+                    'codigo' => 'solape',
+                    'rut' => $rutConflicto,
+                    'puede_saltar' => $puedeSolapar,
+                ], 409);
             }
 
             $excedeCuota = $this->reservaSalaService->participanteExcedeCuotaDiaria(
@@ -319,9 +330,10 @@ class SalaController extends Controller
 
             Bitacora::registrar(
                 'salas.reservar',
-                "Reservó {$reserva->descripcion()} para {$reserva->cantidad_personas} personas",
+                "Reservó {$reserva->descripcion()} para {$reserva->cantidad_personas} personas"
+                    .($solapeAutorizado ? " (excepción: el RUT {$rutConflicto} ya tenía otra sala a esa hora)" : ''),
                 entidad: $reserva,
-                datos: ['integrantes' => $data['ruts']],
+                datos: ['integrantes' => $data['ruts'], ...($solapeAutorizado ? ['solape_autorizado' => $rutConflicto] : [])],
                 afectado: $usuarios[$data['ruts'][0]],
             );
 

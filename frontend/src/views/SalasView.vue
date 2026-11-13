@@ -497,6 +497,8 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
 // bloque (para extenderlo) o desde ahora si ya terminó. La hora y la duración se eligen como
 // en una reserva nueva, y el servidor revisa lo de siempre (que esté libre, el máximo y la cuota).
 const renovacionDe = ref<{ tramo: TramoReserva } | null>(null)
+/** La hora (de Punta Arenas) de una llegada o devolución registrada: «08:02». */
+const horaReal = (momento: string) => enPuntaArenas(new Date(momento)).hora
 watch(modalOpen, (abierto) => {
   if (!abierto) renovacionDe.value = null
 })
@@ -619,7 +621,15 @@ function tramoClases(tramo: TramoReserva): string {
   return 'bg-amber-100 border-amber-300 text-amber-700'
 }
 
-async function confirmarReserva() {
+// Excepción del mesón (permiso «Una persona en dos salas a la vez»): si alguien del grupo ya
+// tiene otra sala a esa hora, el servidor lo avisa y quien tiene el permiso puede confirmarlo.
+const solapePendiente = ref<{ rut: string; mensaje: string } | null>(null)
+function autorizarSolape() {
+  solapePendiente.value = null
+  confirmarReserva(true)
+}
+
+async function confirmarReserva(permitirSolape = false) {
   if (rutsReserva.value.some((r) => !r.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
     return
@@ -648,6 +658,7 @@ async function confirmarReserva() {
       // Desde ahora, el servidor pone el inicio con su propia hora, y el término también si se
       // eligió una duración (con una hora de término escrita, es esa).
       ...(modalEsAhora.value ? { inmediata: true, ...(terminoAMano.value ? {} : { duracion: modalDuracion.value }) } : {}),
+      ...(permitirSolape ? { permitir_solape: true } : {}),
     })
     const tramo = labelTramo(data.hora_inicio.slice(0, 5), data.hora_fin.slice(0, 5))
     if (data.hora_prestamo_real) {
@@ -658,7 +669,12 @@ async function confirmarReserva() {
     modalOpen.value = false
     await cargar()
   } catch (e: any) {
-    const errores = e?.response?.data?.errors as Record<string, string[]> | undefined
+    const respuesta = e?.response?.data
+    if (e?.response?.status === 409 && respuesta?.codigo === 'solape' && respuesta?.puede_saltar) {
+      solapePendiente.value = { rut: respuesta.rut, mensaje: respuesta.message }
+      return
+    }
+    const errores = respuesta?.errors as Record<string, string[]> | undefined
     const erroresRuts = Object.entries(errores ?? {}).filter(([campo]) => campo.startsWith('ruts.'))
 
     if (erroresRuts.length) {
@@ -1320,12 +1336,28 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           </div>
 
           <div class="space-y-3.5 overflow-y-auto px-5 py-4">
-            <!-- Renovación: el grupo ya está puesto; solo se elige la hora -->
-            <p v-if="renovacionDe" class="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs leading-relaxed text-violet-900">
-              <strong>Renovación del grupo de las {{ renovacionDe.tramo.hora_inicio }}–{{ renovacionDe.tramo.hora_fin }}:</strong>
-              sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
-              Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista antes de reservar.
-            </p>
+            <!-- Renovación: el préstamo anterior a la vista; el grupo ya está puesto, solo se elige la hora -->
+            <div v-if="renovacionDe" class="overflow-hidden rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white shadow-sm">
+              <p class="flex items-center gap-1.5 border-b border-violet-100 bg-violet-50/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-violet-700">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                Préstamo anterior
+              </p>
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5">
+                <p class="font-mono text-xl font-bold tabular-nums text-violet-950">
+                  {{ renovacionDe.tramo.hora_inicio }} <span class="font-sans text-sm font-semibold text-violet-400">a</span> {{ renovacionDe.tramo.hora_fin }}
+                </p>
+                <div class="text-xs leading-relaxed text-gray-600">
+                  <p>{{ selectedSala.nombre }} · {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'persona' : 'personas' }}</p>
+                  <p v-if="renovacionDe.tramo.hora_prestamo_real">
+                    Llegaron a las {{ horaReal(renovacionDe.tramo.hora_prestamo_real) }}<template v-if="renovacionDe.tramo.hora_devolucion_real"> · devolvieron la llave a las {{ horaReal(renovacionDe.tramo.hora_devolucion_real) }}</template><template v-else> · siguen en la sala</template>
+                  </p>
+                </div>
+              </div>
+              <p class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
+                Sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
+                Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista.
+              </p>
+            </div>
             <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
               <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -1436,7 +1468,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
 
           <div class="flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
             <button @click="modalOpen = false" :class="BOTON_CANCELAR">Cancelar</button>
-            <button @click="confirmarReserva" :disabled="!puedeConfirmarReserva" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
+            <button @click="confirmarReserva()" :disabled="!puedeConfirmarReserva" :class="BOTON_PRINCIPAL" class="bg-indigo-600 hover:bg-indigo-700">
               Confirmar
             </button>
           </div>
@@ -1599,6 +1631,32 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <button @click="confirmarLiberacion" :disabled="liberando !== null" :class="BOTON_PRINCIPAL" class="bg-red-600 hover:bg-red-700">
               {{ liberando !== null ? 'Liberando…' : 'Sí, liberar' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Excepción del mesón: alguien del grupo ya está en otra sala a esa hora -->
+      <div
+        v-if="solapePendiente"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+        @click.self="solapePendiente = null"
+      >
+        <div class="w-full max-w-md overflow-hidden rounded-2xl border-t-[3px] border-t-amber-500 bg-white shadow-2xl">
+          <div class="border-b border-gray-100 bg-amber-50/60 px-5 pb-3 pt-4">
+            <h3 class="font-serif text-lg font-bold text-gray-900">¿Reservar igual?</h3>
+          </div>
+          <div class="space-y-3 px-5 py-4 text-sm text-gray-600">
+            <p>
+              El RUT <strong class="font-mono text-gray-900">{{ solapePendiente.rut }}</strong> ya tiene <strong class="text-gray-900">otra sala reservada a esa misma hora</strong>.
+            </p>
+            <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+              Como excepción del mesón, puede reservar igual: esa persona quedará en las dos salas a la vez. Queda registrado en la bitácora con su nombre.
+              Desde el portal nunca se permite.
+            </p>
+          </div>
+          <div class="flex gap-3 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+            <button @click="solapePendiente = null" :class="BOTON_CANCELAR">No, revisar el grupo</button>
+            <button @click="autorizarSolape" :class="BOTON_PRINCIPAL" class="bg-amber-600 hover:bg-amber-700">Sí, reservar igual</button>
           </div>
         </div>
       </div>

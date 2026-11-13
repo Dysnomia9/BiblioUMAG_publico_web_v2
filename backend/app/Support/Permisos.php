@@ -29,6 +29,7 @@ final class Permisos
                 'salas.gestionar' => ['Salas de estudio', 'Reservar salas y logias, confirmar la llegada del grupo, liberar y recibir la llave.'],
                 'salas.administracion' => ['Salas de la administración', 'Reservar y editar las salas que gestiona solo la administración (los seminarios, Cooperación y Moraga). No se prestan a estudiantes ni se reservan desde el portal.'],
                 'salas.hora_pasada' => ['Reservas en horas ya pasadas', 'Registrar después una reserva de sala que se atendió sin pasar por el sistema.'],
+                'salas.solapar' => ['Una persona en dos salas a la vez (solo mesón)', 'Reservar desde el mesón aunque alguien del grupo ya tenga otra sala a esa misma hora, como excepción: el sistema avisa y se confirma. En el portal nunca se puede.'],
                 'salas.sin_limite' => ['Reservas largas', 'Reservar una sala desde el panel por más tiempo que el máximo del portal (por ejemplo, todo el día), sin la cuota diaria por persona. El portal sigue con su máximo.'],
                 'reservas.editar' => ['Editar reservas de salas', 'Desde el Listado de reservas: cambiar la sala, el día o el horario de una reserva activa, corregir sus integrantes, cancelarla o registrar una devolución de llave que quedó pendiente.'],
                 'usuarios.ver' => ['Consultar usuarios', 'Ver el listado de usuarios y emitir la Constancia de No Multa.'],

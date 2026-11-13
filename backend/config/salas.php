@@ -17,7 +17,8 @@ return [
     'personas_maximas' => 6, // portal
     'personas_minimas_meson' => 1,
     'personas_maximas_meson' => 7,
-    'cuota_diaria' => 240, // minutos por participante y día
+    // Minutos por participante y día: 12 horas, en la práctica sin límite (la biblioteca abre unas 13)
+    'cuota_diaria' => 720,
     'minimo_para_liberar' => 5, // minutos sin usar desde los que, al devolver la llave antes, se ofrece liberar el resto del bloque
 
     // Cancelaciones desde el portal de quien hizo la reserva: las primeras del día no

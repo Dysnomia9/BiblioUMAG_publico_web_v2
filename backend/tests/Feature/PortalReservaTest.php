@@ -348,6 +348,8 @@ class PortalReservaTest extends TestCase
 
     public function test_usuario_no_puede_exceder_la_cuota_diaria(): void
     {
+        // La regla con una cuota de 4 h (la de la biblioteca es 12 h: config/salas.php)
+        config(['salas.cuota_diaria' => 240]);
         Carbon::setTestNow('2026-07-10 12:30:00');
         $usuario = Usuario::factory()->create();
         $otro = Usuario::factory()->create();
