@@ -142,6 +142,44 @@ class SalaReservaTest extends TestCase
         $response->assertStatus(201);
     }
 
+    /** Renovación en el mesón: el mismo grupo, en la misma sala, justo cuando termina su bloque (en uso). */
+    public function test_renovacion_del_mismo_grupo_en_la_misma_sala_al_terminar_su_bloque(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $sala = Sala::factory()->create();
+        $a = Usuario::factory()->create();
+        $b = Usuario::factory()->create();
+
+        Reserva::factory()->conParticipantes([$a, $b])->create([
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '15:00',
+            'hora_fin' => '16:00',
+            'cantidad_personas' => 2,
+            'hora_prestamo_real' => '2026-07-10 15:02:00',
+        ]);
+
+        $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '16:00',
+            'hora_fin' => '17:00',
+            'cantidad_personas' => 2,
+            'ruts' => [$a->rut, $b->rut],
+        ])->assertStatus(201);
+
+        // Encima de su propio bloque, no
+        $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '15:30',
+            'hora_fin' => '16:30',
+            'cantidad_personas' => 2,
+            'ruts' => [$a->rut, $b->rut],
+        ])->assertStatus(409);
+    }
+
     /** R6: una reserva 'finalizada' (llave ya devuelta) sí consume cuota diaria — a diferencia de la vieja regla de "límite de bloques", que la excluía por completo. */
     public function test_reserva_finalizada_cuenta_para_la_cuota_diaria(): void
     {

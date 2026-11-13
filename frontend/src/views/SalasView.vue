@@ -19,7 +19,7 @@ import { duracion, PERSONAS_MAXIMAS_MESON, PERSONAS_MINIMAS_MESON, textoMinutos 
 import { useToast } from '@/composables/useToast'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useHorarioSalas } from '@/composables/useHorarioSalas'
-import { largoSegunModo } from '@/utils/documento'
+import { largoSegunModo, modoSegunValor } from '@/utils/documento'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
 import type { AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TiempoSinUsar, TramoReserva } from '@/types'
@@ -491,6 +491,37 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
   modalOpen.value = true
 }
 
+// ---------- Renovación: el mismo grupo otra vez, sin volver a escribir los RUT ----------
+// Un grupo que usó la sala (o la está usando) vuelve al mesón y quiere seguir: se abre el
+// formulario de siempre con la misma sala y todos sus RUT ya puestos, desde que termina su
+// bloque (para extenderlo) o desde ahora si ya terminó. La hora y la duración se eligen como
+// en una reserva nueva, y el servidor revisa lo de siempre (que esté libre, el máximo y la cuota).
+const renovacionDe = ref<{ tramo: TramoReserva } | null>(null)
+watch(modalOpen, (abierto) => {
+  if (!abierto) renovacionDe.value = null
+})
+function renovar(sala: Sala, tramo: TramoReserva) {
+  if (diaCerrado.value) {
+    toast.error(textoDiaCerrado.value)
+    return
+  }
+  const finMin = timeToMinutes(tramo.hora_fin)
+  const sigueEnUso = !tramo.hora_devolucion_real && finMin > ahoraMin.value
+  const inicio: number | typeof AHORA = sigueEnUso ? finMin : libreDesdeAhora(sala) ? AHORA : ahoraMin.value
+  const desdeMin = inicio === AHORA ? ahoraMin.value : inicio
+  if (disponibilidadDesde(sala, desdeMin) < duracionMinima.value) {
+    toast.error(`${sala.nombre} no tiene un bloque libre desde las ${minutesToTime(desdeMin)}: elija otra hora en la línea de tiempo o haga una reserva nueva en otra sala.`)
+    return
+  }
+  detalleOpen.value = false
+  abrirModalProgramado(sala, inicio)
+  const ruts = tramo.personas.map((p) => p.rut).filter(Boolean)
+  cantidadPersonas.value = Math.max(ruts.length, minimoDe(sala))
+  rutsReserva.value = [...ruts, ...Array.from({ length: Math.max(0, cantidadPersonas.value - ruts.length) }, () => '')]
+  reiniciarModos(rutsReserva.value.map((r) => (r ? modoSegunValor(r) : 'rut')))
+  renovacionDe.value = { tramo }
+}
+
 function onTimelineClick(sala: Sala, event: MouseEvent) {
   if (diaCerrado.value) {
     toast.error(textoDiaCerrado.value)
@@ -861,6 +892,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); las salas de la administración (los seminarios, Cooperación y Moraga) van solo a nombre del docente o funcionario que las pide. Cada persona tiene <strong>una sola reserva pendiente</strong>: para entrar en otra, primero debe usar o cancelar la que tiene.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
+          'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>: se abre el formulario con los mismos RUT ya puestos, desde que termina su bloque (o desde ahora). Solo elija la hora y la duración.',
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
@@ -1277,7 +1309,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         <div class="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border-t-[3px] border-t-indigo-600 bg-white shadow-2xl">
           <div class="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-indigo-50/50 px-5 pb-3 pt-4">
             <div class="min-w-0">
-              <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">Reservar {{ selectedSala.nombre }}</h3>
+              <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">{{ renovacionDe ? 'Renovación' : 'Reservar' }} {{ selectedSala.nombre }}</h3>
               <p class="mt-0.5 text-sm text-gray-500 first-letter:uppercase">{{ formatFechaLarga(selectedDate) }}</p>
             </div>
             <!-- La hora con la que valen las reservas, para no calcularla de memoria al reservar. -->
@@ -1288,6 +1320,12 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           </div>
 
           <div class="space-y-3.5 overflow-y-auto px-5 py-4">
+            <!-- Renovación: el grupo ya está puesto; solo se elige la hora -->
+            <p v-if="renovacionDe" class="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs leading-relaxed text-violet-900">
+              <strong>Renovación del grupo de las {{ renovacionDe.tramo.hora_inicio }}–{{ renovacionDe.tramo.hora_fin }}:</strong>
+              sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
+              Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista antes de reservar.
+            </p>
             <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
               <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -1499,6 +1537,16 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
 
           <div class="flex shrink-0 flex-wrap gap-2 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
             <button @click="detalleOpen = false" :class="BOTON_CANCELAR" class="!flex-none">Cerrar</button>
+            <!-- Renovación: el mismo grupo otra vez (extender el bloque o volver a usar la sala), sin escribir los RUT -->
+            <button
+              v-if="selectedDate === hoy && detalleTramo.hora_prestamo_real && detalleSala"
+              type="button"
+              class="flex-1 rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+              title="El mismo grupo otra vez: extender su bloque o volver a usar la sala, sin escribir los RUT de nuevo"
+              @click="renovar(detalleSala, detalleTramo)"
+            >
+              Renovación
+            </button>
             <template v-if="!detalleTramo.hora_devolucion_real">
               <button
                 v-if="!detalleTramo.hora_prestamo_real && detalleTramo.vencida_sin_confirmar"
