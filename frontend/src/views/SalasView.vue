@@ -1188,17 +1188,19 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         <!-- Qué salas mostrar. Va dentro del recuadro y con otro aspecto que las páginas de
              arriba (Piso 1, Piso 2…): un interruptor gris de esquinas rectas, no botones de color. -->
         <!-- Cada botón con una línea abajo que dice para qué sirve -->
-        <div class="mb-3 inline-flex rounded-lg bg-gray-100 p-1 ring-1 ring-inset ring-gray-200" role="radiogroup" aria-label="Qué salas mostrar">
+        <div class="mb-3 inline-flex gap-1 rounded-xl border border-gray-300 bg-gray-100 p-1.5 shadow-sm" role="radiogroup" aria-label="Qué salas mostrar">
           <button
             type="button"
             role="radio"
             :aria-checked="!soloConReserva"
             @click="soloConReserva = false"
             class="rounded-md px-3.5 py-1.5 text-left transition-colors"
-            :class="!soloConReserva ? 'bg-white shadow-sm ring-1 ring-gray-300' : 'hover:bg-white/60'"
+            :class="!soloConReserva ? 'bg-indigo-600 shadow-md ring-1 ring-indigo-700' : 'hover:bg-white'"
           >
-            <span class="block text-xs font-semibold" :class="!soloConReserva ? 'text-gray-900' : 'text-gray-600'">Todas · {{ salasPage.length }}</span>
-            <span class="block text-[11px] leading-snug text-gray-500">Las logias del piso elegido arriba</span>
+            <span class="flex items-center gap-1.5 text-xs font-semibold" :class="!soloConReserva ? 'text-white' : 'text-gray-600'">
+              Todas · {{ salasPage.length }}
+            </span>
+            <span class="block text-[11px] leading-snug" :class="!soloConReserva ? 'text-indigo-100' : 'text-gray-500'">Las logias del piso elegido arriba</span>
           </button>
           <button
             type="button"
@@ -1206,13 +1208,13 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             :aria-checked="soloConReserva"
             @click="soloConReserva = true"
             class="rounded-md px-3.5 py-1.5 text-left transition-colors"
-            :class="soloConReserva ? 'bg-white shadow-sm ring-1 ring-gray-300' : 'hover:bg-white/60'"
+            :class="soloConReserva ? 'bg-indigo-600 shadow-md ring-1 ring-indigo-700' : 'hover:bg-white'"
           >
-            <span class="flex items-center gap-1.5 text-xs font-semibold" :class="soloConReserva ? 'text-gray-900' : 'text-gray-600'">
+            <span class="flex items-center gap-1.5 text-xs font-semibold" :class="soloConReserva ? 'text-white' : 'text-gray-600'">
               <span class="h-2 w-2 rounded-sm border border-amber-400 bg-amber-200" aria-hidden="true"></span>
               Con reserva · {{ totalConReserva }}
             </span>
-            <span class="block text-[11px] leading-snug text-gray-500">{{ esHoy ? 'De todos los pisos, reservadas ahora o más tarde' : 'De todos los pisos, reservadas ese día' }}</span>
+            <span class="block text-[11px] leading-snug" :class="soloConReserva ? 'text-indigo-100' : 'text-gray-500'">{{ esHoy ? 'De todos los pisos, reservadas ahora o más tarde' : 'De todos los pisos, reservadas ese día' }}</span>
           </button>
         </div>
         <div v-if="diaCerrado" class="mb-3 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
