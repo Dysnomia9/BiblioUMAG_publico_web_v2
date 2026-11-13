@@ -1990,7 +1990,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-2">
                   <label for="copia-tomo" :class="ETIQUETA">Tomo</label>
                   <input autocomplete="off" id="copia-tomo" v-model="formCopia.tomo" list="tomos-de-la-obra" placeholder="1" :aria-invalid="tomoParte === null" :class="[CAMPO, tomoParte === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoCopia" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span> o <span class="font-mono">t.1</span> · vacío si no tiene</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span>, <span class="font-mono">I</span>, <span class="font-mono">t.1</span> o <span class="font-mono">t.I</span> · vacío si no tiene</p>
                   <datalist id="tomos-de-la-obra">
                     <option v-for="t in tomosDeLaObra" :key="t.tomo" :value="t.tomo">{{ partesCopia(t.tomo, null).tomo ?? t.tomo }} · {{ t.copias }} {{ t.copias === 1 ? 'copia' : 'copias' }}</option>
                   </datalist>
@@ -2005,7 +2005,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     :aria-invalid="volumenParte === null"
                     :class="[CAMPO, volumenParte === null ? 'border-red-400 ring-1 ring-red-300' : '']"
                   />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> o <span class="font-mono">II</span> · con o sin tomo</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">II</span>, <span class="font-mono">v.2</span> o <span class="font-mono">v.II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
                   <label for="copia-numero" :class="ETIQUETA">Copia</label>
@@ -2170,12 +2170,12 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-2">
                   <label for="editar-tomo" :class="ETIQUETA">Tomo</label>
                   <input id="editar-tomo" v-model="formEditar.tomo" autocomplete="off" placeholder="1" :aria-invalid="tomoParteEditar === null" :class="[CAMPO, tomoParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" @change="alSalirDelTomoEditar" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span> o <span class="font-mono">t.1</span> · vacío si no tiene</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">1</span>, <span class="font-mono">I</span>, <span class="font-mono">t.1</span> o <span class="font-mono">t.I</span> · vacío si no tiene</p>
                 </div>
                 <div class="sm:col-span-2">
                   <label for="editar-parte" :class="ETIQUETA">Volumen</label>
                   <input id="editar-parte" v-model="formEditar.parte" autocomplete="off" placeholder="2" :aria-invalid="volumenParteEditar === null" :class="[CAMPO, volumenParteEditar === null ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> o <span class="font-mono">II</span> · con o sin tomo</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">II</span>, <span class="font-mono">v.2</span> o <span class="font-mono">v.II</span> · con o sin tomo</p>
                 </div>
                 <div class="sm:col-span-2">
                   <label for="editar-copia-num" :class="ETIQUETA">Copia</label>

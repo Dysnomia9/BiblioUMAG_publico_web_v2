@@ -132,6 +132,11 @@ class TomoEjemplarTest extends TestCase
         $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('t.1 t.2'));
         $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol 1 No 1 (2009)'));
         $this->assertSame('t.1-v.II', TomoEjemplar::normalizar('Tomo 1 Volumen II'));
+        // También en romanos cuando va solo (o primero); los números de revista no son tomos
+        $this->assertSame(['v.II', 2], TomoEjemplar::desdeEtiqueta('v.ii c.2'));
+        $this->assertSame(['t.I', null], TomoEjemplar::desdeEtiqueta('t. I'));
+        $this->assertSame(['t.III-v.2', null], TomoEjemplar::desdeEtiqueta('t.III-v.2'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol XXVII (sept. 2013)'));
     }
 
     public function test_las_copias_se_numeran_dentro_del_tomo_y_volumen(): void

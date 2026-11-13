@@ -1,7 +1,7 @@
 // El tomo y la copia como los escribe Horizon («t.72», «v.1 c.2»), igual que App\Support\TomoEjemplar.
 // La letra tras el número del tomo («t.2a») no es la «c» de la copia pegada («t.1c.1»); también «t.2/c.1».
 // Horizon también junta tomo y volumen, en el orden en que se escribió: «t.1-v.II», «t.2-v.I-c.1», «v.1-t.2».
-const TOMO = /^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)(?:\s*[-,;/]?\s*(t|tomo|v|vol|volumen)\.?\s*(\d+|[ivxlc]+)(?![a-z]))?\s*(?:[-,;/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/i
+const TOMO = /^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?|[ivxlc]+(?![a-z]))(?:\s*[-,;/]?\s*(t|tomo|v|vol|volumen)\.?\s*(\d+|[ivxlc]+)(?![a-z]))?\s*(?:[-,;/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/i
 
 const nombreParte = (tipo: string, numero: string) =>
   `${tipo.toLowerCase().startsWith('t') ? 'Tomo' : 'Volumen'} ${/^\d/.test(numero) ? numero : numero.toUpperCase()}`

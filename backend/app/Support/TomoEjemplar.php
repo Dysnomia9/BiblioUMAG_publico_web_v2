@@ -15,8 +15,8 @@ use App\Models\Ejemplar;
  */
 final class TomoEjemplar
 {
-    /** Tomo o volumen y su número; tras el número del primero, una letra («t.2a») que no es la «c» de la copia pegada («t.1c.1»). */
-    private const PATRON = '/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?)'
+    /** Tomo o volumen y su número, también en romanos («v.II»); tras el número del primero, una letra («t.2a») que no es la «c» de la copia pegada («t.1c.1»). */
+    private const PATRON = '/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?|[ivxlc]+(?![a-z]))'
         // el segundo, del otro tipo: «t.1-v.II», «t.1 v.2», «v.2- t.98», «t.4-vol.II»
         .'(?:\s*[-,;\/]?\s*(t|tomo|v|vol|volumen)\.?\s*(\d+|[ivxlc]+)(?![a-z]))?'
         // la copia: «c.2», «-c.1», «/c.1», «c2»
