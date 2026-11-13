@@ -86,12 +86,51 @@ class GestionUsuariosTest extends TestCase
 
     public function test_sin_el_permiso_no_se_crean_ni_editan_estudiantes(): void
     {
-        Sanctum::actingAs(Staff::factory()->asistente()->create());
+        \App\Models\Rol::create(['clave' => 'consulta', 'nombre' => 'Consulta', 'nivel' => 4, 'permisos' => ['usuarios.ver']]);
+        Sanctum::actingAs(Staff::factory()->create(['rol' => 'consulta']));
         $usuario = Usuario::factory()->create();
 
         $this->postJson('/api/usuarios', ['rut' => '15.003.151-6', 'nombre' => 'A', 'apellido' => 'B'])->assertForbidden();
         $this->putJson("/api/usuarios/{$usuario->id}", ['rut' => $usuario->rut, 'nombre' => 'A', 'apellido' => 'B'])->assertForbidden();
         $this->postJson('/api/usuarios/importar/revisar', ['filas' => [['rut' => '15.003.151-6']]])->assertForbidden();
+    }
+
+    public function test_el_meson_crea_y_corrige_usuarios_de_a_uno_pero_no_carga_planillas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->asistente()->create(['nombre' => 'Mesón Mañana']));
+
+        $this->postJson('/api/usuarios', ['rut' => '15.003.151-6', 'nombre' => 'Ana', 'apellido' => 'Pérez', 'tipo' => 'funcionario'])
+            ->assertCreated()
+            ->assertJsonPath('tipo', 'funcionario');
+
+        $usuario = Usuario::where('rut', '15.003.151-6')->sole();
+        $vigencia = $usuario->vigente_hasta?->toDateString();
+
+        // Encontrado por su RUT, con sus correos, y corregido su nombre; la vigencia no la mueve.
+        $this->getJson('/api/usuarios/rut/150031516')->assertOk()->assertJsonPath('id', $usuario->id)->assertJsonPath('correos', []);
+        $this->putJson("/api/usuarios/{$usuario->id}", [
+            'rut' => $usuario->rut, 'nombre' => 'Andrés', 'apellido' => 'Pérez', 'tipo' => 'funcionario', 'vigente_hasta' => '2099-12-31',
+        ])->assertOk()->assertJsonPath('nombre', 'Andrés');
+
+        $this->assertSame($vigencia, $usuario->fresh()->vigente_hasta?->toDateString());
+        $this->assertDatabaseHas('bitacora', ['accion' => 'usuarios.editar', 'actor_nombre' => 'Mesón Mañana']);
+        $this->postJson('/api/usuarios/importar/revisar', ['filas' => [['rut' => '15.003.151-6']]])->assertForbidden();
+    }
+
+    public function test_el_meson_pone_contrasena_al_crear_pero_no_cambia_la_de_una_cuenta_existente(): void
+    {
+        Sanctum::actingAs(Staff::factory()->asistente()->create());
+
+        $this->postJson('/api/usuarios', ['rut' => '15.003.151-6', 'nombre' => 'Ana', 'apellido' => 'Pérez', 'password' => 'secreta1'])->assertCreated();
+        $usuario = Usuario::where('rut', '15.003.151-6')->sole();
+        $hash = $usuario->password;
+        $this->assertNotNull($hash);
+
+        $this->putJson("/api/usuarios/{$usuario->id}", ['rut' => $usuario->rut, 'nombre' => 'Ana', 'apellido' => 'Pérez', 'password' => 'otraclave'])->assertForbidden();
+        $this->assertSame($hash, $usuario->fresh()->password);
+
+        // Sin contraseña, la corrección de datos pasa.
+        $this->putJson("/api/usuarios/{$usuario->id}", ['rut' => $usuario->rut, 'nombre' => 'Anita', 'apellido' => 'Pérez'])->assertOk();
     }
 
     private function planilla(): array

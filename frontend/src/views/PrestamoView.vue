@@ -10,12 +10,13 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoSugerencias from '@/components/ui/CampoSugerencias.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { formatearSegunModo, largoSegunModo, modoSegunValor, placeholderSegunModo } from '@/utils/documento'
+import { formatearSegunModo, largoSegunModo, modoDe, modoSegunValor, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
 import { diaEnPlural, diaIso } from '@/utils/horario'
 import { devolucionDe, estadoDe, fechaCorta } from '@/utils/prestamos'
 import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
+import UsuariosMeson from '@/components/usuarios/UsuariosMeson.vue'
 import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import ConfirmarDevolucion from '@/components/prestamos/ConfirmarDevolucion.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
@@ -206,9 +207,13 @@ onMounted(() => {
   }
 })
 
+/** La última búsqueda no encontró a nadie con ese documento: se ofrece registrarlo. */
+const noRegistrado = ref(false)
+
 function onRutInput(event: Event) {
   escribirRut(event)
   errorRut.value = ''
+  noRegistrado.value = false
 }
 
 /** Vuelve a pedir el usuario para actualizar el aviso de multas después de devolver o pagar. */
@@ -278,6 +283,7 @@ async function buscarUsuario() {
     nextTick(() => codigoPrestamoInput.value?.focus())
   } catch (e: any) {
     usuario.value = null
+    noRegistrado.value = e?.response?.status === 404
     errorRut.value =
       e?.response?.status === 404
         ? `No hay ningún usuario registrado con ese ${modoRut.value === 'rut' ? 'RUT' : 'pasaporte o DNI'}. Revise que esté bien escrito.`
@@ -493,6 +499,24 @@ async function cargarCondiciones() {
     }
   } catch {
     condiciones.value = null
+  }
+}
+
+// Crear o corregir un usuario sin salir del mesón (por ejemplo, si no aparece o cambió su nombre).
+const puedeRegistrarUsuarios = computed(() => auth.puede('usuarios.registrar') || auth.puede('usuarios.gestionar'))
+const usuariosMeson = ref<InstanceType<typeof UsuariosMeson> | null>(null)
+
+/** Si es quien se está atendiendo, su ficha se actualiza; si es alguien nuevo, se abre para prestarle. */
+function alGuardarUsuario(u: Usuario, nuevo: boolean) {
+  const atendido = usuario.value?.id === u.id
+  if (!atendido && !nuevo) return
+  modoRut.value = modoDe(u.tipo_documento)
+  rut.value = formatearSegunModo(u.rut, modoRut.value)
+  if (atendido && usuario.value) {
+    Object.assign(usuario.value, u)
+    refrescarUsuario()
+  } else {
+    buscarUsuario()
   }
 }
 
@@ -869,6 +893,18 @@ function formatHora(iso: string | null) {
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Préstamos, devoluciones y reservas</h1>
             <p class="mt-1 text-sm text-white/75">Gestionar préstamos y reservas de material bibliográfico</p>
           </div>
+          <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            v-if="puedeRegistrarUsuarios"
+            type="button"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
+            @click="usuariosMeson?.abrir()"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.500v3m0 0v3m0-3h3m-3 0h-3m-2.250-4.125a3.375 3.375 0 11-6.750 0 3.375 3.375 0 016.750 0zM4 19.235v-.110a6.375 6.375 0 0112.750 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+            </svg>
+            Crear o corregir usuario
+          </button>
           <button
             type="button"
             class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
@@ -880,6 +916,7 @@ function formatHora(iso: string | null) {
             </svg>
             ¿Cómo se usa?
           </button>
+          </div>
         </div>
       </div>
 

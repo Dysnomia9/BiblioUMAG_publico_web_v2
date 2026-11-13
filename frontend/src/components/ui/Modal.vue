@@ -27,8 +27,10 @@ const props = withDefaults(
      */
     destacado?: boolean
     tono?: 'primario' | 'peligro' | 'exito'
+    /** Con destacado: la cabecera va en el degradado morado (como Préstamos) y el contenido la pone el slot «cabecera». */
+    degradado?: boolean
   }>(),
-  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true, pieConFondo: false, destacado: false, tono: 'primario' },
+  { ancho: 'sm', bloqueado: false, pieFijo: false, cerrarAlClicAfuera: true, pieConFondo: false, destacado: false, tono: 'primario', degradado: false },
 )
 
 const TONOS_DESTACADO = {
@@ -101,13 +103,17 @@ onBeforeUnmount(() => {
     >
       <div
         v-if="destacado"
-        class="flex w-full max-h-[92vh] flex-col overflow-hidden rounded-2xl border-t-[3px] bg-white shadow-2xl"
-        :class="[ANCHOS[ancho], TONOS_DESTACADO[tono].borde]"
+        class="flex w-full max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        :class="[ANCHOS[ancho], degradado ? '' : ['border-t-[3px]', TONOS_DESTACADO[tono].borde]]"
         role="dialog"
         aria-modal="true"
         :aria-label="titulo"
       >
-        <div class="shrink-0 border-b border-gray-100 px-5 pb-3 pt-4" :class="TONOS_DESTACADO[tono].cabecera">
+        <div
+          class="relative shrink-0 overflow-hidden"
+          :class="degradado ? 'px-5 pb-3.5 pt-3.5 text-white' : ['border-b border-gray-100 px-5 pb-3 pt-4', TONOS_DESTACADO[tono].cabecera]"
+          :style="degradado ? 'background: linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%);' : undefined"
+        >
           <slot name="cabecera">
             <h3 class="font-serif text-lg font-bold leading-snug text-gray-900">{{ titulo }}</h3>
             <p v-if="descripcion" class="mt-1 text-sm text-gray-500">{{ descripcion }}</p>

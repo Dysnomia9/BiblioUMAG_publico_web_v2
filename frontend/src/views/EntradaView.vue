@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
@@ -10,12 +10,13 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { formatRut, validarRut } from '@/composables/useRut'
-import { describirDocumento, errorDocumento, formatearInputIdentificador, largoSegunModo, placeholderSegunModo, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
+import { describirDocumento, errorDocumento, formatearInputIdentificador, formatearSegunModo, largoSegunModo, modoDe, placeholderSegunModo, TIPOS_DOCUMENTO, type TipoDocumento } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { useAuthStore } from '@/stores/auth'
 import { contieneCadaPalabra, sinTildes } from '@/utils/texto'
 import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
+import UsuariosMeson from '@/components/usuarios/UsuariosMeson.vue'
 import type { Entrada, HorarioBiblioteca, RespuestaEntradas, Usuario } from '@/types'
 
 const toast = useToast()
@@ -403,6 +404,20 @@ function alHacerClic(e: MouseEvent) {
 
 const puedeVerPrestamos = computed(() => auth.puede('prestamos.gestionar'))
 
+// Crear o corregir un usuario sin salir del mesón (por ejemplo, si no aparece o cambió su nombre).
+const puedeRegistrarUsuarios = computed(() => auth.puede('usuarios.registrar') || auth.puede('usuarios.gestionar'))
+const usuariosMeson = ref<InstanceType<typeof UsuariosMeson> | null>(null)
+
+/** Recién registrado: queda escrito en la casilla, listo para marcar su entrada. */
+function alGuardarUsuario(u: Usuario, nuevo: boolean) {
+  if (!nuevo) return
+  modoRut.value = modoDe(u.tipo_documento)
+  rut.value = formatearSegunModo(u.rut, modoRut.value)
+  errorRut.value = ''
+  cuentaInactiva.value = null
+  nextTick(() => rutInput.value?.focus())
+}
+
 function verSusEntradas(e: Entrada) {
   menuAbierto.value = null
   busqueda.value = rutDe(e)
@@ -507,6 +522,10 @@ function verSusPrestamos(e: Entrada) {
           <p class="mt-2 text-center text-xs text-gray-500">
             ¿No es de la universidad?
             <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="abrirModalExterno">Registrar visitante externo →</button>
+            <template v-if="puedeRegistrarUsuarios">
+              ·
+              <button type="button" class="font-semibold text-indigo-700 hover:underline" @click="usuariosMeson?.abrir(rut)">Crear o corregir usuario →</button>
+            </template>
             <template v-if="MOSTRAR_CONVENIO">
               ·
               <button type="button" class="font-semibold text-sky-700 hover:underline" @click="abrirModalConvenio">Convenio →</button>
@@ -1017,5 +1036,6 @@ function verSusPrestamos(e: Entrada) {
         </button>
       </template>
     </Modal>
+    <UsuariosMeson v-if="puedeRegistrarUsuarios" ref="usuariosMeson" @guardado="alGuardarUsuario" />
   </StaffLayout>
 </template>

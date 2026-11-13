@@ -80,6 +80,8 @@ class UsuarioController extends Controller
         }
 
         $usuario->setAttribute('multas_pendientes', $multaService->resumenPendiente($usuario));
+        // Los correos adicionales, para que el mesón pueda abrir su ficha y corregirla.
+        $usuario->load('correos:id,usuario_id,email');
 
         return response()->json($usuario);
     }
@@ -125,6 +127,19 @@ class UsuarioController extends Controller
     public function update(Request $request, Usuario $usuario)
     {
         $datos = $this->validarFicha($request->all(), $usuario);
+
+        // El mesón (usuarios.registrar) corrige datos, pero la vigencia la mueven
+        // solo la renovación (que sigue la política) y quien administra usuarios.
+        if (! $request->user()->puede('usuarios.gestionar')) {
+            unset($datos['vigente_hasta']);
+
+            // El mesón pone la contraseña al crear la cuenta, pero no cambia la de una que ya existe.
+            if (isset($datos['password'])) {
+                return response()->json([
+                    'message' => 'La contraseña de una cuenta existente solo la cambia quien tiene el permiso «'.Permisos::etiqueta('usuarios.gestionar').'».',
+                ], 403);
+            }
+        }
 
         if ($usuario->activo && isset($datos['activo']) && ! $datos['activo'] && ! $request->user()->puede('usuarios.desactivar')) {
             return response()->json([

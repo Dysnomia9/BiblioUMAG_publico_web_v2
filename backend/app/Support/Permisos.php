@@ -33,6 +33,7 @@ final class Permisos
                 'salas.sin_limite' => ['Reservas largas', 'Reservar una sala desde el panel por más tiempo que el máximo del portal (por ejemplo, todo el día), sin la cuota diaria por persona. El portal sigue con su máximo.'],
                 'reservas.editar' => ['Editar reservas de salas', 'Desde el Listado de reservas: cambiar la sala, el día o el horario de una reserva activa, corregir sus integrantes, cancelarla o registrar una devolución de llave que quedó pendiente.'],
                 'usuarios.ver' => ['Consultar usuarios', 'Ver el listado de usuarios y emitir la Constancia de No Multa.'],
+                'usuarios.registrar' => ['Registrar y corregir usuarios', 'Desde Préstamos y Entradas, crear un estudiante, docente o funcionario y corregir los datos de uno que ya existe buscándolo por su RUT o documento (por ejemplo, un cambio de nombre). Puede poner la contraseña del portal al crear la cuenta, pero no cambiar la de una existente. No incluye la carga masiva ni cambiar a mano la fecha de vigencia.'],
                 'usuarios.habilitar' => ['Renovar cuentas de usuarios', 'Renovar la cuenta de quien está vencido o inactivo (por ejemplo, porque su registro venció en Horizon) para que pueda marcar su entrada, pedir préstamos y entrar al portal. Se hace desde el listado de Usuarios o al atenderlo en Préstamos y Entradas. La cuenta queda vigente hasta el 31 de marzo del año siguiente.'],
             ],
         ],

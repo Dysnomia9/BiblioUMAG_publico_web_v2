@@ -146,10 +146,13 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     // Habilitar a quien está inactivo lo hace todo el personal; desactivar, solo el Administrador/a.
     Route::patch('/usuarios/{usuario}/habilitar', [UsuarioController::class, 'habilitar'])->whereNumber('usuario')->middleware('permiso:usuarios.habilitar');
     Route::patch('/usuarios/{usuario}/desactivar', [UsuarioController::class, 'desactivar'])->whereNumber('usuario')->middleware('permiso:usuarios.desactivar');
-    Route::middleware('permiso:usuarios.gestionar')->group(function () {
+    // Crear y editar de a uno también lo hace el mesón (Préstamos y Entradas); la carga masiva, no.
+    Route::middleware('permiso:usuarios.gestionar,usuarios.registrar')->group(function () {
         Route::get('/usuarios/opciones', [UsuarioController::class, 'opciones']);
         Route::post('/usuarios', [UsuarioController::class, 'store']);
         Route::put('/usuarios/{usuario}', [UsuarioController::class, 'update'])->whereNumber('usuario');
+    });
+    Route::middleware('permiso:usuarios.gestionar')->group(function () {
         Route::post('/usuarios/importar/revisar', [UsuarioController::class, 'revisarImportacion']);
         Route::post('/usuarios/importar', [UsuarioController::class, 'importar']);
     });
