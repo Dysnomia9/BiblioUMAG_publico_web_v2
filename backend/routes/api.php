@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\RolAutorController;
 use App\Http\Controllers\Api\UbicacionController;
 use App\Http\Controllers\Api\UsuarioAuthController;
 use App\Http\Controllers\Api\UsuarioController;
+use App\Http\Controllers\Api\UsoSinRutController;
 use App\Http\Controllers\Api\VigenciaController;
 use Illuminate\Support\Facades\Route;
 
@@ -117,6 +118,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::get('/prestamos/por-codigo', [PrestamoController::class, 'porCodigo']);
         Route::post('/prestamos', [PrestamoController::class, 'store']);
         Route::patch('/prestamos/{prestamo}/devolver', [PrestamoController::class, 'devolver']);
+        // Libros usados y dejados en la mesa sin préstamo («Devolución sin RUT»).
+        Route::get('/usos-sin-rut/hoy', [UsoSinRutController::class, 'hoy']);
+        Route::post('/usos-sin-rut', [UsoSinRutController::class, 'store']);
+        Route::delete('/usos-sin-rut/{uso}', [UsoSinRutController::class, 'destroy'])->whereNumber('uso');
         Route::get('/reservas-libro', [ReservaLibroController::class, 'index']);
         Route::post('/reservas-libro', [ReservaLibroController::class, 'store']);
         Route::patch('/reservas-libro/{reservaLibro}/cancelar', [ReservaLibroController::class, 'cancelar']);

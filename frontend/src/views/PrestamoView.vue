@@ -19,6 +19,7 @@ import RenovarCuenta from '@/components/usuarios/RenovarCuenta.vue'
 import UsuariosMeson from '@/components/usuarios/UsuariosMeson.vue'
 import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import ConfirmarDevolucion from '@/components/prestamos/ConfirmarDevolucion.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import { COLORES_RECURSO, ICONOS_RECURSO, itemPrestamo, textoHoras, useCategoriasRecurso } from '@/utils/recursos'
 import type { CategoriaRecurso, CondicionesPrestamo, DiaSinAtencion, Equipo, HorarioBiblioteca, Prestamo, ReservaLibro, Usuario } from '@/types'
 
@@ -679,6 +680,104 @@ async function buscarPrestamoPorCodigo() {
   }
 }
 
+// «Devolución sin RUT»: el libro que alguien usó y dejó en la mesa sin pedirlo. Se
+// pistolea y queda registrado que se usó (en Reportes, «Sin RUT»); no hay préstamo que cerrar.
+type UsoSinRut = { id: number; libro_titulo: string; codigo_barras: string | null; fecha_hora: string; registrado_por_staff_id: number | null }
+const modoRapido = ref<'normal' | 'sin_rut'>('normal')
+const usosSinRut = ref<{ total: number; recientes: UsoSinRut[] }>({ total: 0, recientes: [] })
+const registrandoSinRut = ref(false)
+// Se ven las 5 más recientes; «Ver más» trae de a 20 (en una lista con su propio scroll).
+const LIMITE_SIN_RUT = 5
+const limiteSinRut = ref(LIMITE_SIN_RUT)
+const cargandoMasSinRut = ref(false)
+
+async function cargarUsosSinRut() {
+  try {
+    const { data } = await api.get<{ total: number; recientes: UsoSinRut[] }>('/usos-sin-rut/hoy', { params: { limite: limiteSinRut.value } })
+    usosSinRut.value = data
+  } catch {
+    // La lista es solo de apoyo: el registro sigue funcionando.
+  }
+}
+
+async function verMasSinRut() {
+  limiteSinRut.value += 20
+  cargandoMasSinRut.value = true
+  await cargarUsosSinRut()
+  cargandoMasSinRut.value = false
+}
+
+function verMenosSinRut() {
+  limiteSinRut.value = LIMITE_SIN_RUT
+  usosSinRut.value.recientes = usosSinRut.value.recientes.slice(0, LIMITE_SIN_RUT)
+}
+
+function cambiarModoRapido(modo: 'normal' | 'sin_rut') {
+  modoRapido.value = modo
+  prestamoRapido.value = null
+  mensajeRapido.value = ''
+  if (modo === 'sin_rut') cargarUsosSinRut()
+  nextTick(() => codigoRapidoInput.value?.focus())
+}
+
+/** Con la pistola: cada lectura queda registrada al instante y la casilla se limpia para la siguiente. */
+async function registrarSinRut() {
+  const codigo = codigoRapido.value.trim()
+  mensajeRapido.value = ''
+  if (!codigo || registrandoSinRut.value) return
+  registrandoSinRut.value = true
+  try {
+    const { data } = await api.post<UsoSinRut>('/usos-sin-rut', { codigo })
+    toast.success(`Sin RUT · uso registrado: ${data.libro_titulo}`)
+    codigoRapido.value = ''
+    await cargarUsosSinRut()
+  } catch (e) {
+    mensajeRapido.value = mensajeDeError(e, 'No se pudo registrar el uso')
+  } finally {
+    registrandoSinRut.value = false
+    nextTick(() => codigoRapidoInput.value?.focus())
+  }
+}
+
+// Deshacer pide confirmación: borra el registro y deja de contar en Reportes.
+const deshacerPendiente = ref<UsoSinRut | null>(null)
+const deshaciendo = ref(false)
+
+async function confirmarDeshacerSinRut() {
+  const uso = deshacerPendiente.value
+  if (!uso) return
+  deshaciendo.value = true
+  try {
+    await api.delete(`/usos-sin-rut/${uso.id}`)
+    toast.info(`Se deshizo: ${uso.libro_titulo}`)
+    deshacerPendiente.value = null
+    await cargarUsosSinRut()
+  } catch (e) {
+    toast.error(mensajeDeError(e, 'No se pudo deshacer'))
+  } finally {
+    deshaciendo.value = false
+    nextTick(() => codigoRapidoInput.value?.focus())
+  }
+}
+
+// Cada modo con su color en toda la tarjeta (verde: devolución normal; ámbar: sin RUT),
+// para que quien atiende sepa siempre qué hace la pistola antes de escanear.
+const TEMAS_RAPIDO = {
+  normal: {
+    borde: 'border-gray-200', franja: 'bg-emerald-500', barra: 'bg-emerald-600', icono: 'text-emerald-600',
+    input: 'border-gray-300 focus:border-emerald-500 focus:ring-emerald-100',
+    aviso: 'border-emerald-200 bg-emerald-50 text-emerald-900', punto: 'bg-emerald-500',
+  },
+  sin_rut: {
+    borde: 'border-amber-300 ring-2 ring-amber-200', franja: 'bg-amber-400', barra: 'bg-amber-500', icono: 'text-amber-600',
+    input: 'border-amber-300 bg-amber-50/40 focus:border-amber-500 focus:ring-amber-100',
+    aviso: 'border-amber-300 bg-amber-50 text-amber-900', punto: 'bg-amber-500',
+  },
+} as const
+const temaRapido = computed(() => TEMAS_RAPIDO[modoRapido.value])
+
+const horaCorta = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+
 function limpiarRapido() {
   codigoRapido.value = ''
   prestamoRapido.value = null
@@ -928,6 +1027,7 @@ function formatHora(iso: string | null) {
           'Revise su ficha: <strong>préstamos, reservas y multas</strong>. Si hay algo pendiente verá un aviso en rojo.',
           'Para <strong>prestar</strong>, pulse «Nuevo préstamo», escanee el código de barras del libro y elija la fecha de devolución: tiene que ser un día en que la biblioteca atiende.',
           'Para <strong>recibir</strong> un libro o un recurso de apoyo, pulse «Devolver» en su fila. Si un libro llega atrasado, la multa se calcula sola.',
+          'Si alguien usó un libro y lo dejó en la mesa sin pedirlo, en <strong>Devolución rápida</strong> elija <strong>Sin RUT</strong> y pistoléelo: queda registrado como uso (en Reportes, «Sin RUT»). Si se equivoca, use <strong>Deshacer</strong>.',
           'Los <strong>recursos de apoyo</strong> (notebooks, audífonos, cargadores, bicicletas…) se prestan en su propia pestaña, escaneando el código en el recuadro de su categoría.',
           'Si el libro está prestado, puede <strong>reservarlo</strong>: la persona queda en la lista de espera. Cuando venga a retirarlo, pulse <strong>Entregar</strong> en la pestaña Reservas.',
         ]"
@@ -935,21 +1035,54 @@ function formatHora(iso: string | null) {
       />
 
       <!-- Devolución rápida: escanear el libro o recurso sin buscar antes al usuario -->
-      <div class="relative mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <span class="absolute inset-x-0 top-0 h-1 bg-emerald-500" aria-hidden="true"></span>
+      <div class="relative mb-4 overflow-hidden rounded-2xl border bg-white p-4 shadow-sm transition-colors" :class="temaRapido.borde">
+        <span class="absolute inset-x-0 top-0 h-1 transition-colors" :class="temaRapido.franja" aria-hidden="true"></span>
         <div class="mb-3 flex items-stretch gap-3">
-          <span class="w-1 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
-          <div>
+          <span class="w-1 shrink-0 rounded-full transition-colors" :class="temaRapido.barra" aria-hidden="true"></span>
+          <div class="min-w-0 flex-1">
             <label for="codigo-devolucion" class="block font-semibold text-gray-900">Devolución rápida por código de barras</label>
-            <p class="mt-0.5 text-xs text-gray-500">
+            <p v-if="modoRapido === 'normal'" class="mt-0.5 text-xs text-gray-500">
               Escanee el libro o recurso: si está prestado, se puede devolver sin buscar al usuario.
               Presiona <kbd class="rounded border border-gray-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-700 shadow-sm">Enter</kbd> para buscar.
             </p>
+            <p v-else class="mt-0.5 text-xs text-gray-500">
+              Para los libros que alguien usó y dejó en la mesa sin pedirlos: cada lectura queda registrada al instante como uso (en Reportes, «Sin RUT»).
+            </p>
           </div>
+          <div class="inline-flex h-fit shrink-0 rounded-lg bg-gray-100 p-0.5" role="radiogroup" aria-label="Tipo de devolución">
+            <button
+              v-for="m in ([{ id: 'normal', texto: 'Devolución normal', activo: 'bg-emerald-600 text-white shadow-sm' }, { id: 'sin_rut', texto: 'Sin RUT', activo: 'bg-amber-500 text-white shadow-sm' }] as const)"
+              :key="m.id"
+              type="button"
+              role="radio"
+              :aria-checked="modoRapido === m.id"
+              class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+              :class="modoRapido === m.id ? m.activo : 'text-gray-500 hover:text-gray-800'"
+              @click="cambiarModoRapido(m.id)"
+            >
+              <svg v-if="modoRapido === m.id" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.500 12.750l6 6 9-13.500" /></svg>
+              {{ m.texto }}
+            </button>
+          </div>
+        </div>
+        <!-- Qué hace la pistola en este momento: siempre a la vista, con el color del modo -->
+        <div class="mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs transition-colors" :class="temaRapido.aviso" role="status" aria-live="polite">
+          <span class="relative mt-1 flex h-2 w-2 shrink-0" aria-hidden="true">
+            <span v-if="modoRapido === 'sin_rut'" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full" :class="temaRapido.punto"></span>
+          </span>
+          <p v-if="modoRapido === 'normal'">
+            <strong class="font-bold uppercase tracking-wide">Modo: devolución normal.</strong>
+            Lo que escanee busca el préstamo abierto para devolverlo a nombre de quien lo tiene.
+          </p>
+          <p v-else>
+            <strong class="font-bold uppercase tracking-wide">Modo: sin RUT.</strong>
+            Lo que escanee se registra como <strong>uso en sala</strong> sin persona y <strong>no devuelve ningún préstamo</strong>. Para devolver un libro prestado, vuelva a «Devolución normal».
+          </p>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row">
           <div class="relative flex-1">
-            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" :class="temaRapido.icono" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5v15m3-15v15m4.5-15v15m3-15v15m4.5-15v15" />
             </svg>
             <input
@@ -959,14 +1092,16 @@ function formatHora(iso: string | null) {
               type="text"
               inputmode="numeric"
               autocomplete="off"
-              placeholder="Ej. 30000002025988 o 02025988"
+              :placeholder="modoRapido === 'sin_rut' ? 'Sin RUT: escanee el libro dejado en la mesa' : 'Ej. 30000002025988 o 02025988'"
               maxlength="64"
-              class="h-10 w-full rounded-xl border border-gray-300 bg-white pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              class="h-10 w-full rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4"
+              :class="temaRapido.input"
               @input="prestamoRapido = null; mensajeRapido = ''"
-              @keydown.enter="buscarPrestamoPorCodigo"
+              @keydown.enter="modoRapido === 'sin_rut' ? registrarSinRut() : buscarPrestamoPorCodigo()"
             />
           </div>
           <button
+            v-if="modoRapido === 'normal'"
             type="button"
             class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-600 px-4 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-60"
             :disabled="buscandoRapido || !codigoRapido.trim()"
@@ -974,10 +1109,56 @@ function formatHora(iso: string | null) {
           >
             {{ buscandoRapido ? 'Buscando…' : 'Buscar préstamo' }}
           </button>
+          <button
+            v-else
+            type="button"
+            class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-60"
+            :disabled="registrandoSinRut || !codigoRapido.trim()"
+            @click="registrarSinRut"
+          >
+            {{ registrandoSinRut ? 'Registrando…' : 'Registrar uso sin RUT' }}
+          </button>
         </div>
         <p v-if="mensajeRapido" class="mt-2 text-sm text-amber-700" role="status">{{ mensajeRapido }}</p>
+        <div v-if="modoRapido === 'sin_rut'" class="mt-3 rounded-xl border border-amber-200">
+          <p class="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
+            <span>Registrados hoy sin RUT</span>
+            <strong class="text-sm text-gray-900">{{ usosSinRut.total.toLocaleString('es-CL') }}</strong>
+          </p>
+          <ul v-if="usosSinRut.recientes.length" class="divide-y divide-gray-100" :class="limiteSinRut > LIMITE_SIN_RUT ? 'max-h-64 overflow-y-auto overscroll-contain' : ''">
+            <li v-for="u in usosSinRut.recientes" :key="u.id" class="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
+              <span class="min-w-0 truncate text-gray-800">
+                <span class="mr-2 font-mono text-xs text-gray-400">{{ horaCorta(u.fecha_hora) }}</span>{{ u.libro_titulo }}
+              </span>
+              <button
+                v-if="u.registrado_por_staff_id === auth.staff?.id"
+                type="button"
+                class="shrink-0 text-xs font-semibold text-gray-500 hover:text-red-600"
+                @click="deshacerPendiente = u"
+              >
+                Deshacer
+              </button>
+            </li>
+          </ul>
+          <p v-else class="px-3 py-2 text-xs text-gray-400">Aún no hay lecturas hoy.</p>
+          <div v-if="usosSinRut.total > LIMITE_SIN_RUT" class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-1.5 text-xs">
+            <span class="text-gray-400">Mostrando {{ usosSinRut.recientes.length }} de {{ usosSinRut.total.toLocaleString('es-CL') }}</span>
+            <span class="flex gap-3">
+              <button v-if="limiteSinRut > LIMITE_SIN_RUT" type="button" class="font-semibold text-gray-500 hover:text-gray-800" @click="verMenosSinRut">Ver menos</button>
+              <button
+                v-if="usosSinRut.recientes.length < usosSinRut.total"
+                type="button"
+                class="font-semibold text-amber-700 hover:underline disabled:opacity-60"
+                :disabled="cargandoMasSinRut"
+                @click="verMasSinRut"
+              >
+                {{ cargandoMasSinRut ? 'Cargando…' : `Ver más (${(usosSinRut.total - usosSinRut.recientes.length).toLocaleString('es-CL')})` }}
+              </button>
+            </span>
+          </div>
+        </div>
         <div
-          v-if="prestamoRapido"
+          v-if="modoRapido === 'normal' && prestamoRapido"
           class="mt-3 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 sm:flex-row sm:items-center sm:justify-between"
         >
           <div class="min-w-0 text-sm">
@@ -1045,7 +1226,10 @@ function formatHora(iso: string | null) {
             <kbd class="hidden rounded-md bg-blanco/20 px-1.5 py-0.5 font-sans text-[10px] font-semibold sm:inline">Enter</kbd>
           </button>
         </div>
-        <p v-if="errorRut" class="mt-2 text-sm text-red-600" role="alert">{{ errorRut }}</p>
+        <p v-if="errorRut" class="mt-2 text-sm text-red-600" role="alert">
+          {{ errorRut }}
+          <button v-if="noRegistrado && puedeRegistrarUsuarios" type="button" class="ml-1 font-semibold text-indigo-700 hover:underline" @click="usuariosMeson?.abrir(rut)">Registrarlo →</button>
+        </p>
       </div>
 
       <ApiErrorBanner v-if="apiError" />
@@ -1106,6 +1290,14 @@ function formatHora(iso: string | null) {
               @click="showReservaForm = !showReservaForm; showForm = false"
             >
               Reservar libro
+            </button>
+            <button
+              v-if="puedeRegistrarUsuarios"
+              type="button"
+              class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-gray-50"
+              @click="usuariosMeson?.editar(usuario)"
+            >
+              Editar datos
             </button>
             <button
               type="button"
@@ -1960,5 +2152,21 @@ function formatHora(iso: string | null) {
         </div>
       </div>
     </div>
+    <DialogoConfirmacion
+      :abierto="!!deshacerPendiente"
+      titulo="¿Deshacer este uso sin RUT?"
+      confirmar="Sí, deshacer"
+      tono="peligro"
+      destacado
+      :cargando="deshaciendo"
+      @confirmar="confirmarDeshacerSinRut"
+      @cancelar="deshacerPendiente = null"
+    >
+      <p v-if="deshacerPendiente">
+        Se borra el registro de <strong class="text-gray-900">{{ deshacerPendiente.libro_titulo }}</strong>
+        ({{ horaCorta(deshacerPendiente.fecha_hora) }}) y deja de contar en Reportes. Queda anotado en el Registro absoluto.
+      </p>
+    </DialogoConfirmacion>
+    <UsuariosMeson v-if="puedeRegistrarUsuarios" ref="usuariosMeson" @guardado="alGuardarUsuario" />
   </StaffLayout>
 </template>

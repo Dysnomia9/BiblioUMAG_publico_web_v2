@@ -703,6 +703,8 @@ export type ReporteResumen = {
   personas?: number
   /** Cuántos son de Horizon, antes de BiblioUMAG: logias (Uso de salas) o puestos de estudio (Ingresos). */
   usosHorizon?: number
+  /** Libros usados sin préstamo («Devolución sin RUT»), ya incluidos en el total (Préstamos y material). */
+  usosSinRut?: number
   totalAnterior: number
   promedioPorPeriodo: number
   categoriaMasFrecuente: string

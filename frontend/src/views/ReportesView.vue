@@ -33,7 +33,7 @@ const filtros = reactive({
   anio_ingreso: '',
   sexo: '',
   tipo_usuario: '',
-  // Solo en la pestaña Préstamos: bibliografico | en_sala | recursos_apoyo | interbibliotecario.
+  // Solo en la pestaña Préstamos: bibliografico | en_sala | recursos_apoyo | interbibliotecario | sin_rut.
   tipo_prestamo: '',
   // Préstamos y material más prestado: id del tipo de material (libro, tesis, juego…).
   tipo_material: '',
@@ -112,15 +112,17 @@ const DEL_PERIODO: Record<Periodo, string> = { dia: 'del día', semana: 'de la s
 const SUBUNIDAD: Record<Periodo, string> = { dia: 'hora', semana: 'día', mes: 'semana', semestre: 'mes', anio: 'mes' }
 const MAYOR_SUBUNIDAD: Record<Periodo, string> = { dia: 'la hora', semana: 'el día', mes: 'la semana', semestre: 'el mes', anio: 'el mes' }
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios' }
-const COLORES_TIPO = computed<Record<string, string>>(() => ({ estudiante: INDIGO.value, funcionario: DORADO, docente: VERDE_AZULADO.value }))
+// sin_rut: libros usados y dejados en la mesa sin préstamo (no hay persona).
+const NOMBRES_TIPO: Record<string, string> = { estudiante: 'Estudiantes', docente: 'Docentes', funcionario: 'Funcionarios', sin_rut: 'Sin RUT (uso en sala)' }
+const COLORES_TIPO = computed<Record<string, string>>(() => ({ estudiante: INDIGO.value, funcionario: DORADO, docente: VERDE_AZULADO.value, sin_rut: PIZARRA }))
 const COLORES_SEXO = computed<Record<string, string>>(() => ({ Femenino: INDIGO.value, Masculino: DORADO }))
 // En el gráfico la colección va partida en lo que se llevan y lo que leen en la biblioteca.
-const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección a domicilio', en_sala: 'Colección en sala', recursos_apoyo: 'Recursos de apoyo' }
-const COLORES_TIPO_PRESTAMO = computed<Record<string, string>>(() => ({ bibliografico: INDIGO.value, en_sala: VERDE_AZULADO.value, recursos_apoyo: DORADO }))
+// «Sin RUT»: libros que alguien usó y dejó en la mesa sin pedirlos, pistoleados en el mesón.
+const NOMBRES_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección a domicilio', en_sala: 'Colección en sala', recursos_apoyo: 'Recursos de apoyo', sin_rut: 'Sin RUT (dejado en la mesa)' }
+const COLORES_TIPO_PRESTAMO = computed<Record<string, string>>(() => ({ bibliografico: INDIGO.value, en_sala: VERDE_AZULADO.value, recursos_apoyo: DORADO, sin_rut: PIZARRA }))
 // En el filtro, «Colección» es toda (a domicilio y en sala) y «Uso en sala» solo lo leído aquí.
 // «Interbibliotecario»: lo que otra biblioteca nos prestó (a domicilio o en sala), también lo que ya volvió a ella.
-const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo', interbibliotecario: 'Interbibliotecario' }
+const FILTROS_TIPO_PRESTAMO: Record<string, string> = { bibliografico: 'Colección (catálogo)', en_sala: 'Uso en sala', recursos_apoyo: 'Recursos de apoyo', interbibliotecario: 'Interbibliotecario', sin_rut: 'Sin RUT' }
 // Cada categoría de recurso de apoyo (bicicletas…), con el nombre del catálogo; el material
 // de la colección ya llega con el nombre de su tipo (Libro, Tesis, Juego educativo…).
 const NOMBRES_RECURSO = computed(() => opciones.value.recursos)
@@ -459,6 +461,7 @@ async function confirmarExportar() {
         ['Filtros aplicados', descripcionFiltros.value],
         ['Total', r.total],
         ...(tab.value === 'logias' ? [['Personas (todos los integrantes)', r.personas ?? r.total]] : []),
+        ...(r.usosSinRut ? [['Sin RUT (libros dejados en la mesa)', r.usosSinRut]] : []),
         ...(r.usosHorizon ? [[`De Horizon (${tab.value === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala'})`, r.usosHorizon]] : []),
         ...(r.interbibliotecario
           ? [
@@ -690,6 +693,7 @@ async function confirmarExportar() {
             </div>
             <p class="mt-1 font-serif text-3xl font-bold tabular-nums text-gray-900">{{ resumen.total }}</p>
             <p v-if="tab === 'logias'" class="text-xs text-gray-500">{{ totalPersonas }} {{ totalPersonas === 1 ? 'persona' : 'personas' }}, contando a los integrantes</p>
+            <p v-if="resumen.usosSinRut" class="text-xs text-gray-500">{{ resumen.usosSinRut.toLocaleString('es-CL') }} sin RUT (libros dejados en la mesa)</p>
             <p v-if="resumen.usosHorizon" class="text-xs text-gray-500">
               {{ resumen.usosHorizon.toLocaleString('es-CL') }} de Horizon, antes de BiblioUMAG ({{ tab === 'ingresos' ? 'puestos de estudio' : 'logias, sin sala' }})
             </p>

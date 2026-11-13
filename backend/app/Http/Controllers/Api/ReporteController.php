@@ -111,6 +111,9 @@ class ReporteController extends Controller
                 $query->where('prestamos.tipo_item', 'libro')->where('prestamos.en_sala', true);
             } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'recursos_apoyo') {
                 $query->where('prestamos.tipo_item', '!=', 'libro');
+            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'sin_rut') {
+                // Los usos sin RUT no son préstamos: se cuentan aparte (usosSinRut()).
+                $query->whereRaw('false');
             } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'interbibliotecario') {
                 // Lo que otra biblioteca nos prestó, también lo que ya volvió a ella.
                 $query->where('prestamos.tipo_item', 'libro')->whereIn('prestamos.ejemplar_id', DB::table('prestamos_interbibliotecarios')->select('ejemplar_id'));
@@ -156,6 +159,15 @@ class ReporteController extends Controller
             $totalAnterior += $this->usosHorizon($request, $servicioHorizon, $inicioAnterior, $finAnterior)->count();
         }
 
+        // Los libros usados en la biblioteca sin préstamo («Devolución sin RUT»), con los mismos
+        // filtros: no tienen persona, así que con un filtro de quién no cuenta ninguno.
+        $sinRut = $this->usosSinRut($request, $tab, $inicio, $fin);
+        $cantidadSinRut = $sinRut ? (clone $sinRut)->count() : 0;
+        if ($sinRut) {
+            $total += $cantidadSinRut;
+            $totalAnterior += $this->usosSinRut($request, $tab, $inicioAnterior, $finAnterior)->count();
+        }
+
         // Cada sala con su código («L04 · Logia 04»), el mismo que se usa en el mesón.
         $salaConCodigo = "coalesce(salas.codigo || ' · ' || salas.nombre, 'Sin dato')";
 
@@ -167,6 +179,13 @@ class ReporteController extends Controller
         if ($tab === 'ingresos') {
             $porDiaHora = $porDiaHora->concat((clone $usosHorizon)
                 ->selectRaw('fecha::text as dia, extract(hour from hora_inicio)::int as hora, count(*) as cantidad')
+                ->groupByRaw('1, 2')
+                ->get());
+        }
+
+        if ($sinRut) {
+            $porDiaHora = $porDiaHora->concat((clone $sinRut)
+                ->selectRaw('usr.fecha_hora::date::text as dia, extract(hour from usr.fecha_hora)::int as hora, count(*) as cantidad')
                 ->groupByRaw('1, 2')
                 ->get());
         }
@@ -280,7 +299,7 @@ class ReporteController extends Controller
                 when tipo_usuario = 'funcionario' then 'Funcionarios (sin carrera)'
                 else 'Estudiantes sin carrera registrada'
             end
-            SQL)));
+            SQL))->concat($this->agruparHorizon($sinRut, "'Sin RUT (uso en sala)'")));
 
         $porHoraPorSala = [];
         $porSalaDetalle = [];
@@ -347,24 +366,26 @@ class ReporteController extends Controller
             'horario' => HorarioBiblioteca::semana(),
             'serie' => $serie,
             'porCarrera' => $porCarrera,
-            'porSexo' => self::sumar($agrupar("coalesce(usuarios.sexo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(sexo, 'Sin dato')")),
-            'porAnioIngreso' => self::sumar($agrupar("coalesce(usuarios.anio_ingreso::text, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(anio_ingreso::text, 'Sin dato')"))->sortBy('label')->values(),
-            'porTipoUsuario' => self::sumar($agrupar("coalesce(usuarios.tipo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(tipo_usuario, 'Sin dato')")),
+            'porSexo' => self::sumar(self::sumar($agrupar("coalesce(usuarios.sexo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(sexo, 'Sin dato')")), $this->agruparHorizon($sinRut, "'Sin dato'")),
+            'porAnioIngreso' => self::sumar(self::sumar($agrupar("coalesce(usuarios.anio_ingreso::text, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(anio_ingreso::text, 'Sin dato')")), $this->agruparHorizon($sinRut, "'Sin dato'"))->sortBy('label')->values(),
+            'porTipoUsuario' => self::sumar(self::sumar($agrupar("coalesce(usuarios.tipo, 'Sin dato')"), $this->agruparHorizon($usosHorizon, "coalesce(tipo_usuario, 'Sin dato')")), $this->agruparHorizon($sinRut, "'sin_rut'")),
             'porHora' => $contarHoras($porHoraTotal),
             // Solo tienen sentido en su pestaña; en el resto van vacíos.
             // bibliografico (de la colección, a domicilio), en_sala (de la colección, leído en la
             // biblioteca) o recursos_apoyo (notebook, bicicleta…), y el recurso.
-            'porTipoPrestamo' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item <> 'libro' then 'recursos_apoyo' when prestamos.en_sala then 'en_sala' else 'bibliografico' end") : [],
+            // sin_rut: los libros usados y dejados en la mesa sin préstamo.
+            'porTipoPrestamo' => $tab === 'prestamos' ? self::sumar($agrupar("case when prestamos.tipo_item <> 'libro' then 'recursos_apoyo' when prestamos.en_sala then 'en_sala' else 'bibliografico' end"), $this->agruparHorizon($sinRut, "'sin_rut'")) : [],
+            'usosSinRut' => $cantidadSinRut,
             // Lo del catálogo va por su tipo de material (Libro, Tesis, Juego educativo…); los
             // recursos de apoyo, por la clave de su categoría.
-            'porRecurso' => $tab === 'prestamos' ? $agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end") : [],
-            'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial($tipoDeMaterial) : [],
+            'porRecurso' => $tab === 'prestamos' ? self::sumar($agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end"), $this->agruparHorizon($sinRut, $tipoDeMaterial)) : [],
+            'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agruparMaterial($tipoDeMaterial), $this->agruparHorizon($sinRut, $tipoDeMaterial)) : [],
             'porSala' => $tab === 'logias' ? self::sumar($agrupar($salaConCodigo, $registros), $this->agruparHorizon($usosHorizon, "'".self::LOGIAS_HORIZON."'")) : [],
             'porSalaDetalle' => $porSalaDetalle,
             // Título guardado en el préstamo (no la relación viva): el ranking sigue siendo
             // correcto aunque la copia ya no exista o el libro haya cambiado de título. En
             // Préstamos, solo el material de la colección (sin los recursos de apoyo).
-            'porLibro' => in_array($tab, ['prestamos', 'libros'], true) ? $agruparMaterial("coalesce(prestamos.libro_titulo, '')") : [],
+            'porLibro' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agruparMaterial("coalesce(prestamos.libro_titulo, '')"), $this->agruparHorizon($sinRut, "coalesce(usr.libro_titulo, '')")) : [],
             'porHoraPorSala' => $porHoraPorSala,
             'interbibliotecario' => $tab === 'prestamos' ? $this->interbibliotecario($base, $inicio, $fin) : null,
         ]);
@@ -422,6 +443,33 @@ class ReporteController extends Controller
             'estudiante', 'docente', 'funcionario' => $query->where('tipo_usuario', $request->query('tipo_usuario')),
             default => null,
         };
+
+        return $query;
+    }
+
+    /**
+     * Los libros usados sin préstamo («Devolución sin RUT») del período, para Préstamos y
+     * Préstamos de material. Null si no corresponden: en otras pestañas, con otro tipo de
+     * préstamo elegido o con un filtro de quién (no tienen persona). Las mismas columnas
+     * del tipo de material que los préstamos (tm.nombre), para agruparlos juntos.
+     */
+    private function usosSinRut(Request $request, string $tab, Carbon $desde, Carbon $hasta): ?QueryBuilder
+    {
+        if (! in_array($tab, ['prestamos', 'libros'], true)
+            || ($tab === 'prestamos' && ! in_array($request->query('tipo_prestamo'), [null, '', 'sin_rut'], true))
+            || collect(['carrera', 'anio_ingreso', 'sexo', 'tipo_usuario'])->contains(fn ($p) => filled($request->query($p)))) {
+            return null;
+        }
+
+        $query = DB::table('usos_sin_rut as usr')
+            ->leftJoin('ejemplares as ej', 'ej.id', '=', 'usr.ejemplar_id')
+            ->leftJoin('libros as lib', 'lib.id', '=', 'ej.libro_id')
+            ->leftJoin('tipos_material as tm', 'tm.id', '=', 'lib.tipo_material_id')
+            ->whereBetween('usr.fecha_hora', [$desde, $hasta]);
+
+        if ($tipoMaterial = $request->query('tipo_material')) {
+            $query->where('tm.id', (int) $tipoMaterial);
+        }
 
         return $query;
     }
