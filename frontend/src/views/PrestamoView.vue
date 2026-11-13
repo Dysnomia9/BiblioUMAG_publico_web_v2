@@ -785,14 +785,14 @@ function limpiarRapido() {
   nextTick(() => codigoRapidoInput.value?.focus())
 }
 
-async function confirmarDevolucion() {
+async function confirmarDevolucion(multar = true) {
   if (!devolucionPendiente.value) return
   const esRapida = prestamoRapido.value?.id === devolucionPendiente.value.id
   devolviendo.value = true
   try {
-    const { data } = await api.patch<Prestamo>(`/prestamos/${devolucionPendiente.value.id}/devolver`)
+    const { data } = await api.patch<Prestamo>(`/prestamos/${devolucionPendiente.value.id}/devolver`, { multar })
     const multa = data.multas?.find((m) => m.tipo === 'atraso')
-    toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso` : 'Devolución registrada')
+    toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso` : multar ? 'Devolución registrada' : 'Devolución registrada sin multa')
     devolucionPendiente.value = null
     if (esRapida) limpiarRapido()
     await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario(), cargarPrestadosAhora()])

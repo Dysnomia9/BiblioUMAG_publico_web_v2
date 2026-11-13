@@ -117,6 +117,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::get('/prestamos/condiciones', [PrestamoController::class, 'condiciones']);
         Route::get('/prestamos/por-codigo', [PrestamoController::class, 'porCodigo']);
         Route::post('/prestamos', [PrestamoController::class, 'store']);
+        Route::get('/prestamos/{prestamo}/multa-atraso', [PrestamoController::class, 'multaAtraso']);
         Route::patch('/prestamos/{prestamo}/devolver', [PrestamoController::class, 'devolver']);
         // Libros usados y dejados en la mesa sin préstamo («Devolución sin RUT»).
         Route::get('/usos-sin-rut/hoy', [UsoSinRutController::class, 'hoy']);

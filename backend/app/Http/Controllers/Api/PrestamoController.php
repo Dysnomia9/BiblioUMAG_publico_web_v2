@@ -341,14 +341,33 @@ class PrestamoController extends Controller
         return response()->json($response, $status);
     }
 
+    /**
+     * La multa que tendría la devolución si se registra ahora, para que el mesón decida
+     * antes de devolver si la cursa o no. Null si no hay atraso que cobrar.
+     */
+    public function multaAtraso(Prestamo $prestamo)
+    {
+        if ($prestamo->estado === 'devuelto') {
+            return response()->json(null);
+        }
+
+        $ahora = now();
+        $monto = $this->multaService->calcular($prestamo, $ahora);
+
+        return response()->json($monto ? ['dias' => $this->multaService->diasAtraso($prestamo, $ahora), 'monto' => $monto] : null);
+    }
+
     public function devolver(Request $request, Prestamo $prestamo)
     {
         $staff = $request->user();
         $ahora = now();
+        // El mesón decide en el aviso de devolución si cursa la multa por atraso. Sin el
+        // dato (otros clientes, versiones anteriores) se cursa, como siempre.
+        $multar = $request->boolean('multar', true);
 
         // Ahora cada multa es una fila propia: sin este bloqueo, un doble click en
         // "Devolver" generaría dos multas por el mismo atraso.
-        [$yaDevuelto, $multa] = DB::transaction(function () use ($prestamo, $staff, $ahora) {
+        [$yaDevuelto, $multa] = DB::transaction(function () use ($prestamo, $staff, $ahora, $multar) {
             $bloqueado = Prestamo::whereKey($prestamo->id)->lockForUpdate()->first();
             if ($bloqueado->estado === 'devuelto') {
                 return [true, null];
@@ -361,7 +380,8 @@ class PrestamoController extends Controller
                 'devuelto_por_staff_id' => $staff->id,
             ]);
 
-            $multa = $this->multaService->generarPorAtraso($prestamo, $ahora, $staff);
+            $multa = $multar ? $this->multaService->generarPorAtraso($prestamo, $ahora, $staff) : null;
+            $montoNoCursado = $multar ? null : $this->multaService->calcular($prestamo, $ahora);
 
             if ($prestamo->ejemplar_id) {
                 // liberarLibro() no siempre deja la copia "disponible": si hay alguien en
@@ -391,6 +411,17 @@ class PrestamoController extends Controller
                     'Se generó una multa por atraso de '.Bitacora::pesos($multa->monto)." ({$multa->dias_atraso} ".($multa->dias_atraso === 1 ? 'día' : 'días').')',
                     entidad: $multa,
                     datos: ['prestamo_id' => $prestamo->id, 'monto' => $multa->monto],
+                    afectado: $prestamo->usuario,
+                );
+            }
+
+            if ($montoNoCursado) {
+                $dias = $this->multaService->diasAtraso($prestamo, $ahora);
+                Bitacora::registrar(
+                    'multas.no_cursar',
+                    "No cursó la multa por atraso de ".Bitacora::pesos($montoNoCursado)." ({$dias} ".($dias === 1 ? 'día' : 'días').") al recibir «{$prestamo->libro_titulo}»",
+                    entidad: $prestamo,
+                    datos: ['monto' => $montoNoCursado, 'dias_atraso' => $dias],
                     afectado: $prestamo->usuario,
                 );
             }

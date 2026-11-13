@@ -46,6 +46,36 @@ class PrestamoMultaTest extends TestCase
         $this->assertDatabaseCount('multas', 0);
     }
 
+    public function test_vista_previa_muestra_la_multa_que_tendria_la_devolucion(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $atrasado = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(3)]);
+        $aTiempo = $this->prestamoLibro(['fecha_devolucion' => now()->addDays(2)]);
+
+        $this->getJson("/api/prestamos/{$atrasado->id}/multa-atraso")
+            ->assertOk()
+            ->assertExactJson(['dias' => 3, 'monto' => 3 * config('multas.monto_dia')]);
+        $this->getJson("/api/prestamos/{$aTiempo->id}/multa-atraso")->assertOk()->assertContent('{}');
+
+        $this->assertDatabaseCount('multas', 0);
+    }
+
+    public function test_el_meson_puede_devolver_sin_cursar_la_multa_y_queda_en_la_bitacora(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(4)]);
+
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver", ['multar' => false])
+            ->assertOk()
+            ->assertJsonPath('estado', 'devuelto')
+            ->assertJsonCount(0, 'multas');
+
+        $this->assertDatabaseCount('multas', 0);
+        $this->assertDatabaseHas('bitacora', ['accion' => 'multas.no_cursar', 'entidad_id' => $prestamo->id]);
+    }
+
     public function test_devolucion_atrasada_genera_multa_pendiente_con_monto_correcto(): void
     {
         $staff = Staff::factory()->create();

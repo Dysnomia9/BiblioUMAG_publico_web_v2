@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
-import { estadoDe, fechaYHora } from '@/utils/prestamos'
+import api from '@/services/api'
+import { estadoDe, estaVencido, fechaYHora } from '@/utils/prestamos'
 import { itemPrestamo } from '@/utils/recursos'
 import type { Prestamo, Usuario } from '@/types'
 
@@ -9,18 +10,44 @@ import type { Prestamo, Usuario } from '@/types'
  * «¿Confirmar devolución?» de un libro o de un recurso de apoyo (notebook, cargador…):
  * qué se devuelve con su estado («Vence hoy», «Vencido»), a quién se prestó, el código,
  * y cuándo se prestó y cuándo vence, con «Hoy» y la hora cuando la tiene.
+ * Si el libro vuelve con atraso, muestra la multa que correspondería y quien atiende
+ * decide: devolver cursándola o devolver sin multa (queda en la bitácora).
  */
 const props = defineProps<{
   prestamo: Prestamo | null
   usuario: Pick<Usuario, 'nombre' | 'apellido' | 'rut'> | null
   cargando?: boolean
 }>()
-const emit = defineEmits<{ confirmar: []; cancelar: [] }>()
+const emit = defineEmits<{ confirmar: [multar: boolean]; cancelar: [] }>()
 
 const item = computed(() => (props.prestamo ? itemPrestamo(props.prestamo.tipo_item) : null))
 const estado = computed(() => (props.prestamo ? estadoDe(props.prestamo) : null))
 const prestado = computed(() => (props.prestamo ? fechaYHora(props.prestamo.fecha_prestamo) : null))
 const vence = computed(() => (props.prestamo?.fecha_devolucion ? fechaYHora(props.prestamo.fecha_devolucion) : null))
+
+// La multa que tendría devolverlo ahora (null: sin atraso que cobrar).
+const multa = ref<{ dias: number; monto: number } | null>(null)
+const calculandoMulta = ref(false)
+watch(
+  () => props.prestamo,
+  async (p) => {
+    multa.value = null
+    if (!p || p.tipo_item !== 'libro' || !estaVencido(p)) return
+    calculandoMulta.value = true
+    try {
+      // Sin atraso la respuesta es {}: solo cuenta si trae monto.
+      const { data } = await api.get<{ dias?: number; monto?: number }>(`/prestamos/${p.id}/multa-atraso`)
+      if (props.prestamo?.id === p.id) multa.value = data?.monto ? { dias: data.dias ?? 0, monto: data.monto } : null
+    } catch {
+      // Sin la vista previa se devuelve como antes: el servidor calcula y cursa la multa.
+    } finally {
+      calculandoMulta.value = false
+    }
+  },
+  { immediate: true },
+)
+const pesos = (monto: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(monto)
+const ocupado = computed(() => props.cargando || calculandoMulta.value)
 </script>
 
 <template>
@@ -64,6 +91,12 @@ const vence = computed(() => (props.prestamo?.fecha_devolucion ? fechaYHora(prop
           </div>
         </div>
       </dl>
+
+      <div v-if="multa" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <p class="font-semibold">Vuelve con {{ multa.dias }} {{ multa.dias === 1 ? 'día' : 'días' }} de atraso: multa de {{ pesos(multa.monto) }}</p>
+        <p class="mt-0.5 text-red-800">Elija si la cursa o devuelve sin multa. Si no la cursa, queda registrado en la bitácora.</p>
+      </div>
+      <p v-else-if="calculandoMulta" class="text-sm text-gray-500">Calculando el atraso…</p>
     </div>
     <template #pie>
       <button
@@ -74,11 +107,30 @@ const vence = computed(() => (props.prestamo?.fecha_devolucion ? fechaYHora(prop
       >
         Cancelar
       </button>
+      <template v-if="multa">
+        <button
+          type="button"
+          class="flex-1 rounded-lg border border-emerald-300 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 disabled:opacity-60"
+          :disabled="ocupado"
+          @click="emit('confirmar', false)"
+        >
+          Devolver sin multa
+        </button>
+        <button
+          type="button"
+          class="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-red-700 disabled:opacity-60"
+          :disabled="ocupado"
+          @click="emit('confirmar', true)"
+        >
+          {{ cargando ? 'Confirmando…' : `Devolver y multar ${pesos(multa.monto)}` }}
+        </button>
+      </template>
       <button
+        v-else
         type="button"
         class="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-emerald-700 disabled:opacity-60"
-        :disabled="cargando"
-        @click="emit('confirmar')"
+        :disabled="ocupado"
+        @click="emit('confirmar', true)"
       >
         {{ cargando ? 'Confirmando…' : 'Sí, devolver' }}
       </button>
