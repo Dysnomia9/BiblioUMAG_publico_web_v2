@@ -1447,10 +1447,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <!-- El bloque que se está eligiendo, con su horario -->
                 <div
                   v-if="!errorInicio && modalFinMin > modalInicioMin"
-                  class="pointer-events-none absolute inset-y-0 z-10 flex items-center justify-center overflow-hidden rounded-lg text-[10px] font-semibold"
-                  :class="renovacionDe
-                    ? 'border-[3px] border-indigo-600 bg-indigo-500/15 text-indigo-950'
-                    : 'bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-md ring-2 ring-indigo-700'"
+                  class="pointer-events-none absolute inset-y-0 z-10 flex items-center justify-center overflow-hidden rounded-lg border-[3px] border-indigo-600 bg-indigo-500/15 text-[10px] font-semibold text-indigo-950"
                   :style="{ left: pct(minutesToTime(modalInicioMin)) + '%', width: pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) + '%' }"
                 >
                   <span v-if="pct(minutesToTime(modalFinMin)) - pct(minutesToTime(modalInicioMin)) >= 9" class="whitespace-nowrap">{{ minutesToTime(modalInicioMin) }}–{{ minutesToTime(modalFinMin) }}</span>
@@ -1472,7 +1469,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre (clic para elegir)</span>
                 <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
                 <span v-if="renovacionDe" class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200"></span> Préstamo anterior</span>
-                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm" :class="renovacionDe ? 'border-2 border-indigo-600 bg-indigo-500/15' : 'bg-indigo-600'"></span> Su reserva</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border-2 border-indigo-600 bg-indigo-500/15"></span> Su reserva</span>
                 <span class="flex items-center gap-1"><span class="franja-pasada h-2.5 w-2.5 rounded-sm border border-slate-200"></span> Ya pasó o cerrado</span>
               </div>
             </section>
