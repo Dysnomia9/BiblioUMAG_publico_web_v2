@@ -86,6 +86,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/estados-libro-personalizados', [EstadoLibroPersonalizadoController::class, 'index']);
     Route::get('/autores', [CatalogoLibroController::class, 'autores']);
     Route::get('/categorias', [CatalogoLibroController::class, 'categorias']);
+    Route::post('/categorias/revisar', [CatalogoLibroController::class, 'revisarMaterias']);
     Route::get('/carreras', [CatalogoLibroController::class, 'carreras']);
     Route::get('/ubicaciones', [UbicacionController::class, 'index']);
     Route::get('/tipos-material', [TipoMaterialController::class, 'index']);

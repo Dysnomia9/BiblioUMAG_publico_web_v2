@@ -31,6 +31,73 @@ class CatalogoLibroController extends Controller
     }
 
     /**
+     * Cómo quedan, frente al catálogo, las materias que se están poniendo a un libro, para
+     * avisar al catalogar antes de crear una repetida. Por cada nombre:
+     * - «exacta»: ya existe escrita igual;
+     * - «igual»: existe con otras mayúsculas o tildes; al guardar se usa la existente
+     *   (LibroController::idsPorNombre), así que solo se avisa cómo quedará;
+     * - «parecida»: existe con otros espacios o signos («RAPANUI» y «RAPA NUI»); al guardar
+     *   se crearía otra, así que se ofrece usar la existente;
+     * - «nueva»: no hay ninguna parecida; se creará al guardar. Si su tema (lo de antes del
+     *   primer « -- ») existe escrito de otra forma, «sugerencia» trae la materia con ese tema.
+     */
+    public function revisarMaterias(Request $request)
+    {
+        $nombres = collect($request->validate([
+            'nombres' => ['required', 'array', 'max:50'],
+            'nombres.*' => ['string', 'max:255'],
+        ])['nombres'])->map(fn ($n) => Materia::normalizar($n))->filter()->unique()->values();
+
+        return response()->json($nombres->map(function (string $nombre) {
+            [$tipo, $existente] = $this->materiaParecida($nombre);
+            $sugerencia = null;
+
+            // «RAPANUI -- LENGUAS -- DICCIONARIOS» no existe entera, pero su tema sí («RAPA NUI»):
+            // se propone escribirla con el tema como ya está en el catálogo.
+            $partes = explode(' -- ', $nombre, 2);
+            if ($tipo === 'nueva' && count($partes) === 2) {
+                [$tipoTema, $tema] = $this->materiaParecida($partes[0]);
+                if ($tema && $tipoTema !== 'exacta') {
+                    $sugerencia = ['tema' => $partes[0], 'tema_existente' => $tema['nombre'], 'nombre' => "{$tema['nombre']} -- {$partes[1]}"];
+                }
+            }
+
+            return ['nombre' => $nombre, 'tipo' => $tipo, 'existente' => $existente, 'sugerencia' => $sugerencia];
+        }));
+    }
+
+    /**
+     * La materia del catálogo igual a $nombre salvo mayúsculas, tildes, espacios o signos
+     * (entre varias, la que tiene más libros) y qué tan igual es. Usa la clave con que
+     * LibroController::idsPorNombre() decide si ya existe (la ñ no se iguala a la n).
+     *
+     * @return array{0: 'exacta'|'igual'|'parecida'|'nueva', 1: array{id: int, nombre: string, libros: int}|null}
+     */
+    private function materiaParecida(string $nombre): array
+    {
+        $compacta = preg_replace('/[^a-z0-9ñ]/u', '', LibroController::claveNombre($nombre));
+        if ($compacta === '') {
+            return ['nueva', null];
+        }
+
+        $parecida = Categoria::query()
+            ->whereRaw("regexp_replace(translate(lower(nombre), ?, ?), '[^a-z0-9ñ]', '', 'g') = ?", [LibroController::CON_TILDE, LibroController::SIN_TILDE, $compacta])
+            ->withCount('libros')
+            ->orderByDesc('libros_count')
+            ->orderBy('id')
+            ->first(['id', 'nombre']);
+
+        $tipo = match (true) {
+            ! $parecida => 'nueva',
+            $parecida->nombre === $nombre => 'exacta',
+            LibroController::claveNombre($parecida->nombre) === LibroController::claveNombre($nombre) => 'igual',
+            default => 'parecida',
+        };
+
+        return [$tipo, $parecida ? ['id' => $parecida->id, 'nombre' => $parecida->nombre, 'libros' => $parecida->libros_count] : null];
+    }
+
+    /**
      * Las carreras del catálogo de libros (los filtros buscan por su id). Con ?con_usuarios=1,
      * también las que tienen los usuarios y todavía ningún libro, sin id: son las sugerencias
      * de «Carreras asociadas» al catalogar, y entran al catálogo cuando se asignan a un libro

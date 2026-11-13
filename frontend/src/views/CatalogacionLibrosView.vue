@@ -10,6 +10,7 @@ import CampoPrecio from '@/components/ui/CampoPrecio.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
+import RevisionMaterias from '@/components/libros/RevisionMaterias.vue'
 import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import SeccionFicha from '@/components/libros/SeccionFicha.vue'
@@ -1775,6 +1776,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p :class="ETIQUETA"><Marc :codigo="etiqueta('materias')" tono="pizarra" /> Materias</p>
                   <MultiSelectCombobox v-model="form.categorias" :buscar="buscarMaterias" placeholder="Agregar materia (ej. MAPUCHES -- VIDA SOCIAL Y COSTUMBRES)" :clase-ficha="TONOS_FICHA.pizarra.chip" />
                   <p class="mt-1 text-[11px] text-gray-500">Sugerencias según lo que ya existe en el catálogo.</p>
+                  <RevisionMaterias v-model="form.categorias" />
                   <p class="mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-gray-700">
                     <strong>Subdivisiones:</strong> escríbalas en la misma materia, separadas por <kbd class="rounded border border-gray-300 bg-white px-1 font-mono">--</kbd>,
                     en el orden <strong>tema -- aspecto -- lugar -- época</strong>. Ej.: <span class="font-mono">MAPUCHES -- VIDA SOCIAL Y COSTUMBRES</span>,
