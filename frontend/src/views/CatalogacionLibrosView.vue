@@ -485,11 +485,13 @@ function alSalirDelTomoEditar() {
   const volumenPrimero = repartirTomo(formEditar)
   if (volumenPrimero !== null) volumenPrimeroEditar.value = volumenPrimero
 }
-const copiaEditarValida = computed(() => /^(?:c\.?\s*)?\d{0,4}$/i.test(formEditar.copia.trim()))
+/** «2», «c.2», «c 2», «copia 2», «Copia 2» → «2»: el número de copia, como se escriba. */
+const numeroDeCopiaEscrito = (texto: string) => texto.trim().replace(/^(?:copia|c)\.?\s*/i, '')
+const copiaEditarValida = computed(() => /^\d{0,4}$/.test(numeroDeCopiaEscrito(formEditar.copia)) && numeroDeCopiaEscrito(formEditar.copia) !== '0')
 const volumenEditar = computed(() => {
   if (tomoParteEditar.value === null || volumenParteEditar.value === null) return ''
   const base = claveDe(tomoParteEditar.value, volumenParteEditar.value, volumenPrimeroEditar.value) || formEditar.otra.trim()
-  const copia = formEditar.copia.trim().replace(/^c\.?\s*/i, '')
+  const copia = numeroDeCopiaEscrito(formEditar.copia)
   return copia ? `${base} c.${copia}`.trim() : base
 })
 const edicionValida = computed(() => tomoParteEditar.value !== null && volumenParteEditar.value !== null && copiaEditarValida.value)
@@ -592,7 +594,7 @@ const copiaSugerida = computed<number | null>(() => {
   return Math.max(0, ...delGrupo.map((e) => Number((e.etiqueta_copia ?? '').replace(/^c\./, '')) || 0)) + 1
 })
 /** El número escrito en «Copia» («2», «c.2» → «2»); vacío = sin número. */
-const copiaEscrita = computed(() => formCopia.copia.trim().replace(/^c\.?\s*/i, ''))
+const copiaEscrita = computed(() => numeroDeCopiaEscrito(formCopia.copia))
 const copiaEscritaValida = computed(() => /^\d{0,4}$/.test(copiaEscrita.value) && copiaEscrita.value !== '0')
 /** Cómo queda el texto de la copia: «t.1-v.II c.2», «Anexo» (con «c.2» aparte) o nada. */
 const volumenCopiaNueva = computed(() => {
@@ -1241,7 +1243,7 @@ const ubicacionCopia = computed(() => ubicacionesOpciones.value.find((u) => u.id
 
 function pedirConfirmacionCopia() {
   if (!copiaEscritaValida.value) {
-    toast.error('En «Copia» va solo el número, por ejemplo «2» (o vacía, sin número)')
+    toast.error('En «Copia» va el número, por ejemplo «2», «c.2» o «copia 2» (o vacía, sin número)')
     document.getElementById('copia-numero')?.focus()
     return
   }
@@ -2021,7 +2023,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                       Usar c.{{ copiaSugerida }}
                     </button>
                   </div>
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacía = sin número de copia</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">c.2</span> o <span class="font-mono">copia 2</span> · vacía = sin número</p>
                 </div>
                 <div class="sm:col-span-6">
                   <p v-if="tomoParte === null" class="text-[11px] font-semibold text-red-700">
@@ -2180,7 +2182,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 <div class="sm:col-span-2">
                   <label for="editar-copia-num" :class="ETIQUETA">Copia</label>
                   <input id="editar-copia-num" v-model="formEditar.copia" autocomplete="off" inputmode="numeric" placeholder="2" :aria-invalid="!copiaEditarValida" :class="[CAMPO, !copiaEditarValida ? 'border-red-400 ring-1 ring-red-300' : '']" />
-                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span> · vacía = sin número de copia</p>
+                  <p class="mt-1 text-[11px] text-gray-500">Ej: <span class="font-mono">2</span>, <span class="font-mono">c.2</span> o <span class="font-mono">copia 2</span> · vacía = sin número</p>
                 </div>
                 <div class="sm:col-span-6">
                   <label for="editar-otra" :class="ETIQUETA">Otra designación <span class="font-normal text-gray-400">(si no tiene tomo ni volumen)</span></label>
@@ -2188,7 +2190,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                   <p class="mt-1 text-[11px] text-gray-500">Para lo que no es tomo ni volumen, como un anexo o el número de una revista. Con tomo o volumen, se deja vacía.</p>
                 </div>
                 <p v-if="!edicionValida" class="text-[11px] font-semibold text-red-700 sm:col-span-6">
-                  Hay algo que no se reconoce: el tomo va como «1», el volumen como «2» o «II» y la copia como «2».
+                  Hay algo que no se reconoce: el tomo va como «1», el volumen como «2» o «II» y la copia como «2» o «c.2».
                 </p>
                 <div class="sm:col-span-6">
                   <label for="editar-coleccion" :class="ETIQUETA">Colección de la copia</label>
