@@ -1002,17 +1002,6 @@ function formatHora(iso: string | null) {
           </div>
           <div class="flex shrink-0 flex-wrap items-center gap-2">
           <button
-            v-if="puedeRegistrarUsuarios"
-            type="button"
-            class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
-            @click="usuariosMeson?.abrir()"
-          >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.500v3m0 0v3m0-3h3m-3 0h-3m-2.250-4.125a3.375 3.375 0 11-6.750 0 3.375 3.375 0 016.750 0zM4 19.235v-.110a6.375 6.375 0 0112.750 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
-            </svg>
-            Crear o corregir usuario
-          </button>
-          <button
             type="button"
             class="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/30 bg-blanco/10 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blanco/20"
             :aria-expanded="guiaAbierta"
