@@ -1,7 +1,7 @@
 /**
  * Fondos del modo día. Cada persona del personal elige el suyo (menú de la cuenta ›
- * Aspecto visual) y queda en su cuenta (staff.fondo); el portal de usuarios usa siempre
- * Neblina. En modo noche no se usan: se ve el fondo oscuro de siempre.
+ * Aspecto visual) y queda en su cuenta (staff.fondo); los usuarios del portal, igual
+ * (usuarios.fondo), y si no eligen va Neblina. En modo noche no se usan: se ve el fondo oscuro de siempre.
  *
  * tailwind.config.js arma con esta lista las variables de cada fondo, que se activan con
  * data-fondo en <html> (composables/useFondo.ts). Cada fondo puede cambiar:
@@ -95,6 +95,25 @@ const LOMOS =
   `linear-gradient(180deg, rgb(241 241 248 / 0) 0%, rgb(241 241 248 / 0.7) 30%, ${GRIS_LILA} 55%), ` +
   'repeating-linear-gradient(90deg, rgb(99 102 241 / 0.07) 0 12px, transparent 12px 20px, rgb(99 102 241 / 0.04) 20px 34px, ' +
   'transparent 34px 40px, rgb(176 141 87 / 0.08) 40px 48px, transparent 48px 62px, rgb(99 102 241 / 0.05) 62px 70px, transparent 70px 90px)'
+
+// Fondo Rosado: grano rosa de papel, puntitos fucsia y luces suaves en las esquinas.
+const GRANO_ROSA = svg(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'>` +
+    `<filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/>` +
+    `<feColorMatrix values='0 0 0 0 0.7 0 0 0 0 0.35 0 0 0 0 0.5 0 0 0 0.05 0'/></filter>` +
+    `<rect width='100%' height='100%' filter='url(#g)'/></svg>`,
+)
+// Fondo Crema: blanco cálido con puntitos dorados y luces durazno y rosa muy tenues.
+const PUNTOS_CREMA = 'radial-gradient(circle, rgb(176 141 87 / 0.17) 1px, transparent 1.4px)'
+const LUCES_CREMA =
+  'radial-gradient(ellipse 55% 50% at 100% 0%, rgb(253 216 180 / 0.30), transparent 70%), ' +
+  'radial-gradient(ellipse 55% 50% at 0% 100%, rgb(245 214 214 / 0.28), transparent 70%), ' +
+  'linear-gradient(135deg, #f6f1e8, #f9f6f0 50%, #f6f0e7)'
+const PUNTOS_ROSA = 'radial-gradient(circle, rgb(190 80 130 / 0.11) 1px, transparent 1.4px)'
+const LUCES_ROSA =
+  'radial-gradient(ellipse 55% 50% at 100% 0%, rgb(249 190 220 / 0.28), transparent 70%), ' +
+  'radial-gradient(ellipse 55% 50% at 0% 100%, rgb(250 215 230 / 0.35), transparent 70%), ' +
+  'linear-gradient(135deg, #f8f0f2, #faf5f6 50%, #f8f1f3)'
 
 export const FONDOS: Fondo[] = [
   {
@@ -260,11 +279,33 @@ export const FONDOS: Fondo[] = [
     base: '#eef1f6',
     capas: `${CERROS}, linear-gradient(180deg, #e4ebf5, #eff2f7 55%, #f1f2f6)`,
   },
+  {
+    clave: 'rosado',
+    nombre: 'Rosado',
+    descripcion: 'Rosa muy tenue con grano de papel, puntitos y luces en las esquinas.',
+    base: '#f9f2f4',
+    capas: `${GRANO_ROSA}, ${PUNTOS_ROSA}, ${LUCES_ROSA}`,
+    tamanos: 'auto, 18px 18px, auto, auto, auto',
+    tarjeta: '#fffcfd',
+    neutros: { 50: '#fbf6f7', 100: '#f6edf0', 200: '#eee2e6', 300: '#e0d0d6' },
+    bordes: { 100: '#f3e9ec', 200: '#ece0e4', 300: '#dccbd1' },
+  },
+  {
+    clave: 'crema',
+    nombre: 'Crema',
+    descripcion: 'Blanco cálido con puntitos dorados y luces durazno muy suaves.',
+    base: '#f7f3eb',
+    capas: `${PUNTOS_CREMA}, ${LUCES_CREMA}`,
+    tamanos: '18px 18px, auto, auto, auto',
+    tarjeta: '#fffdf9',
+    neutros: { 50: '#faf7f1', 100: '#f3eee5', 200: '#e9e3d8', 300: '#d9d1c3' },
+    bordes: { 100: '#efe9df', 200: '#e7e0d4', 300: '#d6cdbe' },
+  },
 ]
 
 /** El del personal que no ha elegido (staff.fondo vacío; public/tema.js lo repite). */
 export const FONDO_PREDETERMINADO = 'patagonia'
-/** El del portal de usuarios, que no eligen fondo. */
+/** El de los usuarios del portal que no han elegido (usuarios.fondo vacío). */
 export const FONDO_PORTAL = 'neblina'
 
 export function esFondo(clave: unknown): clave is string {
