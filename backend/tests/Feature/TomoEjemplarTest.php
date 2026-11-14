@@ -139,6 +139,26 @@ class TomoEjemplarTest extends TestCase
         $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol XXVII (sept. 2013)'));
     }
 
+    public function test_la_parte_despues_del_tomo_o_volumen(): void
+    {
+        $this->assertSame(['t.XXXIII-p.1', null], TomoEjemplar::desdeEtiqueta('t.XXXIII-part.1'));
+        $this->assertSame(['t.XXV-p.2', null], TomoEjemplar::desdeEtiqueta('t.xxv-parte 2'));
+        $this->assertSame(['t.XXXVI-p.2', null], TomoEjemplar::desdeEtiqueta('t.xxxvi-p.2'));
+        $this->assertSame(['t.2-p.1', 3], TomoEjemplar::desdeEtiqueta('t.2-p.1-c.3'));
+        $this->assertSame(['t.2-p.2', 2], TomoEjemplar::desdeEtiqueta('t.2 - p.2-c.2'));
+        $this->assertSame(['t.2-p.2', 8], TomoEjemplar::desdeEtiqueta('t.2-p-2-c.8'));
+        $this->assertSame(['t.18-p.1', null], TomoEjemplar::desdeEtiqueta('t.18 p.1'));
+        $this->assertSame(['v.3a-p.2', null], TomoEjemplar::desdeEtiqueta('v.3a-p.2'));
+        $this->assertSame(['v.1-p.2', null], TomoEjemplar::desdeEtiqueta('v.1-2a. parte'));
+        $this->assertSame(['t.1-v.II-p.2', 1], TomoEjemplar::desdeEtiqueta('t.1-v.II-p.2 c.1'));
+        $this->assertSame('t.XXXIII-p.1', TomoEjemplar::normalizar('Tomo XXXIII Parte 1'));
+        // Las revistas siguen sin ser tomos
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol I No 1 (1970)'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('Vol 13 part 1 (jan. 2002)'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('vol. X part. 1-2 (1967)'));
+        $this->assertSame([null, null], TomoEjemplar::desdeEtiqueta('p.2'));
+    }
+
     public function test_las_copias_se_numeran_dentro_del_tomo_y_volumen(): void
     {
         \Laravel\Sanctum\Sanctum::actingAs(\App\Models\Staff::factory()->admin()->create());

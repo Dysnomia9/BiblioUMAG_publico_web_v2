@@ -12,6 +12,10 @@ use App\Models\Ejemplar;
  * Horizon también junta tomo y volumen, en el orden en que se escribió: «t.1-v.II»,
  * «t.2-v.I-c.1», «v.1-t.2» (unas 90 copias). Ese par es el «tomo» de la copia («t.1-v.II»):
  * las copias se numeran dentro de él, igual que dentro de un tomo solo.
+ *
+ * Tras el tomo o el volumen puede ir la parte: «t.XXXIII-part.1», «t.xxv-parte 2», «t.2-p.1-c.3»
+ * → «t.XXXIII-p.1», «t.XXV-p.2», «t.2-p.1» (c.3). Las revistas («Vol 13 part 1 (jan. 2002)»)
+ * llevan la fecha y siguen sin ser tomos.
  */
 final class TomoEjemplar
 {
@@ -19,12 +23,14 @@ final class TomoEjemplar
     private const PATRON = '/^(t|tomo|v|vol|volumen)\.?\s*(\d+(?:[a-z](?![.\s]*\d))?|[ivxlc]+(?![a-z]))'
         // el segundo, del otro tipo: «t.1-v.II», «t.1 v.2», «v.2- t.98», «t.4-vol.II»
         .'(?:\s*[-,;\/]?\s*(t|tomo|v|vol|volumen)\.?\s*(\d+|[ivxlc]+)(?![a-z]))?'
+        // la parte, después del tomo o volumen: «t.XXXIII-part.1», «t.xxv-parte 2», «t.2-p.1», «t.2-p-2»; o «v.1-2a. parte»
+        .'(?:\s*[-,;\/]?\s*(?:(?:parte|part|pt|p)\.?[\s-]*(\d+|[ivxlc]+)|(\d+)[aª]\.?\s*parte)(?![a-z]))?'
         // la copia: «c.2», «-c.1», «/c.1», «c2»
         .'\s*(?:[-,;\/]\s*|\s)?(?:c\.?\s*(\d+))?\.?$/iu';
 
     /**
      * «v.1 c.2», «v.1-c.3», «t.4», «Tomo 2», «vol. 3 c.1», «t.2-v.I-c.1» → ['v.1', 2],
-     * ['v.1', 3], ['t.4', null]… ['t.2-v.I', 1]. Lo que no es un tomo («No. 367 (Ene., 2014)»)
+     * ['v.1', 3], ['t.4', null]… ['t.2-v.I', 1]; «t.XXXIII-part.1» → ['t.XXXIII-p.1', null]. Lo que no es un tomo («No. 367 (Ene., 2014)»)
      * → [null, null]. Igual que tomo_de_volumen() del ETL.
      *
      * @return array{0: string|null, 1: int|null}
@@ -40,9 +46,12 @@ final class TomoEjemplar
         if ($segundo !== '' && mb_strtolower($segundo[0]) === mb_strtolower($m[1][0])) {
             return [null, null];
         }
-        $tomo = self::parte($m[1], $m[2]).($segundo !== '' ? '-'.self::parte($segundo, $m[4]) : '');
+        // La parte: «p.1», «part.1», «parte 2» (en $m[5]) o «2a. parte» (en $m[6])
+        $parte = ($m[5] ?? '') !== '' ? $m[5] : ($m[6] ?? '');
+        $tomo = self::parte($m[1], $m[2]).($segundo !== '' ? '-'.self::parte($segundo, $m[4]) : '')
+            .($parte !== '' ? '-'.self::parte('p', $parte) : '');
 
-        return [$tomo, isset($m[5]) && $m[5] !== '' ? (int) $m[5] : null];
+        return [$tomo, isset($m[7]) && $m[7] !== '' ? (int) $m[7] : null];
     }
 
     /** «Tomo», «1» → «t.1»; «vol», «ii» → «v.II» (los romanos en mayúscula, como en Horizon). */

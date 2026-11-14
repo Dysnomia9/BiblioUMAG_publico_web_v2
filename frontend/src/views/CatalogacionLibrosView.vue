@@ -412,14 +412,35 @@ function leerParte(texto: string, letra: 't' | 'v'): string | null {
   const t = texto.replace(/\s+/g, ' ').trim()
   if (!t) return ''
   const prefijo = letra === 't' ? '(?:t|tomo)' : '(?:v|vol|volumen)'
-  const m = t.match(new RegExp(`^(?:${prefijo}\\.?\\s*)?(\\d+[a-z]?|[ivxlc]+)$`, 'i'))
+  // Con su parte, si la tiene: «XXXIII p.1», «2-parte 2» → «t.XXXIII-p.1», «t.2-p.2»
+  const m = t.match(new RegExp(`^(?:${prefijo}\\.?\\s*)?(\\d+[a-z]?|[ivxlc]+)(?:[\\s,;/-]*(?:parte|part|pt|p)\\.?[\\s-]*(\\d+|[ivxlc]+))?$`, 'i'))
   if (!m) return null
-  return `${letra}.${/^\d/.test(m[1]) ? m[1].toLowerCase() : m[1].toUpperCase()}`
+  const numero = (n: string) => (/^\d/.test(n) ? n.toLowerCase() : n.toUpperCase())
+  return `${letra}.${numero(m[1])}${m[2] ? `-p.${numero(m[2])}` : ''}`
 }
-/** El tomo de la copia que se guarda: «t.1», «v.2», «t.1-v.II» («v.1-t.2» si el volumen va primero, como algunas de Horizon). */
+const PARTE_DEL_TOMO = /-p\.[^-]+$/
+/** El tomo de la copia que se guarda: «t.1», «v.2», «t.1-v.II» («v.1-t.2» si el volumen va primero, como algunas de Horizon); la parte, al final («t.1-v.II-p.2»). */
 function claveDe(tomo: string, volumen: string, volumenPrimero = false): string {
-  if (tomo && volumen) return volumenPrimero ? `${volumen}-${tomo}` : `${tomo}-${volumen}`
-  return tomo || volumen
+  const parte = tomo.match(PARTE_DEL_TOMO)?.[0] ?? volumen.match(PARTE_DEL_TOMO)?.[0] ?? ''
+  const [t, v] = [tomo.replace(PARTE_DEL_TOMO, ''), volumen.replace(PARTE_DEL_TOMO, '')]
+  const base = t && v ? (volumenPrimero ? `${v}-${t}` : `${t}-${v}`) : t || v
+  return base ? `${base}${parte}` : ''
+}
+/**
+ * La clave del tomo («t.1-v.II», «t.XXXIII-p.1») en las casillas Tomo y Volumen: la parte va con
+ * la que la precede («XXXIII p.1»), para que no se pierda al guardar.
+ */
+function casillasDeClave(clave: string) {
+  const partes = clave.split('-').filter(Boolean)
+  const parte = partes.find((p) => p.startsWith('p'))
+  const sinParte = partes.filter((p) => !p.startsWith('p'))
+  let tomo = sinParte.find((p) => p.startsWith('t'))?.slice(2) ?? ''
+  let volumen = sinParte.find((p) => p.startsWith('v'))?.slice(2) ?? ''
+  if (parte) {
+    if (sinParte.at(-1)?.startsWith('v')) volumen += ` ${parte}`
+    else tomo += ` ${parte}`
+  }
+  return { tomo, volumen, volumenPrimero: sinParte.length === 2 && sinParte[0].startsWith('v') }
 }
 /**
  * Lo pegado o elegido en «Tomo» con más de una parte («t.1-v.II», «v.3», «t.1 c.2»): se reparte
@@ -430,10 +451,11 @@ function repartirTomo(form: { tomo: string; parte: string; copia: string }): boo
   if (!leido) return null
   const partes = leido.clave.split('-')
   if (partes.length === 1 && partes[0].startsWith('t') && !leido.copia) return null
-  form.tomo = partes.find((p) => p.startsWith('t'))?.slice(2) ?? ''
-  form.parte = partes.find((p) => p.startsWith('v'))?.slice(2) ?? ''
+  const casillas = casillasDeClave(leido.clave)
+  form.tomo = casillas.tomo
+  form.parte = casillas.volumen
   if (leido.copia) form.copia = leido.copia
-  return partes.length === 2 && partes[0].startsWith('v')
+  return casillas.volumenPrimero
 }
 
 // «Nuevo ejemplar»
@@ -521,14 +543,14 @@ function editarCopia(copia: Ejemplar, libro: Libro) {
   // «t.1-v.II c.2», «t.5 Apéndice», «Anexo v.1», «Cuadernillo-c.1», como los escribe Horizon.
   const leido = leerTomoCopia(copia.volumen)
   const junto = leido ? null : separarTomoYDesignacion(copia.volumen)
-  const partes = (leido?.clave ?? junto?.clave ?? '').split('-').filter(Boolean)
-  volumenPrimeroEditar.value = partes.length === 2 && partes[0].startsWith('v')
+  const casillas = casillasDeClave(leido?.clave ?? junto?.clave ?? '')
+  volumenPrimeroEditar.value = casillas.volumenPrimero
   otraPrimeroEditar.value = !!junto?.otraPrimero
   const soloOtra = leido || junto ? null : (copia.volumen ?? '').match(/^(.*?)[\s\-,;/]*c\.?\s*(\d{1,4})\.?$/i)
   Object.assign(formEditar, {
     ubicacion_id: copia.ubicacion_id ?? '',
-    tomo: partes.find((p) => p.startsWith('t'))?.slice(2) ?? '',
-    parte: partes.find((p) => p.startsWith('v'))?.slice(2) ?? '',
+    tomo: casillas.tomo,
+    parte: casillas.volumen,
     copia: leido?.copia ?? junto?.copia ?? soloOtra?.[2] ?? numeroDeCopia(copia) ?? '',
     otra: junto?.otra ?? (leido ? '' : soloOtra ? soloOtra[1] : copia.volumen ?? ''),
     coleccion: copia.coleccion ?? '',
