@@ -277,6 +277,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
 Route::middleware(['auth:sanctum', 'usuario'])->group(function () {
     Route::get('/auth/usuario/me', [UsuarioAuthController::class, 'me']);
     Route::post('/auth/usuario/logout', [UsuarioAuthController::class, 'logout']);
+    Route::patch('/auth/usuario/fondo', [UsuarioAuthController::class, 'cambiarFondo']);
 
     Route::get('/mi/estado', [PortalController::class, 'estado']);
     Route::get('/mi/actividad', [PortalController::class, 'actividad']);

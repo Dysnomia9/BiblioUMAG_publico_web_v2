@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 /**
  * Aspecto visual: cada persona del personal elige el fondo del panel en modo día y queda en
- * su cuenta (la sesión lo trae en /auth/me).
+ * su cuenta (la sesión lo trae en /auth/me). Los usuarios del portal, igual, en /auth/usuario/fondo.
  */
 class FondoPersonalTest extends TestCase
 {
@@ -59,11 +59,41 @@ class FondoPersonalTest extends TestCase
         $this->assertSame('marfil', $beto->fresh()->fondo);
     }
 
-    public function test_un_usuario_del_portal_no_elige_fondo(): void
+    public function test_un_usuario_del_portal_no_usa_la_ruta_del_personal(): void
     {
         Sanctum::actingAs(Usuario::factory()->create());
 
         $this->patchJson('/api/auth/fondo', ['fondo' => 'papel'])->assertForbidden();
+    }
+
+    public function test_el_usuario_del_portal_elige_su_fondo(): void
+    {
+        $usuario = Usuario::factory()->create();
+        $editada = $usuario->updated_at;
+        Sanctum::actingAs($usuario);
+
+        $this->getJson('/api/auth/usuario/me')->assertOk()->assertJsonPath('fondo', null);
+        $this->travel(5)->minutes();
+        $this->patchJson('/api/auth/usuario/fondo', ['fondo' => 'rosado'])->assertOk()->assertExactJson(['fondo' => 'rosado']);
+
+        $this->getJson('/api/auth/usuario/me')->assertOk()->assertJsonPath('fondo', 'rosado');
+        $this->assertEquals($editada, $usuario->fresh()->updated_at);
+    }
+
+    public function test_el_usuario_del_portal_solo_elige_fondos_de_la_lista(): void
+    {
+        $usuario = Usuario::factory()->create(['fondo' => 'lino']);
+        Sanctum::actingAs($usuario);
+
+        $this->patchJson('/api/auth/usuario/fondo', ['fondo' => 'fucsia-neon'])->assertStatus(422)->assertJsonValidationErrors('fondo');
+        $this->assertSame('lino', $usuario->fresh()->fondo);
+    }
+
+    public function test_el_personal_no_usa_la_ruta_del_portal(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+
+        $this->patchJson('/api/auth/usuario/fondo', ['fondo' => 'papel'])->assertForbidden();
     }
 
     public function test_sin_sesion_no_se_puede_cambiar(): void

@@ -58,6 +58,8 @@ export type Usuario = {
   email: string | null
   tipo: 'estudiante' | 'docente' | 'funcionario'
   carrera: string | null
+  /** Fondo del portal en modo día que eligió (utils/fondos.ts); null o ausente, Neblina. */
+  fondo?: string | null
   anio_ingreso: number | null
   sexo: string | null
   /** Docentes y funcionarios: unidad o departamento y cargo (no tienen carrera). */

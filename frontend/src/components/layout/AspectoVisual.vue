@@ -1,25 +1,34 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
 import api from '@/services/api'
+import apiUsuario from '@/services/apiUsuario'
 import { useAuthStore } from '@/stores/auth'
+import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useFondo } from '@/composables/useFondo'
 import { useTema } from '@/composables/useTema'
 import { mensajeDeError, useToast } from '@/composables/useToast'
-import { FONDO_PREDETERMINADO, FONDOS } from '@/utils/fondos'
+import { FONDO_PORTAL, FONDO_PREDETERMINADO, FONDOS } from '@/utils/fondos'
 import Modal from '@/components/ui/Modal.vue'
 
 /**
- * Aspecto visual (menú de la cuenta): el fondo del panel en modo día. Se ve apenas se
- * elige y se guarda en la cuenta (PATCH /auth/fondo), así que sigue a la persona en
+ * Aspecto visual (menú de la cuenta): el fondo del panel en modo día o, con `portal`, el
+ * del portal de usuarios. Se ve apenas se elige y se guarda en la cuenta (PATCH /auth/fondo
+ * o /auth/usuario/fondo), así que sigue a la persona en
  * cualquier computador. Cada miniatura lleva su propio data-fondo: muestra el fondo de
  * verdad, con sus tarjetas y bordes, aunque esté puesto otro o el modo noche.
  */
-const props = defineProps<{ abierto: boolean }>()
+const props = defineProps<{ abierto: boolean; portal?: boolean }>()
 const emit = defineEmits<{ cerrar: [] }>()
 
 const auth = useAuthStore()
+const authUsuario = useUsuarioAuthStore()
 const toast = useToast()
-const { actual, ponerDelPersonal } = useFondo()
+const { actual, ponerDelPersonal, ponerDelPortal } = useFondo()
+
+// El panel y el portal guardan el fondo cada uno en su cuenta.
+const poner = (clave: string | null) => (props.portal ? ponerDelPortal(clave) : ponerDelPersonal(clave))
+const guardado = () => (props.portal ? authUsuario.usuario?.fondo ?? null : auth.staff?.fondo ?? null)
+const predeterminado = props.portal ? FONDO_PORTAL : FONDO_PREDETERMINADO
 const { oscuro, alternar } = useTema()
 
 const DEGRADADO = 'linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%, #4F46E5 100%)'
@@ -29,7 +38,7 @@ const DEGRADADO = 'linear-gradient(135deg, #2D1B69 0%, #3B28A3 30%, #4338CA 60%,
 let pendiente: ReturnType<typeof setTimeout> | undefined
 
 function elegir(clave: string) {
-  ponerDelPersonal(clave)
+  poner(clave)
   clearTimeout(pendiente)
   pendiente = setTimeout(guardar, 400)
 }
@@ -38,13 +47,19 @@ async function guardar() {
   clearTimeout(pendiente)
   pendiente = undefined
   const clave = actual.value
-  if (!auth.staff || auth.staff.fondo === clave) return
+  if (props.portal ? !authUsuario.usuario : !auth.staff) return
+  if (guardado() === clave) return
   try {
-    const { data } = await api.patch<{ fondo: string }>('/auth/fondo', { fondo: clave })
-    if (auth.staff) auth.staff.fondo = data.fondo
+    if (props.portal) {
+      const { data } = await apiUsuario.patch<{ fondo: string }>('/auth/usuario/fondo', { fondo: clave })
+      if (authUsuario.usuario) authUsuario.usuario.fondo = data.fondo
+    } else {
+      const { data } = await api.patch<{ fondo: string }>('/auth/fondo', { fondo: clave })
+      if (auth.staff) auth.staff.fondo = data.fondo
+    }
   } catch (e) {
     // Vuelve al que tiene guardado la cuenta, salvo que ya se haya elegido otro.
-    if (actual.value === clave) ponerDelPersonal(auth.staff?.fondo ?? null)
+    if (actual.value === clave) poner(guardado())
     toast.error(mensajeDeError(e, 'No se pudo guardar el fondo'))
   }
 }
@@ -62,7 +77,7 @@ onBeforeUnmount(() => {
   <Modal
     :abierto="abierto"
     titulo="Aspecto visual"
-    descripcion="El fondo del panel en modo día. Queda guardado en tu cuenta, así que te acompaña en cualquier computador."
+:descripcion="`El fondo del ${portal ? 'portal' : 'panel'} en modo día. Queda guardado en tu cuenta, así que te acompaña en cualquier computador.`"
     ancho="xl"
     @cerrar="emit('cerrar')"
   >
@@ -108,7 +123,7 @@ onBeforeUnmount(() => {
           </span>
           <span class="px-0.5 text-xs leading-snug text-gray-500">
             {{ f.descripcion }}
-            <span v-if="f.clave === FONDO_PREDETERMINADO" class="mt-1 block font-medium text-gray-400">Predeterminado</span>
+            <span v-if="f.clave === predeterminado" class="mt-1 block font-medium text-gray-400">Predeterminado</span>
           </span>
         </label>
       </div>

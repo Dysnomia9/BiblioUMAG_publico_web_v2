@@ -4,14 +4,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUsuarioAuthStore } from '@/stores/usuarioAuth'
 import { useFondo } from '@/composables/useFondo'
 import InterruptorTema from '@/components/ui/InterruptorTema.vue'
+import AspectoVisual from './AspectoVisual.vue'
 import logoUmag from '@/assets/logo-umag.png'
 
 const auth = useUsuarioAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-// Los usuarios no eligen fondo: el portal va siempre en Neblina (utils/fondos.ts).
-useFondo().ponerDelPortal()
+// El fondo que eligió el usuario en Aspecto visual; si no eligió, Neblina (utils/fondos.ts).
+const { ponerDelPortal } = useFondo()
+watch(() => (auth.usuario ? auth.usuario.fondo ?? null : undefined), ponerDelPortal, { immediate: true })
+
+const aspectoAbierto = ref(false)
+function abrirAspecto() {
+  menuAbierto.value = false
+  aspectoAbierto.value = true
+}
 
 const iniciales = computed(() => {
   const letras = `${auth.usuario?.nombre?.charAt(0) ?? ''}${auth.usuario?.apellido?.charAt(0) ?? ''}`
@@ -161,6 +169,17 @@ async function onLogout() {
               </svg>
               {{ item.label }}
             </router-link>
+            <button
+              type="button"
+              role="menuitem"
+              class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              @click="abrirAspecto"
+            >
+              <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
+              </svg>
+              Aspecto visual
+            </button>
             <div class="my-1 border-t border-gray-100"></div>
             <button
               type="button"
@@ -212,5 +231,7 @@ async function onLogout() {
         </router-link>
       </div>
     </nav>
+
+    <AspectoVisual portal :abierto="aspectoAbierto" @cerrar="aspectoAbierto = false" />
   </div>
 </template>
