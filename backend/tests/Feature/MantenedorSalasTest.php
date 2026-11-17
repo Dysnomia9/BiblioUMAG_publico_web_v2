@@ -74,7 +74,7 @@ class MantenedorSalasTest extends TestCase
 
         // La última logia del plano es la 30.
         $this->assertSame(array_search('L30', $codigos) + 1, array_search('L31', $codigos));
-        $this->assertLessThan(array_search('SEM', $codigos), array_search('L31', $codigos));
+        $this->assertLessThan(array_search('SM1', $codigos), array_search('L31', $codigos));
     }
 
     public function test_el_codigo_se_guarda_como_lo_busca_el_meson(): void

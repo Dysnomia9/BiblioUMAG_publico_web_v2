@@ -19,7 +19,7 @@ use Tests\TestCase;
 /**
  * Devolver tarde la llave de una sala: al registrar la devolución, el mesón ve cuántos
  * minutos se atrasó el grupo y decide si cursa la multa (no se genera sola).
- * Montos de config/multas.php («sala»): 50 por minuto, tope 5.000, 5 minutos de tolerancia.
+ * Montos de config/multas.php («sala»): 10 por minuto cobrable, tope 2.000 y primeros 5 minutos sin cargo.
  */
 class MultaSalaTest extends TestCase
 {
@@ -68,11 +68,15 @@ class MultaSalaTest extends TestCase
 
         $this->devolverA('12:20:00', $reserva)
             ->assertJsonPath('atraso_devolucion.minutos', 20)
-            ->assertJsonPath('atraso_devolucion.monto', 1000)
+            ->assertJsonPath('atraso_devolucion.monto', 150)
+            ->assertJsonPath('atraso_devolucion.minutos_cobrables', 15)
+            ->assertJsonPath('atraso_devolucion.minutos_tolerancia', 5)
+            ->assertJsonPath('atraso_devolucion.monto_por_minuto', 10)
+            ->assertJsonPath('atraso_devolucion.tope_maximo', 2000)
             ->assertJsonPath('atraso_devolucion.persona', 'Ana Soto')
             ->assertJsonPath('atraso_devolucion.sala', 'Logia 03')
             ->assertJsonPath('atraso_devolucion.hora_fin', '12:00')
-            ->assertJsonPath('atraso_devolucion.monto_provisional', true);
+            ->assertJsonPath('atraso_devolucion.monto_provisional', false);
 
         $this->assertSame(0, Multa::count());
     }
@@ -81,6 +85,18 @@ class MultaSalaTest extends TestCase
     {
         $this->devolverA('11:50:00', $this->reservaEnUso())->assertJsonPath('atraso_devolucion', null);
         $this->devolverA('12:05:00', $this->reservaEnUso())->assertJsonPath('atraso_devolucion', null);
+        $this->devolverA('12:05:59', $this->reservaEnUso())->assertJsonPath('atraso_devolucion', null);
+    }
+
+    public function test_cobra_solo_los_minutos_completos_que_superan_los_cinco_gratuitos(): void
+    {
+        foreach ([['12:06:00', 1, 10], ['12:06:59', 1, 10], ['12:10:00', 5, 50], ['12:30:00', 25, 250]] as [$hora, $cobrables, $monto]) {
+            $reserva = $this->reservaEnUso();
+            $this->devolverA($hora, $reserva)
+                ->assertJsonPath('atraso_devolucion.minutos_cobrables', $cobrables)
+                ->assertJsonPath('atraso_devolucion.monto', $monto);
+            $this->postJson("/api/reservas/{$reserva->id}/multa-atraso")->assertCreated()->assertJsonPath('monto', $monto);
+        }
     }
 
     public function test_si_el_meson_decide_multar_la_multa_es_del_titular_y_no_se_duplica(): void
@@ -94,8 +110,9 @@ class MultaSalaTest extends TestCase
         $multa = Multa::sole();
         $this->assertSame($this->titular->id, $multa->usuario_id);
         $this->assertSame($reserva->id, $multa->reserva_id);
-        $this->assertSame(['atraso', 'pendiente', 'sistema', 1000], [$multa->tipo, $multa->estado, $multa->origen, $multa->monto]);
+        $this->assertSame(['atraso', 'pendiente', 'sistema', 150], [$multa->tipo, $multa->estado, $multa->origen, $multa->monto]);
         $this->assertStringContainsString('Logia 03 con 20 minutos de atraso', $multa->detalle);
+        $this->assertStringContainsString('15 minutos cobrables, descontados 5 minutos sin cargo', $multa->detalle);
         $this->assertTrue(Bitacora::where('accion', 'multas.generar')->where('entidad_id', $multa->id)->exists());
         Notification::assertSentTo($this->titular, MultaGeneradaNotification::class);
 
@@ -107,7 +124,7 @@ class MultaSalaTest extends TestCase
     {
         $this->devolverA('16:00:00', $this->reservaEnUso())
             ->assertJsonPath('atraso_devolucion.minutos', 240)
-            ->assertJsonPath('atraso_devolucion.monto', 5000);
+            ->assertJsonPath('atraso_devolucion.monto', 2000);
     }
 
     public function test_no_se_multa_una_reserva_devuelta_a_tiempo_ni_una_sin_devolver(): void

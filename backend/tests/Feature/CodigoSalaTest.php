@@ -33,7 +33,10 @@ class CodigoSalaTest extends TestCase
 
     private function reservaEn(string $codigo, array $atributos = []): Reserva
     {
-        return Reserva::factory()->conParticipantes([Usuario::factory()->create()])->create([
+        $usuario = Usuario::factory()->create(['tipo' => 'docente']);
+
+        return Reserva::factory()->conParticipantes([$usuario])->create([
+            'usuario_id' => $usuario->id, 'rut_usuario' => $usuario->rut,
             'sala_id' => Sala::where('codigo', $codigo)->value('id'),
             'fecha' => '2026-08-14',
             'hora_inicio' => '10:00:00',
@@ -48,11 +51,12 @@ class CodigoSalaTest extends TestCase
 
         $this->assertSame('L04', $codigos['Logia 04']);
         $this->assertSame('L22', $codigos['Logia 22']);
-        $this->assertSame('SEM', $codigos['Seminario 1']);
+        $this->assertSame('SM1', $codigos['Seminario 1']);
         $this->assertSame('POS', $codigos['Sala de Postgrado']);
         $this->assertSame('AGA', $codigos['Sala AGACI']);
-        // Las del plano: 22 logias y 6 salas con nombre propio.
-        $this->assertCount(28, $codigos->unique());
+        $this->assertSame('ATEC', $codigos['Aula Tecnología']);
+        // Las del plano y Aula Tecnología: 22 logias y 7 salas con nombre propio.
+        $this->assertCount(29, $codigos->unique());
     }
 
     public function test_la_llave_se_entrega_y_se_recibe_con_el_codigo_o_el_numero(): void
@@ -73,10 +77,10 @@ class CodigoSalaTest extends TestCase
 
     public function test_sirve_para_las_salas_con_nombre_propio_y_avisa_un_codigo_que_no_existe(): void
     {
-        $reserva = $this->reservaEn('SEM');
+        $reserva = $this->reservaEn('SM1');
         Carbon::setTestNow('2026-08-14 10:05:00');
 
-        $this->postJson('/api/salas/llave', ['codigo' => 'sem'])->assertOk()->assertJsonPath('id', $reserva->id);
+        $this->postJson('/api/salas/llave', ['codigo' => 'sm1'])->assertOk()->assertJsonPath('id', $reserva->id);
         $this->postJson('/api/salas/llave', ['codigo' => '99'])
             ->assertStatus(409)
             ->assertJsonPath('message', 'No hay ninguna sala con el código «99». De una logia también sirve solo el número.');
@@ -90,7 +94,7 @@ class CodigoSalaTest extends TestCase
         $this->reservaEn('L04', ['estado' => 'finalizada', 'hora_prestamo_real' => '2026-08-14 10:02:00', 'hora_devolucion_real' => '2026-08-14 12:00:00']);
         $this->reservaEn('L04', ['hora_inicio' => '14:00:00', 'hora_fin' => '14:40:00', 'hora_fin_reservada' => '16:00:00', 'estado' => 'finalizada', 'hora_prestamo_real' => '2026-08-14 14:01:00', 'hora_devolucion_real' => '2026-08-14 14:40:00']);
         $this->reservaEn('L04', ['hora_inicio' => '17:00:00', 'hora_fin' => '18:00:00', 'estado' => 'no_show']);
-        $this->reservaEn('SEM', ['estado' => 'cancelada']);
+        $this->reservaEn('SM1', ['estado' => 'cancelada']);
 
         $resumen = $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2026-08-14')->assertOk();
 

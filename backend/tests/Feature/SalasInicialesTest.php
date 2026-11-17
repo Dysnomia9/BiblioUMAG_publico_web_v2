@@ -31,11 +31,11 @@ class SalasInicialesTest extends TestCase
             Sala::where('tipo', 'logia')->enOrden()->pluck('codigo')->all(),
         );
         $this->assertSame(
-            ['SEM' => 'Seminario 1', 'POS' => 'Sala de Postgrado', 'AGA' => 'Sala AGACI', 'MOR' => 'Sala Moraga', 'COO' => 'Sala Cooperación', 'SEM2' => 'Seminario 2'],
+            ['SM1' => 'Seminario 1', 'POS' => 'Sala de Postgrado', 'AGA' => 'Sala AGACI', 'MOR' => 'Sala Moraga', 'COO' => 'Sala Cooperación', 'SM2' => 'Seminario 2', 'ATEC' => 'Aula Tecnología'],
             Sala::where('tipo', 'sala')->orderBy('id')->pluck('nombre', 'codigo')->all(),
         );
-        // Los seminarios, Cooperación y Moraga no se prestan a estudiantes.
-        $this->assertEqualsCanonicalizing(['SEM', 'MOR', 'COO', 'SEM2'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
+        // Las salas de administración no se solicitan desde el portal.
+        $this->assertEqualsCanonicalizing(['SM1', 'MOR', 'COO', 'SM2', 'L09', 'ATEC'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
         $this->assertTrue(Sala::where('activa', false)->doesntExist());
     }
 
@@ -75,12 +75,12 @@ class SalasInicialesTest extends TestCase
 
     public function test_lo_que_ya_se_ajusto_en_administracion_no_se_toca(): void
     {
-        Sala::where('codigo', 'SEM')->update(['nombre' => 'Seminario Gabriela Mistral']);
+        Sala::where('codigo', 'SM1')->update(['nombre' => 'Seminario Gabriela Mistral']);
         Sala::where('codigo', 'L22')->update(['capacidad' => 6]);
 
         $this->migracion('2026_11_10_000005_salas_como_en_el_plano')->up();
 
-        $this->assertSame('Seminario Gabriela Mistral', Sala::where('codigo', 'SEM')->value('nombre'));
+        $this->assertSame('Seminario Gabriela Mistral', Sala::where('codigo', 'SM1')->value('nombre'));
         $this->assertSame(6, Sala::where('codigo', 'L22')->value('capacidad'));
         $this->assertSame(1, Sala::where('codigo', 'L22')->count());
     }

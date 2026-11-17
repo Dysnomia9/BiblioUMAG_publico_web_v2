@@ -133,6 +133,26 @@ class PrestamoMultaTest extends TestCase
             ->assertJsonPath('multas.0.monto', config('multas.tope_maximo'));
     }
 
+    public function test_tarifa_general_es_cien_por_dia_con_tope_de_cinco_mil_por_prestamo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        foreach ([1 => 100, 3 => 300, 30 => 3000, 50 => 5000, 80 => 5000] as $dias => $monto) {
+            $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays($dias)]);
+            $this->getJson("/api/prestamos/{$prestamo->id}/multa-atraso")->assertOk()->assertExactJson(['dias' => $dias, 'monto' => $monto]);
+            $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertOk()->assertJsonPath('multas.0.monto', $monto);
+        }
+    }
+
+    public function test_las_multas_ya_cursadas_conservan_su_monto_al_devolver_con_la_nueva_tarifa(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(3)]);
+        $anterior = Multa::factory()->create(['usuario_id' => $prestamo->usuario_id, 'monto' => 375]);
+        $antes = $anterior->fresh()->getAttributes();
+        $this->patchJson("/api/prestamos/{$prestamo->id}/devolver")->assertOk()->assertJsonPath('multas.0.monto', 300);
+        $this->assertSame($antes, $anterior->fresh()->getAttributes());
+    }
+
     public function test_prestamo_de_equipo_nunca_genera_multa(): void
     {
         Sanctum::actingAs(Staff::factory()->create());

@@ -103,7 +103,7 @@ class SalaReservaQueSeRepiteTest extends TestCase
 
     public function test_la_sala_exclusiva_la_reserva_solo_quien_tiene_ese_permiso(): void
     {
-        $sala = Sala::where('codigo', 'SEM')->sole();
+        $sala = Sala::where('codigo', 'SM1')->sole();
         $sala->update(['reserva_exclusiva' => true]);
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $reserva = ['sala_id' => $sala->id, 'fecha' => '2026-03-03', 'hora_inicio' => '10:00', 'hora_fin' => '12:00', 'cantidad_personas' => 1, 'ruts' => [$docente->rut]];
@@ -112,7 +112,7 @@ class SalaReservaQueSeRepiteTest extends TestCase
         Sanctum::actingAs($this->conPermisos(['salas.gestionar', 'salas.administracion']));
         $this->postJson('/api/reservas', $reserva)->assertForbidden();
 
-        Sanctum::actingAs(Staff::factory()->create(['rol' => Rol::create(['clave' => 'cristian', 'nombre' => 'Encargado', 'nivel' => 5, 'permisos' => ['salas.gestionar', 'salas.exclusivas']])->clave]));
+        Sanctum::actingAs(Staff::factory()->create(['rol' => Rol::create(['clave' => 'cristian', 'nombre' => 'Encargado', 'nivel' => 5, 'permisos' => ['salas.gestionar', 'salas.seminarios', 'salas.exclusivas']])->clave]));
         $this->postJson('/api/reservas', $reserva)->assertCreated();
 
         Sanctum::actingAs(Staff::factory()->admin()->create());
@@ -159,18 +159,20 @@ class SalaReservaQueSeRepiteTest extends TestCase
         $this->getJson('/api/reservas/series')->assertForbidden();
     }
 
-    public function test_con_reservas_especiales_la_sala_de_la_administracion_admite_estudiantes_y_grupos_flexibles(): void
+    public function test_con_reservas_especiales_el_seminario_admite_grupos_con_estudiantes_a_cargo(): void
     {
-        $sala = Sala::where('codigo', 'SEM')->sole(); // capacidad 30
-        $estudiantes = Usuario::factory()->count(20)->create(['tipo' => 'estudiante']);
+        $sala = Sala::where('codigo', 'SM1')->sole(); // capacidad 30
+        $docente = Usuario::factory()->create(['tipo' => 'docente']);
+        $estudiantes = Usuario::factory()->count(19)->create(['tipo' => 'estudiante']);
         $reserva = ['sala_id' => $sala->id, 'fecha' => '2026-03-03', 'hora_inicio' => '10:00', 'hora_fin' => '12:00',
-            'cantidad_personas' => 20, 'ruts' => $estudiantes->pluck('rut')->all()];
+            'cantidad_personas' => 20, 'ruts' => [$docente->rut, ...$estudiantes->pluck('rut')->all()]];
 
         // Con solo «Salas de la administración»: el mesón llega a 7 y no a estudiantes
         Sanctum::actingAs($this->conPermisos(['salas.gestionar', 'salas.administracion']));
         $this->postJson('/api/reservas', $reserva)->assertStatus(422);
 
         Sanctum::actingAs(Staff::factory()->admin()->create());
+        $this->postJson('/api/reservas', [...$reserva, 'fecha' => '2026-03-02', 'ruts' => [...$estudiantes->pluck('rut')->all(), $docente->rut]])->assertCreated();
         $this->postJson('/api/reservas', $reserva)->assertCreated();
         $this->postJson('/api/reservas', [...$reserva, 'fecha' => '2026-03-04', 'cantidad_personas' => 31, 'ruts' => Usuario::factory()->count(31)->create()->pluck('rut')->all()])
             ->assertStatus(422);

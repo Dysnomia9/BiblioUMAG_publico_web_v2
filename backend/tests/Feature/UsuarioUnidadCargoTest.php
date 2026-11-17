@@ -15,6 +15,29 @@ class UsuarioUnidadCargoTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_las_sugerencias_de_trabajo_separan_tipos_y_recogen_valores_existentes(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Usuario::factory()->create(['tipo' => 'docente', 'unidad' => 'Departamento de Ciencias', 'cargo' => 'Profesor visitante']);
+        Usuario::factory()->create(['tipo' => 'docente', 'unidad' => ' Departamento de Ciencias ', 'cargo' => 'profesor visitante']);
+        Usuario::factory()->create(['tipo' => 'funcionario', 'unidad' => 'Biblioteca', 'cargo' => 'Encargada de colecciones']);
+        Usuario::factory()->create(['tipo' => 'estudiante', 'unidad' => 'Dato antiguo', 'cargo' => 'Dato de estudiante']);
+
+        $trabajo = $this->getJson('/api/usuarios/opciones')->assertOk()->json('trabajo');
+        $this->assertSame(['Departamento de Ciencias'], $trabajo['docente']['unidades']);
+        $this->assertSame(['Biblioteca'], $trabajo['funcionario']['unidades']);
+        foreach (['Profesor adjunto', 'Profesor a honorarios'] as $cargo) {
+            $this->assertContains($cargo, $trabajo['docente']['cargos']);
+        }
+        $this->assertContains('profesor visitante', array_map('mb_strtolower', $trabajo['docente']['cargos']));
+        $this->assertSame(1, collect($trabajo['docente']['cargos'])->filter(fn ($v) => mb_strtolower($v) === 'profesor visitante')->count());
+        $this->assertContains('Funcionarios hospital', $trabajo['funcionario']['cargos']);
+        $this->assertContains('Encargada de colecciones', $trabajo['funcionario']['cargos']);
+        $this->assertNotContains('Funcionarios hospital', $trabajo['docente']['cargos']);
+        $this->assertNotContains('Profesor adjunto', $trabajo['funcionario']['cargos']);
+        $this->assertArrayNotHasKey('estudiante', $trabajo);
+    }
+
     public function test_se_crea_un_docente_con_unidad_y_cargo(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());
