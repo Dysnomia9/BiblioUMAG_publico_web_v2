@@ -1815,9 +1815,15 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   </option>
                 </select>
               </div>
-              <div v-if="modoResponsable === 'actividad'" class="rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
-                <input v-model="nombreActividad" type="text" maxlength="120" aria-label="Nombre o actividad" placeholder="Nombre libre: persona, grupo o actividad" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                <input v-model="descripcionActividad" type="text" maxlength="300" aria-label="Descripción breve opcional" placeholder="Descripción breve (opcional)" class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
+              <div v-if="modoResponsable === 'actividad'" class="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+                <div class="bg-indigo-50/70 px-3 py-2.5">
+                  <label for="reserva-nombre-libre" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-indigo-700">Nombre de la persona a cargo o grupo</label>
+                  <input id="reserva-nombre-libre" v-model="nombreActividad" type="text" maxlength="120" placeholder="Ej: Luis Medina" class="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div class="border-t border-indigo-100 px-3 py-2.5">
+                  <label for="reserva-descripcion-libre" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-600">Actividad / descripción <span class="font-normal normal-case tracking-normal">(opcional)</span></label>
+                  <input id="reserva-descripcion-libre" v-model="descripcionActividad" type="text" maxlength="300" placeholder="Ej: Clase de Física II" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
               </div>
               <div v-else class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
                 <div v-for="(_, idx) in rutsReserva" :key="idx">
@@ -1975,13 +1981,18 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </div>
             </div>
             <div>
-              <div v-if="detalleTramo.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Actividad</p>
-                <p class="mt-0.5 text-sm font-bold text-indigo-950">{{ detalleTramo.nombre_actividad }}</p>
-                <p v-if="detalleTramo.descripcion_actividad" class="mt-1 text-xs text-indigo-900">{{ detalleTramo.descripcion_actividad }}</p>
-                <p class="mt-0.5 text-xs text-indigo-700">Sin RUT ni usuario asociado</p>
+              <div v-if="detalleTramo.nombre_actividad" class="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+                <div class="border-l-4 border-indigo-500 bg-indigo-50/70 px-4 py-3">
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Persona a cargo / grupo</p>
+                  <p class="mt-1 text-base font-bold text-indigo-950">{{ detalleTramo.nombre_actividad }}</p>
+                  <span class="mt-2 inline-block rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-600">Registro por nombre · sin RUT</span>
+                </div>
+                <div v-if="detalleTramo.descripcion_actividad" class="border-t border-indigo-100 px-4 py-3">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Actividad / descripción</p>
+                  <p class="mt-1 whitespace-pre-line break-words text-sm text-gray-800">{{ detalleTramo.descripcion_actividad }}</p>
+                </div>
               </div>
-              <div class="mb-2 flex items-center justify-between gap-3">
+              <div v-if="detalleTramo.personas.length" class="mb-2 flex items-center justify-between gap-3">
                 <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-600">
                   Integrantes
                   <span class="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] tabular-nums text-indigo-700">{{ detalleTramo.personas?.length ?? 0 }}</span>
