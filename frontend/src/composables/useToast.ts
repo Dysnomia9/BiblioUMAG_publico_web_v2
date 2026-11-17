@@ -19,18 +19,18 @@ function cerrar(id: number) {
   if (idx !== -1) toasts.splice(idx, 1)
 }
 
-function push(tipo: ToastTipo, mensaje: string) {
+function push(tipo: ToastTipo, mensaje: string, duracion = DURACION[tipo]) {
   const id = nextId++
   toasts.push({ id, tipo, mensaje })
   if (toasts.length > 4) toasts.splice(0, toasts.length - 4)
-  setTimeout(() => cerrar(id), DURACION[tipo])
+  setTimeout(() => cerrar(id), duracion)
 }
 
 export function useToast() {
   return {
     toasts,
     cerrar,
-    success: (mensaje: string) => push('success', mensaje),
+    success: (mensaje: string, duracion?: number) => push('success', mensaje, duracion),
     error: (mensaje: string) => push('error', mensaje),
     info: (mensaje: string) => push('info', mensaje),
   }

@@ -1928,27 +1928,32 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         <p v-if="cargandoFicha" class="mt-2 text-sm font-semibold text-dorado-700" role="status">Cargando la ficha…</p>
       </div>
 
-      <section v-if="modoPrincipal === 'nuevo'" class="mb-5 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm" aria-labelledby="origen-material-titulo">
-        <div class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
-          <h2 id="origen-material-titulo" class="inline-flex w-fit items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold tracking-wide text-indigo-900">
-            <span class="h-1.5 w-1.5 rounded-full bg-[#b08d57]" aria-hidden="true"></span>
-            Origen del material
-          </h2>
-          <div class="flex flex-col gap-1.5 rounded-2xl border border-indigo-100 bg-slate-50 p-1.5 sm:flex-row sm:rounded-full" role="radiogroup" aria-labelledby="origen-material-titulo">
+      <section v-if="modoPrincipal === 'nuevo'" class="mb-5 overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-r from-[#f6f7ff] to-[#f8f9ff] shadow-sm" aria-labelledby="origen-material-titulo">
+        <div class="flex flex-col gap-4 px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <div class="flex shrink-0 items-center gap-4">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600" aria-hidden="true">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m12 3-9 4.5L12 12l9-4.5L12 3Zm-9 9L12 16.5l9-4.5M3 16.5 12 21l9-4.5" /></svg>
+            </span>
+            <div>
+              <h2 id="origen-material-titulo" class="text-sm font-bold text-slate-950">Origen del material</h2>
+              <p class="mt-0.5 text-xs text-slate-700">Procedencia del material</p>
+            </div>
+          </div>
+          <div class="flex w-full flex-col gap-1 rounded-2xl border border-indigo-200 bg-white/30 p-0.5 sm:flex-row sm:rounded-full lg:w-[34rem]" role="radiogroup" aria-labelledby="origen-material-titulo">
             <label class="relative flex-1 cursor-pointer" :class="guardando && 'pointer-events-none opacity-60'">
               <input class="peer sr-only" type="radio" name="origen-ficha" :checked="modo !== 'interbibliotecario'" :disabled="guardando" @change="elegirTipoFicha(false)" />
-              <span class="flex min-h-11 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo !== 'interbibliotecario' ? 'border-indigo-600 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white shadow-sm' : 'border-transparent text-gray-600 hover:bg-white hover:text-indigo-900'">
-                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.25v13.5m0-13.5C9.4 4.7 6.1 4.7 3 6.25v13.5c3.1-1.55 6.4-1.55 9 0m0-13.5c2.6-1.55 5.9-1.55 9 0v13.5c-3.1-1.55-6.4-1.55-9 0" /></svg>
+              <span class="flex min-h-10 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm sm:whitespace-nowrap font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo !== 'interbibliotecario' ? 'border-transparent bg-gradient-to-r from-indigo-600 to-[#4b2ff4] text-white shadow-sm' : 'border-transparent text-slate-700 hover:bg-indigo-100/60 hover:text-indigo-950'">
+                <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.25v13.5m0-13.5C9.4 4.7 6.1 4.7 3 6.25v13.5c3.1-1.55 6.4-1.55 9 0m0-13.5c2.6-1.55 5.9-1.55 9 0v13.5c-3.1-1.55-6.4-1.55-9 0" /></svg>
                 <span>Propios de la biblioteca</span>
-                <svg v-if="modo !== 'interbibliotecario'" class="h-4 w-4 shrink-0 text-indigo-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+                <svg class="h-4 w-4 shrink-0 text-white" :class="modo !== 'interbibliotecario' ? 'opacity-100' : 'opacity-0'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
               </span>
             </label>
             <label class="relative flex-1 cursor-pointer" :class="guardando && 'pointer-events-none opacity-60'">
               <input class="peer sr-only" type="radio" name="origen-ficha" :checked="modo === 'interbibliotecario'" :disabled="guardando" @change="elegirTipoFicha(true)" />
-              <span class="flex min-h-11 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo === 'interbibliotecario' ? 'border-indigo-600 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white shadow-sm' : 'border-transparent text-gray-600 hover:bg-white hover:text-indigo-900'">
-                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16m0 0-4-4m4 4-4 4M20 16H4m0 0 4-4m-4 4 4 4" /></svg>
+              <span class="flex min-h-10 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm sm:whitespace-nowrap font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo === 'interbibliotecario' ? 'border-transparent bg-gradient-to-r from-indigo-600 to-[#4b2ff4] text-white shadow-sm' : 'border-transparent text-slate-700 hover:bg-indigo-100/60 hover:text-indigo-950'">
+                <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16m0 0-4-4m4 4-4 4M20 16H4m0 0 4-4m-4 4 4 4" /></svg>
                 <span>Préstamo interbibliotecario</span>
-                <svg v-if="modo === 'interbibliotecario'" class="h-4 w-4 shrink-0 text-indigo-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+                <svg class="h-4 w-4 shrink-0 text-white" :class="modo === 'interbibliotecario' ? 'opacity-100' : 'opacity-0'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
               </span>
             </label>
           </div>

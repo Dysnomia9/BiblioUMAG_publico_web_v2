@@ -25,6 +25,15 @@ use Illuminate\Validation\Rule;
 
 class PrestamoController extends Controller
 {
+    private const DETALLE_DEVOLUCION = [
+        'usuario:id,nombre,apellido,rut',
+        'multas:id,prestamo_id,tipo,monto,estado',
+        'ejemplar:id,libro_id,numero_copia,codigo_barras,codigo_lomo,volumen,tomo,copia_tomo,fecha_ingreso_horizon',
+        'ejemplar.libro:id,titulo',
+        'equipo:id,tipo,codigo_inventario,codigo_barras',
+        'equipo.categoria:id,clave,nombre',
+    ];
+
     public function __construct(
         private MultaService $multaService,
         private ReservaLibroService $reservaLibroService,
@@ -73,7 +82,7 @@ class PrestamoController extends Controller
         $codigo = trim((string) $request->validate(['codigo' => ['required', 'string', 'max:64']])['codigo']);
         $ejemplarIds = Ejemplar::porCodigo($codigo)->pluck('id');
 
-        $prestamo = Prestamo::with(['usuario:id,nombre,apellido,rut', 'multas:id,prestamo_id,tipo,monto,estado'])
+        $prestamo = Prestamo::with(self::DETALLE_DEVOLUCION)
             ->where('estado', '!=', 'devuelto')
             ->where(fn ($q) => $q->whereIn('ejemplar_id', $ejemplarIds)
                 ->orWhere(fn ($r) => $r->where('tipo_item', '!=', 'libro')->whereIn('codigo_barras', Ejemplar::variantesCodigo($codigo))))
@@ -456,6 +465,6 @@ class PrestamoController extends Controller
             Notificar::enviar($prestamo->usuario, new MultaGeneradaNotification($multa));
         }
 
-        return response()->json($prestamo->load(['usuario:id,nombre,apellido,rut', 'multas:id,prestamo_id,tipo,monto,estado']));
+        return response()->json($prestamo->load(self::DETALLE_DEVOLUCION));
     }
 }

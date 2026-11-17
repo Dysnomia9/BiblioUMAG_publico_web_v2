@@ -24,13 +24,23 @@ class PrestamoDevolucionRapidaTest extends TestCase
 
     public function test_escanear_y_devolver_sin_multa_libera_la_copia_y_registra_la_devolucion(): void
     {
-        $copia = Ejemplar::factory()->create(['disponible' => false]);
+        $copia = Ejemplar::factory()->create(['disponible' => false, 'volumen' => 't.2 c.3', 'tomo' => 't.2', 'copia_tomo' => 3]);
         $prestamo = Prestamo::factory()->create(['ejemplar_id' => $copia->id, 'codigo_barras' => $copia->codigo_barras]);
 
         $this->getJson('/api/prestamos/por-codigo?codigo='.$copia->codigo_barras)
-            ->assertOk()->assertJsonPath('id', $prestamo->id);
+            ->assertOk()->assertJsonPath('id', $prestamo->id)
+            ->assertJsonPath('usuario.id', $prestamo->usuario_id)
+            ->assertJsonPath('usuario.nombre', $prestamo->usuario->nombre)
+            ->assertJsonPath('ejemplar.volumen', 't.2 c.3')
+            ->assertJsonPath('ejemplar.etiqueta_copia', 'c.3')
+            ->assertJsonPath('ejemplar.libro.titulo', $copia->libro->titulo);
         $this->patchJson("/api/prestamos/{$prestamo->id}/devolver", ['solo_sin_multa' => true])
-            ->assertOk()->assertJsonPath('estado', 'devuelto')->assertJsonCount(0, 'multas');
+            ->assertOk()->assertJsonPath('estado', 'devuelto')->assertJsonCount(0, 'multas')
+            ->assertJsonPath('usuario.id', $prestamo->usuario_id)
+            ->assertJsonPath('usuario.apellido', $prestamo->usuario->apellido)
+            ->assertJsonPath('ejemplar.codigo_barras', $copia->codigo_barras)
+            ->assertJsonPath('ejemplar.etiqueta_copia', 'c.3')
+            ->assertJsonPath('ejemplar.libro.titulo', $copia->libro->titulo);
 
         $this->assertTrue($copia->fresh()->disponible);
         $this->assertDatabaseHas('bitacora', ['accion' => 'prestamos.devolver', 'entidad_id' => $prestamo->id]);
@@ -53,7 +63,9 @@ class PrestamoDevolucionRapidaTest extends TestCase
 
         // La decisión expresa del mesón sigue permitiendo devolver sin cursar la multa.
         $this->patchJson("/api/prestamos/{$prestamo->id}/devolver", ['multar' => false])
-            ->assertOk()->assertJsonPath('estado', 'devuelto');
+            ->assertOk()->assertJsonPath('estado', 'devuelto')
+            ->assertJsonPath('usuario.id', $prestamo->usuario_id)
+            ->assertJsonPath('ejemplar.id', $copia->id);
     }
 
     public function test_una_multa_pendiente_del_usuario_tambien_exige_confirmacion(): void
@@ -72,11 +84,18 @@ class PrestamoDevolucionRapidaTest extends TestCase
     public function test_una_multa_pagada_no_impide_la_devolucion_automatica_de_un_equipo(): void
     {
         $equipo = Equipo::factory()->create(['disponible' => false]);
-        $prestamo = Prestamo::factory()->create(['tipo_item' => $equipo->tipo, 'equipo_id' => $equipo->id]);
+        $prestamo = Prestamo::factory()->create(['tipo_item' => $equipo->tipo, 'equipo_id' => $equipo->id, 'codigo_barras' => $equipo->codigo_barras]);
         Multa::factory()->pagada()->create(['usuario_id' => $prestamo->usuario_id]);
 
+        $this->getJson('/api/prestamos/por-codigo?codigo='.$equipo->codigo_barras)->assertOk()
+            ->assertJsonPath('usuario.id', $prestamo->usuario_id)
+            ->assertJsonPath('equipo.codigo_inventario', $equipo->codigo_inventario);
         $this->patchJson("/api/prestamos/{$prestamo->id}/devolver", ['solo_sin_multa' => true])
-            ->assertOk()->assertJsonPath('estado', 'devuelto');
+            ->assertOk()->assertJsonPath('estado', 'devuelto')
+            ->assertJsonPath('usuario.id', $prestamo->usuario_id)
+            ->assertJsonPath('equipo.tipo', $equipo->tipo)
+            ->assertJsonPath('equipo.codigo_inventario', $equipo->codigo_inventario)
+            ->assertJsonPath('equipo.codigo_barras', $equipo->codigo_barras);
         $this->assertTrue($equipo->fresh()->disponible);
     }
 }

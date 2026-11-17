@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
+import { nombreDeCopia, numeroDeCopia, textoCopia } from '@/utils/tomo'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { useRoute } from 'vue-router'
@@ -686,6 +686,7 @@ const codigoRapido = ref('')
 const buscandoRapido = ref(false)
 const prestamoRapido = ref<Prestamo | null>(null)
 const mensajeRapido = ref('')
+const ultimaDevolucionRapida = ref<{ material: string; detalle: string; persona: string; codigo: string | null; multa: string | null } | null>(null)
 const codigoRapidoInput = ref<HTMLInputElement | null>(null)
 
 async function buscarPrestamoPorCodigo() {
@@ -839,8 +840,20 @@ async function confirmarDevolucion(multar = true) {
 
 async function finalizarDevolucion(data: Prestamo, esRapida: boolean, multar = true) {
   const multa = data.multas?.find((m) => m.tipo === 'atraso' && m.estado === 'pendiente')
-  toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso`
-    : esRapida ? `Devuelto: ${data.libro_titulo}` : multar ? 'Devolución registrada' : 'Devolución registrada sin multa')
+  if (esRapida) {
+    const persona = [data.usuario?.nombre, data.usuario?.apellido].filter(Boolean).join(' ').trim() || `Usuario N.º ${data.usuario_id}`
+    const material = data.tipo_item === 'libro' ? data.ejemplar?.libro?.titulo || data.libro_titulo : data.equipo?.categoria?.nombre || data.tipo_item
+    const detalle = data.tipo_item === 'libro'
+      ? textoCopia(data.ejemplar?.volumen || data.ejemplar?.tomo, data.ejemplar?.etiqueta_copia) || (data.ejemplar ? 'Ejemplar sin número de copia' : '')
+      : data.equipo?.codigo_inventario || data.libro_titulo
+    const codigo = data.ejemplar?.codigo_barras || data.equipo?.codigo_barras || data.codigo_barras
+    const avisoMulta = multa ? `Multa por atraso: ${formatMonto(multa.monto)}.` : null
+    ultimaDevolucionRapida.value = { material, detalle, persona, codigo, multa: avisoMulta }
+    toast.success(`Devolución registrada: «${material}»${detalle ? ` · ${detalle}` : ''}. Usuario: ${persona}.${avisoMulta ? ` ${avisoMulta}` : ''}`, 5000)
+  } else {
+    toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso`
+      : multar ? 'Devolución registrada' : 'Devolución registrada sin multa')
+  }
   devolucionPendiente.value = null
   if (esRapida) limpiarRapido()
   await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario(), cargarPrestadosAhora()])
@@ -1153,6 +1166,16 @@ function formatHora(iso: string | null) {
           </button>
         </div>
         <p v-if="mensajeRapido" class="mt-2 text-sm text-amber-700" role="status">{{ mensajeRapido }}</p>
+        <div v-if="modoRapido === 'normal' && ultimaDevolucionRapida" class="mt-3 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3" role="status" aria-live="polite">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700" aria-hidden="true"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg></span>
+          <div class="min-w-0 text-sm text-emerald-950">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Última devolución registrada</p>
+            <p class="mt-1 font-semibold">{{ ultimaDevolucionRapida.material }}<span v-if="ultimaDevolucionRapida.detalle" class="font-normal"> · {{ ultimaDevolucionRapida.detalle }}</span></p>
+            <p class="mt-0.5">Usuario: <strong>{{ ultimaDevolucionRapida.persona }}</strong></p>
+            <p v-if="ultimaDevolucionRapida.codigo" class="mt-1 text-xs text-emerald-800">Código: <span class="font-mono">{{ ultimaDevolucionRapida.codigo }}</span></p>
+            <p v-if="ultimaDevolucionRapida.multa" class="mt-1 text-xs font-semibold">{{ ultimaDevolucionRapida.multa }}</p>
+          </div>
+        </div>
         <div v-if="modoRapido === 'sin_rut'" class="mt-3 rounded-xl border border-amber-200">
           <p class="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
             <span>Registrados hoy sin RUT</span>
