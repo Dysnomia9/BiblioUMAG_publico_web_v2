@@ -202,6 +202,7 @@ const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 const modoResponsable = ref<'rut' | 'actividad'>('rut')
 const nombreActividad = ref('')
+const descripcionActividad = ref('')
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
 const { modos: modosReserva, escribir: escribirFila, cambiar: cambiarModoFila, reiniciar: reiniciarModos, errores: erroresFilas } = useModosPorFila(rutsReserva)
 const rutErrores = ref<Record<number, string>>({})
@@ -520,6 +521,7 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
   rutErrores.value = {}
   modoResponsable.value = 'rut'
   nombreActividad.value = ''
+  descripcionActividad.value = ''
   modalOpen.value = true
 }
 
@@ -783,6 +785,7 @@ async function confirmarSerie() {
     cantidad_personas: cantidadPersonas.value,
     modo_responsable: modoResponsable.value,
     nombre_actividad: modoResponsable.value === 'actividad' ? nombreActividad.value.trim() : null,
+    descripcion_actividad: descripcionActividad.value.trim() || null,
     ...(modoResponsable.value === 'actividad' ? {} : { ruts: rutsReserva.value }),
   }
   try {
@@ -844,6 +847,7 @@ async function confirmarReserva(permitirSolape = false) {
       cantidad_personas: cantidadPersonas.value,
       modo_responsable: porActividad ? 'actividad' : 'rut',
       nombre_actividad: porActividad ? nombreActividad.value.trim() : null,
+      descripcion_actividad: porActividad ? descripcionActividad.value.trim() || null : null,
       ...(porActividad ? {} : { ruts: rutsReserva.value }),
       // Desde ahora, el servidor pone el inicio con su propia hora, y el término también si se
       // eligió una duración (con una hora de término escrita, es esa).
@@ -1763,7 +1767,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   type="button"
                   role="radio"
                   :aria-checked="modoResponsable === 'rut'"
-                  class="inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                  class="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
                   :class="modoResponsable === 'rut' ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_4px_10px_rgb(79_70_229/0.22)] ring-4 ring-indigo-100' : 'border-gray-300 bg-white text-gray-900 hover:border-indigo-300 hover:bg-indigo-50/40'"
                   @click="modoResponsable = 'rut'"
                 >
@@ -1780,7 +1784,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   type="button"
                   role="radio"
                   :aria-checked="modoResponsable === 'actividad'"
-                  class="inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-center text-sm font-bold leading-tight transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                  class="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-lg border px-2 text-center text-xs font-semibold leading-tight transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
                   :class="modoResponsable === 'actividad' ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_4px_10px_rgb(79_70_229/0.22)] ring-4 ring-indigo-100' : 'border-gray-300 bg-white text-gray-900 hover:border-indigo-300 hover:bg-indigo-50/40'"
                   @click="modoResponsable = 'actividad'"
                 >
@@ -1812,7 +1816,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 </select>
               </div>
               <div v-if="modoResponsable === 'actividad'" class="rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
-                <input v-model="nombreActividad" type="text" maxlength="120" aria-label="Nombre o actividad" placeholder="Ej: Reunión de acreditación" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input v-model="nombreActividad" type="text" maxlength="120" aria-label="Nombre o actividad" placeholder="Nombre libre: persona, grupo o actividad" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input v-model="descripcionActividad" type="text" maxlength="300" aria-label="Descripción breve opcional" placeholder="Descripción breve (opcional)" class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div v-else class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
                 <div v-for="(_, idx) in rutsReserva" :key="idx">
@@ -1973,6 +1978,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <div v-if="detalleTramo.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-3">
                 <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Actividad</p>
                 <p class="mt-0.5 text-sm font-bold text-indigo-950">{{ detalleTramo.nombre_actividad }}</p>
+                <p v-if="detalleTramo.descripcion_actividad" class="mt-1 text-xs text-indigo-900">{{ detalleTramo.descripcion_actividad }}</p>
                 <p class="mt-0.5 text-xs text-indigo-700">Sin RUT ni usuario asociado</p>
               </div>
               <div class="mb-2 flex items-center justify-between gap-3">
@@ -2242,8 +2248,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <p class="inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/90">Confirmar llegada</p>
               <h3 class="mt-1.5 truncate font-serif text-xl font-bold leading-tight">{{ llegadaPendiente.salaNombre }}</h3>
               <p class="mt-0.5 text-xs text-white/80">
-                {{ formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(llegadaPendiente.horaFin) - timeToMinutes(llegadaPendiente.horaInicio)) }} ·
-                {{ llegadaPendiente.personas.length }} {{ llegadaPendiente.personas.length === 1 ? 'integrante' : 'integrantes' }}
+                {{ formatFechaLarga(selectedDate) }} · {{ duracion(timeToMinutes(llegadaPendiente.horaFin) - timeToMinutes(llegadaPendiente.horaInicio)) }}
+                <template v-if="llegadaPendiente.personas.length"> · {{ llegadaPendiente.personas.length }} {{ llegadaPendiente.personas.length === 1 ? 'integrante' : 'integrantes' }}</template>
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2.5 rounded-xl bg-white px-3 py-1.5 text-indigo-950 shadow-lg ring-1 ring-black/5">
@@ -2259,7 +2265,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </div>
           </div>
           <div class="space-y-3 overflow-y-auto px-5 py-4 text-sm text-gray-500">
-            <div class="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
+            <div v-if="llegadaPendiente.personas.length" class="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
               <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-white text-amber-700" aria-hidden="true">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
               </span>
@@ -2268,7 +2274,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <p class="mt-0.5 text-xs leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
               </div>
             </div>
-            <div>
+            <div v-if="llegadaPendiente.personas.length">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ llegadaPendiente.personas.length }})</p>
                 <button
@@ -2304,7 +2310,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <p v-if="editandoIntegrantesLlegada" class="text-xs text-amber-700">
               Guarde o descarte los cambios de integrantes antes de confirmar la llegada.
             </p>
-            <p class="flex items-center gap-2 text-xs text-gray-500">
+            <p v-if="llegadaPendiente.personas.length" class="flex items-center gap-2 text-xs text-gray-500">
               <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25" /></svg>
               Quienes no hayan marcado su entrada hoy quedarán presentes en la biblioteca.
             </p>

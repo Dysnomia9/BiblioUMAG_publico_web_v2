@@ -526,6 +526,7 @@ export type TramoReserva = {
   cantidad_personas: number
   rut_usuario: string | null
   /** Alternativa al RUT en salas de administración. */
+  descripcion_actividad?: string | null
   nombre_actividad?: string | null
   usuario_id: number | null
   personas: { rut: string; nombre: string | null }[]
@@ -986,6 +987,7 @@ export type ReservaListado = {
   situacion: SituacionReserva
   cantidad_personas: number
   titular: { rut: string | null; nombre: string | null }
+  descripcion_actividad?: string | null
   nombre_actividad?: string | null
   personas: TramoReserva['personas']
   prestado_por: string | null

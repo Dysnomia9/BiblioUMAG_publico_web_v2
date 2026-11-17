@@ -251,6 +251,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
         <div v-if="actual.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
           <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Nombre / actividad</p>
           <p class="mt-0.5 font-semibold text-indigo-950">{{ actual.nombre_actividad }}</p>
+          <p v-if="actual.descripcion_actividad" class="mt-1 text-sm text-indigo-900">{{ actual.descripcion_actividad }}</p>
           <p class="mt-0.5 text-xs text-indigo-700">Sin RUT asociado</p>
         </div>
         <div class="mb-2 flex items-center justify-between gap-3">
