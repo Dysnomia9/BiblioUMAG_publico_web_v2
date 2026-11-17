@@ -187,6 +187,10 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/libros/{libro}/fasciculos', [FasciculoController::class, 'store'])->whereNumber('libro');
         Route::patch('/fasciculos/{fasciculo}', [FasciculoController::class, 'update']);
         Route::patch('/fasciculos/{fasciculo}/recibir', [FasciculoController::class, 'recibir']);
+        Route::get('/prestamos-interbibliotecarios/fichas', [\App\Http\Controllers\Api\FichaInterbibliotecariaController::class, 'index']);
+        Route::post('/prestamos-interbibliotecarios/fichas', [\App\Http\Controllers\Api\FichaInterbibliotecariaController::class, 'store']);
+        Route::get('/prestamos-interbibliotecarios/fichas/{fichaInterbibliotecaria}', [\App\Http\Controllers\Api\FichaInterbibliotecariaController::class, 'show'])->whereNumber('fichaInterbibliotecaria');
+        Route::patch('/prestamos-interbibliotecarios/fichas/{fichaInterbibliotecaria}', [\App\Http\Controllers\Api\FichaInterbibliotecariaController::class, 'update'])->whereNumber('fichaInterbibliotecaria');
         Route::get('/prestamos-interbibliotecarios', [PrestamoInterbibliotecarioController::class, 'index']);
         Route::get('/prestamos-interbibliotecarios/fecha-tope', [PrestamoInterbibliotecarioController::class, 'fechaTope']);
         Route::post('/prestamos-interbibliotecarios', [PrestamoInterbibliotecarioController::class, 'store']);

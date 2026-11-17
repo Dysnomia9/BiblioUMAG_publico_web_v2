@@ -492,6 +492,10 @@ export type AtrasoDevolucion = {
   sala: string
   hora_fin: string
   minutos: number
+  minutos_cobrables: number
+  minutos_tolerancia: number
+  monto_por_minuto: number
+  tope_maximo: number | null
   monto: number
   monto_provisional: boolean
 }
@@ -538,11 +542,11 @@ export type Sala = {
   tipo: 'logia' | 'puesto' | 'sala'
   /** Código propio de la sala (L04, SEM…): el del mesón y los reportes. */
   codigo: string
-  /** No se presta a estudiantes (seminarios, Cooperación, Moraga): la reserva quien tiene salas.administracion. */
+  /** No se solicita desde el portal: requiere salas.administracion, o salas.seminarios para SM1 y SM2. */
   solo_administracion?: boolean
   /** De la administración y además exclusiva: la reserva solo quien tiene salas.exclusivas. */
   reserva_exclusiva?: boolean
-  /** Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin anotar a cada asistente: los seminarios. */
+  /** Se reserva a nombre de quien la pide (la persona a cargo), sin anotar a cada asistente: los seminarios. */
   solo_responsable?: boolean
   /** False: dada de baja. Ya no se ofrece ni se reserva, y su historial se conserva. */
   activa?: boolean
@@ -654,7 +658,20 @@ export type CondicionesPrestamo = {
 }
 
 /** Una copia que otra biblioteca le prestó a la nuestra (Catalogación › Préstamo interbibliotecario). */
+export type FichaInterbibliotecaria = {
+  id: number
+  libro_id: number
+  libro: Libro
+  biblioteca: string
+  fecha_ingreso: string
+  fecha_limite: string
+  nota: string | null
+  ingresos_count: number
+  pendientes_count: number
+}
+
 export type PrestamoInterbibliotecario = {
+  ficha_interbibliotecaria_id?: number | null
   id: number
   ejemplar_id: number
   /** La biblioteca propietaria. */
@@ -674,7 +691,7 @@ export type PrestamoInterbibliotecario = {
   devuelto_por?: { id: number; nombre: string } | null
   ejemplar: Pick<Ejemplar, 'id' | 'libro_id' | 'numero_copia' | 'etiqueta_copia' | 'codigo_barras' | 'codigo_lomo' | 'estado_proceso' | 'disponible' | 'ubicacion_id'> & {
     ubicacion?: { id: number; nombre: string } | null
-    libro: { id: number; titulo: string; isbn: string | null; autores?: { id: number; nombre: string }[] }
+    libro: Libro
   }
   prestamo_activo: { id: number; usuario: string | null; rut: string | null; fecha_devolucion: string | null } | null
 }
@@ -891,6 +908,7 @@ export type IntegrantesReserva = {
 
 export type OpcionesUsuarios = {
   carreras: string[]
+  trabajo?: Partial<Record<Usuario['tipo'], { unidades: string[]; cargos: string[] }>>
   tipos_documento: { clave: 'rut' | 'pasaporte' | 'dni' | 'otro'; nombre: string }[]
   tipos: Usuario['tipo'][]
   sexos: string[]

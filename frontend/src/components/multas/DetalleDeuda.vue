@@ -71,17 +71,19 @@ function prestamoDe(m: Multa) {
     :descripcion="deuda ? `${deuda.rut}${deuda.email ? ` · ${deuda.email}` : ''}` : ''"
     ancho="lg"
     pie-fijo
+    destacado
+    tono="peligro"
     @cerrar="emit('cerrar')"
   >
     <p v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">No se pudieron cargar las multas. Cierra y vuelve a intentarlo.</p>
     <p v-else-if="cargando && !multas.length" class="py-8 text-center text-sm text-gray-400">Cargando multas…</p>
     <template v-else>
       <div
-        class="mb-4 flex flex-wrap items-baseline justify-between gap-2 rounded-xl px-4 py-3"
-        :class="pendientes.length ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'"
+        class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-3"
+        :class="pendientes.length ? 'border-red-100 bg-red-50/80 text-red-800' : 'border-emerald-100 bg-emerald-50/80 text-emerald-800'"
       >
-        <p v-if="pendientes.length" class="text-sm">
-          Debe <strong class="text-lg">{{ formatMonto(montoPendiente) }}</strong> en {{ pendientes.length }}
+        <p v-if="pendientes.length" class="text-sm sm:text-base">
+          Debe <strong class="text-lg font-bold tracking-tight sm:text-xl">{{ formatMonto(montoPendiente) }}</strong> en {{ pendientes.length }}
           {{ pendientes.length === 1 ? 'multa pendiente' : 'multas pendientes' }}
         </p>
         <p v-else class="text-sm font-semibold">Sin deuda pendiente</p>
@@ -89,17 +91,17 @@ function prestamoDe(m: Multa) {
       </div>
 
       <ul class="space-y-3">
-        <li v-for="m in pendientes" :key="m.id" class="rounded-xl border border-gray-200 p-4">
+        <li v-for="m in pendientes" :key="m.id" class="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md sm:p-4">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div class="flex flex-wrap items-center gap-1.5">
-              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ TIPOS_MULTA[m.tipo] }}</span>
-              <span v-if="m.origen === 'importada'" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Importada</span>
+              <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">{{ TIPOS_MULTA[m.tipo] }}</span>
+              <span v-if="m.origen === 'importada'" class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">Importada</span>
               <span class="text-xs text-gray-500">{{ fechaMulta(m.created_at) }}</span>
             </div>
-            <p class="text-base font-bold text-red-700">{{ formatMonto(m.monto) }}</p>
+            <p class="shrink-0 text-lg font-bold tracking-tight text-red-700">{{ formatMonto(m.monto) }}</p>
           </div>
-          <p v-if="m.detalle" class="mt-2 text-sm text-gray-800">{{ m.detalle }}</p>
-          <dl class="mt-2 space-y-0.5 text-xs text-gray-500">
+          <p v-if="m.detalle" class="mt-2 text-sm leading-relaxed text-gray-800">{{ m.detalle }}</p>
+          <dl class="mt-2 space-y-0.5 text-xs leading-relaxed text-gray-500">
             <div v-if="prestamoDe(m)">
               <dt class="sr-only">Préstamo</dt>
               <dd>
@@ -117,11 +119,11 @@ function prestamoDe(m: Multa) {
               <dd>{{ origenMulta(m) }}</dd>
             </div>
           </dl>
-          <div v-if="auth.puede('multas.cobrar') || auth.puede('multas.anular')" class="mt-3 flex flex-wrap gap-2">
+          <div v-if="auth.puede('multas.cobrar') || auth.puede('multas.anular')" class="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-2.5">
             <button
               v-if="auth.puede('multas.cobrar')"
               type="button"
-              class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              class="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
               @click="emit('pagar', m)"
             >
               Marcar pagada
@@ -129,7 +131,7 @@ function prestamoDe(m: Multa) {
             <button
               v-if="auth.puede('multas.anular')"
               type="button"
-              class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50"
+              class="rounded-lg border border-red-200 px-3.5 py-1.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
               @click="emit('anular', m)"
             >
               Anular
@@ -168,7 +170,7 @@ function prestamoDe(m: Multa) {
     <template #pie>
       <button
         type="button"
-        class="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm sm:mr-auto"
+        class="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 sm:mr-auto"
         @click="emit('cerrar')"
       >
         Cerrar
@@ -176,7 +178,7 @@ function prestamoDe(m: Multa) {
       <button
         v-if="deuda"
         type="button"
-        class="px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:underline"
+        class="rounded-xl px-4 py-2.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
         @click="emit('verTodas', deuda.rut)"
       >
         Ver en Todas las multas →

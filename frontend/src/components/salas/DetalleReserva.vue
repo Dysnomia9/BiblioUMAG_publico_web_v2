@@ -51,10 +51,14 @@ watch(
   { immediate: true },
 )
 
-const editable = computed(() => props.puedeEditar && !!actual.value && reservaEditable(actual.value))
+const puedeGestionarSala = computed(() => {
+  const sala = props.salas.find((s) => s.id === actual.value?.sala?.id)
+  return !['SM1', 'SM2'].includes(sala?.codigo ?? '') || auth.puede('salas.seminarios')
+})
+const editable = computed(() => props.puedeEditar && puedeGestionarSala.value && !!actual.value && reservaEditable(actual.value))
 // Liberar el resto de un bloque devuelto antes lo puede el mesón de salas o quien edita reservas.
 const auth = useAuthStore()
-const puedeLiberar = computed(() => !!actual.value?.tiempo_sin_usar && (props.puedeEditar || auth.puede('salas.gestionar')))
+const puedeLiberar = computed(() => !!actual.value?.tiempo_sin_usar && puedeGestionarSala.value && (props.puedeEditar || auth.puede('salas.gestionar')))
 
 function liberarResto() {
   if (!actual.value?.tiempo_sin_usar) return
@@ -176,7 +180,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
             <label class="block sm:col-span-2">
               <span class="mb-1 block text-xs font-medium text-gray-600">Sala</span>
               <select v-model.number="form.sala_id" :disabled="ocupado" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-                <option v-for="s in salas.filter((sala) => sala.activa !== false)" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+                <option v-for="s in salas.filter((sala) => sala.activa !== false && (!['SM1', 'SM2'].includes(sala.codigo ?? '') || auth.puede('salas.seminarios')))" :key="s.id" :value="s.id">{{ s.nombre }}</option>
               </select>
             </label>
             <label class="block sm:col-span-2">

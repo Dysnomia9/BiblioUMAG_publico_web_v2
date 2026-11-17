@@ -588,7 +588,7 @@ class SalaController extends Controller
 
         $ruts = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
 
-        // En una sala de la administración, quien queda a cargo (el primero) no puede ser un estudiante.
+        // Revisa el permiso de gestión y las reglas del responsable de esta sala.
         if ($rechazo = $this->rechazoSoloAdministracion($request, $sala->id, $ruts[0] ?? null)) {
             return $rechazo;
         }
@@ -596,7 +596,7 @@ class SalaController extends Controller
         $fecha = $reserva->fecha->toDateString();
         $despues = Usuario::whereIn('rut', $ruts)->get()->sortBy(fn (Usuario $u) => array_search($u->rut, $ruts, true))->values();
 
-        return $this->reservaSalaService->conSalaEIntegrantesBloqueados(null, $despues->pluck('id'), function () use ($request, $reserva, $entradas, $ruts, $fecha, $despues) {
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados(null, $despues->pluck('id'), function () use ($request, $reserva, $sala, $entradas, $ruts, $fecha, $despues) {
             // Mientras el grupo no llega, esta reserva es la pendiente de cada integrante:
             // quien se suma no puede tener ya otra.
             $quienesSeSuman = array_values(array_diff($ruts, $reserva->participantes()->pluck('rut')->all()));
@@ -619,10 +619,9 @@ class SalaController extends Controller
             $agregados = $despues->whereNotIn('id', $antes->pluck('id'));
             $quitados = $antes->whereNotIn('id', $despues->pluck('id'));
 
-            if ($agregados->isNotEmpty() || $quitados->isNotEmpty()) {
-                // Quien reservó sigue a cargo mientras siga en el grupo; si se fue, lo
-                // reemplaza el primero de la lista.
-                $titular = $despues->firstWhere('id', $reserva->usuario_id) ?? $despues->first();
+            // En los seminarios, el primer RUT siempre es el responsable validado.
+            $titular = $sala->esSeminario() ? $despues->first() : ($despues->firstWhere('id', $reserva->usuario_id) ?? $despues->first());
+            if ($agregados->isNotEmpty() || $quitados->isNotEmpty() || $titular->id !== $reserva->usuario_id) {
 
                 $reserva->update([
                     'usuario_id' => $titular->id,
@@ -665,8 +664,12 @@ class SalaController extends Controller
      * bloquea el tramo, no cuenta para la cuota diaria, no aparece en la línea de
      * tiempo.
      */
-    public function destroyReserva(Reserva $reserva)
+    public function destroyReserva(Request $request, Reserva $reserva)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
         $estadoAnterior = $reserva->estado;
         $reserva->update(['estado' => 'cancelada']);
 
@@ -688,6 +691,10 @@ class SalaController extends Controller
      */
     public function devolverReserva(Request $request, Reserva $reserva, MultaService $multas)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
         try {
             $reserva = $this->reservaSalaService->registrarDevolucion($reserva, $request->user());
         } catch (\RuntimeException $e) {
@@ -707,8 +714,12 @@ class SalaController extends Controller
      * El grupo devolvió la llave antes de tiempo y el mesón aceptó liberar lo que quedaba del
      * bloque (el aviso que aparece al registrar la devolución): la sala queda libre para otro grupo.
      */
-    public function liberarRestoDelBloque(Reserva $reserva)
+    public function liberarRestoDelBloque(Request $request, Reserva $reserva)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
         $sinUsar = ReservaSalaService::tiempoSinUsar($reserva);
         $descripcion = $reserva->descripcion();
         $horario = fn (Reserva $r) => substr($r->hora_inicio, 0, 5).'–'.substr($r->hora_fin, 0, 5);
@@ -737,6 +748,10 @@ class SalaController extends Controller
      */
     public function multarAtraso(Request $request, Reserva $reserva, MultaService $multas)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
         $multa = $multas->generarPorAtrasoDeSala($reserva, $request->user());
 
         if (! $multa) {
@@ -767,6 +782,10 @@ class SalaController extends Controller
      */
     public function confirmarLlegada(Request $request, Reserva $reserva, EntradaService $entradas)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, $reserva->rut_usuario)) {
+            return $rechazo;
+        }
+
         try {
             $reserva = $this->reservaSalaService->registrarLlegada($reserva, $request->user());
         } catch (\RuntimeException $e) {
@@ -792,8 +811,12 @@ class SalaController extends Controller
     }
 
     /** Libera de inmediato una reserva vencida sin confirmar, sin esperar a un nuevo intento de reserva sobre el mismo bloque. */
-    public function liberarReserva(Reserva $reserva)
+    public function liberarReserva(Request $request, Reserva $reserva)
     {
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
         try {
             $reserva = $this->reservaSalaService->liberarPorNoPresentacion($reserva);
         } catch (\RuntimeException $e) {
@@ -806,15 +829,15 @@ class SalaController extends Controller
     }
 
     /**
-     * Las salas que gestiona solo la administración (Sala de Seminarios): las reserva y
-     * edita quien tiene el permiso salas.administracion, y no quedan a cargo de un
-     * estudiante. Null si la sala no es de esas o si se puede.
+     * SM1 y SM2 requieren salas.seminarios y admiten a cualquier usuario registrado a cargo.
+     * Las demás salas de la administración conservan sus permisos y reglas de responsable.
+     * Null si la sala no es de esas o si se puede.
      */
     private function rechazoSoloAdministracion(Request $request, int $salaId, ?string $rutACargo): ?JsonResponse
     {
         $sala = Sala::find($salaId);
 
-        if (! $sala?->solo_administracion) {
+        if (! $sala || (! $sala->solo_administracion && ! $sala->esSeminario())) {
             return null;
         }
 
@@ -822,12 +845,17 @@ class SalaController extends Controller
             return response()->json(['message' => "{$sala->nombre} es de reserva exclusiva: la reservan solo quienes tienen ese permiso. Pídeles que hagan o cambien la reserva."], 403);
         }
 
-        if (! $sala->reserva_exclusiva && ! $request->user()->puede('salas.administracion')) {
+        if ($sala->esSeminario() && ! $request->user()->puede('salas.seminarios')) {
+            return response()->json(['message' => "{$sala->nombre} la gestiona el personal autorizado de Atención de público, bibliotecarios y administradores."], 403);
+        }
+
+        if (! $sala->esSeminario() && ! $sala->reserva_exclusiva && ! $request->user()->puede('salas.administracion')) {
             return response()->json(['message' => "{$sala->nombre} la gestiona solo la administración: pide a un administrador que haga o cambie la reserva."], 403);
         }
 
-        // Con «Reservas especiales» (salas.repetir) la administración sí la puede prestar a estudiantes.
-        if ($rutACargo && ! $request->user()->puede('salas.repetir') && Usuario::where('rut', $rutACargo)->value('tipo') === 'estudiante') {
+        // En SM1 y SM2 el personal autorizado puede registrar a cualquier usuario como responsable.
+        if (! $sala->esSeminario() && $rutACargo && ! $request->user()->puede('salas.repetir')
+            && ! in_array(Usuario::where('rut', $rutACargo)->value('tipo'), ['docente', 'funcionario'], true)) {
             return response()->json(['message' => "{$sala->nombre} no se presta a estudiantes: quien queda a cargo (el primer RUT) debe ser docente o funcionario."], 422);
         }
 
@@ -845,6 +873,11 @@ class SalaController extends Controller
         ], [
             'codigo.required' => 'Escribe el código de la sala (por ejemplo, L04) o el número de la logia.',
         ]);
+
+        $sala = Sala::porCodigo($data['codigo']);
+        if ($sala && ($rechazo = $this->rechazoSoloAdministracion($request, $sala->id, null))) {
+            return $rechazo;
+        }
 
         try {
             $reserva = $this->reservaSalaService->llavePorCodigo($data['codigo'], $request->user());

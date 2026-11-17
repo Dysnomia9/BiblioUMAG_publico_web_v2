@@ -25,6 +25,7 @@ const props = withDefaults(
     claseCampo?: string
     etiqueta?: string
     idCampo?: string
+    maxlength?: number
   }>(),
   { titulo: '', sinSugerencias: 'Sin sugerencias', placeholder: '', disabled: false, claseCampo: '', etiqueta: undefined, idCampo: undefined },
 )
@@ -124,6 +125,7 @@ function alEnter() {
       :aria-activedescendant="abierto && marcada >= 0 ? `${idLista}-${marcada}` : undefined"
       :placeholder="placeholder"
       :disabled="disabled"
+      :maxlength="maxlength"
       :class="[claseCampo, 'pr-8']"
       @input="alEscribir"
       @click="abrir"

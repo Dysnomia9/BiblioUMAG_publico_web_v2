@@ -176,7 +176,7 @@ function estadoDe(u: Usuario) {
 
       <div class="flex items-center gap-3 pt-1" aria-hidden="true">
         <span class="h-px flex-1 bg-gray-200"></span>
-        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">{{ encontrado === false ? 'Regístrelo como' : 'O registre a alguien nuevo' }}</span>
+        <span class="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-500">{{ encontrado === false ? 'Regístrelo como' : 'O registre a alguien nuevo' }}</span>
         <span class="h-px flex-1 bg-gray-200"></span>
       </div>
       <div class="grid grid-cols-3 gap-2">

@@ -17,13 +17,13 @@ class Sala extends Model
         'codigo',
         'capacidad',
         'tipo',
-        // No se presta a estudiantes ni se ofrece en el portal (Sala de Seminarios): la
-        // reserva quien tiene el permiso salas.administracion.
+        // No se ofrece en el portal: la reserva el personal con el permiso correspondiente.
+        // SM1 y SM2 usan salas.seminarios; las demás, salas.administracion.
         'solo_administracion',
         // De la administración y además exclusiva: la reserva solo quien tiene el permiso
         // salas.exclusivas (y los administradores), no todo el que tiene salas.administracion.
         'reserva_exclusiva',
-        // Se reserva a nombre de quien la pide (el docente o funcionario a cargo), sin
+        // Se reserva a nombre de quien la pide (la persona a cargo), sin
         // anotar a cada asistente: los seminarios.
         'solo_responsable',
         // Dada de baja (false): ya no se ofrece ni se reserva, y su historial se conserva.
@@ -31,6 +31,11 @@ class Sala extends Model
     ];
 
     public const TIPOS = ['logia', 'sala'];
+
+    public function esSeminario(): bool
+    {
+        return in_array($this->codigo, ['SM1', 'SM2'], true);
+    }
 
     protected $attributes = ['activa' => true];
 
@@ -139,7 +144,7 @@ class Sala extends Model
         [$minimo, $maximo] = $this->personasPermitidas($flexible);
 
         return match (true) {
-            $this->solo_responsable && $minimo === $maximo && $cantidad !== 1 => "{$this->nombre} se reserva solo a nombre de quien la pide: ingresa un único RUT, el del docente o funcionario a cargo.",
+            $this->solo_responsable && $minimo === $maximo && $cantidad !== 1 => "{$this->nombre} se reserva solo a nombre de quien la pide: ingresa un único RUT, el de la persona a cargo.",
             $cantidad < $minimo => $minimo === 1 ? 'La reserva necesita al menos una persona.' : "La reserva necesita al menos {$minimo} personas.",
             $cantidad > $maximo => "La reserva admite como máximo {$maximo} personas.",
             default => null,
@@ -150,6 +155,10 @@ class Sala extends Model
     public static function mensajeSoloAdministracion(int|string $salaId): ?string
     {
         $sala = static::find($salaId);
+
+        if ($sala?->esSeminario()) {
+            return "{$sala->nombre} no se solicita desde el portal: pide la reserva al personal autorizado de la biblioteca.";
+        }
 
         return $sala?->solo_administracion
             ? "{$sala->nombre} no se presta a estudiantes ni se reserva desde el portal: la gestiona la administración de la biblioteca."

@@ -3,188 +3,21 @@ import { nombreDeCopia } from '@/utils/tomo'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Paginador from '@/components/ui/Paginador.vue'
-import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
 import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
-import SeccionFicha from '@/components/libros/SeccionFicha.vue'
-import { TONOS_FICHA } from '@/components/libros/tonosFicha'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
+import { enPuntaArenas } from '@/utils/horario'
 import { ESTADOS_EJEMPLAR } from '@/utils/estadosEjemplar'
-import type { Autor, Libro, Paginado, PrestamoInterbibliotecario, TipoMaterial, Ubicacion } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import type { Paginado, PrestamoInterbibliotecario } from '@/types'
 
-/**
- * Catalogación › Préstamo interbibliotecario: el material que otra biblioteca (la
- * propietaria) le presta a la nuestra. Arriba se registra lo que llega; abajo, lo que
- * está en la biblioteca y lo ya devuelto. A los usuarios se les presta hasta un día
- * hábil antes de la fecha límite; después se devuelve a su biblioteca y la copia sale
- * del catálogo, sin borrarse: sus préstamos siguen en los reportes.
- */
-const props = defineProps<{ ubicaciones: Ubicacion[]; tiposMaterial: TipoMaterial[] }>()
-// La copia nace «Por colocar»: Catalogación ofrece ir a cambiarle el estado, como al catalogar.
-const emit = defineEmits<{ copiaCreada: [titulo: string, copia: PrestamoInterbibliotecario['ejemplar']] }>()
-
+/** Historial y gestión del material recibido. La ficha y los ejemplares se catalogan en el formulario compartido. */
+const emit = defineEmits<{ editarFicha: [id: number]; editarEjemplar: [codigo: string]; estadoEjemplar: [codigo: string] }>()
 const toast = useToast()
-const hoy = new Date().toLocaleDateString('sv-SE')
-
-const CAMPO = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition-shadow placeholder:text-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30'
-const ETIQUETA = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700'
-
-/** «vie 13 nov 2026». */
-const fecha = (iso: string | null | undefined) =>
-  iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—'
-
-// ---------- Registrar lo que llega ----------
-const formVacio = () => ({
-  titulo: '',
-  /** Títulos alternativos (246, repetible): una caja por título. */
-  titulosAlternativos: [''] as string[],
-  autores: [] as string[],
-  isbn: '',
-  editorial: '',
-  anio_publicacion: '' as number | '',
-  tipo_material_id: '' as number | '',
-  codigo_barras: '',
-  ubicacion_id: '' as number | '',
-  biblioteca: '',
-  fecha_ingreso: hoy,
-  fecha_limite: '',
-  nota: '',
-})
-const form = reactive(formVacio())
-// El título ya está en el catálogo (se le agrega una copia) o se crea con lo básico.
-const ORIGENES = [
-  { id: 'nuevo' as const, label: 'Título nuevo' },
-  { id: 'catalogo' as const, label: 'Ya está en el catálogo' },
-]
-const origen = ref<'nuevo' | 'catalogo'>('nuevo')
-const libroElegido = ref<Libro | null>(null)
-const busquedaLibro = ref('')
-const resultadosLibro = ref<Libro[]>([])
-
-async function buscarAutores(texto: string) {
-  const { data } = await api.get<Autor[]>('/autores', { params: { q: texto || undefined } })
-  return data
-}
-
-let buscarLibroTimer: ReturnType<typeof setTimeout> | undefined
-function onBuscarLibro() {
-  clearTimeout(buscarLibroTimer)
-  buscarLibroTimer = setTimeout(async () => {
-    const texto = busquedaLibro.value.trim()
-    if (!texto) {
-      resultadosLibro.value = []
-      return
-    }
-    try {
-      const { data } = await api.get<Paginado<Libro>>('/libros', { params: { q: texto, por_pagina: 10 } })
-      if (texto === busquedaLibro.value.trim()) resultadosLibro.value = data.data
-    } catch {
-      resultadosLibro.value = []
-    }
-  }, 250)
-}
-
-function elegirLibro(libro: Libro) {
-  clearTimeout(buscarLibroTimer)
-  libroElegido.value = libro
-  resultadosLibro.value = []
-  busquedaLibro.value = libro.titulo
-}
-
-function cambiarLibro() {
-  libroElegido.value = null
-  busquedaLibro.value = ''
-}
-
-async function generarCodigo() {
-  try {
-    const { data } = await api.get<{ codigo_barras: string }>('/ejemplares/siguiente-codigo-barras')
-    form.codigo_barras = data.codigo_barras
-  } catch {
-    toast.error('No se pudo generar un código de barras')
-  }
-}
-
-// Hasta cuándo se le presta a los usuarios: lo calcula el servidor (días hábiles y días sin atención).
-const topePrevisto = ref<string | null>(null)
-watch(
-  () => [form.fecha_limite, form.ubicacion_id],
-  async () => {
-    topePrevisto.value = null
-    if (!form.fecha_limite) return
-    const pedida = form.fecha_limite
-    try {
-      const { data } = await api.get<{ fecha_tope: string }>('/prestamos-interbibliotecarios/fecha-tope', {
-        params: { fecha_limite: pedida, ubicacion_id: form.ubicacion_id || undefined },
-      })
-      if (pedida === form.fecha_limite) topePrevisto.value = data.fecha_tope
-    } catch {
-      topePrevisto.value = null
-    }
-  },
-)
-const topeYaPaso = computed(() => !!topePrevisto.value && topePrevisto.value < hoy)
-
-const obligatorios = computed(() => [
-  { texto: origen.value === 'catalogo' ? 'Título elegido' : 'Título', listo: origen.value === 'catalogo' ? !!libroElegido.value : !!form.titulo.trim() },
-  { texto: 'Código de barras', listo: !!form.codigo_barras.trim() },
-  { texto: 'Biblioteca propietaria', listo: !!form.biblioteca.trim() },
-  { texto: 'Fecha de ingreso', listo: !!form.fecha_ingreso && form.fecha_ingreso <= hoy },
-  { texto: 'Fecha límite (después del ingreso)', listo: !!form.fecha_limite && form.fecha_limite > form.fecha_ingreso },
-])
-
-const tituloRegistro = computed(() => (origen.value === 'catalogo' ? libroElegido.value?.titulo ?? '' : form.titulo.trim()))
-const ubicacionElegida = computed(() => props.ubicaciones.find((u) => u.id === form.ubicacion_id)?.nombre ?? null)
-
-const confirmandoRegistro = ref(false)
-const guardando = ref(false)
-
-function pedirRegistro() {
-  const falta = obligatorios.value.filter((o) => !o.listo)
-  if (falta.length) {
-    toast.error(`Falta completar: ${falta.map((o) => o.texto).join(', ')}`)
-    return
-  }
-  confirmandoRegistro.value = true
-}
-
-async function registrar() {
-  guardando.value = true
-  try {
-    const { data } = await api.post<PrestamoInterbibliotecario>('/prestamos-interbibliotecarios', {
-      ...(origen.value === 'catalogo'
-        ? { libro_id: libroElegido.value?.id }
-        : {
-            titulo: form.titulo.trim(),
-            titulos_alternativos: form.titulosAlternativos.map((t) => t.trim()).filter(Boolean),
-            autores: form.autores,
-            isbn: form.isbn.trim() || null,
-            editorial: form.editorial.trim() || null,
-            anio_publicacion: form.anio_publicacion === '' ? null : Number(form.anio_publicacion),
-            tipo_material_id: form.tipo_material_id === '' ? null : Number(form.tipo_material_id),
-          }),
-      codigo_barras: form.codigo_barras.trim(),
-      ubicacion_id: form.ubicacion_id === '' ? null : Number(form.ubicacion_id),
-      biblioteca: form.biblioteca.trim(),
-      fecha_ingreso: form.fecha_ingreso,
-      fecha_limite: form.fecha_limite,
-      nota: form.nota.trim() || null,
-    })
-    toast.success(`Préstamo interbibliotecario registrado: «${tituloRegistro.value}»`)
-    emit('copiaCreada', tituloRegistro.value, data.ejemplar)
-    confirmandoRegistro.value = false
-    Object.assign(form, formVacio())
-    cambiarLibro()
-    vista.value = 'en_biblioteca'
-    pagina.value = 1
-    await cargar()
-  } catch (e) {
-    toast.error(mensajeDeError(e, 'No se pudo registrar el préstamo interbibliotecario'))
-    confirmandoRegistro.value = false
-  } finally {
-    guardando.value = false
-  }
-}
+const auth = useAuthStore()
+const hoy = enPuntaArenas().fecha
+const CAMPO = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30'
+const fecha = (iso: string | null | undefined) => iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CL') : '—'
 
 // ---------- Lo que está en la biblioteca y lo devuelto ----------
 type Vista = 'en_biblioteca' | 'devueltos' | 'todos'
@@ -197,7 +30,7 @@ const vista = ref<Vista>('en_biblioteca')
 const pagina = ref(1)
 const busqueda = ref('')
 const filas = ref<PrestamoInterbibliotecario[]>([])
-const meta = ref<Omit<Paginado<PrestamoInterbibliotecario>, 'data'>>({ current_page: 1, last_page: 1, per_page: 20, total: 0, from: null, to: null })
+const meta = ref<Omit<Paginado<PrestamoInterbibliotecario>, 'data'>>({ current_page: 1, last_page: 1, per_page: 10, total: 0, from: null, to: null })
 const conteos = ref<Record<Vista, number>>({ en_biblioteca: 0, devueltos: 0, todos: 0 })
 const bibliotecas = ref<string[]>([])
 const cargando = ref(true)
@@ -207,7 +40,7 @@ async function cargar() {
   cargando.value = true
   try {
     const { data } = await api.get<Paginado<PrestamoInterbibliotecario> & { conteos: Record<Vista, number>; bibliotecas: string[] }>('/prestamos-interbibliotecarios', {
-      params: { vista: vista.value, q: busqueda.value.trim() || undefined, page: pagina.value },
+      params: { vista: vista.value, q: busqueda.value.trim() || undefined, page: pagina.value, por_pagina: 10 },
     })
     const { data: lista, conteos: c, bibliotecas: b, ...resto } = data
     filas.value = lista
@@ -224,6 +57,8 @@ async function cargar() {
 }
 
 onMounted(cargar)
+function recargarIngresos() { vista.value = 'en_biblioteca'; pagina.value = 1; return cargar() }
+defineExpose({ recargarIngresos })
 
 function cambiarVista(v: Vista) {
   vista.value = v
@@ -296,6 +131,10 @@ const topeEdicion = ref<string | null>(null)
 const editando = ref(false)
 
 function pedirEditar(p: PrestamoInterbibliotecario) {
+  if (p.ficha_interbibliotecaria_id) {
+    emit('editarFicha', p.ficha_interbibliotecaria_id)
+    return
+  }
   Object.assign(edicion, { biblioteca: p.biblioteca, fecha_limite: p.fecha_limite, nota: p.nota ?? '' })
   topeEdicion.value = p.fecha_tope
   aEditar.value = p
@@ -364,244 +203,33 @@ async function guardarEdicion() {
 
 <template>
   <div>
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
-      <div class="min-w-0 space-y-5">
-        <p class="rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm leading-relaxed text-indigo-900">
-          Material que otra biblioteca le presta a la nuestra. Se presta a los usuarios hasta <strong>un día hábil antes</strong> de la fecha en que tiene
-          que volver a su biblioteca (de lunes a viernes, sin feriados ni días sin atención). Cuando se le devuelve, la copia sale del catálogo y del portal,
-          pero no se borra: sus préstamos siguen en el historial y en los reportes.
-        </p>
-
-        <!-- 1. Obra -->
-        <SeccionFicha id="pib-obra" :numero="1" titulo="Obra" detalle="El título que llegó" tono="indigo">
-          <div class="mb-4 flex w-max max-w-full overflow-x-auto rounded-xl bg-gray-100 p-1" role="tablist" aria-label="De dónde sale el título">
-            <button
-              v-for="o in ORIGENES"
-              :key="o.id"
-              type="button"
-              role="tab"
-              :aria-selected="origen === o.id"
-              class="whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors"
-              :class="origen === o.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
-              @click="origen = o.id"
-            >
-              {{ o.label }}
-            </button>
-          </div>
-
-          <div v-if="origen === 'nuevo'" class="grid grid-cols-1 gap-4 sm:grid-cols-6">
-            <div class="sm:col-span-6">
-              <label for="pib-titulo" :class="ETIQUETA">Título <span class="text-red-600">*</span></label>
-              <input autocomplete="off" id="pib-titulo" v-model="form.titulo" placeholder="Título de la obra" :class="CAMPO" />
-            </div>
-            <div class="sm:col-span-6">
-              <p :class="ETIQUETA">Títulos alternativos <span class="font-normal text-gray-400">(246 · puede haber varios)</span></p>
-              <div class="space-y-2">
-                <div v-for="(_, i) in form.titulosAlternativos" :key="i" class="flex gap-2">
-                  <input autocomplete="off"
-                    :id="`pib-titulo-alt-${i}`"
-                    v-model="form.titulosAlternativos[i]"
-                    placeholder="Otro título con que se conoce la obra"
-                    :class="CAMPO"
-                  />
-                  <button
-                    v-if="form.titulosAlternativos.length > 1 || form.titulosAlternativos[i]"
-                    type="button"
-                    class="shrink-0 rounded-lg border border-gray-300 px-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-red-600"
-                    :aria-label="`Quitar título alternativo ${i + 1}`"
-                    @click="form.titulosAlternativos.length > 1 ? form.titulosAlternativos.splice(i, 1) : (form.titulosAlternativos[0] = '')"
-                  >✕</button>
-                </div>
-              </div>
-              <button type="button" class="mt-2 text-xs font-semibold text-indigo-700 hover:underline" @click="form.titulosAlternativos.push('')">+ Agregar otro título alternativo</button>
-            </div>
-            <div class="sm:col-span-6">
-              <p :class="ETIQUETA">Autores</p>
-              <MultiSelectCombobox v-model="form.autores" :buscar="buscarAutores" placeholder="Apellido, Nombre: escribe para buscar o crear" :clase-ficha="TONOS_FICHA.indigo.chip" />
-            </div>
-            <div class="sm:col-span-2">
-              <label for="pib-isbn" :class="ETIQUETA">ISBN</label>
-              <input autocomplete="off" id="pib-isbn" v-model="form.isbn" placeholder="978..." :class="[CAMPO, 'font-mono']" />
-            </div>
-            <div class="sm:col-span-2">
-              <label for="pib-editorial" :class="ETIQUETA">Editorial</label>
-              <input autocomplete="off" id="pib-editorial" v-model="form.editorial" placeholder="Editorial" :class="CAMPO" />
-            </div>
-            <div class="sm:col-span-2">
-              <label for="pib-anio" :class="ETIQUETA">Año</label>
-              <input autocomplete="off" id="pib-anio" v-model="form.anio_publicacion" type="number" placeholder="2020" :class="CAMPO" />
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pib-tipo" :class="ETIQUETA">Tipo de material</label>
-              <select id="pib-tipo" v-model="form.tipo_material_id" :class="CAMPO">
-                <option value="">Sin especificar (libro)</option>
-                <option v-for="t in tiposMaterial" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-              </select>
-            </div>
-            <p class="self-end text-[11px] leading-relaxed text-gray-500 sm:col-span-3">Lo demás de la ficha se completa después en «Editar ficha», si hace falta.</p>
-          </div>
-
-          <template v-else>
-            <label for="pib-buscar" :class="ETIQUETA">Título, autor, ISBN o código de barras</label>
-            <div class="relative">
-              <input autocomplete="off" id="pib-buscar" v-model="busquedaLibro" type="text" placeholder="Ej: Fundamentos de bases de datos" :class="CAMPO" @input="onBuscarLibro" />
-              <div v-if="resultadosLibro.length" class="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                <button
-                  v-for="l in resultadosLibro"
-                  :key="l.id"
-                  type="button"
-                  class="w-full border-b border-gray-100 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-indigo-50"
-                  @click="elegirLibro(l)"
-                >
-                  <p class="font-medium text-gray-900">{{ l.titulo }}</p>
-                  <p class="text-xs text-gray-500">
-                    <template v-if="l.autores?.length">{{ l.autores.map((a) => a.nombre).join(', ') }} · </template>{{ l.ejemplares_count ?? l.ejemplares?.length ?? 0 }} copia(s)
-                  </p>
-                </button>
-              </div>
-            </div>
-            <div v-if="libroElegido" class="mt-3 flex items-start justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-gray-900">{{ libroElegido.titulo }}</p>
-                <p class="text-xs text-gray-500">Se le agrega una copia más, la de la otra biblioteca.</p>
-              </div>
-              <button type="button" class="shrink-0 text-xs font-medium text-indigo-700 hover:underline" @click="cambiarLibro">Cambiar</button>
-            </div>
-          </template>
-        </SeccionFicha>
-
-        <!-- 2. Copia -->
-        <SeccionFicha id="pib-copia" :numero="2" titulo="Copia" detalle="La etiqueta y dónde queda mientras esté aquí" tono="violeta">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
-            <div class="sm:col-span-3">
-              <label for="pib-codigo" :class="ETIQUETA">Código de barras <span class="text-red-600">*</span></label>
-              <div class="flex gap-2">
-                <input autocomplete="off" id="pib-codigo" v-model="form.codigo_barras" placeholder="30000003227566" :class="[CAMPO, 'font-mono']" />
-                <button
-                  type="button"
-                  class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-gray-600 transition-colors hover:bg-gray-50"
-                  title="Generar el siguiente código"
-                  aria-label="Generar el siguiente código de barras"
-                  @click="generarCodigo"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </div>
-              <p class="mt-1 text-[11px] text-gray-500">El de la etiqueta que se le pone aquí; no puede repetir el de otra copia.</p>
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pib-ubicacion" :class="ETIQUETA">Ubicación física</label>
-              <select id="pib-ubicacion" v-model="form.ubicacion_id" :class="CAMPO">
-                <option value="">Sin especificar</option>
-                <option v-for="u in ubicaciones" :key="u.id" :value="u.id">{{ u.nombre }}</option>
-              </select>
-            </div>
-          </div>
-        </SeccionFicha>
-
-        <!-- 3. Préstamo -->
-        <SeccionFicha id="pib-prestamo" :numero="3" titulo="Préstamo interbibliotecario" detalle="De quién es y hasta cuándo" tono="dorado">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
-            <div class="sm:col-span-6">
-              <label for="pib-biblioteca" :class="ETIQUETA">Biblioteca propietaria <span class="text-red-600">*</span></label>
-              <input autocomplete="off" id="pib-biblioteca" v-model="form.biblioteca" list="pib-bibliotecas" placeholder="Ej: Biblioteca Central, Universidad de Chile" :class="CAMPO" />
-              <datalist id="pib-bibliotecas">
-                <option v-for="b in bibliotecas" :key="b" :value="b" />
-              </datalist>
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pib-ingreso" :class="ETIQUETA">Fecha de ingreso <span class="text-red-600">*</span></label>
-              <input autocomplete="off" id="pib-ingreso" v-model="form.fecha_ingreso" type="date" :max="hoy" :class="CAMPO" />
-              <p class="mt-1 text-[11px] text-gray-500">Cuándo llegó a la biblioteca.</p>
-            </div>
-            <div class="sm:col-span-3">
-              <label for="pib-limite" :class="ETIQUETA">Vuelve a su biblioteca el <span class="text-red-600">*</span></label>
-              <input autocomplete="off" id="pib-limite" v-model="form.fecha_limite" type="date" :min="form.fecha_ingreso || hoy" :class="CAMPO" />
-              <p class="mt-1 text-[11px] text-gray-500">La fecha límite del préstamo interbibliotecario.</p>
-            </div>
-            <div class="sm:col-span-6">
-              <label for="pib-nota" :class="ETIQUETA">Nota interna</label>
-              <textarea id="pib-nota" v-model="form.nota" rows="2" placeholder="Ej: lo pidió el Dr. Pérez para su curso · solicitud n.º 1234" :class="CAMPO"></textarea>
-            </div>
-          </div>
-        </SeccionFicha>
-      </div>
-
-      <aside class="space-y-4 lg:sticky lg:top-6 lg:self-start">
-        <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-dorado-600">Plazos</span>
-          <dl class="mt-3 space-y-2.5 text-sm">
-            <div>
-              <dt class="text-xs text-gray-500">Vuelve a su biblioteca</dt>
-              <dd class="font-semibold text-gray-900">{{ form.fecha_limite ? fecha(form.fecha_limite) : '—' }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs text-gray-500">Los usuarios lo devuelven a más tardar</dt>
-              <dd class="font-semibold" :class="topeYaPaso ? 'text-red-700' : 'text-indigo-700'">{{ topePrevisto ? fecha(topePrevisto) : '—' }}</dd>
-            </div>
-          </dl>
-          <p v-if="topeYaPaso" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Ese día ya pasó: se puede registrar, pero no se le presta a nadie. Queda para devolverlo.
-          </p>
-          <p v-else class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-500">
-            La copia queda «Por colocar» y se presta cuando pase a «En estante» (Estado de ejemplares). En Préstamos, la fecha de devolución no puede pasar
-            de ese día.
-          </p>
-        </div>
-
-        <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-dorado-600">Obligatorios</span>
-          <ul class="mt-3 space-y-2">
-            <li v-for="o in obligatorios" :key="o.texto" class="flex items-center gap-2 text-sm" :class="o.listo ? 'text-gray-800' : 'text-gray-500'">
-              <svg v-if="o.listo" class="h-4 w-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              <span v-else class="h-4 w-4 shrink-0 rounded-full border-2 border-gray-300"></span>
-              {{ o.texto }}
-            </li>
-          </ul>
-        </div>
-
-        <button
-          type="button"
-          class="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:brightness-110 disabled:opacity-60"
-          style="background: linear-gradient(135deg, #3B28A3 0%, #4F46E5 100%);"
-          :disabled="guardando"
-          @click="pedirRegistro"
-        >
-          Registrar préstamo interbibliotecario
-        </button>
-      </aside>
-    </div>
-
+    <datalist id="pib-bibliotecas"><option v-for="b in bibliotecas" :key="b" :value="b" /></datalist>
     <!-- Lo que está en la biblioteca y lo devuelto -->
     <section class="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 class="text-[15px] font-semibold text-gray-900">Material de otras bibliotecas</h2>
+          <h2 class="text-[15px] font-semibold text-gray-900">Ejemplares de préstamos interbibliotecarios</h2>
           <p class="text-xs text-gray-500">Lo que vence primero, arriba. «Devolver» lo saca del catálogo sin borrar sus préstamos.</p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div class="flex w-max max-w-full overflow-x-auto rounded-xl bg-gray-100 p-1" role="tablist" aria-label="Qué mostrar">
+          <div class="flex max-w-full flex-wrap gap-2" role="tablist" aria-label="Qué mostrar">
             <button
               v-for="v in VISTAS"
               :key="v.id"
               type="button"
               role="tab"
               :aria-selected="vista === v.id"
-              class="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-              :class="vista === v.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+              class="inline-flex min-h-9 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2"
+              :class="vista === v.id ? 'border-indigo-600 bg-indigo-700 text-white shadow-sm' : 'border-indigo-100 bg-indigo-50/60 text-indigo-900 hover:border-indigo-300 hover:bg-indigo-100'"
               @click="cambiarVista(v.id)"
             >
-              {{ v.label }} <span class="ml-0.5 tabular-nums text-gray-400">{{ conteos[v.id] }}</span>
+              {{ v.label }} <span class="min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] tabular-nums" :class="vista === v.id ? 'bg-white/15 text-white' : 'bg-white text-indigo-700'">{{ conteos[v.id] }}</span>
             </button>
           </div>
           <input autocomplete="off"
             v-model="busqueda"
             type="text"
-            placeholder="Título, código o biblioteca"
+            placeholder="N.º de ficha, título, código o biblioteca"
             :class="[CAMPO, 'sm:w-64']"
             aria-label="Buscar material de otras bibliotecas"
             @input="onBuscar"
@@ -614,6 +242,7 @@ async function guardarEdicion() {
       <ul v-if="!error" class="divide-y divide-gray-100 md:hidden">
         <li v-for="p in filas" :key="p.id" class="px-4 py-4" :class="p.vencido ? 'bg-red-50/40' : ''">
           <p class="text-sm font-semibold text-gray-900">{{ p.ejemplar.libro.titulo }}</p>
+          <p class="mt-1 font-mono text-xs font-semibold text-indigo-800">Ficha N.º {{ p.ejemplar.libro.numero_ficha }}</p>
           <p class="mt-0.5 text-xs text-gray-500">{{ p.biblioteca }} · <span class="font-mono">{{ p.ejemplar.codigo_barras }}</span></p>
           <span class="mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="situacion(p).clase">{{ situacion(p).texto }}</span>
           <p v-if="p.prestamo_activo" class="mt-1 text-xs text-gray-600">{{ p.prestamo_activo.usuario }}</p>
@@ -632,11 +261,16 @@ async function guardarEdicion() {
             </div>
           </dl>
           <p v-if="p.nota" class="mt-2 whitespace-pre-line text-xs text-gray-500">{{ p.nota }}</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button type="button" class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-950" v-if="p.ficha_interbibliotecaria_id" @click="emit('editarFicha', p.ficha_interbibliotecaria_id)">Editar ficha</button>
+            <button type="button" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-950" @click="emit('editarEjemplar', p.ejemplar.codigo_barras)">Editar ejemplar</button>
+            <button v-if="!p.devuelto_el && auth.puede('libros.estado')" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-950" @click="emit('estadoEjemplar', p.ejemplar.codigo_barras)">Cambiar estado</button>
+          </div>
           <div v-if="!p.devuelto_el" class="mt-3 flex flex-wrap gap-2">
-            <button type="button" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50" @click="pedirDevolver(p)">
+            <button type="button" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50" @click="pedirDevolver(p)">
               Devolver a su biblioteca
             </button>
-            <button type="button" class="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50" @click="pedirEditar(p)">
+            <button type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50" @click="pedirEditar(p)">
               Cambiar plazo o nota
             </button>
           </div>
@@ -649,45 +283,52 @@ async function guardarEdicion() {
       <div v-if="!error" class="hidden overflow-x-auto md:block">
         <table class="w-full min-w-[56rem]">
           <thead>
-            <tr class="border-b border-gray-200 bg-gray-50">
-              <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Título</th>
-              <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Biblioteca</th>
-              <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Plazos</th>
-              <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Situación</th>
-              <th class="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Acción</th>
+            <tr class="border-b border-indigo-200 bg-indigo-100/70">
+              <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Título</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Biblioteca</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Plazos</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Situación</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">Acción</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="p in filas" :key="p.id" class="align-top transition-colors hover:bg-indigo-50/40" :class="p.vencido ? 'bg-red-50/40' : ''">
-              <td class="px-5 py-3 text-sm text-gray-900">
+            <tr v-for="(p, i) in filas" :key="p.id" class="align-top transition-colors hover:bg-indigo-50/40" :class="p.vencido ? 'bg-red-50/60' : i % 2 ? 'bg-indigo-50/50' : 'bg-amber-50/40'">
+              <td class="px-3 py-2 text-xs text-gray-900">
+                <p class="font-mono text-xs font-semibold text-indigo-800">Ficha N.º {{ p.ejemplar.libro.numero_ficha }}</p>
                 {{ p.ejemplar.libro.titulo }}
                 <p v-if="p.ejemplar.libro.autores?.length" class="text-xs text-gray-500">{{ p.ejemplar.libro.autores.map((a) => a.nombre).join(', ') }}</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button type="button" class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-950" v-if="p.ficha_interbibliotecaria_id" @click="emit('editarFicha', p.ficha_interbibliotecaria_id)">Editar ficha</button>
+                  <button type="button" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-950" @click="emit('editarEjemplar', p.ejemplar.codigo_barras)">Editar ejemplar</button>
+                  <button v-if="!p.devuelto_el && auth.puede('libros.estado')" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-950" @click="emit('estadoEjemplar', p.ejemplar.codigo_barras)">Cambiar estado</button>
+                </div>
+
                 <p class="mt-0.5 font-mono text-[11px] text-gray-400">{{ p.ejemplar.etiqueta_copia ? `${p.ejemplar.etiqueta_copia} · ` : '' }}{{ p.ejemplar.codigo_barras }}</p>
               </td>
-              <td class="px-5 py-3 text-sm text-gray-700">
+              <td class="px-3 py-2 text-xs text-gray-700">
                 {{ p.biblioteca }}
                 <p v-if="p.nota" class="mt-0.5 max-w-[16rem] whitespace-pre-line text-xs text-gray-500">{{ p.nota }}</p>
               </td>
-              <td class="whitespace-nowrap px-5 py-3 text-xs text-gray-600">
+              <td class="whitespace-nowrap px-3 py-2 text-xs text-gray-600">
                 <p>Llegó: {{ fecha(p.fecha_ingreso) }}</p>
                 <p :class="p.vencido ? 'font-semibold text-red-700' : ''">Usuarios hasta: {{ fecha(p.fecha_tope) }}</p>
                 <p class="font-semibold text-gray-800">Vuelve: {{ fecha(p.fecha_limite) }}</p>
               </td>
-              <td class="px-5 py-3 text-sm">
+              <td class="px-3 py-2 text-xs">
                 <span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="situacion(p).clase">{{ situacion(p).texto }}</span>
                 <p v-if="p.prestamo_activo" class="mt-1 text-xs text-gray-600">{{ p.prestamo_activo.usuario }}</p>
                 <p class="mt-1 text-xs text-gray-500">{{ p.total_prestamos ?? 0 }} {{ p.total_prestamos === 1 ? 'préstamo' : 'préstamos' }} a usuarios</p>
               </td>
-              <td class="px-5 py-3">
-                <div v-if="!p.devuelto_el" class="flex flex-col items-start gap-1">
-                  <button type="button" class="text-sm font-medium text-red-700 hover:text-red-800" @click="pedirDevolver(p)">Devolver a su biblioteca</button>
-                  <button type="button" class="text-sm font-medium text-indigo-700 hover:text-indigo-800" @click="pedirEditar(p)">Cambiar plazo o nota</button>
+              <td class="px-3 py-2">
+                <div v-if="!p.devuelto_el" class="flex flex-col items-start gap-2">
+                  <button type="button" class="min-h-8 rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-100" @click="pedirDevolver(p)">Devolver a su biblioteca</button>
+                  <button type="button" class="min-h-8 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-100" @click="pedirEditar(p)">Cambiar plazo o nota</button>
                 </div>
                 <p v-else class="text-xs text-gray-500">Por {{ p.devuelto_por?.nombre ?? 'sin registro' }}</p>
               </td>
             </tr>
             <tr v-if="!cargando && !filas.length">
-              <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-400">
+              <td colspan="5" class="px-6 py-8 text-center text-xs text-gray-400">
                 {{ busqueda.trim() ? 'Nada coincide con la búsqueda.' : vista === 'devueltos' ? 'Todavía no se ha devuelto nada.' : 'No hay material de otras bibliotecas.' }}
               </td>
             </tr>
@@ -706,30 +347,6 @@ async function guardarEdicion() {
         @update:pagina="irAPagina"
       />
     </section>
-
-    <DialogoConfirmacion
-      :abierto="confirmandoRegistro"
-      titulo="¿Registrar este préstamo interbibliotecario?"
-      confirmar="Sí, registrar"
-      :cargando="guardando"
-      @confirmar="registrar"
-      @cancelar="confirmandoRegistro = false"
-    >
-      <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-        <p class="font-semibold text-gray-900">{{ tituloRegistro }}</p>
-        <p class="text-xs">
-          {{ origen === 'catalogo' ? 'Copia nueva de un título del catálogo' : 'Título nuevo' }} · <span class="font-mono">{{ form.codigo_barras.trim() }}</span
-          ><template v-if="ubicacionElegida"> · {{ ubicacionElegida }}</template>
-        </p>
-      </div>
-      <ul class="mt-3 space-y-1">
-        <li>De <strong class="text-gray-900">{{ form.biblioteca.trim() }}</strong>, llegó el {{ fecha(form.fecha_ingreso) }}.</li>
-        <li>Vuelve a su biblioteca el <strong class="text-gray-900">{{ fecha(form.fecha_limite) }}</strong>.</li>
-        <li>Se presta a los usuarios hasta el <strong class="text-gray-900">{{ topePrevisto ? fecha(topePrevisto) : '…' }}</strong>.</li>
-      </ul>
-      <p v-if="topeYaPaso" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">Ese día ya pasó: no se le va a poder prestar a nadie.</p>
-      <p v-else class="mt-3">La copia queda «Por colocar»: se presta cuando pase a «En estante».</p>
-    </DialogoConfirmacion>
 
     <!-- Si figura prestada, se cierra ese préstamo con el motivo y escribiendo CONFIRMAR. -->
     <CerrarPrestamoInterbibliotecario

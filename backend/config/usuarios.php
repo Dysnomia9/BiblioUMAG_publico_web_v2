@@ -1,6 +1,12 @@
 <?php
 
 return [
+    // Ayuda al registrar usuarios: se suma a los cargos ya escritos, sin limitar el texto libre.
+    'cargos_sugeridos' => [
+        'docente' => ['Académico/a', 'Académico/a por horas', 'Profesor adjunto', 'Profesor a honorarios', 'Investigador/a'],
+        'funcionario' => ['Funcionarios', 'Funcionarios Administrativos', 'Funcionarios hospital',
+            'Asistente de proyecto', 'Interbibliotecarios', 'Otros', 'Otros hospital'],
+    ],
     /*
     | Vigencia de las cuentas de usuario: vencen un día fijo del año, el del cierre del año
     | académico, en vez de un año exacto desde la renovación. Quien se renueva (a mano o

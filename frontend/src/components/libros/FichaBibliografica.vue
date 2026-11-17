@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { FilaFicha, ItemFicha } from '@/types'
+import NotaContenido from './NotaContenido.vue'
 
 /**
  * Ficha bibliográfica de un título. El personal la ve con los números de etiqueta
@@ -31,7 +32,8 @@ const verInternas = ref(true)
         <span class="rounded-md bg-indigo-50 py-0.5 text-center font-mono text-[11px] font-semibold text-indigo-700">{{ f.etiqueta }}</span>
         <dt class="text-gray-500">{{ f.campo }}</dt>
         <dd class="col-start-2 whitespace-pre-line break-words font-medium text-gray-900 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
-          <a v-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">Abrir recurso electrónico</a>
+          <NotaContenido v-if="f.etiqueta === '505'" :valor="f.valor" />
+          <a v-else-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">Abrir recurso electrónico</a>
           <!-- Varios valores (autores, materias…): una etiqueta cada uno, no unidos con «;». -->
           <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
             <template v-for="(item, k) in f.items" :key="k">
@@ -88,7 +90,8 @@ const verInternas = ref(true)
     <div v-for="(f, i) in filas" :key="i" class="grid grid-cols-1 sm:grid-cols-[minmax(0,15rem)_1fr] gap-x-4 gap-y-0.5 py-2">
       <dt class="text-gray-500">{{ f.campo }}</dt>
       <dd class="whitespace-pre-line break-words text-gray-900">
-        <a v-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">
+        <NotaContenido v-if="f.etiqueta === '505'" :valor="f.valor" />
+        <a v-else-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">
           Abrir recurso electrónico
         </a>
         <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">

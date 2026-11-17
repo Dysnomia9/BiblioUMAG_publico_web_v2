@@ -20,6 +20,7 @@ class PrestamoInterbibliotecario extends Model
     protected $table = 'prestamos_interbibliotecarios';
 
     protected $fillable = [
+        'ficha_interbibliotecaria_id',
         'ejemplar_id',
         'biblioteca',
         'fecha_ingreso',
@@ -42,6 +43,11 @@ class PrestamoInterbibliotecario extends Model
     public function ejemplar(): BelongsTo
     {
         return $this->belongsTo(Ejemplar::class);
+    }
+
+    public function fichaInterbibliotecaria(): BelongsTo
+    {
+        return $this->belongsTo(FichaInterbibliotecaria::class);
     }
 
     /** Los préstamos a usuarios de su copia: siguen contando aunque ya haya vuelto a su biblioteca. */

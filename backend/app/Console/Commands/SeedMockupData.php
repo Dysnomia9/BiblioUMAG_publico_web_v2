@@ -734,12 +734,12 @@ class SeedMockupData extends Command
         // Salas con nombre propio: se reservan con el mismo flujo de bloques horarios. Los
         // seminarios, Moraga y Cooperación son de la administración, a nombre de una persona.
         $salasEspeciales = [
-            ['codigo' => 'SEM', 'nombre' => 'Seminario 1', 'capacidad' => 30, 'administracion' => true],
+            ['codigo' => 'SM1', 'nombre' => 'Seminario 1', 'capacidad' => 30, 'administracion' => true],
             ['codigo' => 'POS', 'nombre' => 'Sala de Postgrado', 'capacidad' => 20, 'administracion' => false],
             ['codigo' => 'AGA', 'nombre' => 'Sala AGACI', 'capacidad' => 10, 'administracion' => false],
             ['codigo' => 'MOR', 'nombre' => 'Sala Moraga', 'capacidad' => 10, 'administracion' => true],
             ['codigo' => 'COO', 'nombre' => 'Sala Cooperación', 'capacidad' => 20, 'administracion' => true],
-            ['codigo' => 'SEM2', 'nombre' => 'Seminario 2', 'capacidad' => 30, 'administracion' => true],
+            ['codigo' => 'SM2', 'nombre' => 'Seminario 2', 'capacidad' => 30, 'administracion' => true],
         ];
 
         foreach ($salasEspeciales as $especial) {

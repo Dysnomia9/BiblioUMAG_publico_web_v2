@@ -11,7 +11,7 @@ export type LugarMapa = {
   codigo: string
   /** Lo que se lee en el plano: el número de la logia o el nombre de la sala. */
   etiqueta: string
-  /** No se presta a estudiantes (los seminarios, Cooperación, Moraga): en gris aunque exista. */
+  /** Se solicita a través del personal: en gris en el portal aunque exista. */
   soloAdministracion?: boolean
 }
 
@@ -37,12 +37,12 @@ export const PISOS_MAPA: PisoMapa[] = [
       borde: 'pared',
       tramos: [
         [logia(10), logia(11), logia(12), logia(13), { codigo: 'AGA', etiqueta: 'AGACI' }, { codigo: 'MOR', etiqueta: 'Moraga', soloAdministracion: true }],
-        [{ codigo: 'SEM', etiqueta: 'Seminario 1', soloAdministracion: true }],
+        [{ codigo: 'SM1', etiqueta: 'Seminario 1', soloAdministracion: true }],
       ],
     },
     derecha: {
       borde: 'ventana',
-      tramos: [[logia(9), { codigo: 'POS', etiqueta: 'Postgrado' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(logia)]],
+      tramos: [[{ ...logia(9), soloAdministracion: true }, { codigo: 'POS', etiqueta: 'Postgrado' }, ...[1, 2, 3, 4, 5, 6, 7, 8].map(logia)]],
     },
   },
   {
@@ -53,7 +53,7 @@ export const PISOS_MAPA: PisoMapa[] = [
     },
     derecha: {
       borde: 'pared',
-      tramos: [[...[27, 28, 29, 30].map(logia), { codigo: 'SEM2', etiqueta: 'Seminario 2', soloAdministracion: true }]],
+      tramos: [[...[27, 28, 29, 30].map(logia), { codigo: 'SM2', etiqueta: 'Seminario 2', soloAdministracion: true }]],
     },
   },
 ]

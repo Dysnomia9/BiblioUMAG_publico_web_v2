@@ -89,6 +89,17 @@ class UsuarioController extends Controller
     /** Listas para el formulario de estudiantes: carreras conocidas, tipos de documento y de usuario. */
     public function opciones()
     {
+        $trabajo = [];
+        $fichas = Usuario::whereIn('tipo', ['docente', 'funcionario'])->distinct()->get(['tipo', 'unidad', 'cargo']);
+        foreach (['docente', 'funcionario'] as $tipo) {
+            $delTipo = $fichas->where('tipo', $tipo);
+            $limpiar = fn ($valores) => collect($valores)->map(fn ($v) => trim((string) $v))
+                ->filter()->unique(fn ($v) => mb_strtolower($v))->sort(SORT_NATURAL | SORT_FLAG_CASE)->values();
+            $trabajo[$tipo] = [
+                'unidades' => $limpiar($delTipo->pluck('unidad')),
+                'cargos' => $limpiar(collect(config("usuarios.cargos_sugeridos.{$tipo}", []))->concat($delTipo->pluck('cargo'))),
+            ];
+        }
         $carreras = Carrera::pluck('nombre')
             ->concat(Usuario::whereNotNull('carrera')->distinct()->pluck('carrera'))
             ->map(fn ($c) => trim($c))
@@ -99,6 +110,7 @@ class UsuarioController extends Controller
 
         return response()->json([
             'carreras' => $carreras,
+            'trabajo' => $trabajo,
             'tipos_documento' => collect(Documento::TIPOS)->map(fn ($nombre, $clave) => ['clave' => $clave, 'nombre' => $nombre])->values(),
             'tipos' => self::TIPOS,
             'sexos' => ['Femenino', 'Masculino', 'Otro'],

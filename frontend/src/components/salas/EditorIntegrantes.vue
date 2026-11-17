@@ -11,7 +11,7 @@ import type { IntegrantesReserva, TramoReserva } from '@/types'
  * Lista editable de los integrantes de una reserva de sala, en el mesón: quitar a quien no
  * vino, sumar a otra persona o corregir un RUT. El servidor vuelve a revisar todo al
  * guardar (de 1 a 7 personas registradas, sin otra sala a esa hora, cuota diaria). En un
- * seminario (soloResponsable) va una sola persona: el docente o funcionario a cargo.
+ * seminario (soloResponsable) va una sola persona: la persona a cargo.
  */
 const props = defineProps<{
   reservaId: number
@@ -161,7 +161,7 @@ async function guardar() {
     >
       + Agregar persona
     </button>
-    <p v-else-if="soloResponsable" class="mt-2 text-xs text-gray-500">Solo el docente o funcionario a cargo: los asistentes no se anotan.</p>
+    <p v-else-if="soloResponsable" class="mt-2 text-xs text-gray-500">Solo la persona a cargo: los asistentes no se anotan.</p>
     <p v-else class="mt-2 text-xs text-gray-400">Máximo {{ maximo }} personas por reserva.</p>
 
     <div class="mt-3 flex gap-2">

@@ -29,8 +29,8 @@ async function generar() {
   if (!props.aviso) return
   generando.value = true
   try {
-    await api.post(`/reservas/${props.aviso.reserva_id}/multa-atraso`)
-    toast.success(`Multa de ${pesos(props.aviso.monto)} generada a ${props.aviso.persona}`)
+    const { data } = await api.post<{ monto: number }>(`/reservas/${props.aviso.reserva_id}/multa-atraso`)
+    toast.success(`Multa de ${pesos(data.monto)} generada a ${props.aviso.persona}`)
     emit('cerrar')
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo generar la multa'))
@@ -57,6 +57,10 @@ async function generar() {
         <strong class="text-gray-900">{{ aviso.persona }}</strong> devolvió la llave de
         <strong class="text-gray-900">{{ aviso.sala }}</strong> <strong class="text-red-700">{{ duracion(aviso.minutos) }} tarde</strong>
         (la reserva era hasta las {{ aviso.hora_fin }}).
+      </p>
+      <p v-if="aviso.minutos_cobrables !== undefined" class="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-950">
+        Se descuentan {{ duracion(aviso.minutos_tolerancia) }} sin cargo. Se cobran
+        <strong>{{ duracion(aviso.minutos_cobrables) }}</strong> a {{ pesos(aviso.monto_por_minuto) }} por minuto<template v-if="aviso.tope_maximo">, con un máximo de {{ pesos(aviso.tope_maximo) }} por reserva</template>.
       </p>
       <p class="mt-3">
         ¿Desea generar una multa de <strong class="text-gray-900">{{ pesos(aviso.monto) }}</strong>? Queda pendiente a su

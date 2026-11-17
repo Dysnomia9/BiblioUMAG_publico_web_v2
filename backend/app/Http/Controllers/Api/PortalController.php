@@ -315,7 +315,7 @@ class PortalController extends Controller
         // servidor). Una fecha mal escrita daba un error 500 al leerla: ahora un 422.
         $fecha = $request->validate(['fecha' => ['sometimes', 'date_format:Y-m-d']])['fecha'] ?? now()->toDateString();
         // La Sala de Seminarios y las demás que gestiona solo la administración no se ofrecen en el portal.
-        $salas = Sala::where('solo_administracion', false)->where('activa', true)->enOrden()->get();
+        $salas = Sala::where('solo_administracion', false)->whereNotIn('codigo', ['SM1', 'SM2'])->where('activa', true)->enOrden()->get();
         $usuarioId = (int) $request->user()->id;
 
         // De las reservas ajenas el usuario solo ve el horario: ni nombres ni RUT

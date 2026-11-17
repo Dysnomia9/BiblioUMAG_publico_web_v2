@@ -131,11 +131,12 @@ npm run dev
 - **Días sin atención** (`dias_sin_atencion`): feriados, vacaciones y cierres,
   globales o por ubicación. Ninguna devolución ni retiro cae en ellos y no se
   cobran como atraso.
-- **Multas** en su propio módulo (`multas`): la de atraso se genera sola al
-  devolver fuera de plazo ($15 por día, tope $15.000); las de deterioro, pérdida
+- **Multas** en su propio módulo (`multas`): tarifa general de libros de $100 por día
+  cobrable, con tope de $5.000 por préstamo (salvo regla específica). La de atraso se
+  genera al devolver fuera de plazo; las de deterioro, pérdida
   u otro motivo se cursan a mano. La llave de sala devuelta con más de 5 minutos
-  de atraso muestra un aviso y el mesón decide si multa ($50 por minuto, tope
-  $5.000, montos provisionales). Las multas se pagan o se anulan con motivo,
+  de atraso muestra un aviso y el mesón decide si multa ($10 por minuto completo después de los primeros 5 minutos sin cargo,
+  tope $2.000 por reserva). Las multas se pagan o se anulan con motivo,
   nunca se borran. Con una multa pendiente la persona no puede llevarse libros ni
   recursos, reservar, ni obtener la Constancia de No Multa; al pagar o anular se
   desbloquea al instante. En «Deuda por usuario», **Ver detalle** muestra cada
@@ -160,8 +161,11 @@ npm run dev
   guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó. Cada
   reserva lleva personas registradas: de 3 a 6 desde el portal y de 1 a 7 en el
   mesón (`config/salas.php`), salvo los seminarios
-  (`salas.solo_responsable`: Seminario 1 y 2), que van solo a nombre del docente o
-  funcionario que los pide, sin anotar a los asistentes.
+  (`salas.solo_responsable`: Seminario 1 — SM1 y Seminario 2 — SM2), que van a nombre de la persona
+  responsable, sin anotar a los asistentes. SM1 y SM2 las gestiona
+  Atención de público, bibliotecarios y administradores (`salas.seminarios`); no se
+  solicitan desde el portal. El personal autorizado puede registrar el RUT de cualquier
+  usuario de la biblioteca como responsable, incluidos estudiantes.
 - **Listado de reservas** de salas por estado (todas, activas, finalizadas, no se
   presentaron, canceladas; abre en «Todas») con búsqueda y filtros. Con `reservas.editar` se puede
   cambiar sala, día u horario, corregir integrantes o registrar una llave
@@ -335,7 +339,7 @@ Bibliomag_publico_web_v2/
   `docs/login-externo-pendientes.md`). Las direcciones de antes (`/login/v2`,
   `/portal/login`) llevan a este.
 - **Código propio de cada sala** (`salas.codigo`: L01 a L13 y L22 a L30 para las
-  logias; SEM, SEM2, POS, AGA, MOR y COO para las salas con nombre propio; las
+  logias; SM1, SM2, POS, AGA, MOR y COO para las salas con nombre propio; las
   salas son las del plano del portal, `frontend/src/utils/mapaSalas.ts`): en el mesón se escribe el código o el
   número de la logia para entregar o recibir la llave, y Reportes sigue cada sala
   por su código (reservas, asistencia, horas de uso y bloques liberados). Las salas

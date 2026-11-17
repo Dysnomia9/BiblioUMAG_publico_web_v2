@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nombreDeCopia, numeroDeCopia } from '@/utils/tomo'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { useRoute } from 'vue-router'
 import FondoPrestamos from '@/components/ui/FondoPrestamos.vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
@@ -10,6 +11,7 @@ import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoSugerencias from '@/components/ui/CampoSugerencias.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
+import { useRefrescoPeriodico } from '@/composables/useRefrescoPeriodico'
 import { formatearSegunModo, largoSegunModo, modoDe, modoSegunValor, placeholderSegunModo } from '@/utils/documento'
 import { useModoDocumento } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
@@ -340,27 +342,41 @@ const filasRecientes = computed(() => [...prestamos.value].sort((a, b) => b.fech
 // Sin usuario: la actividad reciente, los últimos préstamos sin devolver (el resto, en el
 // Listado de préstamos).
 const RECIENTES = 10
+const REFRESCO_RECIENTES_MS = 15000
 const prestadosAhora = ref<Prestamo[]>([])
 const totalPrestadosAhora = ref(0)
 const cargandoPrestados = ref(false)
+let solicitudRecientes = 0
+let consultasRecientes = 0
 const textoPrestadosAhora = computed(() => {
   if (cargandoPrestados.value) return 'Cargando…'
   const n = totalPrestadosAhora.value
   const extra = n > prestadosAhora.value.length ? ` · los ${prestadosAhora.value.length} más recientes` : ''
   return `${n} sin devolver${extra}`
 })
-async function cargarPrestadosAhora() {
-  cargandoPrestados.value = true
+async function cargarPrestadosAhora(silencioso = false) {
+  if (silencioso && consultasRecientes > 0) return
+  const solicitud = ++solicitudRecientes
+  consultasRecientes++
+  if (!silencioso) cargandoPrestados.value = true
   try {
     const { data } = await api.get<{ data: Prestamo[]; total: number }>('/prestamos', { params: { vista: 'activos', por_pagina: RECIENTES } })
+    // Una consulta anterior al préstamo/devolución no debe tapar la actualización posterior.
+    if (solicitud !== solicitudRecientes) return
     prestadosAhora.value = data.data
     totalPrestadosAhora.value = data.total
   } catch {
-    prestadosAhora.value = []
+    // Ante una falla de red se conserva la lista; el siguiente refresco vuelve a intentar.
   } finally {
-    cargandoPrestados.value = false
+    consultasRecientes--
+    if (solicitud === solicitudRecientes) cargandoPrestados.value = false
   }
 }
+
+useRefrescoPeriodico(() => {
+  if (usuario.value || devolucionPendiente.value || devolviendo.value || buscandoRapido.value) return
+  return cargarPrestadosAhora(true)
+}, REFRESCO_RECIENTES_MS)
 
 // Pestaña Libros: solo los libros (los recursos de apoyo tienen su propia pestaña).
 const devueltosOcultables = computed(() => prestamosLibros.value.filter((p) => p.estado === 'devuelto' && !tieneMultaPendiente(p)).length)
@@ -673,6 +689,7 @@ const mensajeRapido = ref('')
 const codigoRapidoInput = ref<HTMLInputElement | null>(null)
 
 async function buscarPrestamoPorCodigo() {
+  if (buscandoRapido.value || devolviendo.value || devolucionPendiente.value) return
   const codigo = codigoRapido.value.trim()
   prestamoRapido.value = null
   mensajeRapido.value = ''
@@ -680,11 +697,23 @@ async function buscarPrestamoPorCodigo() {
   buscandoRapido.value = true
   try {
     const { data } = await api.get<Prestamo>('/prestamos/por-codigo', { params: { codigo } })
-    prestamoRapido.value = data
+    try {
+      const respuesta = await api.patch<Prestamo>(`/prestamos/${data.id}/devolver`, { solo_sin_multa: true })
+      await finalizarDevolucion(respuesta.data, true)
+    } catch (e) {
+      if (isAxiosError<{ requiere_confirmacion?: boolean; message?: string }>(e) && e.response?.data?.requiere_confirmacion) {
+        prestamoRapido.value = data
+        mensajeRapido.value = e.response.data.message ?? 'Revisa las multas antes de confirmar.'
+        devolucionPendiente.value = data
+      } else {
+        throw e
+      }
+    }
   } catch (e) {
     mensajeRapido.value = mensajeDeError(e, 'No se pudo buscar el código')
   } finally {
     buscandoRapido.value = false
+    if (!devolucionPendiente.value) nextTick(() => codigoRapidoInput.value?.focus())
   }
 }
 
@@ -721,6 +750,7 @@ function verMenosSinRut() {
 }
 
 function cambiarModoRapido(modo: 'normal' | 'sin_rut') {
+  if (buscandoRapido.value || devolviendo.value || registrandoSinRut.value) return
   modoRapido.value = modo
   prestamoRapido.value = null
   mensajeRapido.value = ''
@@ -799,16 +829,21 @@ async function confirmarDevolucion(multar = true) {
   devolviendo.value = true
   try {
     const { data } = await api.patch<Prestamo>(`/prestamos/${devolucionPendiente.value.id}/devolver`, { multar })
-    const multa = data.multas?.find((m) => m.tipo === 'atraso')
-    toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso` : multar ? 'Devolución registrada' : 'Devolución registrada sin multa')
-    devolucionPendiente.value = null
-    if (esRapida) limpiarRapido()
-    await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario(), cargarPrestadosAhora()])
+    await finalizarDevolucion(data, esRapida, multar)
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo registrar la devolución'))
   } finally {
     devolviendo.value = false
   }
+}
+
+async function finalizarDevolucion(data: Prestamo, esRapida: boolean, multar = true) {
+  const multa = data.multas?.find((m) => m.tipo === 'atraso' && m.estado === 'pendiente')
+  toast.success(multa ? `Devolución registrada con multa de ${formatMonto(multa.monto)} por atraso`
+    : esRapida ? `Devuelto: ${data.libro_titulo}` : multar ? 'Devolución registrada' : 'Devolución registrada sin multa')
+  devolucionPendiente.value = null
+  if (esRapida) limpiarRapido()
+  await Promise.all([cargarPrestamosYReservas(), cargarRecursosDisponibles(), refrescarUsuario(), cargarPrestadosAhora()])
 }
 
 function formatMonto(monto: number) {
@@ -1039,8 +1074,8 @@ function formatHora(iso: string | null) {
           <div class="min-w-0 flex-1">
             <label for="codigo-devolucion" class="block font-semibold text-gray-900">Devolución rápida por código de barras</label>
             <p v-if="modoRapido === 'normal'" class="mt-0.5 text-xs text-gray-500">
-              Escanee el libro o recurso: si está prestado, se puede devolver sin buscar al usuario.
-              Presiona <kbd class="rounded border border-gray-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-700 shadow-sm">Enter</kbd> para buscar.
+              Escanee el libro o recurso: sin multas, se devuelve al instante y se notifica el resultado.
+              Presiona <kbd class="rounded border border-gray-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-gray-700 shadow-sm">Enter</kbd> para devolver.
             </p>
             <p v-else class="mt-0.5 text-xs text-gray-500">
               Para los libros que alguien usó y dejó en la mesa sin pedirlos: cada lectura queda registrada al instante como uso (en Reportes, «Sin RUT»).
@@ -1070,7 +1105,7 @@ function formatHora(iso: string | null) {
           </span>
           <p v-if="modoRapido === 'normal'">
             <strong class="font-bold uppercase tracking-wide">Modo: devolución normal.</strong>
-            Lo que escanee busca el préstamo abierto para devolverlo a nombre de quien lo tiene.
+            Lo que escanee se devuelve al instante. Si hay multas pendientes o corresponde multa por atraso, se pide confirmación.
           </p>
           <p v-else>
             <strong class="font-bold uppercase tracking-wide">Modo: sin RUT.</strong>
@@ -1091,6 +1126,7 @@ function formatHora(iso: string | null) {
               autocomplete="off"
               :placeholder="modoRapido === 'sin_rut' ? 'Sin RUT: escanee el libro dejado en la mesa' : 'Ej. 30000002025988 o 02025988'"
               maxlength="64"
+              :disabled="buscandoRapido || devolviendo || registrandoSinRut"
               class="h-10 w-full rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:ring-4"
               :class="temaRapido.input"
               @input="prestamoRapido = null; mensajeRapido = ''"
@@ -1101,10 +1137,10 @@ function formatHora(iso: string | null) {
             v-if="modoRapido === 'normal'"
             type="button"
             class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-600 px-4 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-60"
-            :disabled="buscandoRapido || !codigoRapido.trim()"
+            :disabled="buscandoRapido || devolviendo || !codigoRapido.trim()"
             @click="buscarPrestamoPorCodigo"
           >
-            {{ buscandoRapido ? 'Buscando…' : 'Buscar préstamo' }}
+            {{ buscandoRapido ? 'Procesando…' : 'Devolver' }}
           </button>
           <button
             v-else
@@ -1552,7 +1588,7 @@ function formatHora(iso: string | null) {
 
         <template v-if="!usuario">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
-            <h3 class="font-semibold text-gray-900">Actividad reciente</h3>
+            <h3 class="font-semibold text-gray-900" title="Se actualiza automáticamente cada 15 segundos y al volver a la pestaña">Actividad reciente</h3>
             <span class="flex items-center gap-3 text-xs text-gray-500">
               {{ textoPrestadosAhora }}
               <router-link v-if="totalPrestadosAhora > prestadosAhora.length" :to="{ name: 'listado-prestamos' }" class="font-semibold text-indigo-700 hover:underline">Ver todos</router-link>

@@ -92,7 +92,7 @@ class MultaService
      * cargo o si ya tiene su multa. No multa a nadie: el mesón decide en cada caso con
      * generarPorAtrasoDeSala(), porque los atrasos chicos a veces se dejan pasar.
      *
-     * @return array{reserva_id: int, persona: string, sala: string, hora_fin: string, minutos: int, monto: int, monto_provisional: bool}|null
+     * @return array{reserva_id: int, persona: string, sala: string, hora_fin: string, minutos: int, minutos_cobrables: int, minutos_tolerancia: int, monto_por_minuto: int, tope_maximo: int|null, monto: int, monto_provisional: bool}|null
      */
     public function atrasoDeSala(Reserva $reserva): ?array
     {
@@ -101,13 +101,16 @@ class MultaService
         }
 
         $termino = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_fin);
-        $minutos = (int) floor($termino->diffInMinutes($reserva->hora_devolucion_real));
-        $monto = $minutos * (int) config('multas.sala.monto_por_minuto');
+        $minutos = max(0, (int) floor($termino->diffInMinutes($reserva->hora_devolucion_real)));
+        $tolerancia = max(0, (int) config('multas.sala.minutos_tolerancia'));
+        $minutosCobrables = max(0, $minutos - $tolerancia);
+        $tarifa = (int) config('multas.sala.monto_por_minuto');
+        $monto = $minutosCobrables * $tarifa;
         $tope = config('multas.sala.tope_maximo');
         $monto = $tope ? min($monto, (int) $tope) : $monto;
 
         $yaMultada = Multa::where('reserva_id', $reserva->id)->where('tipo', 'atraso')->where('estado', '!=', 'anulada')->exists();
-        if ($minutos <= (int) config('multas.sala.minutos_tolerancia') || $monto < 1 || $yaMultada) {
+        if ($minutosCobrables === 0 || $monto < 1 || $yaMultada) {
             return null;
         }
 
@@ -119,6 +122,10 @@ class MultaService
             'sala' => $reserva->sala?->nombre ?? 'Sala',
             'hora_fin' => substr($reserva->hora_fin, 0, 5),
             'minutos' => $minutos,
+            'minutos_cobrables' => $minutosCobrables,
+            'minutos_tolerancia' => $tolerancia,
+            'monto_por_minuto' => $tarifa,
+            'tope_maximo' => $tope === null ? null : (int) $tope,
             'monto' => $monto,
             'monto_provisional' => (bool) config('multas.sala.monto_provisional'),
         ];
@@ -145,7 +152,7 @@ class MultaService
                 'tipo' => 'atraso',
                 'monto' => $atraso['monto'],
                 'estado' => 'pendiente',
-                'detalle' => "Devolución de la llave de {$atraso['sala']} con {$atraso['minutos']} minutos de atraso (reserva hasta las {$atraso['hora_fin']})",
+                'detalle' => "Devolución de la llave de {$atraso['sala']} con {$atraso['minutos']} minutos de atraso (reserva hasta las {$atraso['hora_fin']}); {$atraso['minutos_cobrables']} minutos cobrables, descontados {$atraso['minutos_tolerancia']} minutos sin cargo",
                 'origen' => 'sistema',
                 'registrada_por_staff_id' => $staff->id,
             ]);

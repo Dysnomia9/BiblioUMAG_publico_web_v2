@@ -124,7 +124,7 @@ const codigoFinal = computed(() => {
 })
 
 const avisoPortal = computed(() => {
-  if (form.solo_administracion) return 'No aparecerá en el portal.'
+  if (form.solo_administracion || ['SM1', 'SM2'].includes(codigoFinal.value)) return 'No aparecerá en el portal.'
   if (!codigoFinal.value) return null
   return CODIGOS_EN_EL_MAPA.has(codigoFinal.value) ? 'Con este código ocupa su lugar en el plano del portal.' : 'Este código no está en el plano del portal: la sala aparecerá debajo del mapa.'
 })
@@ -380,14 +380,14 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           <input v-model="form.solo_responsable" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
             <span class="block text-sm font-semibold text-gray-900">Se reserva a nombre de una persona</span>
-            <span class="block text-xs text-gray-500">Para el docente o funcionario a cargo, sin anotar a cada asistente (los seminarios). Si no, se reserva en grupo: {{ rango(personas.meson) }} personas en el mesón y {{ rango(personas.portal) }} en el portal.</span>
+            <span class="block text-xs text-gray-500">Para la persona a cargo, sin anotar a cada asistente (los seminarios). Si no, se reserva en grupo: {{ rango(personas.meson) }} personas en el mesón y {{ rango(personas.portal) }} en el portal.</span>
           </span>
         </label>
         <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 transition-colors hover:bg-gray-50" :class="form.solo_administracion ? 'border-indigo-300 bg-indigo-50/40' : ''">
           <input v-model="form.solo_administracion" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
           <span>
             <span class="block text-sm font-semibold text-gray-900">Solo la gestiona la administración</span>
-            <span class="block text-xs text-gray-500">No se presta a estudiantes ni aparece en el portal: la reserva quien tiene el permiso «Salas de la administración».</span>
+            <span class="block text-xs text-gray-500">{{ ['SM1', 'SM2'].includes(codigoFinal) ? 'La reserva el personal autorizado para cualquier usuario registrado. No se solicita desde el portal.' : 'No se presta a estudiantes ni aparece en el portal: la reserva quien tiene el permiso «Salas de la administración».' }}</span>
           </span>
         </label>
         <label

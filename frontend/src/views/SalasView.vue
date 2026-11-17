@@ -35,8 +35,10 @@ const puedeHoraPasada = computed(() => auth.puede('salas.hora_pasada'))
 // Reservar por más que el máximo del portal (ej. la Sala de Postgrado todo el día) requiere
 // el permiso 'salas.sin_limite'; el servidor vuelve a revisarlo.
 const puedeReservaLarga = computed(() => auth.puede('salas.sin_limite'))
-// Las salas de la administración (solo_administracion: seminarios, Cooperación, Moraga) no se prestan a estudiantes: las reserva quien tiene este permiso.
+// Las demás salas de la administración requieren salas.administracion; SM1 y SM2 tienen su propio permiso.
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
+const esSeminario = (sala: Sala) => ['SM1', 'SM2'].includes(sala.codigo ?? '')
+const puedeGestionarSeminario = (sala: Sala) => !esSeminario(sala) || auth.puede('salas.seminarios')
 
 // La fecha y la hora son las de Punta Arenas, como en el servidor (utils/horario.ts), no las del computador.
 // Cambia con el reloj (ver onMounted): el mesón suele quedar abierto de un día para otro.
@@ -80,7 +82,7 @@ const duracionMaxima = ref(120)
 const cuotaDiaria = ref(240)
 const minutosPresentarse = ref(15)
 
-/** «22 logias de estudio, Seminario 1 y Sala AGACI», según las salas que hay. */
+/** «22 logias de estudio, SM1 y Sala AGACI», según las salas que hay. */
 const resumenSalas = computed(() => {
   const logias = salas.value.filter((s) => s.tipo === 'logia').length
   const partes = [...(logias ? [`${logias} ${logias === 1 ? 'logia' : 'logias'} de estudio`] : []), ...salas.value.filter((s) => s.tipo !== 'logia').map((s) => s.nombre)]
@@ -478,12 +480,13 @@ const horaInicioOpciones = computed(() => {
   return opciones
 })
 
-/** Un seminario va a nombre del docente o funcionario que lo pide (una persona); las demás salas, un grupo. */
+/** Un seminario va a nombre de la persona que queda a cargo (una persona); las demás salas, un grupo. */
 /** El mínimo de las logias (Administración › Salas), o null si está apagado. */
 const minimoLogias = ref<number | null>(null)
 /**
  * Reservas especiales (permiso salas.repetir) en una sala de la administración: un grupo flexible,
- * de 1 persona hasta la capacidad de la sala (un curso en el seminario), y también para estudiantes.
+ * de 1 persona hasta la capacidad de la sala (un curso en el seminario).
+ * En SM1 y SM2 el personal autorizado puede registrar cualquier usuario a cargo.
  * Igual que Sala::personasPermitidas() en el servidor.
  */
 const grupoFlexible = (sala: Sala) => !!sala.solo_administracion && auth.puede('salas.repetir')
@@ -607,7 +610,11 @@ function onTimelineClick(sala: Sala, event: MouseEvent) {
     toast.error(`${sala.nombre} es de reserva exclusiva: la reservan solo quienes tienen ese permiso.`)
     return
   }
-  if (sala.solo_administracion && !sala.reserva_exclusiva && !puedeSalasAdministracion.value) {
+  if (esSeminario(sala) && !auth.puede('salas.seminarios')) {
+    toast.error(`${sala.nombre} la gestiona el personal autorizado de Atención de público, bibliotecarios y administradores.`)
+    return
+  }
+  if (!esSeminario(sala) && sala.solo_administracion && !sala.reserva_exclusiva && !puedeSalasAdministracion.value) {
     toast.error(`${sala.nombre} la gestiona solo la administración: pide a un administrador que haga la reserva.`)
     return
   }
@@ -1013,7 +1020,7 @@ const pendientesConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return []
   return salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
-    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
+    .filter(({ sala, tramo }) => puedeGestionarSeminario(sala) && tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
     .map(({ sala, tramo }) => ({
       sala,
       tramo,
@@ -1034,7 +1041,7 @@ const proximaConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return null
   const proximas = salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
-    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) > ahoraMin.value)
+    .filter(({ sala, tramo }) => puedeGestionarSeminario(sala) && tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) > ahoraMin.value)
     .sort((a, b) => a.tramo.hora_inicio.localeCompare(b.tramo.hora_inicio))
   if (!proximas.length) return null
   const hora = proximas[0].tramo.hora_inicio
@@ -1105,7 +1112,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         :con-boton="false"
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); las salas de la administración (los seminarios, Cooperación y Moraga) van solo a nombre del docente o funcionario que las pide. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); SM1 y SM2 las gestiona el personal autorizado y pueden quedar a cargo de cualquier persona registrada; Cooperación y Moraga conservan sus reglas de responsable. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>: se abre el formulario con los mismos RUT ya puestos, desde que termina su bloque (o desde ahora). Solo elija la hora y la duración.',
           'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
@@ -1342,7 +1349,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             class="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
             :class="!busqueda.trim() && !soloConReserva && paginaActual === i ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'"
             :aria-pressed="!busqueda.trim() && !soloConReserva && paginaActual === i"
-            :title="p.titulo.startsWith('Piso') ? `Las salas del ${p.titulo.toLowerCase()}, como en el plano` : p.titulo === 'Administración' ? 'Seminarios, Cooperación y Moraga: los reserva la administración' : 'Salas que no están en el plano'"
+            :title="p.titulo.startsWith('Piso') ? `Las salas del ${p.titulo.toLowerCase()}, como en el plano` : p.titulo === 'Administración' ? 'Salas y logias reservadas por la administración' : 'Salas que no están en el plano'"
           >
             {{ p.titulo }}
             <span class="text-xs font-medium tabular-nums opacity-70">{{ p.salas.length }}</span>
@@ -1499,7 +1506,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           <div v-for="(sala, i) in bloque.salas" :key="sala.id" class="group/fila -mx-1.5 flex items-center gap-3 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-indigo-100 hover:ring-2 hover:ring-indigo-300" :class="i % 2 === 1 ? 'bg-slate-100' : ''">
             <!-- En una línea: el código (el que se busca y se escribe para la llave) y el nombre.
                  Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
-            <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="sala.solo_administracion ? `${sala.nombre} · solo administración: no se presta a estudiantes ni se reserva desde el portal` : sala.nombre">
+            <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="esSeminario(sala) ? `${sala.nombre} · reserva por personal autorizado para cualquier usuario registrado; no se solicita desde el portal` : sala.solo_administracion ? `${sala.nombre} · solo administración: no se presta a estudiantes ni se reserva desde el portal` : sala.nombre">
               <span class="rounded px-1 font-mono text-xs font-bold text-gray-700 group-hover/fila:bg-indigo-600 group-hover/fila:text-white">{{ sala.codigo }}</span>
               <span class="truncate text-[13px] text-gray-600 group-hover/fila:text-indigo-900">{{ sala.nombre }}</span>
             </div>
@@ -1737,7 +1744,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </p>
 
             <p v-if="soloResponsableElegida" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
-              {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT del docente o funcionario a cargo, sin anotar a los asistentes.
+              {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT de la persona a cargo, sin anotar a los asistentes.
+            </p>
+            <p v-else-if="esSeminario(selectedSala)" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+              En {{ selectedSala.nombre }}, el primer RUT corresponde a la persona a cargo: puede ser estudiante, docente o funcionario.
             </p>
             <section class="space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1763,8 +1773,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                       :value="rutsReserva[idx]"
                       @input="onRutInput(idx, $event)"
                       type="text"
-                      :aria-label="soloResponsableElegida ? 'Documento del docente o funcionario a cargo' : `Documento de la persona ${idx + 1}`"
-                      :placeholder="soloResponsableElegida ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} del docente o funcionario a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
+                      :aria-label="soloResponsableElegida ? 'Documento de la persona a cargo' : `Documento de la persona ${idx + 1}`"
+                      :placeholder="soloResponsableElegida ? `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} de la persona a cargo` : `${modosReserva[idx] === 'extranjero' ? 'Pasaporte o DNI' : 'RUT'} persona ${idx + 1}`"
                       :maxlength="largoSegunModo(modosReserva[idx] ?? 'rut')"
                       class="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 font-mono text-sm outline-none focus:ring-2"
                       :class="rutErrores[idx] ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-400' : 'border-gray-300 focus:ring-indigo-500'"
@@ -1916,7 +1926,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <span class="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] tabular-nums text-indigo-700">{{ detalleTramo.personas?.length ?? 0 }}</span>
                 </p>
                 <button
-                  v-if="integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
+                  v-if="puedeGestionarSeminario(detalleSala) && integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
                   @click="editandoIntegrantesDetalle = true"
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
                 >
@@ -1974,7 +1984,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </p>
               <!-- Devolvieron antes y el bloque sigue reservado: el aviso de la devolución se cerró o no salió. -->
               <button
-                v-if="detalleTramo.tiempo_sin_usar"
+                v-if="puedeGestionarSeminario(detalleSala) && detalleTramo.tiempo_sin_usar"
                 type="button"
                 class="w-full rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
                 @click="tiempoSinUsar = detalleTramo.tiempo_sin_usar"
@@ -1988,7 +1998,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <button @click="detalleOpen = false" :class="BOTON_CANCELAR" class="!flex-none">Cerrar</button>
             <!-- Renovación: el mismo grupo otra vez (extender el bloque o volver a usar la sala), sin escribir los RUT -->
             <button
-              v-if="selectedDate === hoy && detalleTramo.hora_prestamo_real && detalleSala"
+              v-if="selectedDate === hoy && detalleTramo.hora_prestamo_real && puedeGestionarSeminario(detalleSala)"
               type="button"
               class="flex-1 rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-50"
               title="El mismo grupo otra vez: extender su bloque o volver a usar la sala, sin escribir los RUT de nuevo"
@@ -1996,7 +2006,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             >
               Renovación
             </button>
-            <template v-if="!detalleTramo.hora_devolucion_real">
+            <template v-if="puedeGestionarSeminario(detalleSala) && !detalleTramo.hora_devolucion_real">
               <button
                 v-if="!detalleTramo.hora_prestamo_real && detalleTramo.vencida_sin_confirmar"
                 @click="pedirLiberacion(detalleSala, detalleTramo)"
@@ -2026,7 +2036,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </template>
             <!-- Reserva de una serie: quitar esta y las siguientes de una vez (ya no la necesitan) -->
             <button
-              v-if="detalleTramo.serie && puedeRepetir && !detalleTramo.hora_prestamo_real"
+              v-if="puedeGestionarSeminario(detalleSala) && detalleTramo.serie && puedeRepetir && !detalleTramo.hora_prestamo_real"
               type="button"
               class="basis-full rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
               @click="quitarSerie = { serie: detalleTramo.serie, desde: selectedDate, salaNombre: detalleSala.nombre, horario: labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }"

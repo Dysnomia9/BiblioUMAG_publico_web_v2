@@ -359,6 +359,8 @@ class PrestamoController extends Controller
 
     public function devolver(Request $request, Prestamo $prestamo)
     {
+        $request->validate(['solo_sin_multa' => ['sometimes', 'boolean']]);
+        $soloSinMulta = $request->boolean('solo_sin_multa');
         $staff = $request->user();
         $ahora = now();
         // El mesón decide en el aviso de devolución si cursa la multa por atraso. Sin el
@@ -367,10 +369,17 @@ class PrestamoController extends Controller
 
         // Ahora cada multa es una fila propia: sin este bloqueo, un doble click en
         // "Devolver" generaría dos multas por el mismo atraso.
-        [$yaDevuelto, $multa] = DB::transaction(function () use ($prestamo, $staff, $ahora, $multar) {
+        [$yaDevuelto, $multa, $requiereConfirmacion] = DB::transaction(function () use ($prestamo, $staff, $ahora, $multar, $soloSinMulta) {
             $bloqueado = Prestamo::whereKey($prestamo->id)->lockForUpdate()->first();
             if ($bloqueado->estado === 'devuelto') {
-                return [true, null];
+                return [true, null, false];
+            }
+
+            // La lectura con pistola devuelve al instante solo si no hay multas. Se decide
+            // bajo el mismo bloqueo que la devolución: no depende de una vista previa vieja.
+            if ($soloSinMulta && ($this->multaService->calcular($bloqueado, $ahora)
+                || $this->multaService->resumenPendiente($bloqueado->usuario_id)['cantidad'] > 0)) {
+                return [false, null, true];
             }
 
             $prestamo->update([
@@ -426,8 +435,15 @@ class PrestamoController extends Controller
                 );
             }
 
-            return [false, $multa];
+            return [false, $multa, false];
         });
+
+        if ($requiereConfirmacion) {
+            return response()->json([
+                'message' => 'Hay multas pendientes o una multa por atraso: revisa y confirma la devolución.',
+                'requiere_confirmacion' => true,
+            ], 409);
+        }
 
         if ($yaDevuelto) {
             return response()->json(['message' => 'Este préstamo ya fue devuelto'], 409);

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Autor;
 use App\Models\Ejemplar;
+use App\Models\FichaInterbibliotecaria;
 use App\Models\EjemplarEstadoHistorial;
 use App\Models\Libro;
 use App\Models\Prestamo;
@@ -15,7 +15,8 @@ use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
 use App\Support\HorarioBiblioteca;
 use App\Support\Paginacion;
-use App\Support\TomoEjemplar;
+use App\Services\CatalogacionService;
+use App\Services\CatalogarEjemplarService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -25,16 +26,20 @@ use Illuminate\Validation\Rule;
 /**
  * Préstamo interbibliotecario (Catalogación › Préstamo interbibliotecario): el material que
  * otra biblioteca le presta a la nuestra. Se registra al llegar (una copia nueva, de un
- * título del catálogo o de uno que se crea con lo básico), se presta a los usuarios hasta
+ * título del catálogo o de uno que se cataloga con su ficha completa), se presta a los usuarios hasta
  * un día hábil antes de su fecha límite y, al devolverlo a su biblioteca, la copia sale del
  * catálogo sin borrarse: sus préstamos siguen contando en los reportes.
  */
 class PrestamoInterbibliotecarioController extends Controller
 {
     private const RELACIONES = [
-        'ejemplar:id,libro_id,numero_copia,copia_tomo,fecha_ingreso_horizon,codigo_barras,codigo_lomo,estado_proceso,disponible,ubicacion_id',
-        'ejemplar.libro:id,titulo,isbn,tipo_material_id',
-        'ejemplar.libro.autores:id,nombre',
+        'ejemplar',
+        'ejemplar.libro',
+        'ejemplar.libro.autores',
+        'ejemplar.libro.categorias',
+        'ejemplar.libro.carreras',
+        'ejemplar.libro.tipoMaterial',
+        'ejemplar.libro.catalogadoPor:id,nombre',
         'ejemplar.ubicacion:id,nombre',
         'registradoPor:id,nombre',
         'devueltoPor:id,nombre',
@@ -51,10 +56,18 @@ class PrestamoInterbibliotecarioController extends Controller
         $request->validate([
             'vista' => ['nullable', Rule::in(['en_biblioteca', 'devueltos', 'todos'])],
             'q' => ['nullable', 'string', 'max:255'],
+            'codigo' => ['nullable', 'string', 'max:255'],
         ]);
 
         $base = PrestamoInterbibliotecario::query();
-        foreach (Busqueda::palabras((string) $request->query('q')) as $palabra) {
+        if (($codigo = trim((string) $request->query('codigo'))) !== '') {
+            $base->whereHas('ejemplar', fn ($e) => $e->porCodigo($codigo));
+        }
+        $numeroFicha = BusquedaLibros::numeroDeFicha((string) $request->query('q'));
+        if ($numeroFicha !== null) {
+            $base->whereHas('ejemplar.libro', fn ($q) => $q->where('numero_ficha', $numeroFicha));
+        }
+        foreach ($numeroFicha !== null ? [] : Busqueda::palabras((string) $request->query('q')) as $palabra) {
             $base->where(fn (Builder $q) => $q
                 ->whereSinTildes('biblioteca', $palabra)
                 ->orWhereIn('ejemplar_id', Ejemplar::select('id')->whereIn('libro_id', BusquedaLibros::ids($palabra, BusquedaLibros::CAMPOS_PERSONAL)))
@@ -104,71 +117,145 @@ class PrestamoInterbibliotecarioController extends Controller
 
     /**
      * Registra lo que llegó: una copia nueva de un título del catálogo (libro_id) o de uno
-     * que se crea con lo básico (título, autores, ISBN, editorial, año y tipo de material).
+     * que se cataloga con sus campos bibliográficos completos. Admite un lote de ejemplares.
      * La copia nace «Por colocar»: se presta cuando pasa a «En estante» (Estado de
      * ejemplares), y ahí atiende a la lista de espera del título si la tiene.
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'libro_id' => ['required_without:titulo', 'nullable', 'exists:libros,id'],
-            'titulo' => ['required_without:libro_id', 'nullable', 'string', 'max:1000'],
-            // Títulos alternativos (246, repetible): uno por elemento
-            'titulos_alternativos' => ['nullable', 'array'],
-            'titulos_alternativos.*' => ['nullable', 'string', 'max:1000'],
-            'autores' => ['nullable', 'array'],
-            'autores.*' => ['string', 'max:255'],
-            'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn'],
-            'editorial' => ['nullable', 'string', 'max:255'],
-            'anio_publicacion' => ['nullable', 'integer', 'min:1000', 'max:9999'],
-            'tipo_material_id' => ['nullable', 'exists:tipos_material,id'],
-            // Como cualquier copia: ni de otra copia (su código o el de lomo) ni de un equipo.
-            'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
-            'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
-            ...self::reglasPrestamo(),
-            'fecha_ingreso' => ['required', 'date', 'before_or_equal:today'],
-        ], [
-            ...self::MENSAJES,
-            'titulo.required_without' => 'Elige el título en el catálogo o escribe el título nuevo.',
-            'isbn.unique' => 'Ya hay un título con ese ISBN en el catálogo: búscalo en «Ya está en el catálogo».',
-            'fecha_ingreso.required' => 'Indica la fecha en que llegó.',
-            'fecha_ingreso.before_or_equal' => 'La fecha de ingreso no puede ser futura.',
-        ]);
+        // Ingreso posterior a una ficha guardada: la biblioteca y el plazo los fija esa ficha,
+        // nunca los campos arbitrarios de la pantalla de ejemplares.
+        $cabecera = null;
+        if ($request->has('ficha_interbibliotecaria_id')) {
+            $request->validate(['ficha_interbibliotecaria_id' => ['required', 'integer', 'exists:fichas_interbibliotecarias,id'],
+                'ficha' => ['prohibited'], 'libro_id' => ['prohibited']]);
+            $cabecera = FichaInterbibliotecaria::findOrFail($request->input('ficha_interbibliotecaria_id'));
+            $request->merge([...$cabecera->only(['libro_id', 'biblioteca', 'nota']),
+                'fecha_ingreso' => $cabecera->fecha_ingreso->toDateString(), 'fecha_limite' => $cabecera->fecha_limite->toDateString()]);
+        }
+        $fichas = app(CatalogacionService::class);
+        $copias = app(CatalogarEjemplarService::class);
+        $lote = $request->has('ficha') || $request->has('ejemplares');
+        if ($lote) {
+            if (is_array($request->input('ejemplares'))) {
+                $request->merge(['ejemplares' => array_map(fn ($fila) => is_array($fila)
+                    ? array_replace($fila, ['codigo_barras' => trim((string) ($fila['codigo_barras'] ?? ''))]) : $fila,
+                    $request->input('ejemplares'))]);
+            }
+            $reglas = [
+                'libro_id' => ['required_without:ficha', 'nullable', 'exists:libros,id'],
+                'ficha' => ['required_without:libro_id', 'nullable', 'array'],
+                'ejemplares' => ['required', 'array', 'min:1', 'max:50'],
+                'ejemplares.*' => ['required', 'array'],
+                ...self::reglasPrestamo(),
+                'fecha_ingreso' => ['required', 'date', 'before_or_equal:today'],
+            ];
+            $camposFicha = [...Libro::CAMPOS_BIBLIOGRAFICOS, 'autores', 'autores_roles', 'categorias', 'carreras'];
+            foreach ($fichas->reglasCatalogacion() as $campo => $regla) {
+                if (in_array(explode('.', $campo)[0], $camposFicha, true)) {
+                    $reglas['ficha.'.$campo] = $regla;
+                }
+            }
+            $reglas['ficha.titulo'] = ['required_without:libro_id', 'nullable', 'string', 'max:1000'];
+            foreach ($copias->reglas() as $campo => $regla) {
+                $reglas['ejemplares.*.'.$campo] = $regla;
+            }
+            $reglas['ejemplares.*.codigo_barras'][] = 'distinct';
+            $data = $request->validate($reglas, self::MENSAJES + [
+                'ficha.titulo.required_without' => 'Escribe el título de la ficha nueva o elige una ficha existente.',
+                'ficha.isbn.unique' => 'Ya existe una ficha con ese ISBN: selecciónala para agregarle los ejemplares.',
+                'ejemplares.*.codigo_barras.distinct' => 'Los ejemplares de esta recepción deben tener códigos distintos.',
+            ]);
+            $bibliografia = $data['ficha'] ?? [];
+            $ejemplares = $data['ejemplares'];
+        } else {
+            $data = $request->validate([
+                'libro_id' => ['required_without:titulo', 'nullable', 'exists:libros,id'],
+                'titulo' => ['required_without:libro_id', 'nullable', 'string', 'max:1000'],
+                // Títulos alternativos (246, repetible): uno por elemento
+                'titulos_alternativos' => ['nullable', 'array'],
+                'titulos_alternativos.*' => ['nullable', 'string', 'max:1000'],
+                'autores' => ['nullable', 'array'],
+                'autores.*' => ['string', 'max:255'],
+                'isbn' => ['nullable', 'string', 'max:32', 'unique:libros,isbn'],
+                'editorial' => ['nullable', 'string', 'max:255'],
+                'anio_publicacion' => ['nullable', 'integer', 'min:1000', 'max:9999'],
+                'tipo_material_id' => ['nullable', 'exists:tipos_material,id'],
+                // Como cualquier copia: ni de otra copia (su código o el de lomo) ni de un equipo.
+                'codigo_barras' => ['required', 'string', 'max:255', 'unique:ejemplares,codigo_barras', 'unique:ejemplares,codigo_lomo', 'unique:equipos,codigo_barras'],
+                'ubicacion_id' => ['nullable', 'exists:ubicaciones,id'],
+                ...self::reglasPrestamo(),
+                'fecha_ingreso' => ['required', 'date', 'before_or_equal:today'],
+            ], [
+                ...self::MENSAJES,
+                'titulo.required_without' => 'Elige el título en el catálogo o escribe el título nuevo.',
+                'isbn.unique' => 'Ya hay un título con ese ISBN en el catálogo: búscalo en «Ya está en el catálogo».',
+                'fecha_ingreso.required' => 'Indica la fecha en que llegó.',
+                'fecha_ingreso.before_or_equal' => 'La fecha de ingreso no puede ser futura.',
+            ]);
 
-        $prestamo = DB::transaction(function () use ($data, $request) {
+            $bibliografia = $data;
+            if (isset($data['titulos_alternativos'])) {
+                $bibliografia['titulo_alternativo'] = collect($data['titulos_alternativos'])->map(fn ($t) => trim((string) $t))->filter()->unique()->implode("\n") ?: null;
+            }
+            $ejemplares = [array_intersect_key($data, array_flip(['codigo_barras', 'ubicacion_id']))];
+        }
+
+        $registros = DB::transaction(function () use ($data, $request, $bibliografia, $ejemplares, $fichas, $copias, $lote, $cabecera) {
             $staff = $request->user();
-            $libro = ! empty($data['libro_id']) ? Libro::findOrFail($data['libro_id']) : $this->crearTitulo($data, $staff->id);
-
-            $ejemplar = Ejemplar::create([
-                'libro_id' => $libro->id,
-                'numero_copia' => Ejemplar::siguienteNumero($libro->id),
-                // La primera sin «c.», las demás c.1, c.2… (ver TomoEjemplar::siguienteCopia)
-                'copia_tomo' => TomoEjemplar::siguienteCopia($libro->id, null),
-                'codigo_barras' => trim($data['codigo_barras']),
-                'ubicacion_id' => $data['ubicacion_id'] ?? null,
-                'estado_proceso' => 'por_colocar',
-            ]);
-
-            return PrestamoInterbibliotecario::create([
-                'ejemplar_id' => $ejemplar->id,
-                'biblioteca' => trim($data['biblioteca']),
-                'fecha_ingreso' => $data['fecha_ingreso'],
-                'fecha_limite' => $data['fecha_limite'],
-                'nota' => $data['nota'] ?? null,
-                'registrado_por_staff_id' => $staff->id,
-            ]);
+            if (! empty($data['libro_id'])) {
+                $libro = Libro::whereKey($data['libro_id'])->lockForUpdate()->firstOrFail();
+            } else {
+                $libro = Libro::create([
+                    ...$fichas->soloCamposBibliograficos($bibliografia),
+                    'catalogado_por_staff_id' => $staff->id,
+                ]);
+                $fichas->sincronizarPivotes($libro, $bibliografia);
+            }
+            if ($cabecera) {
+                $cabecera = FichaInterbibliotecaria::whereKey($cabecera->id)->lockForUpdate()->firstOrFail();
+                // Puede haberse editado mientras se preparaban los ejemplares: usa la versión actual.
+                $data = [...$data, ...$cabecera->only(['biblioteca', 'nota']), 'fecha_ingreso' => $cabecera->fecha_ingreso->toDateString(), 'fecha_limite' => $cabecera->fecha_limite->toDateString()];
+            } else {
+                $cabecera = FichaInterbibliotecaria::create([
+                    ...array_intersect_key($data, array_flip(['biblioteca', 'fecha_ingreso', 'fecha_limite', 'nota'])),
+                    'libro_id' => $libro->id, 'registrado_por_staff_id' => $staff->id,
+                ]);
+            }
+            $registros = [];
+            foreach ($ejemplares as $i => $datosCopia) {
+                $ejemplar = $copias->crear($libro->id, $datosCopia, 'por_colocar', $lote ? "ejemplares.{$i}." : '');
+                $registros[] = PrestamoInterbibliotecario::create([
+                    'ficha_interbibliotecaria_id' => $cabecera->id,
+                    'ejemplar_id' => $ejemplar->id,
+                    'biblioteca' => trim($data['biblioteca']),
+                    'fecha_ingreso' => $data['fecha_ingreso'],
+                    'fecha_limite' => $data['fecha_limite'],
+                    'nota' => $data['nota'] ?? null,
+                    'registrado_por_staff_id' => $staff->id,
+                ]);
+            }
+            return $registros;
         });
 
-        $prestamo->load(self::RELACIONES);
-        $ejemplar = $prestamo->ejemplar;
-        Bitacora::registrar(
-            'libros.recibir_interbibliotecario',
-            "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} ({$ejemplar->copiaEnTexto()}, {$ejemplar->codigo_barras}, por colocar): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}",
-            entidad: $prestamo,
-            datos: ['codigo_barras' => $ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'fecha_limite' => $prestamo->fecha_limite->toDateString()],
-        );
-
-        return response()->json($this->conDetalle($prestamo, null), 201);
+        $detalles = [];
+        foreach ($registros as $prestamo) {
+            $prestamo->load(self::RELACIONES);
+            $ejemplar = $prestamo->ejemplar;
+            Bitacora::registrar(
+                'libros.recibir_interbibliotecario',
+                "Recibió en préstamo interbibliotecario «{$ejemplar->libro->titulo}» de {$prestamo->biblioteca} ({$ejemplar->copiaEnTexto()}, {$ejemplar->codigo_barras}, por colocar): vuelve a su biblioteca el {$prestamo->fecha_limite->format('d/m/Y')}",
+                entidad: $prestamo,
+                datos: ['numero_ficha' => $ejemplar->libro->numero_ficha, 'codigo_barras' => $ejemplar->codigo_barras, 'biblioteca' => $prestamo->biblioteca, 'fecha_limite' => $prestamo->fecha_limite->toDateString()],
+            );
+            $detalles[] = $this->conDetalle($prestamo, null);
+        }
+        return response()->json([
+            ...$detalles[0],
+            'numero_ficha' => $registros[0]->ejemplar->libro->numero_ficha,
+            'cantidad' => count($detalles),
+            'registros' => $detalles,
+        ], 201);
     }
 
     /**
@@ -329,28 +416,6 @@ class PrestamoInterbibliotecarioController extends Controller
             'fecha_limite' => ['required', 'date', "after:{$fechaIngreso}"],
             'nota' => ['nullable', 'string', 'max:2000'],
         ];
-    }
-
-    /** Un título nuevo con lo básico; se completa después en «Editar ficha» si hace falta. */
-    private function crearTitulo(array $data, int $staffId): Libro
-    {
-        $libro = Libro::create([
-            'titulo' => trim($data['titulo']),
-            // Varios títulos alternativos (246): uno por línea, como al catalogar
-            'titulo_alternativo' => collect($data['titulos_alternativos'] ?? [])->map(fn ($t) => trim(preg_replace('/\s+/u', ' ', (string) $t)))
-                ->filter()->unique()->implode("\n") ?: null,
-            'isbn' => isset($data['isbn']) && trim($data['isbn']) !== '' ? trim($data['isbn']) : null,
-            'editorial' => $data['editorial'] ?? null,
-            'anio_publicacion' => $data['anio_publicacion'] ?? null,
-            'tipo_material_id' => $data['tipo_material_id'] ?? null,
-            'catalogado_por_staff_id' => $staffId,
-        ]);
-
-        // En orden: el primero es el autor principal (100), como al catalogar.
-        $autores = collect($data['autores'] ?? [])->map(fn ($nombre) => trim((string) $nombre))->filter()->unique()->values();
-        $libro->autores()->sync($autores->mapWithKeys(fn ($nombre, $i) => [Autor::firstOrCreate(['nombre' => $nombre])->id => ['orden' => $i + 1]])->all());
-
-        return $libro;
     }
 
     /** La fila con su fecha tope, a quién está prestada ahora y si ya pasó el plazo. */

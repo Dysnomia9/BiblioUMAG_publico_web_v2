@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import CabeceraDegradado from '@/components/ui/CabeceraDegradado.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import CampoSugerencias from '@/components/ui/CampoSugerencias.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -96,6 +97,7 @@ function fichaDe(u: Usuario): Ficha {
 
 /** Con `documento`, la ficha parte con ese RUT o documento ya escrito (lo que se buscó en el mesón). */
 function abrirNuevo(tipo: Usuario['tipo'] = 'estudiante', documento?: { rut: string; tipo_documento: TipoDocumento }) {
+  void cargarOpciones()
   const ficha = fichaVacia(tipo)
   if (documento) Object.assign(ficha, documento)
   Object.assign(form, { abierto: true, id: null, ficha, original: null, errores: {}, confirmando: false })
@@ -107,6 +109,8 @@ function abrirNuevo(tipo: Usuario['tipo'] = 'estudiante', documento?: { rut: str
 /** Carrera y año de ingreso solo para estudiantes (o si la persona ya los tiene guardados). */
 /** Unidad y cargo para docentes y funcionarios (o si la persona ya los tiene). */
 const pideUnidad = computed(() => form.ficha.tipo !== 'estudiante' || !!form.ficha.unidad || !!form.ficha.cargo)
+const sugerenciasUnidades = computed(() => (opciones.value.trabajo?.[form.ficha.tipo]?.unidades ?? []).map((valor) => ({ valor, nombre: valor })))
+const sugerenciasCargos = computed(() => (opciones.value.trabajo?.[form.ficha.tipo]?.cargos ?? []).map((valor) => ({ valor, nombre: valor })))
 const pideCarrera = computed(() => form.ficha.tipo === 'estudiante' || !!form.ficha.carrera || !!form.ficha.anio_ingreso)
 const NOMBRE_TIPO: Record<Usuario['tipo'], string> = { estudiante: 'estudiante', docente: 'docente', funcionario: 'funcionario' }
 
@@ -152,6 +156,7 @@ function quitarCorreo(correo: string) {
 }
 
 function abrirEdicion(u: Usuario) {
+  void cargarOpciones()
   Object.assign(form, { abierto: true, id: u.id, ficha: fichaDe(u), original: fichaDe(u), errores: {}, confirmando: false })
   nuevoCorreo.value = ''
   pasoActivo.value = 0
@@ -431,13 +436,14 @@ const ETIQUETA = 'mb-1 block text-xs font-semibold text-gray-700'
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label for="est-unidad" :class="ETIQUETA">Unidad o departamento <span class="font-normal text-gray-400">(opcional)</span></label>
-                <input id="est-unidad" v-model="form.ficha.unidad" maxlength="255" placeholder="Ej: Departamento de Ciencias" :class="clasesInput('unidad')" />
+                <CampoSugerencias id-campo="est-unidad" v-model="form.ficha.unidad" :sugerencias="sugerenciasUnidades" :maxlength="255" titulo="Unidades y departamentos existentes" sin-sugerencias="Escribe una unidad o departamento" placeholder="Elige una unidad o escribe otra" :clase-campo="clasesInput('unidad')" />
               </div>
               <div>
                 <label for="est-cargo" :class="ETIQUETA">Cargo <span class="font-normal text-gray-400">(opcional)</span></label>
-                <input id="est-cargo" v-model="form.ficha.cargo" maxlength="255" placeholder="Ej: Profesor adjunto" :class="clasesInput('cargo')" />
+                <CampoSugerencias id-campo="est-cargo" v-model="form.ficha.cargo" :sugerencias="sugerenciasCargos" :maxlength="255" titulo="Cargos sugeridos" sin-sugerencias="Escribe un cargo" placeholder="Elige un cargo o escribe otro" :clase-campo="clasesInput('cargo')" />
               </div>
             </div>
+            <p class="mt-2 text-xs text-gray-500">Elige una sugerencia con la flecha o escribe un valor nuevo.</p>
           </template>
 
           <!-- Cuenta -->
