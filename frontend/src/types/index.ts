@@ -302,6 +302,7 @@ export type Ejemplar = {
   // En /libros: si tiene un préstamo activo o una reserva lista para retirar.
   prestado?: boolean
   reservado?: boolean
+  prestamo_interbibliotecario?: Pick<PrestamoInterbibliotecario, 'id' | 'ficha_interbibliotecaria_id' | 'biblioteca' | 'fecha_limite' | 'devuelto_el'> | null
   libro?: Libro
 }
 
@@ -360,6 +361,7 @@ export type Libro = {
   categorias?: Categoria[]
   carreras?: Carrera[]
   ejemplares?: Ejemplar[]
+  fichas_interbibliotecarias?: Pick<FichaInterbibliotecaria, 'id' | 'libro_id' | 'biblioteca' | 'fecha_ingreso' | 'fecha_limite'>[]
   ejemplares_count?: number
   ejemplares_total?: number
   ejemplares_disponibles?: number

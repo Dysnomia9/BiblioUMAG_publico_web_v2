@@ -68,6 +68,11 @@ class Libro extends Model
         return $this->hasMany(Ejemplar::class);
     }
 
+    public function fichasInterbibliotecarias(): HasMany
+    {
+        return $this->hasMany(FichaInterbibliotecaria::class);
+    }
+
     /** Todos los préstamos de todas sus copias. */
     public function prestamos(): HasManyThrough
     {

@@ -68,6 +68,7 @@ const router = createRouter({
     { path: '/salas/reservas', name: 'listado-reservas', component: () => import('@/views/ListadoReservasView.vue') },
     { path: '/catalogo/materias', name: 'materias-catalogo', component: () => import('@/views/MateriasCatalogoView.vue') },
     { path: '/catalogo/listado', name: 'listado-libros', component: () => import('@/views/ListadoLibrosView.vue') },
+    { path: '/catalogo/interbibliotecarios', redirect: { name: 'listado-libros', query: { interbibliotecarios: '1' } } },
     { path: '/catalogo/catalogacion', name: 'catalogacion-libros', component: () => import('@/views/CatalogacionLibrosView.vue') },
     { path: '/catalogo/estado', name: 'estado-libro', component: () => import('@/views/EstadoLibroView.vue') },
     { path: '/catalogo/cambio-masivo', name: 'cambio-masivo-estado', component: () => import('@/views/CambioMasivoEstadoView.vue') },

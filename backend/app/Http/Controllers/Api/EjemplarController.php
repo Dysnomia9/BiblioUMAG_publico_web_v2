@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Ejemplar;
 use App\Models\EjemplarEstadoHistorial;
 use App\Models\Equipo;
+use App\Models\Libro;
+use App\Models\FichaInterbibliotecaria;
 use App\Models\PrestamoInterbibliotecario;
 use App\Models\ReservaLibro;
 use App\Support\Busqueda;
@@ -33,7 +35,7 @@ class EjemplarController extends Controller
     /** Busca una copia física por su código de barras o su código de lomo (escaneo en préstamo/reserva/estado). */
     public function buscarPorCodigo(string $codigo)
     {
-        $ejemplar = Ejemplar::porCodigo($codigo)->with(['libro', 'ubicacion'])->first();
+        $ejemplar = Ejemplar::porCodigo($codigo)->with(['libro.fichasInterbibliotecarias', 'ubicacion', 'prestamoInterbibliotecario'])->first();
 
         if (! $ejemplar) {
             return response()->json(['message' => 'Código de barras no encontrado en el sistema'], 404);
@@ -47,8 +49,17 @@ class EjemplarController extends Controller
     {
         $catalogacion = app(\App\Services\CatalogarEjemplarService::class);
         $request->merge(['codigo_barras' => trim((string) $request->input('codigo_barras'))]);
-        $data = $request->validate(['libro_id' => ['required', 'exists:libros,id'], ...$catalogacion->reglas()]);
-        $ejemplar = $catalogacion->crear((int) $data['libro_id'], $data);
+        $data = $request->validate(['libro_id' => ['required', 'exists:libros,id'],
+            'origen_ejemplar' => ['sometimes', Rule::in(['propio'])], ...$catalogacion->reglas()]);
+        $ejemplar = DB::transaction(function () use ($data, $catalogacion) {
+            $libro = Libro::whereKey($data['libro_id'])->lockForUpdate()->firstOrFail();
+            if ($libro->fichasInterbibliotecarias()->exists() && ($data['origen_ejemplar'] ?? null) !== 'propio') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'libro_id' => 'Este título tiene fichas interbibliotecarias. Agrega el ejemplar desde su ficha de préstamo para conservar la biblioteca y el plazo, o confirma expresamente que es un ejemplar propio.',
+                ]);
+            }
+            return $catalogacion->crear((int) $data['libro_id'], $data);
+        });
 
         // refresh(): el código de lomo lo pone la base al insertar.
         $ejemplar->refresh()->load(['libro', 'ubicacion']);
@@ -69,7 +80,13 @@ class EjemplarController extends Controller
      */
     public function update(Request $request, Ejemplar $ejemplar)
     {
+        $registro = $ejemplar->prestamoInterbibliotecario;
         $data = $request->validate([
+            'interbibliotecario' => ['sometimes', Rule::prohibitedIf(! $registro), 'array:biblioteca,fecha_ingreso,fecha_limite,nota', 'min:1'],
+            'interbibliotecario.biblioteca' => ['required_with:interbibliotecario', 'string', 'max:255'],
+            'interbibliotecario.fecha_ingreso' => ['required_with:interbibliotecario', 'date', 'before_or_equal:today'],
+            'interbibliotecario.fecha_limite' => ['required_with:interbibliotecario', 'date', 'after:interbibliotecario.fecha_ingreso'],
+            'interbibliotecario.nota' => ['nullable', 'string', 'max:2000'],
             'ubicacion_id' => ['sometimes', 'nullable', 'exists:ubicaciones,id'],
             'volumen' => ['sometimes', 'nullable', 'string', 'max:100'],
             'precio' => ['sometimes', 'nullable', 'numeric', 'min:0'],
@@ -77,6 +94,9 @@ class EjemplarController extends Controller
             'numero_registro' => ['sometimes', 'nullable', 'string', 'max:50'],
             ...array_map(fn (array $reglas) => ['sometimes', ...$reglas], self::reglasNotasYColeccion()),
         ]);
+
+        $condiciones = $data['interbibliotecario'] ?? null;
+        unset($data['interbibliotecario']);
 
         // Texto en blanco = sin dato: la copia vuelve a mostrar la colección del libro.
         $data = array_map(fn ($valor) => is_string($valor) && trim($valor) === '' ? null : $valor, $data);
@@ -95,7 +115,28 @@ class EjemplarController extends Controller
         }
 
         $antes = $ejemplar->only(array_keys($data));
-        $ejemplar->update($data);
+        DB::transaction(function () use ($ejemplar, $data, $condiciones) {
+            // Mismo orden de bloqueo que al recibir: título, ficha y ejemplares.
+            Libro::whereKey($ejemplar->libro_id)->lockForUpdate()->firstOrFail();
+            if ($condiciones !== null) {
+                $registro = $ejemplar->prestamoInterbibliotecario;
+                $ficha = $registro->ficha_interbibliotecaria_id
+                    ? FichaInterbibliotecaria::whereKey($registro->ficha_interbibliotecaria_id)->lockForUpdate()->firstOrFail() : null;
+                $registro = PrestamoInterbibliotecario::whereKey($registro->id)->lockForUpdate()->firstOrFail();
+                if ($registro->devuelto_el) {
+                    throw ValidationException::withMessages(['interbibliotecario' => 'El material ya se devolvió a su biblioteca: sus condiciones se conservan como historial.']);
+                }
+                $anteriores = $registro->only(['biblioteca', 'fecha_ingreso', 'fecha_limite', 'nota']);
+                if ($ficha) {
+                    $ficha->update($condiciones);
+                    $ficha->ingresos()->whereNull('devuelto_el')->update($ficha->only(['biblioteca', 'fecha_ingreso', 'fecha_limite']));
+                }
+                $registro->update($condiciones);
+                Bitacora::registrar('libros.editar_interbibliotecario', "Corrigió biblioteca y plazo desde el ejemplar {$ejemplar->codigo_barras}",
+                    entidad: $registro, datos: Bitacora::cambios($anteriores, $registro->only(array_keys($anteriores))));
+            }
+            $ejemplar->update($data);
+        });
         $ejemplar->loadMissing('libro:id,titulo,coleccion');
 
         Bitacora::registrar(
@@ -105,7 +146,7 @@ class EjemplarController extends Controller
             datos: Bitacora::cambios($antes, $ejemplar->only(array_keys($data))),
         );
 
-        return response()->json($ejemplar->fresh(['libro', 'ubicacion', 'estadoPersonalizado']));
+        return response()->json($ejemplar->fresh(['libro.fichasInterbibliotecarias', 'ubicacion', 'estadoPersonalizado', 'prestamoInterbibliotecario']));
     }
 
     /** Colección y notas de la copia (las tres opcionales). */

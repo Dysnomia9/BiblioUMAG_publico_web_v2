@@ -8,6 +8,7 @@ use App\Models\Libro;
 use App\Models\Prestamo;
 use App\Models\PrestamoInterbibliotecario;
 use App\Models\Staff;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -44,6 +45,143 @@ class FichaInterbibliotecariaTest extends TestCase
     private function crearFicha(): int
     {
         return $this->postJson('/api/prestamos-interbibliotecarios/fichas', $this->datos())->assertCreated()->json('id');
+    }
+
+    public function test_editor_unico_guarda_ejemplar_y_condiciones_y_sincroniza_solo_los_pendientes(): void
+    {
+        $id = $this->crearFicha();
+        $respuesta = $this->postJson('/api/prestamos-interbibliotecarios', [
+            'ficha_interbibliotecaria_id' => $id,
+            'ejemplares' => [['codigo_barras' => '30000009998701'], ['codigo_barras' => '30000009998702'], ['codigo_barras' => '30000009998703']],
+        ])->assertCreated();
+        $ejemplarId = $respuesta->json('registros.0.ejemplar_id');
+        $pendiente = PrestamoInterbibliotecario::findOrFail($respuesta->json('registros.1.id'));
+        $devuelto = PrestamoInterbibliotecario::findOrFail($respuesta->json('registros.2.id'));
+        $devuelto->update(['devuelto_el' => '2026-11-04']);
+        $condiciones = ['biblioteca' => 'Biblioteca Central', 'fecha_ingreso' => '2026-11-04', 'fecha_limite' => '2026-12-15', 'nota' => 'Plazo ampliado'];
+        $this->patchJson('/api/ejemplares/'.$ejemplarId, [
+            'nota_interna' => 'Datos físicos corregidos', 'interbibliotecario' => $condiciones,
+        ])->assertOk()->assertJsonPath('nota_interna', 'Datos físicos corregidos')
+            ->assertJsonPath('prestamo_interbibliotecario.biblioteca', 'Biblioteca Central')
+            ->assertJsonPath('prestamo_interbibliotecario.fecha_limite', '2026-12-15');
+        $this->assertSame('2026-12-15', FichaInterbibliotecaria::findOrFail($id)->fecha_limite->toDateString());
+        $this->assertSame('2026-12-15', $pendiente->fresh()->fecha_limite->toDateString());
+        $this->assertSame('2026-11-30', $devuelto->fresh()->fecha_limite->toDateString());
+        Carbon::setTestNow('2026-12-11 10:00:00');
+        $ejemplar = Ejemplar::findOrFail($ejemplarId);
+        $ejemplar->update(['estado_proceso' => 'en_estante', 'disponible' => true]);
+        $this->postJson('/api/prestamos', ['usuario_id' => Usuario::factory()->create()->id,
+            'codigo_barras' => $ejemplar->codigo_barras, 'fecha_prestamo' => '2026-12-11', 'fecha_devolucion' => '2026-12-15',
+        ])->assertStatus(409)->assertJsonPath('message', fn ($mensaje) => str_contains($mensaje, '14/12/2026'));
+    }
+
+    public function test_condiciones_invalidas_no_guardan_parcialmente_el_ejemplar(): void
+    {
+        $id = $this->crearFicha();
+        $respuesta = $this->postJson('/api/prestamos-interbibliotecarios', [
+            'ficha_interbibliotecaria_id' => $id, 'ejemplares' => [['codigo_barras' => '30000009998701']],
+        ])->assertCreated();
+        $ejemplar = Ejemplar::findOrFail($respuesta->json('ejemplar_id'));
+        $this->patchJson('/api/ejemplares/'.$ejemplar->id, ['nota_interna' => 'No debe guardarse',
+            'interbibliotecario' => ['biblioteca' => 'Otra', 'fecha_ingreso' => '2026-11-04', 'fecha_limite' => '2026-11-03'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('interbibliotecario.fecha_limite');
+        $this->assertNull($ejemplar->fresh()->nota_interna);
+        $this->assertSame('Biblioteca propietaria', FichaInterbibliotecaria::findOrFail($id)->biblioteca);
+    }
+
+    public function test_no_reescribe_el_historial_de_un_ejemplar_ya_devuelto(): void
+    {
+        $id = $this->crearFicha();
+        $respuesta = $this->postJson('/api/prestamos-interbibliotecarios', [
+            'ficha_interbibliotecaria_id' => $id, 'ejemplares' => [['codigo_barras' => '30000009998701']],
+        ])->assertCreated();
+        $registro = PrestamoInterbibliotecario::findOrFail($respuesta->json('id'));
+        $registro->update(['devuelto_el' => '2026-11-04']);
+        $this->patchJson('/api/ejemplares/'.$registro->ejemplar_id, ['nota_interna' => 'No debe guardarse',
+            'interbibliotecario' => ['biblioteca' => 'Otra', 'fecha_ingreso' => '2026-11-04', 'fecha_limite' => '2026-12-15'],
+        ])->assertUnprocessable();
+        $this->assertNull($registro->ejemplar->fresh()->nota_interna);
+        $this->assertSame('2026-11-30', $registro->fresh()->fecha_limite->toDateString());
+    }
+
+    public function test_un_ejemplar_propio_no_se_convierte_por_accidente_en_interbibliotecario_al_editarlo(): void
+    {
+        $ejemplar = Ejemplar::factory()->create();
+        $this->patchJson('/api/ejemplares/'.$ejemplar->id, [
+            'interbibliotecario' => ['biblioteca' => 'Otra', 'fecha_ingreso' => '2026-11-04', 'fecha_limite' => '2026-12-15'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('interbibliotecario');
+        $this->patchJson('/api/ejemplares/'.$ejemplar->id, ['interbibliotecario' => []])
+            ->assertUnprocessable()->assertJsonValidationErrors('interbibliotecario');
+        $this->assertDatabaseCount('prestamos_interbibliotecarios', 0);
+    }
+
+    public function test_listado_material_identifica_interbibliotecarios_y_filtra_incluso_fichas_sin_ejemplares(): void
+    {
+        $id = $this->crearFicha();
+        $libro = Libro::sole();
+        $propio = Libro::factory()->create(['titulo' => 'Material propio']);
+        $this->getJson('/api/libros/'.$libro->id)->assertOk()
+            ->assertJsonPath('fichas_interbibliotecarias.0.id', $id)
+            ->assertJsonPath('fichas_interbibliotecarias.0.biblioteca', 'Biblioteca propietaria');
+        $this->getJson('/api/libros?interbibliotecarios=1')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $libro->id)
+            ->assertJsonPath('data.0.ejemplares', []);
+        $this->getJson('/api/libros?interbibliotecarios=0')->assertOk()->assertJsonPath('total', 2);
+        $this->getJson('/api/libros?interbibliotecarios=1&q=Material%20propio')->assertOk()->assertJsonPath('total', 0);
+        $this->assertNotEquals($propio->id, $libro->id);
+    }
+
+    public function test_el_listado_exclusivo_no_confunde_ejemplares_propios_y_prestados_del_mismo_titulo(): void
+    {
+        $id = $this->crearFicha();
+        $libro = Libro::sole();
+        $propio = Ejemplar::factory()->create(['libro_id' => $libro->id]);
+        $prestado = $this->postJson('/api/prestamos-interbibliotecarios', [
+            'ficha_interbibliotecaria_id' => $id, 'ejemplares' => [['codigo_barras' => '30000009998999']],
+        ])->assertCreated()->json('ejemplar_id');
+        $this->getJson('/api/libros?interbibliotecarios=1')->assertOk()
+            ->assertJsonCount(1, 'data.0.ejemplares')->assertJsonPath('data.0.ejemplares.0.id', $prestado)
+            ->assertJsonPath('data.0.ejemplares.0.prestamo_interbibliotecario.ficha_interbibliotecaria_id', $id);
+        $this->getJson('/api/libros/'.$libro->id)->assertOk()->assertJsonCount(2, 'ejemplares');
+        $this->getJson('/api/ejemplares/'.$propio->codigo_barras)->assertOk()->assertJsonPath('prestamo_interbibliotecario', null);
+        $this->getJson('/api/libros?interbibliotecarios=1&estado_proceso=en_estante')->assertOk()->assertJsonPath('total', 0);
+        $this->getJson('/api/libros?interbibliotecarios=1&estado_proceso=por_colocar')->assertOk()->assertJsonPath('total', 1);
+    }
+
+    public function test_el_ingreso_comun_exige_elegir_el_origen_para_no_crear_un_ejemplar_sin_plazo(): void
+    {
+        $this->crearFicha();
+        $libro = Libro::sole();
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id, 'codigo_barras' => '30000009998999'])
+            ->assertUnprocessable()->assertJsonValidationErrors('libro_id');
+        $this->assertDatabaseCount('ejemplares', 0);
+        // Un mismo título sí puede tener ejemplares propios, con una elección explícita.
+        $this->postJson('/api/ejemplares', ['libro_id' => $libro->id,
+            'codigo_barras' => '30000009998999', 'origen_ejemplar' => 'propio',
+        ])->assertCreated();
+        $this->assertDatabaseCount('prestamos_interbibliotecarios', 0);
+    }
+
+    public function test_agregar_y_editar_un_ejemplar_interbibliotecario_conserva_el_tope_del_prestamo(): void
+    {
+        $id = $this->crearFicha();
+        $registro = $this->postJson('/api/prestamos-interbibliotecarios', [
+            'ficha_interbibliotecaria_id' => $id, 'ejemplares' => [['codigo_barras' => '30000009998999']],
+        ])->assertCreated();
+        $ejemplar = Ejemplar::findOrFail($registro->json('ejemplar_id'));
+        $this->patchJson('/api/ejemplares/'.$ejemplar->id, ['nota_interna' => 'Corregida',
+            'fecha_limite' => '2099-12-31', 'ficha_interbibliotecaria_id' => null,
+        ])->assertOk();
+        $this->getJson('/api/ejemplares/'.$ejemplar->codigo_barras)->assertOk()
+            ->assertJsonPath('prestamo_interbibliotecario.ficha_interbibliotecaria_id', $id)
+            ->assertJsonPath('prestamo_interbibliotecario.fecha_limite', '2026-11-30');
+        $ejemplar->update(['estado_proceso' => 'en_estante', 'disponible' => true]);
+        Carbon::setTestNow('2026-11-26 10:00:00');
+        $this->postJson('/api/prestamos', ['usuario_id' => Usuario::factory()->create()->id,
+            'codigo_barras' => $ejemplar->codigo_barras, 'fecha_prestamo' => '2026-11-26',
+            'fecha_devolucion' => '2026-11-30',
+        ])->assertStatus(409)->assertJsonPath('message', fn ($mensaje) => str_contains($mensaje, 'interbibliotecario') && str_contains($mensaje, '27/11/2026'));
+        $this->assertDatabaseCount('prestamos', 0);
     }
 
     public function test_crea_ficha_completa_con_plazo_sin_generar_ejemplares_y_la_lista_aunque_este_vacia(): void

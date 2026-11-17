@@ -18,6 +18,7 @@ import type { Carrera, Categoria, Ejemplar, Libro, Paginado, TipoMaterial } from
  * confirma de forma explícita.
  */
 const props = defineProps<{
+  soloInterbibliotecarios?: boolean
   abierto: boolean
   inicial: { q: string; estado_proceso: string; tipo_material_id: number | ''; categoria_id: number | ''; carrera_id: number | ''; materia?: string }
   /** La categoría de inicial.categoria_id, con su nombre (las categorías se buscan, no hay lista). */
@@ -74,6 +75,7 @@ watch(
 )
 
 const parametros = () => ({
+  interbibliotecarios: props.soloInterbibliotecarios ? 1 : undefined,
   q: filtros.q.trim() || undefined,
   estado_proceso: filtros.estado_proceso || undefined,
   tipo_material_id: filtros.tipo_material_id || undefined,

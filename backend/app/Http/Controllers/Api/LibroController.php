@@ -25,7 +25,8 @@ use Illuminate\Validation\Rule;
 
 class LibroController extends Controller
 {
-    private const RELACIONES = ['autores', 'categorias', 'carreras', 'tipoMaterial', 'catalogadoPor:id,nombre'];
+    private const RELACIONES = ['autores', 'categorias', 'carreras', 'tipoMaterial', 'catalogadoPor:id,nombre',
+        'fichasInterbibliotecarias:id,libro_id,biblioteca,fecha_ingreso,fecha_limite'];
 
     public function index(Request $request)
     {
@@ -36,6 +37,7 @@ class LibroController extends Controller
             'entidad' => ['nullable', 'string', 'max:255'],
             'carrera_id' => ['nullable', 'integer'], 'tipo_material_id' => ['nullable', 'integer'],
             'estado_personalizado_id' => ['nullable', 'integer'],
+            'interbibliotecarios' => ['nullable', 'boolean'],
             // Catalogación › Nuevo ejemplar: buscar la obra solo por uno de sus números.
             'buscar_en' => ['nullable', Rule::in(['todo', 'ficha', 'resto'])],
         ]);
@@ -43,13 +45,18 @@ class LibroController extends Controller
         $query = Libro::query()->with([
             ...self::RELACIONES,
             // Cada copia dice si está prestada o reservada (listado de libros y estado de ejemplares).
-            'ejemplares' => fn ($q) => $q->orderBy('numero_copia')->withExists([
+            'ejemplares' => fn ($q) => $q->when($request->boolean('interbibliotecarios'), fn ($e) => $e->whereHas('prestamoInterbibliotecario'))->orderBy('numero_copia')->withExists([
                 'prestamos as prestado' => fn ($p) => $p->where('estado', '!=', 'devuelto'),
                 'reservasLibro as reservado' => fn ($r) => $r->where('estado', 'pendiente'),
             ]),
             'ejemplares.ubicacion',
             'ejemplares.estadoPersonalizado',
+            'ejemplares.prestamoInterbibliotecario',
         ])->withCount('ejemplares');
+
+        if ($request->boolean('interbibliotecarios')) {
+            $query->whereHas('fichasInterbibliotecarias');
+        }
 
         // Cada palabra tiene que aparecer en algún campo, en cualquier orden (ver Busqueda::palabras()):
         // título, clasificación, ISBN/ISSN, autor o código de una copia (ver BusquedaLibros).
@@ -107,6 +114,9 @@ class LibroController extends Controller
         if ($estadoProceso = $request->query('estado_proceso')) {
             $query->whereHas('ejemplares', function ($q) use ($request, $estadoProceso) {
                 $q->where('estado_proceso', $estadoProceso);
+                if ($request->boolean('interbibliotecarios')) {
+                    $q->whereHas('prestamoInterbibliotecario');
+                }
 
                 if ($estadoProceso === 'personalizado' && $estadoPersonalizadoId = $request->query('estado_personalizado_id')) {
                     $q->where('estado_personalizado_id', $estadoPersonalizadoId);
@@ -150,7 +160,7 @@ class LibroController extends Controller
     public function show(Libro $libro)
     {
         return response()->json(
-            $this->conFicha($libro->load([...self::RELACIONES, 'ejemplares.estadoPersonalizado', 'ejemplares.ubicacion']))
+            $this->conFicha($libro->load([...self::RELACIONES, 'ejemplares.estadoPersonalizado', 'ejemplares.ubicacion', 'ejemplares.prestamoInterbibliotecario']))
         );
     }
 

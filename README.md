@@ -186,8 +186,8 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   material (Libro, Trabajo de titulación, Juego educativo, Publicación seriada)
   dice qué etiquetas se catalogan y cuáles son públicas
   (`app/Support/FichaBibliografica.php`).
-- **Préstamo interbibliotecario** (`prestamos_interbibliotecarios`, pestaña de
-  Catalogación): el material que otra biblioteca le presta a la nuestra se registra
+- **Préstamo interbibliotecario** (`prestamos_interbibliotecarios`, opción de origen
+  en Catalogar material › Nueva ficha): el material que otra biblioteca le presta a la nuestra se registra
   al llegar (título nuevo con lo básico o copia de uno del catálogo), con la
   biblioteca propietaria, la fecha de ingreso y la fecha en que vuelve a ella; la
   copia nace «Por colocar» y se presta al pasar a «En estante». A los usuarios se
@@ -199,6 +199,19 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   figura prestada pero el usuario ya no la tiene, Catalogación o el mesón (en
   Préstamos, «Ya volvió a su biblioteca») cierran ese préstamo sin multa con un
   motivo y escribiendo CONFIRMAR.
+- **Un solo catálogo y listado**: Listado de material identifica los préstamos
+  interbibliotecarios, muestra biblioteca y vencimiento y permite filtrarlos con
+  «Solo interbibliotecarios». Incluye fichas sin ejemplares y ejemplares devueltos.
+  Nueva ficha permite elegir el origen propio o interbibliotecario; los editores
+  de ficha y ejemplar se adaptan automáticamente al material. Editar ejemplar guarda
+  sus datos y condiciones en una misma transacción y actualiza las copias pendientes
+  de su ficha, conservando las ya devueltas y los vencimientos de préstamos realizados.
+  Si un título tiene varias recepciones, se elige cuál usar; crear una copia propia
+  del mismo título requiere elegirlo expresamente para no perder el plazo por error.
+- **Clasificación con dos presentaciones**: texto completo con separación automática,
+  o casillas para Clase/Prefijo, Cutter, Año y Complemento. Enter en el texto abre las
+  secciones; Tab permite recorrerlas. Cambiar de presentación conserva el dato y los
+  formatos locales no reconocidos siguen disponibles como texto completo.
 - **Etiquetas para imprimir**: códigos de barras (Code128) y etiquetas de lomo
   con el **código de lomo** de 8 dígitos (`ejemplares.codigo_lomo`), que el lector
   reconoce igual que el código de 14 dígitos.

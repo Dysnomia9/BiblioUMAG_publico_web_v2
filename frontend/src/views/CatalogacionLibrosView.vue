@@ -7,6 +7,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
 import CampoPrecio from '@/components/ui/CampoPrecio.vue'
+import EditorClasificacion from '@/components/libros/EditorClasificacion.vue'
 import DialogoConfirmacionEscrita from '@/components/ui/DialogoConfirmacionEscrita.vue'
 import Paginador from '@/components/ui/Paginador.vue'
 import MultiSelectCombobox from '@/components/libros/MultiSelectCombobox.vue'
@@ -27,10 +28,7 @@ import { esBusquedaCorta } from '@/utils/busqueda'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
-import PrestamoInterbibliotecario from '@/components/libros/PrestamoInterbibliotecario.vue'
-import FichasInterbibliotecarias from '@/components/libros/FichasInterbibliotecarias.vue'
 import EstadoInterbibliotecario from '@/components/libros/EstadoInterbibliotecario.vue'
-import NavegacionInterbibliotecaria from '@/components/libros/NavegacionInterbibliotecaria.vue'
 import type { FichaInterbibliotecaria, Autor, CarreraSugerida, Categoria, Ejemplar, Libro, Paginado, PlantillaFicha, TipoMaterial, Ubicacion, PrestamoInterbibliotecario as RegistroInterbibliotecario } from '@/types'
 
 const toast = useToast()
@@ -64,10 +62,10 @@ const tiposMaterialOpciones = ref<TipoMaterial[]>([])
 
 type ModoCatalogacion = 'nuevo' | 'editar' | 'copia' | 'interbibliotecario' | 'editar_copia'
 const modo = ref<ModoCatalogacion>('nuevo')
-type TareaInterbibliotecaria = 'nuevo' | 'editar' | 'ejemplares' | 'editar_ejemplar' | 'listado'
-const tareaInterbibliotecaria = ref<TareaInterbibliotecaria>('listado')
-const vistaListadoInterbibliotecario = ref<'prestamos' | 'ejemplares'>('prestamos')
-const seccionInterbibliotecaria = computed(() => tareaInterbibliotecaria.value === 'listado' ? 'listado' : ['ejemplares', 'editar_ejemplar'].includes(tareaInterbibliotecaria.value) ? 'ejemplares' : 'ficha')
+type TareaInterbibliotecaria = 'nuevo' | 'editar' | 'ejemplares' | 'editar_ejemplar'
+const tareaInterbibliotecaria = ref<TareaInterbibliotecaria>('nuevo')
+const modoPrincipal = computed(() => modo.value !== 'interbibliotecario' ? modo.value : tareaInterbibliotecaria.value === 'editar_ejemplar' ? 'editar_copia' : tareaInterbibliotecaria.value === 'ejemplares' ? 'copia' : tareaInterbibliotecaria.value === 'editar' ? 'editar' : 'nuevo')
+const seccionInterbibliotecaria = computed(() => ['ejemplares', 'editar_ejemplar'].includes(tareaInterbibliotecaria.value) ? 'ejemplares' : 'ficha')
 const registroEditandoInterbibliotecario = ref<RegistroInterbibliotecario | null>(null)
 const prestamoParaEstado = ref<RegistroInterbibliotecario | null>(null)
 const tareaInterbibliotecariaPendiente = ref<TareaInterbibliotecaria | null>(null)
@@ -78,15 +76,14 @@ const esIngresoEjemplares = computed(() => modo.value === 'interbibliotecario' &
 const esEdicionEjemplar = computed(() => modo.value === 'editar_copia' || (modo.value === 'interbibliotecario' && tareaInterbibliotecaria.value === 'editar_ejemplar'))
 const esFicha = computed(() => modo.value === 'nuevo' || modo.value === 'editar' || (modo.value === 'interbibliotecario' && (tareaInterbibliotecaria.value === 'editar' || (tareaInterbibliotecaria.value === 'nuevo' && origenIngreso.value === 'nuevo'))))
 const esObraExistente = computed(() => modo.value === 'copia' || (modo.value === 'interbibliotecario' && tareaInterbibliotecaria.value === 'nuevo' && origenIngreso.value === 'catalogo'))
-const mostrarFormulario = computed(() => modo.value === 'editar' ? !!editandoId.value : modo.value !== 'interbibliotecario' || tareaInterbibliotecaria.value === 'nuevo' || tareaInterbibliotecaria.value === 'editar_ejemplar' || (tareaInterbibliotecaria.value !== 'listado' && !!fichaInterbibliotecaria.value))
-const mostrarListadoFichas = computed(() => modo.value === 'interbibliotecario' && (tareaInterbibliotecaria.value === 'editar' || tareaInterbibliotecaria.value === 'ejemplares' || (tareaInterbibliotecaria.value === 'listado' && vistaListadoInterbibliotecario.value === 'prestamos')))
-const mostrarListadoEjemplares = computed(() => modo.value === 'interbibliotecario' && (tareaInterbibliotecaria.value === 'editar_ejemplar' || (tareaInterbibliotecaria.value === 'listado' && vistaListadoInterbibliotecario.value === 'ejemplares')))
+const mostrarFormulario = computed(() => modo.value === 'editar' ? !!editandoId.value : modo.value !== 'interbibliotecario' || tareaInterbibliotecaria.value === 'nuevo' || tareaInterbibliotecaria.value === 'editar_ejemplar' || !!fichaInterbibliotecaria.value)
 const modoPendiente = ref<ModoCatalogacion | null>(null)
 const cargandoFicha = ref(false)
 
 const editandoId = ref<number | null>(null)
 /** Se llegó desde el Listado de material (Editar o Agregar copia): se ofrece volver con la misma búsqueda. */
-const vieneDelListado = route.query.desde === 'listado'
+const vieneDelListado = ['listado', 'interbibliotecarios'].includes(String(route.query.desde))
+const listadoDeOrigen = 'listado-libros'
 const libroEditado = ref<Libro | null>(null)
 const guardando = ref(false)
 
@@ -389,8 +386,7 @@ const SECCIONES_EDITAR_COPIA: Seccion[] = [
 ]
 const secciones = computed<Seccion[]>(() => {
   if (modo.value === 'interbibliotecario') {
-    if (tareaInterbibliotecaria.value === 'listado') return []
-    if (esEdicionEjemplar.value) return SECCIONES_EDITAR_COPIA
+    if (esEdicionEjemplar.value) return [...SECCIONES_EDITAR_COPIA, { clave: 'prestamo-interbibliotecario', titulo: 'Biblioteca y plazos', detalle: 'Condiciones del material prestado', tono: 'dorado' }]
     if (esIngresoEjemplares.value) return [
       { clave: 'copia', titulo: 'Ejemplares recibidos', detalle: 'Ejemplares de la ficha elegida', tono: 'violeta' },
     ]
@@ -550,7 +546,8 @@ const formEditarVacio = () => ({
 })
 const formEditar = reactive(formEditarVacio())
 const fotoEditar = ref('')
-const editarConCambios = computed(() => !!copiaEditando.value && JSON.stringify(formEditar) !== fotoEditar.value)
+const fotoCondicionesEjemplar = ref('')
+const editarConCambios = computed(() => !!copiaEditando.value && (JSON.stringify(formEditar) !== fotoEditar.value || (!!registroEditandoInterbibliotecario.value && !registroEditandoInterbibliotecario.value.devuelto_el && JSON.stringify(datosCondicionesEjemplar()) !== fotoCondicionesEjemplar.value)))
 
 /** Lo escrito en Tomo, Volumen y Copia, leído; y el texto de volumen que queda («t.1-v.II c.2», «Anexo c.1»). */
 const tomoParteEditar = computed(() => leerParte(formEditar.tomo, 't'))
@@ -577,6 +574,10 @@ const edicionValida = computed(() => tomoParteEditar.value !== null && volumenPa
 
 /** Abre la copia en la pestaña «Editar ejemplar», con sus datos en el formulario. */
 function editarCopia(copia: Ejemplar, libro: Libro) {
+  if (copia.prestamo_interbibliotecario && !(modo.value === 'interbibliotecario' && tareaInterbibliotecaria.value === 'editar_ejemplar')) {
+    void abrirEjemplarDeRecepcion(copia.codigo_barras)
+    return
+  }
   if (!(modo.value === 'interbibliotecario' && tareaInterbibliotecaria.value === 'editar_ejemplar')) modo.value = 'editar_copia'
   copiaEditando.value = { copia, libro }
   codigoAEditar.value = copia.codigo_barras
@@ -607,13 +608,19 @@ function editarCopia(copia: Ejemplar, libro: Libro) {
 
 /** Busca la copia por su código de barras (o de lomo) y la abre. */
 async function buscarCopiaParaEditar(codigo = codigoAEditar.value) {
-  if (modo.value === 'interbibliotecario') return abrirEjemplarDeRecepcion(codigo)
   const texto = codigo.trim()
   if (!texto) return
   buscandoCopiaAEditar.value = true
   try {
     const { data } = await api.get<Ejemplar & { libro: Libro }>(`/ejemplares/${encodeURIComponent(texto)}`)
-    editarCopia(data, data.libro)
+    if (data.prestamo_interbibliotecario) {
+      buscandoCopiaAEditar.value = false
+      await abrirEjemplarDeRecepcion(data.codigo_barras)
+    } else {
+      registroEditandoInterbibliotecario.value = null
+      modo.value = 'editar_copia'
+      editarCopia(data, data.libro)
+    }
   } catch {
     toast.error(`No hay ninguna copia con el código ${texto}`)
   } finally {
@@ -662,6 +669,13 @@ const cambiosEdicion = computed(() => {
   agregar('N.º de registro', texto(antes.numero_registro), texto(formEditar.numero_registro))
   agregar('Nota pública', texto(antes.nota_publica), texto(formEditar.nota_publica))
   agregar('Nota interna', texto(antes.nota_interna), texto(formEditar.nota_interna))
+  if (registroEditandoInterbibliotecario.value && fotoCondicionesEjemplar.value && !registroEditandoInterbibliotecario.value.devuelto_el) {
+    const condicionesAntes = JSON.parse(fotoCondicionesEjemplar.value) as ReturnType<typeof datosCondicionesEjemplar>
+    agregar('Biblioteca propietaria', texto(condicionesAntes.biblioteca), texto(formIngreso.biblioteca))
+    agregar('Fecha de ingreso', texto(condicionesAntes.fecha_ingreso), texto(formIngreso.fecha_ingreso))
+    agregar('Devolver a su biblioteca el', texto(condicionesAntes.fecha_limite), texto(formIngreso.fecha_limite))
+    agregar('Nota interbibliotecaria', texto(condicionesAntes.nota), texto(formIngreso.nota))
+  }
   return lista
 })
 
@@ -675,6 +689,12 @@ function pedirGuardarEdicionCopia() {
   if (!edicionValida.value) {
     toast.error('Revisa el tomo, el volumen y la copia: mira los ejemplos bajo cada casilla')
     irA('datos')
+    return
+  }
+  if (registroEditandoInterbibliotecario.value && !registroEditandoInterbibliotecario.value.devuelto_el
+    && (!formIngreso.biblioteca.trim() || !formIngreso.fecha_ingreso || formIngreso.fecha_ingreso > hoyIngreso || formIngreso.fecha_limite <= formIngreso.fecha_ingreso)) {
+    toast.error('Completa la biblioteca propietaria y una fecha de devolución posterior al ingreso.')
+    irA('prestamo-interbibliotecario')
     return
   }
   if (!editarConCambios.value) {
@@ -710,11 +730,17 @@ async function guardarEdicionCopia() {
       numero_registro: formEditar.numero_registro.trim() || null,
       nota_publica: formEditar.nota_publica.trim() || null,
       nota_interna: formEditar.nota_interna.trim() || null,
+      ...(registroEditandoInterbibliotecario.value && !registroEditandoInterbibliotecario.value.devuelto_el ? { interbibliotecario: datosCondicionesEjemplar() } : {}),
     })
     toast.success(`Copia ${data.codigo_barras} actualizada`)
     confirmandoGuardarCopia.value = false
     editarCopia({ ...actual.copia, ...data, libro: undefined }, actual.libro)
-    await Promise.all([cargar(), listadoInterbibliotecario.value?.recargarIngresos()])
+    if (registroEditandoInterbibliotecario.value) {
+      registroEditandoInterbibliotecario.value = await buscarRegistroInterbibliotecario(data.codigo_barras) ?? registroEditandoInterbibliotecario.value
+      fotoCondicionesEjemplar.value = JSON.stringify(datosCondicionesEjemplar())
+      fotoRecepcion.value = estadoRecepcion()
+    }
+    await cargar()
   } catch (e) {
     toast.error(mensajeDeError(e, 'No se pudo guardar la copia'))
   } finally {
@@ -754,23 +780,25 @@ type RecepcionRegistrada = RegistroInterbibliotecario & { numero_ficha: number; 
 const recepcionGuardada = ref<RecepcionRegistrada | null>(null)
 const confirmandoIngreso = ref(false)
 const fichaInterbibliotecariaGuardada = ref<FichaInterbibliotecaria | null>(null)
-const listadoFichasInterbibliotecarias = ref<InstanceType<typeof FichasInterbibliotecarias> | null>(null)
-const listadoInterbibliotecario = ref<InstanceType<typeof PrestamoInterbibliotecario> | null>(null)
 const topeIngreso = ref<string | null>(null)
 let solicitudTope = 0
-watch([() => modo.value, () => formIngreso.fecha_limite, () => formCopia.ubicacion_id], async () => {
+watch([() => modo.value, () => formIngreso.fecha_limite, () => esEdicionEjemplar.value ? formEditar.ubicacion_id : formCopia.ubicacion_id], async () => {
   const solicitud = ++solicitudTope
   topeIngreso.value = null
   if (modo.value !== 'interbibliotecario' || !formIngreso.fecha_limite) return
   try {
     const { data } = await api.get<{ fecha_tope: string }>('/prestamos-interbibliotecarios/fecha-tope', {
-      params: { fecha_limite: formIngreso.fecha_limite, ubicacion_id: formCopia.ubicacion_id || undefined },
+      params: { fecha_limite: formIngreso.fecha_limite, ubicacion_id: (esEdicionEjemplar.value ? formEditar.ubicacion_id : formCopia.ubicacion_id) || undefined },
     })
     if (solicitud === solicitudTope) topeIngreso.value = data.fecha_tope
   } catch { /* El servidor volverá a calcular el plazo al registrar. */ }
 })
+function datosCondicionesEjemplar() {
+  return { biblioteca: formIngreso.biblioteca.trim(), fecha_ingreso: formIngreso.fecha_ingreso,
+    fecha_limite: formIngreso.fecha_limite, nota: formIngreso.nota.trim() || null }
+}
+
 function estadoRecepcion() {
-  if (tareaInterbibliotecaria.value === 'listado') return ''
   if (esEdicionEjemplar.value) return JSON.stringify(formEditar)
   if (esIngresoEjemplares.value) return JSON.stringify({ copia: formCopia, pendientes: ejemplaresPendientes.value })
   return JSON.stringify({ ficha: esFicha.value ? form : null, obra: libroParaCopia.value?.id ?? null, prestamo: formIngreso })
@@ -802,11 +830,6 @@ function cambiarTareaInterbibliotecaria(tarea: TareaInterbibliotecaria) {
   origenIngreso.value = 'nuevo'
   fotoRecepcion.value = estadoRecepcion()
 }
-function pedirTareaInterbibliotecaria(tarea: TareaInterbibliotecaria) {
-  if (guardando.value || cargandoFicha.value || buscandoCopiaAEditar.value || tarea === tareaInterbibliotecaria.value) return
-  if (hayTrabajoSinGuardar.value) tareaInterbibliotecariaPendiente.value = tarea
-  else cambiarTareaInterbibliotecaria(tarea)
-}
 async function confirmarCambioInterbibliotecario() {
   const seleccion = seleccionInterbibliotecariaPendiente.value
   const tarea = tareaInterbibliotecariaPendiente.value
@@ -825,7 +848,7 @@ async function cargarFichaInterbibliotecaria(id: number, tarea: 'editar' | 'ejem
   try {
     const { data } = await api.get<FichaInterbibliotecaria>(`/prestamos-interbibliotecarios/fichas/${id}`)
     cambiarTareaInterbibliotecaria(tarea)
-    if (tarea === 'editar') editar(data.libro)
+    if (tarea === 'editar') editar(data.libro, true)
     modo.value = 'interbibliotecario'
     fichaInterbibliotecaria.value = data
     libroParaCopia.value = data.libro
@@ -852,7 +875,7 @@ async function guardarFichaInterbibliotecaria() {
       : await api.post<FichaInterbibliotecaria>('/prestamos-interbibliotecarios/fichas', datos)
     fichaInterbibliotecariaGuardada.value = data
     // Guardar una ficha no abre ni exige el ingreso de ejemplares.
-    editar(data.libro)
+    editar(data.libro, true)
     modo.value = 'interbibliotecario'
     tareaInterbibliotecaria.value = 'editar'
     fichaInterbibliotecaria.value = data
@@ -861,7 +884,7 @@ async function guardarFichaInterbibliotecaria() {
     fotoRecepcion.value = estadoRecepcion()
     confirmandoIngreso.value = false
     toast.success(`Ficha interbibliotecaria N.º ${data.libro.numero_ficha} guardada`)
-    await Promise.all([listadoFichasInterbibliotecarias.value?.recargar(), listadoInterbibliotecario.value?.recargarIngresos()])
+    await cargar()
   } catch (e) {
     confirmandoIngreso.value = false
     toast.error(mensajeDeError(e, 'No se pudo guardar la ficha interbibliotecaria'))
@@ -910,13 +933,36 @@ async function registrarRecepcion() {
       const actualizada = await api.get<Libro>(`/libros/${data.ejemplar.libro_id}`)
       libroParaCopia.value = actualizada.data
     } catch { /* La siguiente búsqueda traerá los ejemplares actualizados. */ }
-    await Promise.all([cargar(), cargarCatalogos(), listadoFichasInterbibliotecarias.value?.recargar(), listadoInterbibliotecario.value?.recargarIngresos()])
+    await Promise.all([cargar(), cargarCatalogos()])
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {
     confirmandoIngreso.value = false
     toast.error(mensajeDeError(e, 'No se pudo registrar la recepción. Revisa los datos de la ficha y ejemplares.'))
   } finally { guardando.value = false }
 }
+// El título puede compartir copias propias y varias recepciones de otras bibliotecas.
+// El origen se elige antes de crear una copia para conservar las condiciones correctas.
+const seleccionOrigenInterbibliotecario = ref<{ libro: Libro; tarea: 'editar' | 'ejemplares' } | null>(null)
+const ejemplarPropioConfirmado = ref(false)
+function abrirContextoInterbibliotecario(libro: Libro, tarea: 'editar' | 'ejemplares') {
+  const fichas = libro.fichas_interbibliotecarias ?? []
+  if (tarea === 'editar' && fichas.length === 1) { void cargarFichaInterbibliotecaria(fichas[0].id, tarea); return }
+  cambiarTareaInterbibliotecaria(tarea)
+  modo.value = 'interbibliotecario'
+  fotoRecepcion.value = estadoRecepcion()
+  seleccionOrigenInterbibliotecario.value = { libro, tarea }
+}
+function elegirOrigenInterbibliotecario(id: number) {
+  const tarea = seleccionOrigenInterbibliotecario.value?.tarea
+  seleccionOrigenInterbibliotecario.value = null
+  if (tarea) void cargarFichaInterbibliotecaria(id, tarea)
+}
+function elegirEjemplarPropio() {
+  const libro = seleccionOrigenInterbibliotecario.value?.libro
+  seleccionOrigenInterbibliotecario.value = null
+  if (libro) agregarCopiaDe(libro, true)
+}
+
 function puedeAbrirEditorDeRecepcion() {
   if (hayTrabajoSinGuardar.value) { toast.info('Hay cambios sin guardar: guárdalos o usa «Descartar cambios» antes de abrir otro editor.'); return false }
   return true
@@ -932,6 +978,8 @@ async function abrirEjemplarDeRecepcion(codigo: string) {
     cambiarTareaInterbibliotecaria('editar_ejemplar')
     modo.value = 'interbibliotecario'
     registroEditandoInterbibliotecario.value = registro
+    Object.assign(formIngreso, { biblioteca: registro.biblioteca, fecha_ingreso: registro.fecha_ingreso, fecha_limite: registro.fecha_limite, nota: registro.nota ?? '' })
+    fotoCondicionesEjemplar.value = JSON.stringify(datosCondicionesEjemplar())
     editarCopia(copia, copia.libro)
     fotoRecepcion.value = estadoRecepcion()
   } catch (e) { toast.error(mensajeDeError(e, 'No se pudo abrir el ejemplar interbibliotecario')) }
@@ -956,14 +1004,21 @@ async function actualizarEstadoInterbibliotecario(ejemplar: Ejemplar) {
   if (copiaEditando.value?.copia.id === ejemplar.id) Object.assign(copiaEditando.value.copia, ejemplar)
   if (registroEditandoInterbibliotecario.value?.ejemplar_id === ejemplar.id) Object.assign(registroEditandoInterbibliotecario.value.ejemplar, ejemplar)
   for (const r of recepcionGuardada.value?.registros ?? []) if (r.ejemplar_id === ejemplar.id) Object.assign(r.ejemplar, ejemplar)
-  await Promise.all([listadoInterbibliotecario.value?.recargarIngresos(), listadoFichasInterbibliotecarias.value?.recargar()])
+  await cargar()
 }
 
 const obligatoriosCopia = computed<Requisito[]>(() => [
   { texto: 'Obra elegida', listo: !!libroParaCopia.value, seccion: 'obra' },
   { texto: 'Código de barras', listo: !!formCopia.codigo_barras.trim(), seccion: 'copia' },
 ])
-const obligatoriosEditarCopia = computed<Requisito[]>(() => [{ texto: 'Ejemplar elegido', listo: !!copiaEditando.value, seccion: 'ejemplar' }])
+const obligatoriosEditarCopia = computed<Requisito[]>(() => [
+  { texto: 'Ejemplar elegido', listo: !!copiaEditando.value, seccion: 'ejemplar' },
+  ...(registroEditandoInterbibliotecario.value && !registroEditandoInterbibliotecario.value.devuelto_el ? [
+    { texto: 'Biblioteca propietaria', listo: !!formIngreso.biblioteca.trim(), seccion: 'prestamo-interbibliotecario' },
+    { texto: 'Fecha de ingreso válida', listo: !!formIngreso.fecha_ingreso && formIngreso.fecha_ingreso <= hoyIngreso, seccion: 'prestamo-interbibliotecario' },
+    { texto: 'Devolución posterior al ingreso', listo: !!formIngreso.fecha_limite && formIngreso.fecha_limite > formIngreso.fecha_ingreso, seccion: 'prestamo-interbibliotecario' },
+  ] : []),
+])
 const obligatorios = computed(() =>
   esEdicionEjemplar.value ? obligatoriosEditarCopia.value : modo.value === 'interbibliotecario' ? requisitosIngreso.value : modo.value === 'copia' ? obligatoriosCopia.value : obligatoriosNuevo.value,
 )
@@ -1131,6 +1186,18 @@ async function cargarCatalogos() {
 }
 
 async function abrirDesdeListado() {
+  const fichaId = Number(route.query.ficha_interbibliotecaria)
+  if (fichaId) {
+    await cargarFichaInterbibliotecaria(fichaId, route.query.tarea === 'ejemplares' ? 'ejemplares' : 'editar')
+    await router.replace({ query: {} })
+    return
+  }
+  if (route.query.interbibliotecario === '1') {
+    cambiarTareaInterbibliotecaria('nuevo')
+    modo.value = 'interbibliotecario'
+    await router.replace({ query: {} })
+    return
+  }
   const editarId = Number(route.query.editar)
   const copiaId = Number(route.query.copia)
   // «Editar» de una copia en el Listado de material: la pestaña «Editar ejemplar» con ella
@@ -1208,7 +1275,8 @@ function resetForm() {
   verMasMaterias.value = false
 }
 
-function editar(libro: Libro) {
+function editar(libro: Libro, editorComun = false) {
+  if (!editorComun && libro.fichas_interbibliotecarias?.length) { abrirContextoInterbibliotecario(libro, 'editar'); return }
   modo.value = 'editar'
   editandoId.value = libro.id
   libroEditado.value = libro
@@ -1479,18 +1547,14 @@ function cambiarModo(destino: ModoCatalogacion) {
   soltarCopiaEditando()
   desdeBorrador.value = false
   modo.value = destino
-  if (destino === 'interbibliotecario') {
-    tareaInterbibliotecaria.value = 'listado'
-    vistaListadoInterbibliotecario.value = 'prestamos'
-    registroEditandoInterbibliotecario.value = null
-    fichaInterbibliotecaria.value = null
-    fichaInterbibliotecariaGuardada.value = null
-    origenIngreso.value = 'nuevo'
-    ejemplaresPendientes.value = []
-    Object.assign(formIngreso, { biblioteca: '', fecha_ingreso: hoyIngreso, fecha_limite: '', nota: '' })
-    recepcionGuardada.value = null
-    fotoRecepcion.value = estadoRecepcion()
-  }
+  tareaInterbibliotecaria.value = 'nuevo'
+  fichaInterbibliotecaria.value = null
+  fichaInterbibliotecariaGuardada.value = null
+  origenIngreso.value = 'nuevo'
+  ejemplaresPendientes.value = []
+  Object.assign(formIngreso, { biblioteca: '', fecha_ingreso: hoyIngreso, fecha_limite: '', nota: '' })
+  recepcionGuardada.value = null
+  fotoRecepcion.value = estadoRecepcion()
   window.scrollTo({ top: 0, behavior: 'smooth' })
   nextTick(() => {
     const id = destino === 'editar' ? 'cat-buscar-ficha' : destino === 'nuevo' ? 'cat-titulo' : undefined
@@ -1498,7 +1562,7 @@ function cambiarModo(destino: ModoCatalogacion) {
   })
 }
 function pedirCambiarModo(destino: ModoCatalogacion) {
-  if (destino === modo.value || guardando.value || cargandoFicha.value || buscandoCopiaAEditar.value) return
+  if (destino === modoPrincipal.value || guardando.value || cargandoFicha.value || buscandoCopiaAEditar.value) return
   if (hayTrabajoSinGuardar.value) modoPendiente.value = destino
   else cambiarModo(destino)
 }
@@ -1606,7 +1670,9 @@ function onBuscarCopiaInput() {
   }, 250)
 }
 
-function seleccionarLibroParaCopia(libro: Libro) {
+function seleccionarLibroParaCopia(libro: Libro, propio = false) {
+  if (modo.value === 'copia' && !propio && libro.fichas_interbibliotecarias?.length) { abrirContextoInterbibliotecario(libro, 'ejemplares'); return }
+  ejemplarPropioConfirmado.value = propio
   clearTimeout(buscarCopiaTimer)
   libroParaCopia.value = libro
   resultadosCopia.value = []
@@ -1614,15 +1680,17 @@ function seleccionarLibroParaCopia(libro: Libro) {
 }
 
 /** Desde «Títulos catalogados»: salta al formulario de copia con ese título ya elegido. */
-function agregarCopiaDe(libro: Libro) {
+function agregarCopiaDe(libro: Libro, propio = false) {
+  if (!propio && libro.fichas_interbibliotecarias?.length) { abrirContextoInterbibliotecario(libro, 'ejemplares'); return }
   modo.value = 'copia'
-  seleccionarLibroParaCopia(libro)
+  seleccionarLibroParaCopia(libro, propio)
   // En la casilla queda el nombre: si se borra o se sigue escribiendo, se busca por nombre (no por N.º de ficha)
   buscarObraEn.value = 'resto'
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function cambiarObra() {
+  ejemplarPropioConfirmado.value = false
   libroParaCopia.value = null
   busquedaCopia.value = ''
 }
@@ -1718,6 +1786,7 @@ async function confirmarAgregarCopia() {
     const titulo = libroParaCopia.value.titulo
     const { data } = await api.post<Ejemplar>('/ejemplares', {
       libro_id: libroParaCopia.value.id,
+      ...(ejemplarPropioConfirmado.value ? { origen_ejemplar: 'propio' } : {}),
       ...datosCopiaNueva(),
     })
     toast.success(data.volumen ? `Copia agregada: ${data.volumen}` : 'Copia agregada correctamente')
@@ -1742,11 +1811,19 @@ const MODOS = [
   { id: 'editar' as const, label: 'Editar ficha', detalle: 'Busca y corrige un título existente', icono: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487zM16.862 4.487l2.651 2.651M19.5 13.5v5.25A2.25 2.25 0 0117.25 21H5.25A2.25 2.25 0 013 18.75V6.75A2.25 2.25 0 015.25 4.5h5.25', tono: 'bg-amber-50 text-dorado-700', activo: 'border-amber-700 bg-amber-700 shadow-amber-700/30', anillo: 'hover:border-amber-300' },
   { id: 'copia' as const, label: 'Nuevo ejemplar', icono: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75M15.75 3.75H9.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25L15.75 3.75z', tono: 'bg-emerald-50 text-emerald-700', activo: 'border-emerald-600 bg-emerald-600 shadow-emerald-600/30', anillo: 'hover:border-emerald-300', detalle: 'Una copia con su código de barras' },
   { id: 'editar_copia' as const, label: 'Editar ejemplar', icono: 'M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM16.5 13.5v6m3-3h-6', tono: 'bg-violet-50 text-violet-700', activo: 'border-violet-600 bg-violet-600 shadow-violet-600/30', anillo: 'hover:border-violet-300', detalle: 'Escanea su código y corrige sus datos' },
-  { id: 'interbibliotecario' as const, label: 'Préstamo interbibliotecario', icono: 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5', tono: 'bg-amber-50 text-dorado-600', activo: 'border-amber-700 bg-amber-700 shadow-amber-700/30', anillo: 'hover:border-amber-300', detalle: 'Material que llega de otra biblioteca' },
 ]
 
 function abrirMenuGestion() {
   window.dispatchEvent(new Event('abrir-menu-gestion'))
+}
+
+function elegirTipoFicha(interbibliotecario: boolean) {
+  if (modoPrincipal.value !== 'nuevo' || guardando.value) return
+  modo.value = interbibliotecario ? 'interbibliotecario' : 'nuevo'
+  tareaInterbibliotecaria.value = 'nuevo'
+  origenIngreso.value = 'nuevo'
+  // La elección del origen es un cambio de la ficha; los campos escritos se conservan.
+  fotoRecepcion.value = ''
 }
 
 function accionPrincipal() {
@@ -1784,7 +1861,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </nav>
             <router-link
               v-if="vieneDelListado"
-              :to="{ name: 'listado-libros', query: { volver: '1' } }"
+              :to="{ name: listadoDeOrigen, query: { volver: '1' } }"
               class="float-right mt-1 inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/25"
               title="Vuelve al Listado de material con la misma búsqueda, filtros y página"
             >
@@ -1792,40 +1869,40 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               Volver al listado
             </router-link>
             <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Catalogar material</h1>
-            <p v-if="modo === 'editar'" class="mt-1 text-sm text-white/80">{{ editandoId ? 'Edición de una ficha existente' : 'Elige la ficha que quieres editar' }}</p>
+            <p v-if="modoPrincipal === 'editar'" class="mt-1 text-sm text-white/80">{{ editandoId ? 'Edición de una ficha existente' : 'Elige la ficha que quieres editar' }}</p>
           </div>
           <PestanasLibros actual="catalogacion-libros" en-banda class="relative mt-3 px-5" />
         </div>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-2xl p-3">
           <!-- Botones grandes, tipo tarjeta: cada uno dice qué hace; el elegido, en su color. -->
-          <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5" role="tablist" aria-label="Qué catalogar">
+          <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="tablist" aria-label="Qué catalogar">
             <button
               v-for="m in MODOS"
               :key="m.id"
               type="button"
               role="tab"
-              :aria-selected="modo === m.id"
+              :aria-selected="modoPrincipal === m.id"
               :disabled="guardando || cargandoFicha || buscandoCopiaAEditar"
               class="group flex min-h-20 items-center gap-3 rounded-xl border-2 px-3.5 py-3 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 active:translate-y-0 active:scale-[0.99] disabled:opacity-60"
-              :class="modo === m.id ? `${m.activo} text-white shadow-lg` : `border-gray-200 bg-white text-gray-800 ${m.anillo}`"
+              :class="modoPrincipal === m.id ? `${m.activo} text-white shadow-lg` : `border-gray-200 bg-white text-gray-800 ${m.anillo}`"
               @click="pedirCambiarModo(m.id)"
             >
               <span
                 class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105"
-                :class="modo === m.id ? 'bg-blanco/20 text-white' : m.tono"
+                :class="modoPrincipal === m.id ? 'bg-blanco/20 text-white' : m.tono"
               >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" :d="m.icono" /></svg>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-bold leading-tight">{{ m.label }}</span>
-                <span class="mt-1 block text-xs leading-snug" :class="modo === m.id ? 'text-white/90' : 'text-gray-600'">{{ m.detalle }}</span>
+                <span class="mt-1 block text-xs leading-snug" :class="modoPrincipal === m.id ? 'text-white/90' : 'text-gray-600'">{{ m.detalle }}</span>
               </span>
               <svg
                 class="h-4 w-4 shrink-0 transition-transform"
-                :class="modo === m.id ? 'text-white' : 'text-gray-300 group-hover:translate-x-0.5 group-hover:text-gray-500'"
+                :class="modoPrincipal === m.id ? 'text-white' : 'text-gray-300 group-hover:translate-x-0.5 group-hover:text-gray-500'"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"
               >
-                <path v-if="modo === m.id" stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                <path v-if="modoPrincipal === m.id" stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 <path v-else stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </button>
@@ -1833,7 +1910,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         </div>
       </section>
 
-      <section v-if="modo === 'editar' && libroEditado" class="sticky top-2 z-20 mb-5 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-md" aria-label="Ficha en edición">
+      <section v-if="modoPrincipal === 'editar' && libroEditado" class="sticky top-2 z-20 mb-5 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-md" aria-label="Ficha en edición">
         <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#b08d57] text-white sm:flex" aria-hidden="true">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z" /></svg>
         </span>
@@ -1845,35 +1922,52 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
         <button type="button" class="min-h-11 shrink-0 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2 disabled:opacity-60" :disabled="guardando || cargandoFicha" @click="pedirOtraFicha">Elegir otra ficha</button>
       </section>
 
-      <div v-if="modo === 'editar' && !editandoId" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-4">
+      <div v-if="modoPrincipal === 'editar' && !editandoId" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-4">
         <h2 class="font-serif text-xl font-semibold text-gray-900">Buscar una ficha para editar</h2>
         <p class="mt-1 text-sm text-gray-600">Busca por título, autor, ISBN, código de barras o número de ficha. Luego elige «Editar ficha».</p>
         <p v-if="cargandoFicha" class="mt-2 text-sm font-semibold text-dorado-700" role="status">Cargando la ficha…</p>
       </div>
 
-      <template v-if="modo === 'interbibliotecario'">
-        <div class="mb-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/50 px-4 py-4 shadow-sm">
-          <h2 class="font-semibold text-indigo-950">Material prestado por otra biblioteca</h2>
-          <p class="mt-1 text-sm text-gray-700">Debemos devolverlo a su biblioteca propietaria en la fecha indicada. Crea su ficha, edítala o ingresa sus ejemplares en tareas separadas.</p>
-          <NavegacionInterbibliotecaria
-            :seccion="seccionInterbibliotecaria" :tarea="tareaInterbibliotecaria" :listado="vistaListadoInterbibliotecario"
-            :deshabilitado="guardando || cargandoFicha || buscandoCopiaAEditar"
-            @tarea="pedirTareaInterbibliotecaria" @listado="vistaListadoInterbibliotecario = $event"
-          />
-          <div v-if="tareaInterbibliotecaria === 'nuevo'" class="mt-4 flex flex-wrap items-center gap-4 text-sm">
-            <span class="text-gray-700">Datos bibliográficos:</span>
-            <label class="flex items-center gap-2"><input v-model="origenIngreso" type="radio" value="nuevo" :disabled="guardando" /> Crear ficha nueva</label>
-            <label class="flex items-center gap-2"><input v-model="origenIngreso" type="radio" value="catalogo" :disabled="guardando" /> Usar título ya catalogado</label>
-            <p class="w-full text-xs text-gray-600">Aquí se guarda la ficha con su biblioteca y fecha de devolución. No se piden códigos de barras ni ejemplares.</p>
+      <section v-if="modoPrincipal === 'nuevo'" class="mb-5 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm" aria-labelledby="origen-material-titulo">
+        <div class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
+          <h2 id="origen-material-titulo" class="inline-flex w-fit items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold tracking-wide text-indigo-900">
+            <span class="h-1.5 w-1.5 rounded-full bg-[#b08d57]" aria-hidden="true"></span>
+            Origen del material
+          </h2>
+          <div class="flex flex-col gap-1.5 rounded-2xl border border-indigo-100 bg-slate-50 p-1.5 sm:flex-row sm:rounded-full" role="radiogroup" aria-labelledby="origen-material-titulo">
+            <label class="relative flex-1 cursor-pointer" :class="guardando && 'pointer-events-none opacity-60'">
+              <input class="peer sr-only" type="radio" name="origen-ficha" :checked="modo !== 'interbibliotecario'" :disabled="guardando" @change="elegirTipoFicha(false)" />
+              <span class="flex min-h-11 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo !== 'interbibliotecario' ? 'border-indigo-600 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white shadow-sm' : 'border-transparent text-gray-600 hover:bg-white hover:text-indigo-900'">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.25v13.5m0-13.5C9.4 4.7 6.1 4.7 3 6.25v13.5c3.1-1.55 6.4-1.55 9 0m0-13.5c2.6-1.55 5.9-1.55 9 0v13.5c-3.1-1.55-6.4-1.55-9 0" /></svg>
+                <span>Propios de la biblioteca</span>
+                <svg v-if="modo !== 'interbibliotecario'" class="h-4 w-4 shrink-0 text-indigo-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+              </span>
+            </label>
+            <label class="relative flex-1 cursor-pointer" :class="guardando && 'pointer-events-none opacity-60'">
+              <input class="peer sr-only" type="radio" name="origen-ficha" :checked="modo === 'interbibliotecario'" :disabled="guardando" @change="elegirTipoFicha(true)" />
+              <span class="flex min-h-11 items-center justify-center gap-2.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2" :class="modo === 'interbibliotecario' ? 'border-indigo-600 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white shadow-sm' : 'border-transparent text-gray-600 hover:bg-white hover:text-indigo-900'">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16m0 0-4-4m4 4-4 4M20 16H4m0 0 4-4m-4 4 4 4" /></svg>
+                <span>Préstamo interbibliotecario</span>
+                <svg v-if="modo === 'interbibliotecario'" class="h-4 w-4 shrink-0 text-indigo-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+              </span>
+            </label>
           </div>
         </div>
+        <div v-if="modo === 'interbibliotecario'" class="border-t border-amber-100 bg-amber-50/60 px-4 py-3 sm:px-5">
+          <p class="text-xs leading-relaxed text-amber-900">Completa la ficha y la biblioteca propietaria con su fecha de devolución. Los ejemplares conservarán ese plazo al ingresarlos.</p>
+          <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-700">
+            <label class="flex items-center gap-2"><input v-model="origenIngreso" type="radio" value="nuevo" :disabled="guardando" class="accent-indigo-600" /> Crear los datos bibliográficos</label>
+            <label class="flex items-center gap-2"><input v-model="origenIngreso" type="radio" value="catalogo" :disabled="guardando" class="accent-indigo-600" /> Usar un título ya catalogado</label>
+          </div>
+        </div>
+      </section>
+      <p v-if="modo === 'copia' && ejemplarPropioConfirmado" class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">Ejemplar propio de nuestra biblioteca. Este título también tiene préstamos interbibliotecarios, cuyos ejemplares se ingresan desde su ficha de préstamo.</p>
+      <template v-if="modo === 'interbibliotecario'">
         <div v-if="fichaInterbibliotecariaGuardada" class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3" role="status">
           <p class="text-sm font-semibold text-emerald-950">Ficha interbibliotecaria N.º {{ fichaInterbibliotecariaGuardada.libro.numero_ficha }} guardada · {{ fichaInterbibliotecariaGuardada.libro.titulo }}</p>
           <p class="mt-1 text-xs text-emerald-900">Biblioteca propietaria: {{ fichaInterbibliotecariaGuardada.biblioteca }} · Devolver el {{ fechaCorta(fichaInterbibliotecariaGuardada.fecha_limite) }}. Guardar la ficha no crea ejemplares.</p>
           <button type="button" class="mt-3 min-h-8 rounded-lg border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-950" @click="elegirFichaInterbibliotecaria(fichaInterbibliotecariaGuardada, 'ejemplares')">Agregar ejemplares cuando corresponda</button>
         </div>
-        <FichasInterbibliotecarias v-if="mostrarListadoFichas" ref="listadoFichasInterbibliotecarias" :listado-prestamos="tareaInterbibliotecaria === 'listado'" @elegir="elegirFichaInterbibliotecaria" />
-        <div v-if="['editar', 'ejemplares'].includes(tareaInterbibliotecaria) && !fichaInterbibliotecaria" class="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950" role="status">{{ cargandoFicha ? 'Cargando ficha…' : `Elige una ficha del listado para ${tareaInterbibliotecaria === 'editar' ? 'editar sus datos bibliográficos, biblioteca y devolución' : 'agregar sus ejemplares'}.` }}</div>
         <section v-if="fichaInterbibliotecaria" class="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3" aria-label="Ficha interbibliotecaria seleccionada">
           <p class="text-xs font-bold uppercase tracking-wide text-amber-900">{{ esIngresoEjemplares ? 'Ingresando ejemplares para' : 'Editando ficha interbibliotecaria' }} · N.º {{ fichaInterbibliotecaria.libro.numero_ficha }}</p>
           <p class="mt-1 text-sm font-semibold text-gray-900">{{ fichaInterbibliotecaria.libro.titulo }}</p>
@@ -1885,7 +1979,6 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           <p class="text-xs font-bold uppercase tracking-wide text-violet-900">Ejemplar del préstamo interbibliotecario · {{ registroEditandoInterbibliotecario.ejemplar.codigo_barras }}</p>
           <p class="mt-1 text-sm font-semibold text-gray-900">{{ registroEditandoInterbibliotecario.ejemplar.libro.titulo }} · Ficha N.º {{ registroEditandoInterbibliotecario.ejemplar.libro.numero_ficha }}</p>
           <p class="mt-1 text-sm text-gray-700">Propietaria: <strong>{{ registroEditandoInterbibliotecario.biblioteca }}</strong> · Devolver a su biblioteca el <strong>{{ fechaCorta(registroEditandoInterbibliotecario.fecha_limite) }}</strong>.</p>
-          <button v-if="registroEditandoInterbibliotecario.ficha_interbibliotecaria_id" type="button" class="mt-3 min-h-8 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-950" @click="abrirFichaDeRecepcion(registroEditandoInterbibliotecario.ficha_interbibliotecaria_id)">Editar la ficha y el plazo de este préstamo</button>
         </section>
         <div v-if="recepcionGuardada" class="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3" role="status">
           <p class="font-semibold text-emerald-950">Ficha N.º {{ recepcionGuardada.numero_ficha }} · {{ recepcionGuardada.ejemplar.libro.titulo }}</p>
@@ -1906,7 +1999,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       <div v-if="mostrarFormulario" class="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)_17rem] xl:grid-cols-[12.5rem_minmax(0,1fr)_19rem]">
         <!-- Índice de secciones -->
         <aside class="hidden lg:block">
-          <div class="sticky space-y-3" :class="modo === 'editar' ? 'top-36' : 'top-6'">
+          <div class="sticky space-y-3" :class="modoPrincipal === 'editar' ? 'top-36' : 'top-6'">
             <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div class="rounded-2xl bg-indigo-50/40 p-2.5">
                 <p class="mb-2 flex items-center justify-between px-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
@@ -2008,13 +2101,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <Marc :codigo="etiqueta('clasificacion')" tono="indigo" />
                     {{ etiqueta('clasificacion') === '082' ? 'Clasificación Dewey' : 'Clasificación local' }}
                   </label>
-                  <input autocomplete="off"
-                    id="cat-clasificacion"
-                    v-model="form.clasificacion"
-                    :placeholder="`Ej: ${guiaClasificacion.ejemplo}`"
-                    aria-describedby="cat-clasificacion-guia"
-                    :class="[CAMPO, 'font-mono']"
-                  />
+                  <EditorClasificacion id="cat-clasificacion" v-model="form.clasificacion" :placeholder="`Ej: ${guiaClasificacion.ejemplo}`" :clase-campo="CAMPO" guia-id="cat-clasificacion-guia" :plantilla="tipoActual?.plantilla" />
                   <!-- Guía: el ejemplo separado en sus partes, con qué es cada una -->
                   <div id="cat-clasificacion-guia" class="mt-1.5 rounded-lg border border-indigo-100 bg-indigo-50/50 px-2.5 py-1.5">
                     <div v-if="guiaClasificacion.partes.length" class="flex flex-wrap items-start gap-x-2 gap-y-1">
@@ -2161,7 +2248,8 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                 </div>
                 <div v-if="tiene('descripcion_fisica')" class="sm:col-span-3">
                   <label for="cat-descripcion" :class="ETIQUETA"><Marc :codigo="etiqueta('descripcion_fisica')" tono="teal" /> Descripción física</label>
-                  <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" placeholder="Ej: 350 p. : il. ; 24 cm.":class="CAMPO" />
+                  <input autocomplete="off" id="cat-descripcion" v-model="form.descripcion_fisica" aria-describedby="cat-descripcion-ejemplo" placeholder="Ej: 350 p. : il. ; 24 cm." :class="CAMPO" />
+                  <p id="cat-descripcion-ejemplo" class="mt-1 text-xs text-gray-500">Ejemplo: 248 p. : il. col. ; 22 cm.</p>
                 </div>
                 <div v-if="tiene('serie')" class="sm:col-span-3">
                   <p :class="ETIQUETA"><Marc :codigo="etiqueta('serie')" tono="teal" /> Serie <span class="font-normal text-gray-500">(opcional; puede haber varias)</span></p>
@@ -2769,25 +2857,27 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
             </SeccionFicha>
 
           <!-- Los datos del préstamo se suman a la ficha y ejemplares compartidos. -->
-          <SeccionFicha v-if="modo === 'interbibliotecario' && seccionInterbibliotecaria === 'ficha'" id="seccion-prestamo-interbibliotecario" :numero="numeroDe('prestamo-interbibliotecario')" titulo="Biblioteca y plazos" detalle="De quién es el material y cuándo debe regresar" tono="dorado">
+          <SeccionFicha v-if="modo === 'interbibliotecario' && (seccionInterbibliotecaria === 'ficha' || (esEdicionEjemplar && registroEditandoInterbibliotecario))" id="seccion-prestamo-interbibliotecario" :numero="numeroDe('prestamo-interbibliotecario')" titulo="Biblioteca y plazos" detalle="De quién es el material y cuándo debe regresar" tono="dorado">
             <div class="grid gap-4 sm:grid-cols-2">
-              <div class="sm:col-span-2"><label for="ingreso-biblioteca" :class="ETIQUETA">Biblioteca propietaria *</label><input id="ingreso-biblioteca" v-model="formIngreso.biblioteca" list="pib-bibliotecas" maxlength="255" :class="CAMPO" /></div>
-              <div><label for="ingreso-fecha" :class="ETIQUETA">Fecha de ingreso *</label><input id="ingreso-fecha" v-model="formIngreso.fecha_ingreso" type="date" :max="hoyIngreso" :class="CAMPO" /></div>
-              <div><label for="ingreso-limite" :class="ETIQUETA">Vuelve a su biblioteca el *</label><input id="ingreso-limite" v-model="formIngreso.fecha_limite" type="date" :min="formIngreso.fecha_ingreso" :class="CAMPO" /></div>
-              <div class="sm:col-span-2"><label for="ingreso-nota" :class="ETIQUETA">Nota del préstamo interbibliotecario</label><textarea id="ingreso-nota" v-model="formIngreso.nota" maxlength="2000" rows="2" :class="CAMPO"></textarea></div>
+              <div class="sm:col-span-2"><label for="ingreso-biblioteca" :class="ETIQUETA">Biblioteca propietaria *</label><input id="ingreso-biblioteca" v-model="formIngreso.biblioteca" :disabled="!!registroEditandoInterbibliotecario?.devuelto_el" maxlength="255" :class="CAMPO" /></div>
+              <div><label for="ingreso-fecha" :class="ETIQUETA">Fecha de ingreso *</label><input id="ingreso-fecha" v-model="formIngreso.fecha_ingreso" :disabled="!!registroEditandoInterbibliotecario?.devuelto_el" type="date" :max="hoyIngreso" :class="CAMPO" /></div>
+              <div><label for="ingreso-limite" :class="ETIQUETA">Vuelve a su biblioteca el *</label><input id="ingreso-limite" v-model="formIngreso.fecha_limite" :disabled="!!registroEditandoInterbibliotecario?.devuelto_el" type="date" :min="formIngreso.fecha_ingreso" :class="CAMPO" /></div>
+              <div class="sm:col-span-2"><label for="ingreso-nota" :class="ETIQUETA">Nota del préstamo interbibliotecario</label><textarea id="ingreso-nota" v-model="formIngreso.nota" :disabled="!!registroEditandoInterbibliotecario?.devuelto_el" maxlength="2000" rows="2" :class="CAMPO"></textarea></div>
             </div>
+            <p v-if="esEdicionEjemplar" class="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-950">Tope de devolución para usuarios: {{ topeIngreso ? fechaCorta(topeIngreso) : '—' }}. Un día hábil antes de regresar a su biblioteca.</p>
+            <p v-if="esEdicionEjemplar && !registroEditandoInterbibliotecario?.devuelto_el" class="mt-2 text-xs text-gray-600">Al guardar se actualizan también la ficha y sus ejemplares pendientes de devolver. Los préstamos ya realizados conservan su vencimiento.</p>
             <p class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950">Esta es la fecha en que debemos devolver el material a su biblioteca propietaria. Los ejemplares se pueden ingresar después; sus préstamos a usuarios respetarán este plazo.</p>
             <p v-if="tareaInterbibliotecaria === 'editar' && fichaInterbibliotecaria?.ingresos_count" class="mt-2 text-xs text-gray-600">Los cambios de biblioteca y fechas se aplican a los ejemplares pendientes de devolver de esta ficha. Los ya devueltos conservan su historial; los préstamos a usuarios mantienen su vencimiento.</p>
           </SeccionFicha>
         </div>
 
         <!-- Vista previa, obligatorios y acciones -->
-        <aside class="space-y-4 lg:sticky lg:self-start" :class="modo === 'editar' ? 'lg:top-36' : 'lg:top-6'">
+        <aside class="space-y-4 lg:sticky lg:self-start" :class="modoPrincipal === 'editar' ? 'lg:top-36' : 'lg:top-6'">
           <div v-if="modo === 'interbibliotecario' && !esEdicionEjemplar" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             <p class="font-semibold">Préstamo interbibliotecario</p>
             <p class="mt-1">{{ esIngresoEjemplares ? `${ejemplaresARecibir.length} ejemplar(es) por registrar` : 'Ficha independiente · ejemplares opcionales después' }}</p>
             <p class="mt-2">Regresa el {{ formIngreso.fecha_limite ? fechaCorta(formIngreso.fecha_limite) : '—' }}.</p>
-            <p v-if="esIngresoEjemplares" class="mt-1">Ejemplar actual: devolución hasta {{ topeIngreso ? fechaCorta(topeIngreso) : '—' }}.</p>
+            <p v-if="formIngreso.fecha_limite" class="mt-1">Préstamo a usuarios: devolución hasta {{ topeIngreso ? fechaCorta(topeIngreso) : '—' }}.</p>
           </div>
           <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
             <p class="flex items-center gap-2 rounded-t-2xl border-b border-teal-100 bg-teal-50 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-teal-800">
@@ -2869,7 +2959,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               Guardar borrador
             </button>
             <button
-              v-if="modo === 'editar' && editandoId"
+              v-if="modoPrincipal === 'editar' && editandoId"
               type="button"
               class="min-h-11 w-full rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2.5 text-sm font-semibold text-amber-950 transition-colors hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2"
               @click="pedirOtraFicha"
@@ -2877,7 +2967,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
               Cerrar edición
             </button>
             <button
-              v-if="modo === 'editar' && editandoId && puedeCambiarEstado"
+              v-if="modoPrincipal === 'editar' && editandoId && puedeCambiarEstado"
               type="button"
               class="min-h-11 w-full rounded-full border-2 border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
               @click="pedirBajaTitulo"
@@ -2893,11 +2983,11 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       </div>
 
       <!-- Títulos ya catalogados -->
-      <section v-if="modo !== 'nuevo' && modo !== 'interbibliotecario'" class="mt-5 overflow-hidden rounded-xl border border-indigo-200 bg-indigo-50/60 shadow-md" aria-label="Buscar fichas existentes">
+      <section v-if="modoPrincipal !== 'nuevo' && !esEdicionEjemplar" class="mt-5 overflow-hidden rounded-xl border border-indigo-200 bg-indigo-50/60 shadow-md" aria-label="Buscar fichas existentes">
         <div class="flex flex-col gap-3 border-b border-indigo-200 bg-gradient-to-r from-indigo-100 via-violet-50 to-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 class="text-sm font-bold text-indigo-950">{{ modo === 'editar' ? 'Fichas disponibles para editar' : 'Títulos catalogados' }}</h2>
-            <p class="mt-0.5 text-xs leading-normal text-gray-700">{{ modo === 'editar' ? 'Selecciona la ficha del título. Las copias físicas tienen su propia pestaña «Editar ejemplar».' : 'Elige «Editar ficha» para corregir el título o «Editar ejemplar» para una copia física.' }}</p>
+            <h2 class="text-sm font-bold text-indigo-950">{{ modoPrincipal === 'editar' ? 'Fichas disponibles para editar' : 'Títulos catalogados' }}</h2>
+            <p class="mt-0.5 text-xs leading-normal text-gray-700">{{ modoPrincipal === 'editar' ? 'Selecciona la ficha del título. Las copias físicas tienen su propia pestaña «Editar ejemplar».' : 'Elige «Editar ficha» para corregir el título o «Editar ejemplar» para una copia física.' }}</p>
           </div>
           <div class="relative w-full sm:max-w-xs">
             <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -2964,7 +3054,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
                     <!-- En «Nuevo ejemplar» se editan las copias (en la columna Copias), no la ficha -->
                     <button v-if="modo !== 'copia'" type="button" class="inline-flex min-h-8 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-950 shadow-sm transition-colors hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2 disabled:opacity-60" :disabled="cargandoFicha || guardando" @click="pedirEditarFicha(l)">
                       <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z" /></svg>
-                      {{ modo === 'editar' && editandoId === l.id ? 'Editando esta ficha' : 'Editar ficha' }}
+                      {{ modoPrincipal === 'editar' && editandoId === l.id ? 'Editando esta ficha' : 'Editar ficha' }}
                     </button>
                     <button type="button" class="inline-flex min-h-8 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-950 shadow-sm transition-colors hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2" @click="agregarCopiaDe(l)">
                       <span class="text-base leading-none" aria-hidden="true">+</span> Agregar ejemplar
@@ -2990,7 +3080,6 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
           @update:pagina="irAPaginaLibros"
         />
       </section>
-      <PrestamoInterbibliotecario v-if="modo === 'interbibliotecario'" v-show="mostrarListadoEjemplares" ref="listadoInterbibliotecario" @editar-ficha="abrirFichaDeRecepcion" @editar-ejemplar="abrirEjemplarDeRecepcion" @estado-ejemplar="abrirEstadoDeRecepcion" />
 
       <!-- Las colecciones del catálogo (las de Horizon), para escribirlas igual y no crear otra parecida -->
       <datalist id="colecciones">
@@ -3026,7 +3115,7 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
       @confirmar="modoPendiente && cambiarModo(modoPendiente)"
       @cancelar="modoPendiente = null"
     >
-      <p class="text-sm text-gray-600">Hay cambios sin guardar<template v-if="modo === 'editar' && libroEditado"> en la ficha <strong class="font-mono text-gray-900">N.º {{ libroEditado.numero_ficha }}</strong>, «{{ libroEditado.titulo }}»</template>. Se descartarán al continuar; la información guardada en el catálogo se conserva.</p>
+      <p class="text-sm text-gray-600">Hay cambios sin guardar<template v-if="modoPrincipal === 'editar' && libroEditado"> en la ficha <strong class="font-mono text-gray-900">N.º {{ libroEditado.numero_ficha }}</strong>, «{{ libroEditado.titulo }}»</template>. Se descartarán al continuar; la información guardada en el catálogo se conserva.</p>
     </DialogoConfirmacion>
 
     <DialogoConfirmacionEscrita
@@ -3341,5 +3430,15 @@ const estadoBadges: Record<string, { label: string; cls: string }> = {
     >
       <p>Se borrará el borrador guardado en este computador<template v-if="borrador?.form.titulo"> («{{ borrador.form.titulo }}»)</template>. No se puede recuperar.</p>
     </DialogoConfirmacion>
+    <Modal :abierto="!!seleccionOrigenInterbibliotecario" titulo="Elegir ficha y origen del material" ancho="lg" @cerrar="seleccionOrigenInterbibliotecario = null">
+      <p class="mb-4 text-sm text-gray-700">{{ seleccionOrigenInterbibliotecario?.libro.titulo }} tiene préstamos interbibliotecarios. Elige la biblioteca y el plazo que corresponden.</p>
+      <div class="space-y-3">
+        <button v-for="f in seleccionOrigenInterbibliotecario?.libro.fichas_interbibliotecarias ?? []" :key="f.id" type="button" class="block w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm text-amber-950 hover:bg-amber-100" @click="elegirOrigenInterbibliotecario(f.id)">
+          <span class="block font-semibold">{{ f.biblioteca }}</span>
+          <span class="block text-xs">Devolver el {{ fechaCorta(f.fecha_limite) }} · {{ seleccionOrigenInterbibliotecario?.tarea === 'editar' ? 'Editar ficha y plazo' : 'Agregar ejemplares a este préstamo' }}</span>
+        </button>
+      </div>
+      <button v-if="seleccionOrigenInterbibliotecario?.tarea === 'ejemplares'" type="button" class="mt-5 min-h-10 rounded-lg border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-50" @click="elegirEjemplarPropio">Es un ejemplar propio de nuestra biblioteca</button>
+    </Modal>
   </StaffLayout>
 </template>

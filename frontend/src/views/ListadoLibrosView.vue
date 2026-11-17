@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoEditarFicha from '@/components/libros/DialogoEditarFicha.vue'
+import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
+import CerrarPrestamoInterbibliotecario from '@/components/libros/CerrarPrestamoInterbibliotecario.vue'
 import FichaBibliografica from '@/components/libros/FichaBibliografica.vue'
 import EditarCopia from '@/components/libros/EditarCopia.vue'
 import FasciculosRevista from '@/components/libros/FasciculosRevista.vue'
@@ -13,17 +15,19 @@ import PestanasLibros from '@/components/libros/PestanasLibros.vue'
 import FondoEstante from '@/components/libros/FondoEstante.vue'
 import api from '@/services/api'
 import { esBusquedaCorta, tituloAlternativoEncontrado } from '@/utils/busqueda'
-import { useToast } from '@/composables/useToast'
+import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { ESTADOS_EJEMPLAR, situacionCopia } from '@/utils/estadosEjemplar'
 import { textoIngreso } from '@/utils/ingreso'
 import { partesCopia } from '@/utils/tomo'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
-import type { Autor, Carrera, Categoria, Ejemplar, ItemFicha, Libro, Paginado, TipoMaterial, Ubicacion } from '@/types'
+import type { Autor, Carrera, Categoria, Ejemplar, ItemFicha, Libro, Paginado, PrestamoInterbibliotecario, TipoMaterial, Ubicacion } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
 const route = useRoute()
+const soloInterbibliotecarios = ref(route.query.interbibliotecarios === '1')
+const nombreListado = computed(() => 'listado-libros' as const)
 
 function abrirMenuGestion() {
   window.dispatchEvent(new Event('abrir-menu-gestion'))
@@ -113,6 +117,15 @@ let busquedaEnCurso: AbortController | undefined
 /** Lo buscado en la lista que se muestra (no lo que se está escribiendo), para el 246 que coincidió. */
 const busquedaHecha = ref('')
 
+const fechaInterbibliotecaria = (fecha: string) => new Date(`${fecha.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CL')
+watch(soloInterbibliotecarios, () => {
+  void router.replace({ query: { ...route.query, interbibliotecarios: soloInterbibliotecarios.value ? '1' : undefined } })
+  pagina.value = 1
+  expandidos.value = new Set()
+  menuAbierto.value = null
+  void cargar()
+})
+
 async function cargar() {
   busquedaEnCurso?.abort()
   const busqueda = new AbortController()
@@ -122,6 +135,7 @@ async function cargar() {
     const { data } = await api.get<Paginado<Libro>>('/libros', {
       signal: busqueda.signal,
       params: {
+        interbibliotecarios: soloInterbibliotecarios.value ? 1 : undefined,
         page: pagina.value,
         por_pagina: POR_PAGINA,
         q: filtros.q.trim() || undefined,
@@ -323,11 +337,11 @@ function alHacerClic(e: MouseEvent) {
 // ---------- Volver desde Editar ficha con la misma búsqueda ----------
 // Al ir a editar se guarda dónde estaba (búsqueda, filtros, materia, página y la fila abierta);
 // el botón «Volver al listado» de la ficha trae ?volver=1 y se restaura tal cual.
-const CLAVE_VOLVER = 'listado-libros:volver'
+const claveVolver = () => `${nombreListado.value}:volver`
 
 function guardarDondeEstaba(libroId?: number) {
   try {
-    sessionStorage.setItem(CLAVE_VOLVER, JSON.stringify({ filtros: { ...filtros }, categoria: categoriaElegida.value, autor: autorElegido.value, pagina: pagina.value, libroId }))
+    sessionStorage.setItem(claveVolver(), JSON.stringify({ filtros: { ...filtros }, categoria: categoriaElegida.value, autor: autorElegido.value, pagina: pagina.value, libroId }))
   } catch {
     // Sin almacenamiento (modo privado): el botón vuelve al listado sin filtros.
   }
@@ -339,20 +353,20 @@ function filtroDesdeLaDireccion() {
   if (!id) return
   filtros.categoria_id = id
   categoriaElegida.value = { id, nombre: String(route.query.categoria ?? '') } as Categoria
-  router.replace({ name: 'listado-libros' })
+  router.replace({ name: nombreListado.value })
 }
 
 function restaurarDondeEstaba(): number | undefined {
   if (route.query.volver !== '1') return undefined
   try {
-    const guardado = JSON.parse(sessionStorage.getItem(CLAVE_VOLVER) ?? 'null')
+    const guardado = JSON.parse(sessionStorage.getItem(claveVolver()) ?? 'null')
     if (!guardado) return undefined
     Object.assign(filtros, guardado.filtros)
     categoriaElegida.value = guardado.categoria ?? null
     autorElegido.value = guardado.autor ?? null
     pagina.value = guardado.pagina ?? 1
     if (guardado.libroId) expandidos.value = new Set([guardado.libroId])
-    router.replace({ name: 'listado-libros' })
+    router.replace({ name: nombreListado.value })
     return guardado.libroId
   } catch {
     return undefined
@@ -365,7 +379,7 @@ onMounted(async () => {
   const codigoCopia = typeof route.query.editar_copia === 'string' ? route.query.editar_copia : ''
   if (codigoCopia) {
     filtros.q = codigoCopia
-    router.replace({ name: 'listado-libros' })
+    router.replace({ name: nombreListado.value })
     abrirCopiaPorCodigo(codigoCopia)
   }
   const libroVuelto = restaurarDondeEstaba()
@@ -436,9 +450,43 @@ function clicEditarCopia(evento: MouseEvent, copia: Ejemplar, libro: Libro) {
   router.push({ name: 'catalogacion-libros', query: { editar_copia: copia.codigo_barras, desde: 'listado' } })
 }
 
+// La devolución a la propietaria se gestiona en el mismo listado de material.
+const devolucionInterbibliotecaria = ref<PrestamoInterbibliotecario | null>(null)
+const devolviendoInterbibliotecario = ref(false)
+async function pedirDevolucionInterbibliotecaria(ejemplar: Ejemplar) {
+  if (devolviendoInterbibliotecario.value) return
+  try {
+    const { data } = await api.get<Paginado<PrestamoInterbibliotecario>>('/prestamos-interbibliotecarios', { params: { codigo: ejemplar.codigo_barras, vista: 'todos', por_pagina: 1 } })
+    const registro = data.data.find((p) => p.ejemplar_id === ejemplar.id)
+    if (registro && !registro.devuelto_el) devolucionInterbibliotecaria.value = registro
+    else toast.error('Este ejemplar ya se devolvió o no tiene un préstamo interbibliotecario vigente.')
+  } catch (e) { toast.error(mensajeDeError(e, 'No se pudo consultar el préstamo.')) }
+}
+async function devolverInterbibliotecario() {
+  const registro = devolucionInterbibliotecaria.value
+  if (!registro || devolviendoInterbibliotecario.value) return
+  devolviendoInterbibliotecario.value = true
+  try {
+    await api.post(`/prestamos-interbibliotecarios/${registro.id}/devolver`, {})
+    toast.success(`Ejemplar devuelto a ${registro.biblioteca}`)
+    devolucionInterbibliotecaria.value = null
+    await cargar()
+  } catch (e) { toast.error(mensajeDeError(e, 'No se pudo registrar la devolución.')) }
+  finally { devolviendoInterbibliotecario.value = false }
+}
+function devolucionInterbibliotecariaTerminada() {
+  devolucionInterbibliotecaria.value = null
+  void cargar()
+}
+
 async function abrirCopiaPorCodigo(codigo: string) {
   try {
     const { data } = await api.get<Ejemplar & { libro: Libro }>(`/ejemplares/${encodeURIComponent(codigo)}`)
+    if (data.prestamo_interbibliotecario) {
+      guardarDondeEstaba(data.libro_id)
+      await router.push({ name: 'catalogacion-libros', query: { editar_copia: data.codigo_barras, desde: 'listado' } })
+      return
+    }
     copiaAEditar.value = { copia: data, libro: data.libro }
   } catch {
     toast.error(`No se encontró la copia ${codigo}`)
@@ -468,6 +516,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                 <span>Catálogo</span>
               </nav>
               <h1 class="font-serif text-2xl font-bold tracking-tight text-white">Listado de material</h1>
+
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <button
@@ -482,14 +531,14 @@ function copiaGuardada(actualizada: Ejemplar) {
               </button>
               <router-link
                 v-if="puedeCatalogar"
-                :to="{ name: 'catalogacion-libros' }"
+                :to="{ name: 'catalogacion-libros', query: soloInterbibliotecarios ? { interbibliotecario: '1' } : {} }"
                 class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-gray-50"
               >
-                <span class="text-base leading-none">+</span> Catalogar libro
+                <span class="text-base leading-none">+</span> {{ soloInterbibliotecarios ? 'Nueva ficha interbibliotecaria' : 'Catalogar libro' }}
               </router-link>
             </div>
           </div>
-          <PestanasLibros actual="listado-libros" en-banda class="relative mt-3 px-5" />
+          <PestanasLibros :actual="nombreListado" en-banda class="relative mt-3 px-5" />
         </div>
 
         <div class="flex flex-wrap items-center gap-2 rounded-b-2xl p-3">
@@ -577,6 +626,17 @@ function copiaGuardada(actualizada: Ejemplar) {
             <span class="truncate">Materia: {{ categoriaElegida?.nombre ?? '…' }}</span>
             <span class="text-base leading-none" aria-hidden="true">×</span>
           </button>
+          <button
+            type="button"
+            class="ml-auto inline-flex h-10 shrink-0 items-center justify-center rounded-xl border px-3.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+            :class="soloInterbibliotecarios ? 'border-amber-400 bg-amber-100 text-amber-950 hover:bg-amber-200' : 'border-gray-200 bg-white text-gray-700 hover:border-amber-300 hover:bg-amber-50'"
+            :aria-pressed="soloInterbibliotecarios"
+            aria-label="Solo préstamos interbibliotecarios"
+            title="Solo préstamos interbibliotecarios"
+            @click="soloInterbibliotecarios = !soloInterbibliotecarios"
+          >
+            Inter
+          </button>
         </div>
       </section>
 
@@ -629,6 +689,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                 />
                 <div class="min-w-0">
                   <p class="text-sm font-semibold leading-snug text-gray-900">{{ f.libro.titulo }}</p>
+                  <span v-if="f.libro.fichas_interbibliotecarias?.length" class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-950">Préstamo interbibliotecario</span>
                   <p v-if="f.alternativo" class="mt-0.5 text-xs leading-snug text-gray-600">
                     <span class="mr-1 rounded bg-amber-50 px-1 py-px font-mono text-[10px] font-semibold text-amber-800">246</span>{{ f.alternativo }}
                   </p>
@@ -776,6 +837,13 @@ function copiaGuardada(actualizada: Ejemplar) {
                       <span class="rounded-md border border-indigo-200 bg-white px-1.5 py-px font-mono text-[11px] font-semibold text-indigo-700">MARC 21</span>
                     </span>
                   </p>
+                  <div v-if="f.libro.fichas_interbibliotecarias?.length" class="space-y-2 border-b border-amber-200 bg-amber-50 px-4 py-3">
+                    <div v-for="prestamo in f.libro.fichas_interbibliotecarias" :key="prestamo.id" class="text-xs text-amber-950">
+                      <p class="font-semibold">Préstamo interbibliotecario · {{ prestamo.biblioteca }}</p>
+                      <p>Devolver a su biblioteca el {{ fechaInterbibliotecaria(prestamo.fecha_limite) }}</p>
+                      <router-link v-if="puedeCatalogar" :to="{ name: 'catalogacion-libros', query: { ficha_interbibliotecaria: prestamo.id, tarea: 'editar', desde: 'listado' } }" class="mt-1 inline-block font-semibold underline">Editar ficha y plazo</router-link>
+                    </div>
+                  </div>
                   <FichaBibliografica :filas="f.libro.ficha ?? []" con-etiquetas filtrable @filtrar="filtrarDesdeFicha" />
                   <p v-if="textoIngreso(f.libro)" class="border-t border-indigo-100 px-4 py-2.5 text-xs text-gray-500">{{ textoIngreso(f.libro) }}</p>
                 </div>
@@ -804,6 +872,9 @@ function copiaGuardada(actualizada: Ejemplar) {
                           {{ e.ubicacion?.nombre ?? 'Sin ubicación' }} · lomo <span class="font-mono">{{ e.codigo_lomo }}</span>
                           <template v-if="e.coleccion || f.libro.coleccion"> · {{ e.coleccion || f.libro.coleccion }}</template>
                         </p>
+                        <p v-if="e.prestamo_interbibliotecario" class="rounded bg-amber-50 px-2 py-1 text-xs text-amber-950">
+                          Interbibliotecario · {{ e.prestamo_interbibliotecario.biblioteca }} · {{ e.prestamo_interbibliotecario.devuelto_el ? 'Devuelto el ' + fechaInterbibliotecaria(e.prestamo_interbibliotecario.devuelto_el) : 'Devolver el ' + fechaInterbibliotecaria(e.prestamo_interbibliotecario.fecha_limite) }}
+                        </p>
                         <p v-if="e.numero_registro" class="text-xs text-gray-600">N° de registro Horizon: <span class="font-mono">{{ e.numero_registro }}</span></p>
                         <p v-if="e.nota_publica" class="text-xs text-gray-600">Nota pública: {{ e.nota_publica }}</p>
                         <p v-if="e.nota_interna" class="text-xs text-violet-700">Nota interna: {{ e.nota_interna }}</p>
@@ -821,6 +892,7 @@ function copiaGuardada(actualizada: Ejemplar) {
                         >
                           Editar
                         </a>
+                        <button v-if="e.prestamo_interbibliotecario && !e.prestamo_interbibliotecario.devuelto_el && puedeCatalogar" type="button" class="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950 hover:bg-amber-100" @click="pedirDevolucionInterbibliotecaria(e)">Devolver a su biblioteca</button>
                         <!-- Abre Estado de ejemplares con esta copia ya elegida (la reconoce por su código). -->
                         <router-link
                           v-if="puedeCambiarEstado"
@@ -891,6 +963,7 @@ function copiaGuardada(actualizada: Ejemplar) {
       :categoria-inicial="categoriaElegida"
       :carreras="carreras"
       :tipos-material="tiposMaterial"
+      :solo-interbibliotecarios="soloInterbibliotecarios"
     />
 
     <EditarCopia
@@ -902,5 +975,9 @@ function copiaGuardada(actualizada: Ejemplar) {
     />
 
     <DialogoEditarFicha :titulo="libroAEditar?.titulo ?? null" @confirmar="irAEditar" @cancelar="libroAEditar = null" />
+    <DialogoConfirmacion :abierto="!!devolucionInterbibliotecaria && !devolucionInterbibliotecaria.prestamo_activo" :titulo="`¿Devolver a ${devolucionInterbibliotecaria?.biblioteca ?? 'su biblioteca'}?`" confirmar="Devolver a su biblioteca" :cargando="devolviendoInterbibliotecario" @confirmar="devolverInterbibliotecario" @cancelar="devolucionInterbibliotecaria = null">
+      <p>El ejemplar de <strong>{{ devolucionInterbibliotecaria?.ejemplar.libro.titulo }}</strong> saldrá de circulación y conservará su historial.</p>
+    </DialogoConfirmacion>
+    <CerrarPrestamoInterbibliotecario :abierto="!!devolucionInterbibliotecaria?.prestamo_activo" :id="devolucionInterbibliotecaria?.id ?? null" :biblioteca="devolucionInterbibliotecaria?.biblioteca ?? ''" :titulo="devolucionInterbibliotecaria?.ejemplar.libro.titulo ?? ''" :usuario="devolucionInterbibliotecaria?.prestamo_activo?.usuario ?? null" :fecha-devolucion="devolucionInterbibliotecaria?.prestamo_activo?.fecha_devolucion ?? null" @listo="devolucionInterbibliotecariaTerminada" @cancelar="devolucionInterbibliotecaria = null" />
   </StaffLayout>
 </template>
