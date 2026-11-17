@@ -200,6 +200,8 @@ watch(terminoAMano, async (aMano) => {
 })
 const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
+const modoResponsable = ref<'rut' | 'actividad'>('rut')
+const nombreActividad = ref('')
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
 const { modos: modosReserva, escribir: escribirFila, cambiar: cambiarModoFila, reiniciar: reiniciarModos, errores: erroresFilas } = useModosPorFila(rutsReserva)
 const rutErrores = ref<Record<number, string>>({})
@@ -516,6 +518,8 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
   rutsReserva.value = Array.from({ length: minimoDe(sala) }, () => '')
   reiniciarModos()
   rutErrores.value = {}
+  modoResponsable.value = 'rut'
+  nombreActividad.value = ''
   modalOpen.value = true
 }
 
@@ -754,7 +758,7 @@ watch(modalOpen, (abierto) => {
   vistaSerie.value = null
 })
 // Cualquier cambio deja vieja la lista de fechas: hay que volver a revisarla.
-watch([repetir, repetirDias, hastaSerie, modalInicioMin, modalFinMin, rutsReserva, cantidadPersonas], () => (vistaSerie.value = null), { deep: true })
+watch([repetir, repetirDias, hastaSerie, modalInicioMin, modalFinMin, rutsReserva, cantidadPersonas, modoResponsable, nombreActividad], () => (vistaSerie.value = null), { deep: true })
 // Volver a «Ahora» deja la reserva como una sola, para el grupo que está en el mesón.
 watch(modalEsAhora, (ahora) => {
   if (ahora) repetir.value = false
@@ -777,7 +781,9 @@ async function confirmarSerie() {
     hora_inicio: minutesToTime(modalInicioMin.value),
     hora_fin: minutesToTime(modalFinMin.value),
     cantidad_personas: cantidadPersonas.value,
-    ruts: rutsReserva.value,
+    modo_responsable: modoResponsable.value,
+    nombre_actividad: modoResponsable.value === 'actividad' ? nombreActividad.value.trim() : null,
+    ...(modoResponsable.value === 'actividad' ? {} : { ruts: rutsReserva.value }),
   }
   try {
     if (!vistaSerie.value) {
@@ -806,11 +812,16 @@ function autorizarSolape() {
 
 async function confirmarReserva(permitirSolape = false) {
   const enSerie = repetir.value && puedeRepetir.value && !renovacionDe.value && !modalEsAhora.value
-  if (rutsReserva.value.some((r) => !r.trim())) {
+  const porActividad = modoResponsable.value === 'actividad'
+  if (porActividad && !nombreActividad.value.trim()) {
+    toast.error('Escriba un nombre o actividad')
+    return
+  }
+  if (!porActividad && rutsReserva.value.some((r) => !r.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
     return
   }
-  const malas = erroresFilas()
+  const malas = porActividad ? {} : erroresFilas()
   if (Object.keys(malas).length) {
     rutErrores.value = malas
     toast.error(Object.keys(malas).length === 1 ? 'Revisa el RUT o documento marcado en rojo' : 'Revisa los RUT o documentos marcados en rojo')
@@ -831,7 +842,9 @@ async function confirmarReserva(permitirSolape = false) {
       hora_inicio: minutesToTime(modalInicioMin.value),
       hora_fin: minutesToTime(modalFinMin.value),
       cantidad_personas: cantidadPersonas.value,
-      ruts: rutsReserva.value,
+      modo_responsable: porActividad ? 'actividad' : 'rut',
+      nombre_actividad: porActividad ? nombreActividad.value.trim() : null,
+      ...(porActividad ? {} : { ruts: rutsReserva.value }),
       // Desde ahora, el servidor pone el inicio con su propia hora, y el término también si se
       // eligió una duración (con una hora de término escrita, es esa).
       ...(modalEsAhora.value ? { inmediata: true, ...(terminoAMano.value ? {} : { duracion: modalDuracion.value }) } : {}),
@@ -841,7 +854,7 @@ async function confirmarReserva(permitirSolape = false) {
     if (data.hora_prestamo_real) {
       toast.success(`${selectedSala.value.nombre} reservada de ${tramo}, con la llegada confirmada: entregue la llave. ${textoAsistencia(data.asistencia)}`.trim())
     } else {
-      toast.success(`${selectedSala.value.nombre} reservada de ${tramo} para ${cantidadPersonas.value} persona(s)`)
+      toast.success(`${selectedSala.value.nombre} reservada de ${tramo}${porActividad ? ` para “${nombreActividad.value.trim()}”` : ` para ${cantidadPersonas.value} persona(s)`}`)
     }
     modalOpen.value = false
     await cargar()
@@ -1743,19 +1756,52 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               llegada confirmada. Entregue la llave al reservar.
             </p>
 
-            <p v-if="soloResponsableElegida" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+            <section v-if="selectedSala.solo_administracion" aria-labelledby="identificar-reserva-titulo">
+              <p id="identificar-reserva-titulo" class="mb-2 text-sm font-bold text-gray-950">Identificar reserva por</p>
+              <div class="flex items-center gap-2" role="radiogroup" aria-label="Identificar reserva por">
+                <button
+                  type="button"
+                  role="radio"
+                  :aria-checked="modoResponsable === 'rut'"
+                  class="inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                  :class="modoResponsable === 'rut' ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_4px_10px_rgb(79_70_229/0.22)] ring-4 ring-indigo-100' : 'border-gray-300 bg-white text-gray-900 hover:border-indigo-300 hover:bg-indigo-50/40'"
+                  @click="modoResponsable = 'rut'"
+                >
+                  RUT
+                </button>
+
+                <div class="flex shrink-0 items-center" aria-hidden="true">
+                  <span class="h-px w-3 bg-indigo-200 sm:w-5"></span>
+                  <span class="mx-1 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 text-base font-black text-indigo-700 shadow-sm">o</span>
+                  <span class="h-px w-3 bg-indigo-200 sm:w-5"></span>
+                </div>
+
+                <button
+                  type="button"
+                  role="radio"
+                  :aria-checked="modoResponsable === 'actividad'"
+                  class="inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-center text-sm font-bold leading-tight transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                  :class="modoResponsable === 'actividad' ? 'border-indigo-500 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_4px_10px_rgb(79_70_229/0.22)] ring-4 ring-indigo-100' : 'border-gray-300 bg-white text-gray-900 hover:border-indigo-300 hover:bg-indigo-50/40'"
+                  @click="modoResponsable = 'actividad'"
+                >
+                  Nombre / actividad
+                </button>
+              </div>
+            </section>
+
+            <p v-if="modoResponsable === 'rut' && soloResponsableElegida" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
               {{ selectedSala.nombre }} se reserva a nombre de quien la pide: basta el RUT de la persona a cargo, sin anotar a los asistentes.
             </p>
-            <p v-else-if="esSeminario(selectedSala)" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+            <p v-else-if="modoResponsable === 'rut' && esSeminario(selectedSala)" class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
               En {{ selectedSala.nombre }}, el primer RUT corresponde a la persona a cargo: puede ser estudiante, docente o funcionario.
             </p>
             <section class="space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-[11px] font-bold uppercase tracking-widest text-indigo-900/70">
-                  {{ soloResponsableElegida ? 'A cargo' : 'Integrantes' }}
+                  {{ modoResponsable === 'actividad' ? 'Actividad' : soloResponsableElegida ? 'A cargo' : 'Integrantes' }}
                 </p>
                 <select
-                  v-if="!soloResponsableElegida"
+                  v-if="modoResponsable !== 'actividad' && !soloResponsableElegida"
                   v-model.number="cantidadPersonas"
                   aria-label="Cantidad de personas"
                   class="rounded-lg border border-indigo-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-indigo-800 outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1765,7 +1811,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   </option>
                 </select>
               </div>
-              <div class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
+              <div v-if="modoResponsable === 'actividad'" class="rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
+                <input v-model="nombreActividad" type="text" maxlength="120" aria-label="Nombre o actividad" placeholder="Ej: Reunión de acreditación" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div v-else class="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-2.5">
                 <div v-for="(_, idx) in rutsReserva" :key="idx">
                   <div class="flex flex-wrap items-center gap-2">
                     <span v-if="!soloResponsableElegida" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">{{ idx + 1 }}</span>
@@ -1784,7 +1833,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
                 </div>
               </div>
-              <p class="text-xs text-gray-500">{{ soloResponsableElegida ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
+              <p v-if="modoResponsable === 'actividad'" class="text-xs text-gray-500">No se asociará ningún RUT ni usuario a esta reserva.</p>
+              <p v-else class="text-xs text-gray-500">{{ soloResponsableElegida ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
               <p v-if="grupoFlexible(selectedSala)" class="text-xs font-semibold text-indigo-800">Reserva especial: de 1 a {{ maximoElegida }} personas (la capacidad de la sala), y también para estudiantes.</p>
             </section>
 
@@ -1920,13 +1970,18 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </div>
             </div>
             <div>
+              <div v-if="detalleTramo.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-3">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Actividad</p>
+                <p class="mt-0.5 text-sm font-bold text-indigo-950">{{ detalleTramo.nombre_actividad }}</p>
+                <p class="mt-0.5 text-xs text-indigo-700">Sin RUT ni usuario asociado</p>
+              </div>
               <div class="mb-2 flex items-center justify-between gap-3">
                 <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-600">
                   Integrantes
                   <span class="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] tabular-nums text-indigo-700">{{ detalleTramo.personas?.length ?? 0 }}</span>
                 </p>
                 <button
-                  v-if="puedeGestionarSeminario(detalleSala) && integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
+                  v-if="!detalleTramo.nombre_actividad && puedeGestionarSeminario(detalleSala) && integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
                   @click="editandoIntegrantesDetalle = true"
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
                 >
@@ -1960,7 +2015,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                     </p>
                   </div>
                 </li>
-                <li v-if="!detalleTramo.personas?.length" class="px-3 py-2 text-sm text-gray-400">Sin integrantes registrados.</li>
+                <li v-if="!detalleTramo.personas?.length && !detalleTramo.nombre_actividad" class="px-3 py-2 text-sm text-gray-400">Sin integrantes registrados.</li>
               </ul>
             </div>
 

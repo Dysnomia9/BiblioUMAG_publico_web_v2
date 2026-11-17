@@ -59,6 +59,7 @@ class SalaController extends Controller
                 $documento = Documento::normalizar($busqueda);
                 $q->where(fn ($w) => $w
                     ->whereHas('sala', fn ($s) => $s->whereSinTildes('nombre', $busqueda))
+                    ->orWhereSinTildes('nombre_actividad', $busqueda)
                     ->orWhereHas('participantes', fn ($u) => $u->where(fn ($p) => $p
                         ->whereCadaPalabra("(usuarios.nombre || ' ' || usuarios.apellido)", $busqueda)
                         ->orWhere('usuarios.rut', 'ilike', "%{$busqueda}%")
@@ -221,6 +222,11 @@ class SalaController extends Controller
     {
         // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
+        // Solo las salas marcadas para administración admiten una actividad institucional
+        // sin responsable personal. Las salas comunes y el portal siempre usan RUT.
+        $solicitaActividad = $request->input('modo_responsable') === 'actividad'
+            || trim((string) $request->input('nombre_actividad')) !== '';
+        $porActividad = (bool) $sala?->solo_administracion && $solicitaActividad;
         [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
         $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 
@@ -234,9 +240,12 @@ class SalaController extends Controller
             // Excepción del mesón (permiso salas.solapar): reservar aunque alguien ya tenga otra sala a esa hora
             'permitir_solape' => ['sometimes', 'boolean'],
             'duracion' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1440'],
-            'ruts' => ['required', 'array'],
+            'modo_responsable' => ['sometimes', Rule::in(['rut', 'actividad'])],
+            'nombre_actividad' => [Rule::requiredIf($porActividad), 'nullable', 'string', 'max:120'],
+            'ruts' => [Rule::requiredIf(! $porActividad), 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
+            'ruts.required' => 'Seleccione RUT e ingrese a las personas, o elija Nombre / actividad si esta sala es administrativa.',
             'cantidad_personas.min' => $soloResponsable ?? $sala?->mensajePersonas($minimo - 1) ?? "La reserva necesita al menos {$minimo} personas.",
             'cantidad_personas.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
         ]);
@@ -244,9 +253,10 @@ class SalaController extends Controller
         // Los RUT (o pasaportes/DNI de estudiantes extranjeros) deben pertenecer a
         // usuarios ya registrados: no se admiten visitantes externos en la reserva de
         // logias (mismo criterio que el portal en PortalController::reservarSala).
-        $data['ruts'] = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
+        $data['ruts'] = $porActividad ? [] : $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
+        $data['nombre_actividad'] = $porActividad ? trim($data['nombre_actividad']) : null;
 
-        if (count($data['ruts']) !== $data['cantidad_personas']) {
+        if (! $porActividad && count($data['ruts']) !== $data['cantidad_personas']) {
             return response()->json(['message' => 'Debe ingresar un RUT por cada persona indicada'], 422);
         }
 
@@ -318,10 +328,12 @@ class SalaController extends Controller
                 return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($excedeCuota)], 409);
             }
 
+            $titular = $data['ruts'] ? $usuarios[$data['ruts'][0]] : null;
             $reserva = Reserva::create([
                 'sala_id' => $data['sala_id'],
-                'usuario_id' => $usuarios[$data['ruts'][0]]->id,
-                'rut_usuario' => $data['ruts'][0],
+                'usuario_id' => $titular?->id,
+                'rut_usuario' => $titular?->rut,
+                'nombre_actividad' => $data['nombre_actividad'],
                 'cantidad_personas' => $data['cantidad_personas'],
                 'fecha' => $data['fecha'],
                 'hora_inicio' => $data['hora_inicio'],
@@ -334,10 +346,11 @@ class SalaController extends Controller
             Bitacora::registrar(
                 'salas.reservar',
                 "Reservó {$reserva->descripcion()} para {$reserva->cantidad_personas} personas"
+                    .($reserva->nombre_actividad ? " ({$reserva->nombre_actividad})" : '')
                     .($solapeAutorizado ? " (excepción: el RUT {$rutConflicto} ya tenía otra sala a esa hora)" : ''),
                 entidad: $reserva,
                 datos: ['integrantes' => $data['ruts'], ...($solapeAutorizado ? ['solape_autorizado' => $rutConflicto] : [])],
-                afectado: $usuarios[$data['ruts'][0]],
+                afectado: $titular,
             );
 
             // El grupo está en el mesón: no hay llegada que esperar.
@@ -368,6 +381,7 @@ class SalaController extends Controller
     public function repetirReserva(Request $request)
     {
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
+        $porActividad = (bool) $sala?->solo_administracion && $request->input('modo_responsable') === 'actividad';
         [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
         $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 
@@ -380,7 +394,9 @@ class SalaController extends Controller
             'hora_inicio' => ['required', 'date_format:H:i'],
             'hora_fin' => ['required', 'date_format:H:i', 'after:hora_inicio'],
             'cantidad_personas' => ['required', 'integer', 'min:'.$minimo, 'max:'.$maximo],
-            'ruts' => ['required', 'array'],
+            'modo_responsable' => ['sometimes', Rule::in(['rut', 'actividad'])],
+            'nombre_actividad' => [Rule::requiredIf($porActividad), 'nullable', 'string', 'max:120'],
+            'ruts' => [Rule::requiredIf(! $porActividad), 'array'],
             'ruts.*' => ['required', 'string'],
             'confirmar' => ['sometimes', 'boolean'],
         ], [
@@ -395,8 +411,9 @@ class SalaController extends Controller
             return response()->json(['message' => 'Una serie dura a lo más un año: elige una fecha de término más cercana.'], 422);
         }
 
-        $data['ruts'] = $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
-        if (count($data['ruts']) !== $data['cantidad_personas']) {
+        $data['ruts'] = $porActividad ? [] : $this->reservaSalaService->identificadoresDeParticipantes($data['ruts']);
+        $data['nombre_actividad'] = $porActividad ? trim($data['nombre_actividad']) : null;
+        if (! $porActividad && count($data['ruts']) !== $data['cantidad_personas']) {
             return response()->json(['message' => 'Debe ingresar un RUT por cada persona indicada'], 422);
         }
         if ($rechazo = $this->rechazoSoloAdministracion($request, (int) $data['sala_id'], $data['ruts'][0] ?? null)) {
@@ -455,8 +472,9 @@ class SalaController extends Controller
                 if ($porQueNo === null) {
                     $reserva = Reserva::create([
                         'sala_id' => $data['sala_id'],
-                        'usuario_id' => $usuarios[$data['ruts'][0]]->id,
-                        'rut_usuario' => $data['ruts'][0],
+                        'usuario_id' => $data['ruts'] ? $usuarios[$data['ruts'][0]]->id : null,
+                        'rut_usuario' => $data['ruts'][0] ?? null,
+                        'nombre_actividad' => $data['nombre_actividad'],
                         'cantidad_personas' => $data['cantidad_personas'],
                         'fecha' => $fecha,
                         'hora_inicio' => $data['hora_inicio'],
@@ -480,7 +498,7 @@ class SalaController extends Controller
                 "Reservó {$sala->nombre} {$hechas} ".($hechas === 1 ? 'vez' : 'veces').", los {$nombresDias} de {$data['hora_inicio']} a {$data['hora_fin']}, del "
                     .Carbon::parse($data['desde'])->format('d/m/Y').' al '.Carbon::parse($data['hasta'])->format('d/m/Y'),
                 datos: ['serie' => $serie, 'integrantes' => $data['ruts'], 'saltadas' => collect($resultado)->whereNotNull('motivo')->values()->all()],
-                afectado: $usuarios[$data['ruts'][0]],
+                afectado: $data['ruts'] ? $usuarios[$data['ruts'][0]] : null,
             );
 
             return response()->json(['serie' => $serie, 'reservadas' => $hechas, 'fechas' => $resultado], 201);
@@ -506,7 +524,7 @@ class SalaController extends Controller
                 return [
                     'serie' => $serie,
                     'sala' => $primera->sala?->only(['id', 'nombre', 'codigo']),
-                    'a_cargo' => ['rut' => $primera->rut_usuario, 'nombre' => $primera->usuario ? trim("{$primera->usuario->nombre} {$primera->usuario->apellido}") : null],
+                    'a_cargo' => ['rut' => $primera->rut_usuario, 'nombre' => $primera->usuario ? trim("{$primera->usuario->nombre} {$primera->usuario->apellido}") : $primera->nombre_actividad],
                     'cantidad_personas' => $primera->cantidad_personas,
                     'dias' => $reservas->map(fn (Reserva $r) => $r->fecha->dayOfWeekIso)->unique()->sort()->values(),
                     'hora_inicio' => substr($primera->hora_inicio, 0, 5),
@@ -750,6 +768,10 @@ class SalaController extends Controller
     {
         if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
             return $rechazo;
+        }
+
+        if (! $reserva->usuario_id) {
+            return response()->json(['message' => 'Esta reserva corresponde a una actividad sin RUT asociado, por lo que no se puede generar una multa personal.'], 409);
         }
 
         $multa = $multas->generarPorAtrasoDeSala($reserva, $request->user());

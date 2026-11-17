@@ -603,6 +603,7 @@ class ReservaSalaService
                 'estado' => $r->estado,
                 'cantidad_personas' => $r->cantidad_personas,
                 'rut_usuario' => $r->rut_usuario,
+                'nombre_actividad' => $r->nombre_actividad,
                 'usuario_id' => $r->usuario_id,
                 'serie' => $r->serie,
                 'prestado_por' => $r->prestado_por,
@@ -671,8 +672,9 @@ class ReservaSalaService
             'cantidad_personas' => $reserva->cantidad_personas,
             'titular' => [
                 'rut' => $titular?->rut ?? $reserva->rut_usuario,
-                'nombre' => $titular ? trim("{$titular->nombre} {$titular->apellido}") : null,
+                'nombre' => $titular ? trim("{$titular->nombre} {$titular->apellido}") : $reserva->nombre_actividad,
             ],
+            'nombre_actividad' => $reserva->nombre_actividad,
             'personas' => self::personas($reserva),
             'prestado_por' => $reserva->prestado_por,
             'devuelto_por' => $reserva->devuelto_por,

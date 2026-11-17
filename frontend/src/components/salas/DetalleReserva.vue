@@ -248,10 +248,15 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
 
       <!-- Integrantes -->
       <section>
+        <div v-if="actual.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Nombre / actividad</p>
+          <p class="mt-0.5 font-semibold text-indigo-950">{{ actual.nombre_actividad }}</p>
+          <p class="mt-0.5 text-xs text-indigo-700">Sin RUT asociado</p>
+        </div>
         <div class="mb-2 flex items-center justify-between gap-3">
           <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes <span class="rounded-full bg-indigo-50 px-2 text-[11px] font-bold tabular-nums text-indigo-700">{{ actual.personas.length }}</span></p>
           <button
-            v-if="editable && !editandoIntegrantes"
+            v-if="editable && !actual.nombre_actividad && !editandoIntegrantes"
             type="button"
             :disabled="ocupado"
             class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
@@ -280,7 +285,7 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
             </span>
             <span class="shrink-0 rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{{ p.rut }}</span>
           </li>
-          <li v-if="!actual.personas.length" class="text-gray-400">Sin integrantes registrados.</li>
+          <li v-if="!actual.personas.length && !actual.nombre_actividad" class="text-gray-400">Sin integrantes registrados.</li>
         </ul>
       </section>
 

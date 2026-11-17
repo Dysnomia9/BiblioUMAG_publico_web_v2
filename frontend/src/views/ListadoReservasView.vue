@@ -240,9 +240,10 @@ function abrirMenuGestion() {
               <span v-if="r.hora_fin_reservada" class="block text-xs text-emerald-700">Liberada · era hasta las {{ r.hora_fin_reservada }}</span>
             </div>
             <div class="col-span-2 min-w-0 sm:col-span-1">
-              <span class="block truncate text-sm font-semibold text-gray-900">{{ r.titular.nombre ?? r.titular.rut }}</span>
+              <span class="block truncate text-sm font-semibold text-gray-900">{{ r.titular.nombre ?? r.titular.rut ?? 'Sin responsable' }}</span>
               <span class="mt-0.5 flex flex-wrap items-center gap-1.5">
-                <span class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-700">{{ r.titular.rut }}</span>
+                <span v-if="r.titular.rut" class="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[11px] text-gray-700">{{ r.titular.rut }}</span>
+                <span v-else-if="r.nombre_actividad" class="rounded-full bg-violet-50 px-2 text-[11px] font-semibold text-violet-700">Actividad · sin RUT</span>
                 <span v-if="r.cantidad_personas > 1" class="rounded-full bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-700">+{{ r.cantidad_personas - 1 }} {{ r.cantidad_personas === 2 ? 'persona' : 'personas' }}</span>
               </span>
             </div>

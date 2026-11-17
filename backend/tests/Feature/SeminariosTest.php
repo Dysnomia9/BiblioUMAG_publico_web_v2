@@ -69,6 +69,55 @@ class SeminariosTest extends TestCase
         $this->assertDatabaseCount('reservas', 0);
     }
 
+    public function test_una_sala_administrativa_se_puede_reservar_por_nombre_de_actividad_sin_rut(): void
+    {
+        Sanctum::actingAs(Staff::factory()->asistente()->create());
+        $sala = Sala::where('codigo', 'SM1')->sole();
+
+        $respuesta = $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '10:00',
+            'hora_fin' => '12:00',
+            'cantidad_personas' => 1,
+            'modo_responsable' => 'actividad',
+            'nombre_actividad' => 'Reunión de acreditación',
+        ])->assertCreated()
+            ->assertJsonPath('usuario_id', null)
+            ->assertJsonPath('rut_usuario', null)
+            ->assertJsonPath('nombre_actividad', 'Reunión de acreditación');
+
+        $reserva = Reserva::findOrFail($respuesta->json('id'));
+        $this->assertCount(0, $reserva->participantes);
+
+        Carbon::setTestNow('2026-07-10 10:03:00');
+        $this->patchJson("/api/reservas/{$reserva->id}/llegada")
+            ->assertOk()->assertJsonPath('asistencia.registradas', []);
+        $this->patchJson("/api/reservas/{$reserva->id}/devolver")->assertOk();
+
+        $this->getJson('/api/reservas?vista=todas&q=acreditacion')->assertOk()
+            ->assertJsonPath('data.0.nombre_actividad', 'Reunión de acreditación')
+            ->assertJsonPath('data.0.titular.rut', null)
+            ->assertJsonPath('data.0.titular.nombre', 'Reunión de acreditación');
+    }
+
+    public function test_una_logia_comun_sigue_exigiendo_rut(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        $sala = Sala::where('codigo', 'L01')->sole();
+
+        $this->postJson('/api/reservas', [
+            'sala_id' => $sala->id,
+            'fecha' => '2026-07-10',
+            'hora_inicio' => '10:00',
+            'hora_fin' => '12:00',
+            'cantidad_personas' => 3,
+            'modo_responsable' => 'actividad',
+            'nombre_actividad' => 'Intento sin RUT',
+            'ruts' => [],
+        ])->assertStatus(422);
+    }
+
     public function test_el_personal_puede_cambiar_el_responsable_a_estudiante_y_trasladar_su_reserva(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());

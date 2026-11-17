@@ -16,6 +16,7 @@ class Reserva extends Model
         'sala_id',
         'usuario_id',
         'rut_usuario',
+        'nombre_actividad',
         'cantidad_personas',
         'fecha',
         'hora_inicio',

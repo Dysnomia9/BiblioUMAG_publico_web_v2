@@ -524,7 +524,9 @@ export type TramoReserva = {
   hora_fin_reservada?: string | null
   estado: string
   cantidad_personas: number
-  rut_usuario: string
+  rut_usuario: string | null
+  /** Alternativa al RUT en salas de administración. */
+  nombre_actividad?: string | null
   usuario_id: number | null
   personas: { rut: string; nombre: string | null }[]
   prestado_por: string | null
@@ -983,7 +985,8 @@ export type ReservaListado = {
   estado: 'activa' | 'finalizada' | 'no_show' | 'cancelada'
   situacion: SituacionReserva
   cantidad_personas: number
-  titular: { rut: string; nombre: string | null }
+  titular: { rut: string | null; nombre: string | null }
+  nombre_actividad?: string | null
   personas: TramoReserva['personas']
   prestado_por: string | null
   devuelto_por: string | null
