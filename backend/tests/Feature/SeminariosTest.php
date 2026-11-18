@@ -189,7 +189,7 @@ class SeminariosTest extends TestCase
         }
     }
 
-    public function test_sin_permiso_no_se_gestionan_ni_se_entregan_las_llaves(): void
+    public function test_sin_permiso_de_seminarios_no_se_cambia_la_reserva_pero_el_meson_atiende_las_llaves(): void
     {
         $rol = Rol::create(['clave' => 'sin_seminarios', 'nombre' => 'Sin seminarios',
             'permisos' => ['salas.gestionar', 'reservas.editar', 'salas.administracion']]);
@@ -202,12 +202,13 @@ class SeminariosTest extends TestCase
             $this->putJson("/api/reservas/{$reserva->id}", $this->datos($sala, $docente))->assertForbidden();
             $this->putJson("/api/reservas/{$reserva->id}/integrantes", ['ruts' => [$docente->rut]])->assertForbidden();
             $this->deleteJson("/api/reservas/{$reserva->id}")->assertForbidden();
-            foreach (['llegada', 'liberar', 'devolver', 'liberar-resto'] as $accion) {
+            foreach (['liberar', 'liberar-resto'] as $accion) {
                 $this->patchJson("/api/reservas/{$reserva->id}/{$accion}")->assertForbidden();
             }
-            $this->postJson('/api/salas/llave', ['codigo' => $codigo])->assertForbidden();
-            $this->assertSame('activa', $reserva->fresh()->estado);
-            $this->assertNull($reserva->fresh()->hora_prestamo_real);
+            Carbon::setTestNow('2026-07-10 10:05:00');
+            $this->patchJson("/api/reservas/{$reserva->id}/llegada")->assertOk();
+            $this->postJson('/api/salas/llave', ['codigo' => $codigo])->assertOk()->assertJsonPath('estado', 'finalizada');
+            $this->assertNotNull($reserva->fresh()->hora_prestamo_real);
         }
     }
 

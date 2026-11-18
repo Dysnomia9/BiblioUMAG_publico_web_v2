@@ -28,9 +28,7 @@ class SalaController extends Controller
     /** Pestañas del Listado de reservas. */
     private const VISTAS_LISTADO = ['activas' => 'activa', 'finalizadas' => 'finalizada', 'no_show' => 'no_show', 'canceladas' => 'cancelada', 'todas' => null];
 
-    public function __construct(private ReservaSalaService $reservaSalaService)
-    {
-    }
+    public function __construct(private ReservaSalaService $reservaSalaService) {}
 
     /**
      * Listado de reservas (Gestión › Consultas e historiales): todas las reservas de
@@ -713,10 +711,7 @@ class SalaController extends Controller
      */
     public function devolverReserva(Request $request, Reserva $reserva, MultaService $multas)
     {
-        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
-            return $rechazo;
-        }
-
+        // Recibir la llave es atención de mesón, también en reservas administrativas.
         try {
             $reserva = $this->reservaSalaService->registrarDevolucion($reserva, $request->user());
         } catch (\RuntimeException $e) {
@@ -808,10 +803,8 @@ class SalaController extends Controller
      */
     public function confirmarLlegada(Request $request, Reserva $reserva, EntradaService $entradas)
     {
-        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, $reserva->rut_usuario)) {
-            return $rechazo;
-        }
-
+        // La reserva ya fue autorizada. El mesón confirma la asistencia sin volver
+        // a exigir permisos para agendarla ni las reglas de quien queda a cargo.
         try {
             $reserva = $this->reservaSalaService->registrarLlegada($reserva, $request->user());
         } catch (\RuntimeException $e) {
@@ -899,11 +892,6 @@ class SalaController extends Controller
         ], [
             'codigo.required' => 'Escribe el código de la sala (por ejemplo, L04) o el número de la logia.',
         ]);
-
-        $sala = Sala::porCodigo($data['codigo']);
-        if ($sala && ($rechazo = $this->rechazoSoloAdministracion($request, $sala->id, null))) {
-            return $rechazo;
-        }
 
         try {
             $reserva = $this->reservaSalaService->llavePorCodigo($data['codigo'], $request->user());

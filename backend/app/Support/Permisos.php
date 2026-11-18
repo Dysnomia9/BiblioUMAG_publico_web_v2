@@ -26,7 +26,7 @@ final class Permisos
             'permisos' => [
                 'entradas.registrar' => ['Registrar entradas', 'Marcar la asistencia (RUT, QR, externos y visitas) y consultar el historial de entradas.'],
                 'prestamos.gestionar' => ['Préstamos y devoluciones', 'Prestar y recibir libros y equipos, y gestionar las reservas de libros.'],
-                'salas.gestionar' => ['Salas de estudio', 'Reservar salas y logias, confirmar la llegada del grupo, liberar y recibir la llave.'],
+                'salas.gestionar' => ['Salas de estudio', 'Reservar salas y logias; confirmar la llegada, entregar y recibir llaves de reservas existentes, incluidas las salas de la administración y de reserva exclusiva.'],
                 'salas.seminarios' => ['Seminarios SM1 y SM2', 'Gestionar y prestar SM1 y SM2 desde el mesón. El responsable puede ser cualquier usuario registrado, incluidos estudiantes. No se solicitan desde el portal.'],
                 'salas.administracion' => ['Salas de la administración', 'Reservar y editar las salas que gestiona solo la administración (Cooperación y Moraga). No se prestan a estudiantes ni se reservan desde el portal.'],
                 'salas.exclusivas' => ['Salas de reserva exclusiva', 'Reservar y editar las salas marcadas como «de reserva exclusiva» en Administración › Salas: no las reserva el resto del personal, aunque tenga «Salas de la administración».'],

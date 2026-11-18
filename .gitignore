@@ -12,6 +12,8 @@ docs/manuales/*.toc
 
 # Respaldos de la base de datos (datos reales: no se suben)
 respaldos/
+traspasos/
+backend/storage/app/traspasos/
 
 # Revisiones del catálogo en Excel (nombres, títulos y datos de la biblioteca: no se suben)
 docs/revisiones/

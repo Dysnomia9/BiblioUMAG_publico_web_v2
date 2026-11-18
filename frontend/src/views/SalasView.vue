@@ -38,7 +38,11 @@ const puedeReservaLarga = computed(() => auth.puede('salas.sin_limite'))
 // Las demás salas de la administración requieren salas.administracion; SM1 y SM2 tienen su propio permiso.
 const puedeSalasAdministracion = computed(() => auth.puede('salas.administracion'))
 const esSeminario = (sala: Sala) => ['SM1', 'SM2'].includes(sala.codigo ?? '')
-const puedeGestionarSeminario = (sala: Sala) => !esSeminario(sala) || auth.puede('salas.seminarios')
+// Agendar y modificar requieren permisos de la sala; atender una reserva existente
+// (asistencia y llaves) corresponde a todo el mesón.
+const puedeReservarSala = (sala: Sala) => (!sala.reserva_exclusiva || auth.puede('salas.exclusivas'))
+  && (!esSeminario(sala) || auth.puede('salas.seminarios'))
+  && (!sala.solo_administracion || esSeminario(sala) || sala.reserva_exclusiva || puedeSalasAdministracion.value)
 
 // La fecha y la hora son las de Punta Arenas, como en el servidor (utils/horario.ts), no las del computador.
 // Cambia con el reloj (ver onMounted): el mesón suele quedar abierto de un día para otro.
@@ -214,13 +218,13 @@ const detalleSala = ref<Sala | null>(null)
 const cancelacionPendiente = ref<{ reservaId: number; salaNombre: string; label: string; serie: string | null } | null>(null)
 /** Al cancelar una reserva de una serie: también las que vienen (permiso salas.repetir). */
 const cancelarTambienLaSerie = ref(false)
-const devolucionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
+const devolucionPendiente = ref<{ reservaId: number; salaNombre: string; label: string; puedeModificar: boolean } | null>(null)
 const devolviendo = ref(false)
 // Si la llave volvió fuera de hora, el aviso para decidir si se cursa la multa.
 const atrasoDevolucion = ref<AtrasoDevolucion | null>(null)
 // Si volvió antes de tiempo, el aviso para liberar lo que quedaba del bloque.
 const tiempoSinUsar = ref<TiempoSinUsar | null>(null)
-const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; horaInicio: string; horaFin: string; personas: TramoReserva['personas']; soloResponsable: boolean; rango?: [number, number] | null } | null>(null)
+const llegadaPendiente = ref<{ reservaId: number; salaNombre: string; label: string; horaInicio: string; horaFin: string; personas: TramoReserva['personas']; soloResponsable: boolean; rango?: [number, number] | null; puedeModificar: boolean } | null>(null)
 const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
 const editandoIntegrantesLlegada = ref(false)
@@ -307,8 +311,8 @@ async function registrarLlave() {
     const sala = data.sala?.nombre ?? 'la sala'
     if (data.hora_devolucion_real) {
       toast.success(`Llave de ${sala} recibida`)
-      atrasoDevolucion.value = data.atraso_devolucion ?? null
-      tiempoSinUsar.value = data.tiempo_sin_usar ?? null
+      atrasoDevolucion.value = data.sala && puedeReservarSala(data.sala) ? data.atraso_devolucion ?? null : null
+      tiempoSinUsar.value = data.sala && puedeReservarSala(data.sala) ? data.tiempo_sin_usar ?? null : null
     } else toast.success(`Llave de ${sala} entregada. ${textoAsistencia(data.asistencia)}`)
     codigoSala.value = ''
     await cargar()
@@ -930,7 +934,7 @@ async function confirmarQuitarSerie() {
 }
 
 function pedirDevolucion(sala: Sala, tramo: TramoReserva) {
-  devolucionPendiente.value = { reservaId: tramo.reserva_id, salaNombre: sala.nombre, label: labelTramo(tramo.hora_inicio, tramo.hora_fin) }
+  devolucionPendiente.value = { reservaId: tramo.reserva_id, salaNombre: sala.nombre, label: labelTramo(tramo.hora_inicio, tramo.hora_fin), puedeModificar: puedeReservarSala(sala) }
 }
 
 async function confirmarDevolucion() {
@@ -941,8 +945,8 @@ async function confirmarDevolucion() {
       `/reservas/${devolucionPendiente.value.reservaId}/devolver`,
     )
     toast.success('Devolución de llave confirmada')
-    atrasoDevolucion.value = data.atraso_devolucion ?? null
-    tiempoSinUsar.value = data.tiempo_sin_usar ?? null
+    atrasoDevolucion.value = devolucionPendiente.value.puedeModificar ? data.atraso_devolucion ?? null : null
+    tiempoSinUsar.value = devolucionPendiente.value.puedeModificar ? data.tiempo_sin_usar ?? null : null
     devolucionPendiente.value = null
     detalleOpen.value = false
     await cargar()
@@ -967,9 +971,10 @@ function pedirLlegada(sala: Sala, tramo: TramoReserva, modificar = false) {
     horaFin: tramo.hora_fin.slice(0, 5),
     personas: tramo.personas ?? [],
     soloResponsable: soloResponsableEn(sala),
+    puedeModificar: puedeReservarSala(sala) && !tramo.nombre_actividad,
     rango: grupoFlexible(sala) ? ([1, maximoDe(sala)] as [number, number]) : null,
   }
-  editandoIntegrantesLlegada.value = modificar
+  editandoIntegrantesLlegada.value = modificar && llegadaPendiente.value.puedeModificar
 }
 
 function cerrarLlegada() {
@@ -1037,7 +1042,7 @@ const pendientesConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return []
   return salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
-    .filter(({ sala, tramo }) => puedeGestionarSeminario(sala) && tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
+    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
     .map(({ sala, tramo }) => ({
       sala,
       tramo,
@@ -1058,7 +1063,7 @@ const proximaConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return null
   const proximas = salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
-    .filter(({ sala, tramo }) => puedeGestionarSeminario(sala) && tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) > ahoraMin.value)
+    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) > ahoraMin.value)
     .sort((a, b) => a.tramo.hora_inicio.localeCompare(b.tramo.hora_inicio))
   if (!proximas.length) return null
   const hora = proximas[0].tramo.hora_inicio
@@ -1223,6 +1228,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           <ListaConfirmacionAsistencia
             :pendientes="pendientesConfirmacion.slice(0, CONFIRMACION_VISIBLES)"
             :liberando="liberando"
+            :puede-modificar="puedeReservarSala"
             @llegada="pedirLlegada"
             @modificar="(sala, tramo) => pedirLlegada(sala, tramo, true)"
             @liberar="pedirLiberacion"
@@ -1265,6 +1271,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           v-if="pendientesConfirmacion.length"
           :pendientes="pendientesConfirmacion"
           :liberando="liberando"
+          :puede-modificar="puedeReservarSala"
           @llegada="pedirLlegada"
           @modificar="(sala, tramo) => pedirLlegada(sala, tramo, true)"
           @liberar="pedirLiberacion"
@@ -1523,7 +1530,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           <div v-for="(sala, i) in bloque.salas" :key="sala.id" class="group/fila -mx-1.5 flex items-center gap-3 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-indigo-100 hover:ring-2 hover:ring-indigo-300" :class="i % 2 === 1 ? 'bg-slate-100' : ''">
             <!-- En una línea: el código (el que se busca y se escribe para la llave) y el nombre.
                  Sin la capacidad: no es un mínimo ni un máximo de personas (lo ajusta Administración). -->
-            <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="esSeminario(sala) ? `${sala.nombre} · reserva por personal autorizado para cualquier usuario registrado; no se solicita desde el portal` : sala.solo_administracion ? `${sala.nombre} · solo administración: no se presta a estudiantes ni se reserva desde el portal` : sala.nombre">
+            <div class="flex w-[136px] shrink-0 items-baseline gap-1.5" :title="esSeminario(sala) ? `${sala.nombre} · reserva por personal autorizado; el mesón confirma asistencia y entrega o recibe la llave` : sala.solo_administracion ? `${sala.nombre} · reserva por administración; el mesón confirma asistencia y entrega o recibe la llave` : sala.nombre">
               <span class="rounded px-1 font-mono text-xs font-bold text-gray-700 group-hover/fila:bg-indigo-600 group-hover/fila:text-white">{{ sala.codigo }}</span>
               <span class="truncate text-[13px] text-gray-600 group-hover/fila:text-indigo-900">{{ sala.nombre }}</span>
             </div>
@@ -1999,7 +2006,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <span class="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] tabular-nums text-indigo-700">{{ detalleTramo.personas?.length ?? 0 }}</span>
                 </p>
                 <button
-                  v-if="!detalleTramo.nombre_actividad && puedeGestionarSeminario(detalleSala) && integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
+                  v-if="!detalleTramo.nombre_actividad && puedeReservarSala(detalleSala) && integrantesEditables(detalleTramo) && !editandoIntegrantesDetalle"
                   @click="editandoIntegrantesDetalle = true"
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
                 >
@@ -2057,7 +2064,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </p>
               <!-- Devolvieron antes y el bloque sigue reservado: el aviso de la devolución se cerró o no salió. -->
               <button
-                v-if="puedeGestionarSeminario(detalleSala) && detalleTramo.tiempo_sin_usar"
+                v-if="puedeReservarSala(detalleSala) && detalleTramo.tiempo_sin_usar"
                 type="button"
                 class="w-full rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
                 @click="tiempoSinUsar = detalleTramo.tiempo_sin_usar"
@@ -2071,7 +2078,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <button @click="detalleOpen = false" :class="BOTON_CANCELAR" class="!flex-none">Cerrar</button>
             <!-- Renovación: el mismo grupo otra vez (extender el bloque o volver a usar la sala), sin escribir los RUT -->
             <button
-              v-if="selectedDate === hoy && detalleTramo.hora_prestamo_real && puedeGestionarSeminario(detalleSala)"
+              v-if="selectedDate === hoy && detalleTramo.hora_prestamo_real && puedeReservarSala(detalleSala)"
               type="button"
               class="flex-1 rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-50"
               title="El mismo grupo otra vez: extender su bloque o volver a usar la sala, sin escribir los RUT de nuevo"
@@ -2079,9 +2086,9 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             >
               Renovación
             </button>
-            <template v-if="puedeGestionarSeminario(detalleSala) && !detalleTramo.hora_devolucion_real">
+            <template v-if="!detalleTramo.hora_devolucion_real">
               <button
-                v-if="!detalleTramo.hora_prestamo_real && detalleTramo.vencida_sin_confirmar"
+                v-if="puedeReservarSala(detalleSala) && !detalleTramo.hora_prestamo_real && detalleTramo.vencida_sin_confirmar"
                 @click="pedirLiberacion(detalleSala, detalleTramo)"
                 :disabled="liberando === detalleTramo.reserva_id"
                 :class="BOTON_PRINCIPAL"
@@ -2091,13 +2098,14 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </button>
               <template v-else>
                 <button
+                  v-if="puedeReservarSala(detalleSala)"
                   @click="pedirCancelacion(detalleSala, detalleTramo)"
                   class="flex-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
                 >
                   Cancelar reserva
                 </button>
                 <template v-if="!detalleTramo.hora_prestamo_real">
-                  <button v-if="selectedDate === hoy" @click="pedirLlegada(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
+                  <button v-if="selectedDate === hoy && !detalleTramo.vencida_sin_confirmar" @click="pedirLlegada(detalleSala, detalleTramo)" :class="BOTON_PRINCIPAL" class="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                     Confirmar llegada
                   </button>
@@ -2109,7 +2117,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </template>
             <!-- Reserva de una serie: quitar esta y las siguientes de una vez (ya no la necesitan) -->
             <button
-              v-if="puedeGestionarSeminario(detalleSala) && detalleTramo.serie && puedeRepetir && !detalleTramo.hora_prestamo_real"
+              v-if="puedeReservarSala(detalleSala) && detalleTramo.serie && puedeRepetir && !detalleTramo.hora_prestamo_real"
               type="button"
               class="basis-full rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
               @click="quitarSerie = { serie: detalleTramo.serie, desde: selectedDate, salaNombre: detalleSala.nombre, horario: labelTramo(detalleTramo.hora_inicio, detalleTramo.hora_fin) }"
@@ -2283,14 +2291,14 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </span>
               <div class="text-amber-900">
                 <p class="text-[13px] font-bold">Antes de entregar la llave</p>
-                <p class="mt-0.5 text-xs leading-relaxed">Verifique que estén sus integrantes. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</p>
+                <p class="mt-0.5 text-xs leading-relaxed">Verifique que estén sus integrantes. <template v-if="llegadaPendiente.puedeModificar">Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong>.</template><template v-else>Para corregir la reserva, contacte a quien la administra.</template></p>
               </div>
             </div>
             <div v-if="llegadaPendiente.personas.length">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <p class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-600"><span class="h-3.5 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>Integrantes ({{ llegadaPendiente.personas.length }})</p>
                 <button
-                  v-if="!editandoIntegrantesLlegada"
+                  v-if="llegadaPendiente.puedeModificar && !editandoIntegrantesLlegada"
                   @click="editandoIntegrantesLlegada = true"
                   :disabled="confirmandoLlegada"
                   class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 disabled:opacity-50"

@@ -53,9 +53,15 @@ watch(
 
 const puedeGestionarSala = computed(() => {
   const sala = props.salas.find((s) => s.id === actual.value?.sala?.id)
-  return !['SM1', 'SM2'].includes(sala?.codigo ?? '') || auth.puede('salas.seminarios')
+  if (!sala) return false
+  const seminario = ['SM1', 'SM2'].includes(sala.codigo ?? '')
+  return (!sala.reserva_exclusiva || auth.puede('salas.exclusivas'))
+    && (!seminario || auth.puede('salas.seminarios'))
+    && (!sala.solo_administracion || seminario || sala.reserva_exclusiva || auth.puede('salas.administracion'))
 })
 const editable = computed(() => props.puedeEditar && puedeGestionarSala.value && !!actual.value && reservaEditable(actual.value))
+const puedeDevolver = computed(() => (auth.puede('salas.gestionar') || props.puedeEditar)
+  && !!actual.value && reservaEditable(actual.value) && !!actual.value.hora_prestamo_real)
 // Liberar el resto de un bloque devuelto antes lo puede el mesón de salas o quien edita reservas.
 const auth = useAuthStore()
 const puedeLiberar = computed(() => !!actual.value?.tiempo_sin_usar && puedeGestionarSala.value && (props.puedeEditar || auth.puede('salas.gestionar')))
@@ -111,8 +117,8 @@ async function ejecutar() {
         `/reservas/${actual.value.id}/devolver`,
       )
       toast.success('Devolución de la llave registrada')
-      if (data.atraso_devolucion) emit('atraso', data.atraso_devolucion)
-      if (data.tiempo_sin_usar) emit('sinUsar', data.tiempo_sin_usar)
+      if (puedeGestionarSala.value && data.atraso_devolucion) emit('atraso', data.atraso_devolucion)
+      if (puedeGestionarSala.value && data.tiempo_sin_usar) emit('sinUsar', data.tiempo_sin_usar)
     }
     confirmando.value = null
     emit('actualizada')
@@ -334,16 +340,16 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
       >
         Liberar el resto del bloque · {{ duracion(actual.tiempo_sin_usar.minutos) }} sin usar
       </button>
+      <button
+        v-if="puedeDevolver"
+        type="button"
+        :disabled="ocupado || editandoIntegrantes"
+        class="px-4 py-2 border border-emerald-300 bg-emerald-50 rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors font-semibold text-sm disabled:opacity-50"
+        @click="confirmando = 'devolver'"
+      >
+        Registrar devolución
+      </button>
       <template v-if="editable && actual">
-        <button
-          v-if="actual.hora_prestamo_real"
-          type="button"
-          :disabled="ocupado || editandoIntegrantes"
-          class="px-4 py-2 border border-emerald-300 bg-emerald-50 rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors font-semibold text-sm disabled:opacity-50"
-          @click="confirmando = 'devolver'"
-        >
-          Registrar devolución
-        </button>
         <button
           type="button"
           :disabled="ocupado || editandoIntegrantes"

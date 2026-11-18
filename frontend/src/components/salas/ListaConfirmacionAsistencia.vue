@@ -5,6 +5,7 @@ import type { Sala, TramoReserva } from '@/types'
 defineProps<{
   pendientes: { sala: Sala; tramo: TramoReserva; vencida: boolean; segundosRestantes: number | null }[]
   liberando: number | null
+  puedeModificar: (sala: Sala) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -45,6 +46,7 @@ function formatCuentaRegresiva(segundos: number | null) {
         </span>
         <template v-if="!p.vencida">
           <button
+            v-if="puedeModificar(p.sala) && !p.tramo.nombre_actividad"
             @click="emit('modificar', p.sala, p.tramo)"
             class="text-xs font-medium px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >

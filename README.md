@@ -23,6 +23,7 @@ autoservicio para la comunidad universitaria.
 - [Producción](#producción)
 - [Pruebas y rendimiento](#pruebas-y-rendimiento)
 - [Migración desde Horizon](#migración-desde-horizon)
+- [Traspaso mensual al servidor](#traspaso-mensual-al-servidor)
 - [Deuda técnica conocida](#deuda-técnica-conocida)
 - [Documentación](#documentación)
 
@@ -391,6 +392,10 @@ Bibliomag_publico_web_v2/
   por su código (reservas, asistencia, horas de uso y bloques liberados). Las salas
   se crean, ajustan y dan de baja en Administración › **Salas**: una con reservas en
   su historial no se elimina, se da de baja y conserva sus reservas y reportes.
+  El mesón confirma la asistencia y entrega o recibe llaves de las reservas
+  existentes, incluidas las salas administrativas, exclusivas y seminarios.
+  Agendar, cambiar integrantes u horarios y cancelar mantiene los permisos
+  específicos de cada sala.
 - Compatibilidad con el código de puesto de trabajo de Horizon en las entradas, y
   mensajes de validación en español (`lang/es/`).
 
@@ -531,6 +536,26 @@ Server) vive en un repositorio aparte:
 [`horizonte-bibliomag-experimental`](https://github.com/Dysnomia9/horizonte-bibliomag-experimental).
 Su ETL escribe directamente en la base de BiblioUMAG, es idempotente y se prueba
 en CI contra la rama `main` de este repositorio.
+
+---
+
+## Traspaso mensual al servidor
+
+El backend puede exportar el trabajo de un mes, los usuarios con su estado y
+vigencia, las cuentas del personal y sus dependencias para importarlos en otra
+instalación sin duplicarlos. Excluye el historial de Horizon y permite simular
+los cambios antes de aplicarlos:
+
+```bash
+docker compose exec backend php artisan sistema:exportar --mes=2026-11
+docker compose exec backend php artisan sistema:importar <archivo.json> --simular
+docker compose exec backend php artisan sistema:importar <archivo.json>
+```
+
+El exportador muestra la ruta del JSON. Para sacarlo del contenedor, copiarlo al
+servidor e importarlo, seguir [la guía de traspaso mensual](docs/traspaso-mensual.md).
+El respaldo contiene datos personales y hashes de contraseñas; conservarlo de
+forma privada. Los reportes se reconstruyen desde los movimientos importados.
 
 ---
 
