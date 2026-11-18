@@ -166,7 +166,11 @@ npm run dev
   en general o para ciertas fechas, como la semana de pruebas, y vale
   para las reservas siguientes), cuota diaria de 4 horas por persona y **una sola reserva
   pendiente por persona**, con bloqueo para que dos reservas simultáneas no tomen
-  el mismo tramo. Devolver la llave antes no tiene castigo: si quedan 5 minutos o
+  el mismo tramo. **Las salas de categoría Administración no vencen por falta de
+  confirmación**: conservan sus reservas pendientes en el calendario y el listado,
+  incluida la revisión nocturna. La llegada se puede confirmar más tarde ese día;
+  si la sala no se usará, el personal cancela la reserva. En reportes sigue contando
+  solo la asistencia confirmada. Devolver la llave antes no tiene castigo: si quedan 5 minutos o
   más, el mesón puede **liberar el resto del bloque** para otro grupo, al
   registrar la devolución o después desde el detalle (`reservas.hora_fin_reservada`
   guarda hasta cuándo era), y la cuota del día cuenta solo lo que se usó. Cada

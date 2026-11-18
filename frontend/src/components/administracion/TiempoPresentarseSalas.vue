@@ -146,7 +146,7 @@ const NOTA = 'Vale para las reservas que se hagan desde ahora. Las que ya están
           <span class="h-4 w-1 rounded-full bg-indigo-600" aria-hidden="true"></span>
           Tiempo para presentarse a una sala
         </h3>
-        <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">Cuánto tiene un grupo, desde la hora de inicio de su reserva, para presentarse en el mesón. Si no llega, la sala se libera sola y queda registrada la inasistencia.</p>
+        <p class="mt-0.5 max-w-3xl pl-3 text-xs text-gray-500">Cuánto tiene un grupo, desde la hora de inicio de su reserva, para presentarse en el mesón. Si no llega, la sala se libera sola y queda registrada la inasistencia. Este plazo no se aplica a las salas de Administración.</p>
       </header>
 
       <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-[16rem_minmax(0,1fr)] sm:items-start">

@@ -534,7 +534,8 @@ export type TramoReserva = {
   devuelto_por: string | null
   hora_prestamo_real: string | null
   hora_devolucion_real: string | null
-  plazo_confirmacion: string
+  /** Sin vencimiento por falta de confirmación en salas de Administración. */
+  plazo_confirmacion: string | null
   vencida_sin_confirmar: boolean
   /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
   tiempo_sin_usar?: TiempoSinUsar | null
@@ -1000,7 +1001,8 @@ export type ReservaListado = {
   hora_devolucion_real: string | null
   /** Cómo se entregó la llave: 'codigo' (código de la sala en el mesón), 'manual' (desde la reserva) o 'BC' (código de barras, antes). */
   via: string | null
-  plazo_confirmacion: string
+  /** Sin vencimiento por falta de confirmación en salas de Administración. */
+  plazo_confirmacion: string | null
   /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
   tiempo_sin_usar: TiempoSinUsar | null
   created_at: string

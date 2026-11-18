@@ -72,7 +72,7 @@ class SalaController extends Controller
         // Las activas, de la más próxima a la más lejana; el resto, de la más reciente hacia atrás.
         $orden = $vista === 'activas' ? 'asc' : 'desc';
 
-        $pagina = $filtro($vista)((clone $base)->with(['sala:id,nombre,tipo', 'participantes:id,nombre,apellido,rut']))
+        $pagina = $filtro($vista)((clone $base)->with(['sala:id,nombre,tipo,solo_administracion', 'participantes:id,nombre,apellido,rut']))
             ->orderBy('fecha', $orden)
             ->orderBy('hora_inicio', $orden)
             ->orderBy('id', $orden)
@@ -169,7 +169,7 @@ class SalaController extends Controller
             $descripcionAntes = $reserva->descripcion();
 
             $reserva->update(Arr::only($data, ['sala_id', 'fecha', 'hora_inicio', 'hora_fin']));
-            $reserva->load(['sala:id,nombre,tipo', 'participantes:id,nombre,apellido,rut']);
+            $reserva->load(['sala:id,nombre,tipo,solo_administracion', 'participantes:id,nombre,apellido,rut']);
 
             if ($cambios = Bitacora::cambios($antes, $resumen($reserva))) {
                 Bitacora::registrar(

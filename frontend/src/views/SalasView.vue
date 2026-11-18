@@ -1042,9 +1042,9 @@ const pendientesConfirmacion = computed(() => {
       sala,
       tramo,
       vencida: tramo.vencida_sin_confirmar,
-      segundosRestantes: Math.floor((new Date(tramo.plazo_confirmacion).getTime() - ahora.value.getTime()) / 1000),
+      segundosRestantes: tramo.plazo_confirmacion ? Math.floor((new Date(tramo.plazo_confirmacion).getTime() - ahora.value.getTime()) / 1000) : null,
     }))
-    .sort((a, b) => a.segundosRestantes - b.segundosRestantes)
+    .sort((a, b) => (a.segundosRestantes ?? Infinity) - (b.segundosRestantes ?? Infinity))
 })
 
 // La tarjeta muestra solo las más urgentes; el resto, en el popup "Ver todas" (con los
@@ -1130,9 +1130,9 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); SM1 y SM2 las gestiona el personal autorizado y pueden quedar a cargo de cualquier persona registrada; Cooperación y Moraga conservan sus reglas de responsable. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
-          `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
+          `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio, excepto en salas de Administración, que no vencen por falta de confirmación. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>: se abre el formulario con los mismos RUT ya puestos, desde que termina su bloque (o desde ahora). Solo elija la hora y la duración.',
-          'Si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
+          'Fuera de Administración, si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
       />
@@ -1204,8 +1204,8 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <div>
               <h2 class="text-base font-serif font-bold text-gray-900">Menú de confirmación de asistencia</h2>
               <p class="mt-0.5 text-xs text-gray-600">
-                Cada reserva aparece aquí desde su hora de inicio y tiene {{ textoMinutos(minutosPresentarse) }} para confirmar que el grupo llegó.
-                Pasado ese plazo, la sala se libera sola.
+                Cada reserva aparece aquí desde su hora de inicio. El plazo para confirmar es de {{ textoMinutos(minutosPresentarse) }};
+                pasado ese plazo, la sala se libera sola. Las salas de Administración no vencen por falta de confirmación.
               </p>
             </div>
           </div>
@@ -1975,6 +1975,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 </p>
                 <p class="text-xs" :class="detalleTramo.vencida_sin_confirmar ? 'text-red-700' : 'text-gray-600'">
                   <template v-if="detalleTramo.vencida_sin_confirmar">Venció el plazo sin confirmar la llegada.</template>
+                  <template v-else-if="!detalleTramo.plazo_confirmacion">Sin vencimiento por falta de confirmación. La llegada se registra el día de la reserva.</template>
                   <template v-else-if="selectedDate === hoy">Cuando el grupo llegue, pulse <strong class="text-gray-900">Confirmar llegada</strong>.</template>
                   <template v-else>La llegada se confirma el día de la reserva.</template>
                 </p>

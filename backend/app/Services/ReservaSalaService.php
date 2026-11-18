@@ -119,7 +119,7 @@ class ReservaSalaService
             return null;
         }
 
-        $reserva->loadMissing('sala:id,nombre');
+        $reserva->loadMissing('sala:id,nombre,solo_administracion');
 
         return [
             'reserva_id' => $reserva->id,
@@ -208,6 +208,10 @@ class ReservaSalaService
      */
     public function liberarPorNoPresentacion(Reserva $reserva): Reserva
     {
+        if ($reserva->plazoConfirmacion() === null) {
+            throw new \RuntimeException('Las reservas de salas de Administración no vencen por falta de confirmación. Si no se utilizará la sala, cancela la reserva.');
+        }
+
         if (! $reserva->estaVencidaSinConfirmar()) {
             throw new \RuntimeException('Esta reserva todavía está dentro del plazo de confirmación');
         }
@@ -237,7 +241,7 @@ class ReservaSalaService
      */
     public function liberarVencidas(): int
     {
-        return Reserva::where('estado', 'activa')
+        return Reserva::with('sala')->where('estado', 'activa')
             ->whereNull('hora_prestamo_real')
             ->where('fecha', '<=', now()->toDateString())
             ->get()
@@ -363,7 +367,7 @@ class ReservaSalaService
         $horaInicio = Carbon::parse($horaInicio)->format('H:i:s');
         $horaFin = Carbon::parse($horaFin)->format('H:i:s');
 
-        $candidatas = Reserva::where('sala_id', $salaId)
+        $candidatas = Reserva::with('sala')->where('sala_id', $salaId)
             ->where('fecha', $fecha)
             ->where('hora_inicio', '<', $horaFin)
             ->where('hora_fin', '>', $horaInicio)
@@ -442,7 +446,7 @@ class ReservaSalaService
                 continue; // RUT inválido — ya lo rechaza la regla 'exists' del validator.
             }
 
-            $minutosUsados = Reserva::where('fecha', $fecha)
+            $minutosUsados = Reserva::with('sala')->where('fecha', $fecha)
                 ->whereIn('estado', ['activa', 'finalizada'])
                 ->whereHas('participantes', fn ($q) => $q->where('usuarios.id', $usuarioId))
                 ->when($ignorarReservaId, fn ($q) => $q->where('id', '!=', $ignorarReservaId))
@@ -549,7 +553,7 @@ class ReservaSalaService
         }
         $cierre = Carbon::parse($ventana[1]);
 
-        $ocupadaAhora = Reserva::where('sala_id', $salaId)
+        $ocupadaAhora = Reserva::with('sala')->where('sala_id', $salaId)
             ->where('fecha', $fecha)
             ->whereNotIn('estado', ['no_show', 'cancelada'])
             ->where('hora_inicio', '<=', $desde->format('H:i:s'))
@@ -561,7 +565,7 @@ class ReservaSalaService
             return 0;
         }
 
-        $siguiente = Reserva::where('sala_id', $salaId)
+        $siguiente = Reserva::with('sala')->where('sala_id', $salaId)
             ->where('fecha', $fecha)
             ->whereNotIn('estado', ['no_show', 'cancelada'])
             ->where('hora_inicio', '>=', $desde->format('H:i:s'))
@@ -584,7 +588,7 @@ class ReservaSalaService
      */
     public function vistaDelDia(Collection $salas, string $fecha): Collection
     {
-        $reservas = Reserva::with('participantes:id,nombre,apellido,rut')
+        $reservas = Reserva::with(['sala', 'participantes:id,nombre,apellido,rut'])
             ->where('fecha', $fecha)
             ->whereNotIn('estado', ['no_show', 'cancelada'])
             ->get()
@@ -769,7 +773,7 @@ class ReservaSalaService
             ->when($fecha, fn ($query) => $query->whereDate('fecha', $fecha))
             ->when($ignorarReservaId, fn ($query) => $query->where('id', '!=', $ignorarReservaId))
             ->whereHas('participantes', fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values()))
-            ->with(['sala:id,nombre', 'participantes' => fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values())])
+            ->with(['sala:id,nombre,solo_administracion', 'participantes' => fn ($q) => $q->whereIn('usuarios.id', $idPorRut->values())])
             ->get()
             ->reject(fn (Reserva $r) => $this->liberarSiVencida($r));
 
@@ -816,7 +820,7 @@ class ReservaSalaService
         $horaInicio = Carbon::parse($horaInicio)->format('H:i:s');
         $horaFin = Carbon::parse($horaFin)->format('H:i:s');
 
-        $idsConflicto = Reserva::where('fecha', $fecha)
+        $idsConflicto = Reserva::with('sala')->where('fecha', $fecha)
             ->where('hora_inicio', '<', $horaFin)
             ->where('hora_fin', '>', $horaInicio)
             ->whereIn('estado', ['activa', 'finalizada'])

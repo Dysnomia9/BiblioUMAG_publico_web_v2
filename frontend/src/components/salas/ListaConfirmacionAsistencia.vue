@@ -3,7 +3,7 @@ import type { Sala, TramoReserva } from '@/types'
 
 /** Filas del menú de confirmación de asistencia de SalasView: la tarjeta muestra las primeras y el popup, todas. */
 defineProps<{
-  pendientes: { sala: Sala; tramo: TramoReserva; vencida: boolean; segundosRestantes: number }[]
+  pendientes: { sala: Sala; tramo: TramoReserva; vencida: boolean; segundosRestantes: number | null }[]
   liberando: number | null
 }>()
 
@@ -14,7 +14,8 @@ const emit = defineEmits<{
   liberar: [sala: Sala, tramo: TramoReserva]
 }>()
 
-function formatCuentaRegresiva(segundos: number) {
+function formatCuentaRegresiva(segundos: number | null) {
+  if (segundos === null) return 'Sin vencimiento'
   if (segundos <= 0) return 'Vencido'
   const m = Math.floor(segundos / 60)
   const s = segundos % 60
@@ -38,7 +39,7 @@ function formatCuentaRegresiva(segundos: number) {
       <div class="flex items-center gap-3 shrink-0">
         <span
           class="text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
-          :class="p.vencida ? 'bg-red-100 text-red-700' : p.segundosRestantes < 300 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
+          :class="p.vencida ? 'bg-red-100 text-red-700' : p.segundosRestantes !== null && p.segundosRestantes < 300 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
         >
           {{ formatCuentaRegresiva(p.segundosRestantes) }}
         </span>

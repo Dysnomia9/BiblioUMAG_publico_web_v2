@@ -301,7 +301,9 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
                 {{ horaDe(actual.hora_prestamo_real) }}<template v-if="actual.prestado_por"> · {{ actual.prestado_por }}</template>
                 <span class="block text-xs font-normal text-gray-500">{{ actual.via === 'codigo' ? 'Con el código de la sala' : actual.via === 'BC' ? 'Con código de barras' : 'Confirmada desde la reserva' }}</span>
               </template>
-              <template v-else-if="actual.situacion === 'pendiente'">Aún no llegan · tienen hasta las {{ horaDe(actual.plazo_confirmacion) }}</template>
+              <template v-else-if="actual.situacion === 'pendiente'">
+                Aún no llegan · <template v-if="actual.plazo_confirmacion">tienen hasta las {{ horaDe(actual.plazo_confirmacion) }}</template><template v-else>sin vencimiento por falta de confirmación</template>
+              </template>
               <span v-else class="font-normal text-gray-400">Sin registro</span>
             </dd>
           </div>

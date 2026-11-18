@@ -91,9 +91,16 @@ class Reserva extends Model
      * tramo 15:00-17:00 no debería pasar, pero por seguridad se toma el máximo entre
      * ambos), en cuyo caso el plazo corre desde el momento de la reserva, no desde el
      * inicio nominal del tramo (que ya pasó).
+     * Las salas de Administración no tienen vencimiento por falta de confirmación.
      */
-    public function plazoConfirmacion(): Carbon
+    public function plazoConfirmacion(): ?Carbon
     {
+        // Administración confirma la asistencia manualmente, sin liberar la sala
+        // por demora en el registro, tanto en reservas nuevas como ya existentes.
+        if ($this->sala?->solo_administracion) {
+            return null;
+        }
+
         $inicioTramo = Carbon::parse($this->fecha->toDateString().' '.$this->hora_inicio);
         $base = $this->created_at->greaterThan($inicioTramo) ? $this->created_at : $inicioTramo;
 
@@ -111,7 +118,8 @@ class Reserva extends Model
     {
         return $this->estado === 'activa'
             && ! $this->hora_prestamo_real
-            && now()->greaterThan($this->plazoConfirmacion());
+            && ($plazo = $this->plazoConfirmacion()) !== null
+            && now()->greaterThan($plazo);
     }
 
     /** Minutos que dura el tramo reservado (hora_fin - hora_inicio). */
@@ -123,7 +131,7 @@ class Reserva extends Model
     /** «Logia 3, 02/10/2026 de 10:00 a 12:00» — así aparece la reserva en la bitácora. */
     public function descripcion(): string
     {
-        $this->loadMissing('sala:id,nombre');
+        $this->loadMissing('sala:id,nombre,solo_administracion');
 
         return ($this->sala?->nombre ?? 'Sala').', '.$this->fecha->format('d/m/Y')
             .' de '.substr($this->hora_inicio, 0, 5).' a '.substr($this->hora_fin, 0, 5);
