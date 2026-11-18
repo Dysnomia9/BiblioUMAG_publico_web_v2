@@ -117,7 +117,16 @@ npm run dev
   color, indicaciones y un máximo opcional por persona. En Recursos de apoyo se
   registran **varios a la vez** (una fila por recurso, pensado para el lector de
   códigos) y se dan de baja **con su motivo**, que queda en el inventario y en la
-  bitácora. Al prestar, cada recuadro sugiere los recursos libres de su categoría,
+  bitácora. El inventario muestra los activos por defecto, permite filtrar por estado
+  (activos, dados de baja o todos) y categoría, y buscar por nombre o código de barras.
+  Se consulta por páginas de 25, 50 o 100 recursos; los contadores abarcan todos los
+  registros correspondientes a los filtros, no solo la página visible.
+  Un recurso ya dado de baja se puede **eliminar del inventario** escribiendo
+  «confirmar»: deja de aparecer incluso en «Todos» y en los contadores. La eliminación
+  es lógica (`equipos.deleted_at`); conserva sus préstamos, reportes y bitácora.
+  No se permite si tiene un préstamo sin devolver. Su nombre y código se conservan
+  reservados para mantener la identificación del registro histórico.
+  Al prestar, cada recuadro sugiere los recursos libres de su categoría,
   y un recurso escaneado en «Nuevo préstamo» pasa a su recuadro y abre directamente
   la confirmación, sin tener que pulsar antes «Prestar». El préstamo se registra
   únicamente después de confirmar.

@@ -57,7 +57,7 @@ final class Permisos
                 'libros.catalogar' => ['Catalogar libros', 'Crear fichas de libros nuevos, agregar copias, editar datos y generar códigos de barra.'],
                 'libros.estado' => ['Cambiar estado de un libro', 'Cambiar el estado físico de un ejemplar, incluido darlo de baja.'],
                 'libros.cambio_masivo' => ['Cambio masivo de estado', 'Cambiar el estado de muchos ejemplares a la vez (ej. inventario anual).'],
-                'equipos.gestionar' => ['Administrar recursos de apoyo', 'Agregar notebooks, audífonos, cargadores, bicicletas y demás recursos de apoyo, y darlos de baja.'],
+                'equipos.gestionar' => ['Administrar recursos de apoyo', 'Agregar notebooks, audífonos, cargadores, bicicletas y demás recursos de apoyo, darlos de baja y eliminar del inventario los que ya estén de baja.'],
             ],
         ],
         'consultas' => [

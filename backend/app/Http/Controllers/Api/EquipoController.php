@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Equipo;
 use App\Support\Bitacora;
+use App\Support\Paginacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -13,11 +14,13 @@ class EquipoController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Equipo::query();
+        $request->validate([
+            'q' => ['nullable', 'string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'por_pagina' => ['nullable', 'integer', 'min:1'],
+        ]);
 
-        if ($tipo = $request->query('tipo')) {
-            $query->where('tipo', $tipo);
-        }
+        $query = Equipo::query();
 
         if ($request->has('disponible')) {
             $query->where('disponible', filter_var($request->query('disponible'), FILTER_VALIDATE_BOOLEAN));
@@ -27,9 +30,36 @@ class EquipoController extends Controller
             $query->where('activo', filter_var($request->query('activo'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        return response()->json(
-            $query->orderBy('codigo_inventario')->get()
-        );
+        if ($busqueda = trim((string) $request->query('q'))) {
+            $query->where(fn ($q) => $q->where('codigo_inventario', 'ilike', "%{$busqueda}%")
+                ->orWhere('codigo_barras', 'ilike', "%{$busqueda}%"));
+        }
+
+        // Los contadores por categoría respetan el estado y la búsqueda, antes de
+        // elegir una categoría. El inventario pide páginas; Préstamos conserva su
+        // lista de recursos disponibles sin cambiar el formato de su respuesta.
+        $paginado = $request->has('page') || $request->has('por_pagina');
+        $porCategoria = $paginado
+            ? (clone $query)->selectRaw('tipo, count(*) as cantidad')->groupBy('tipo')->pluck('cantidad', 'tipo')
+            : null;
+
+        if ($tipo = $request->query('tipo')) {
+            $query->where('tipo', $tipo);
+        }
+
+        $query->orderBy('codigo_inventario')->orderBy('id');
+        if (! $paginado) {
+            return response()->json($query->get());
+        }
+
+        $pagina = $query->paginate(Paginacion::porPagina($request, 25, 100));
+        $resumen = Equipo::selectRaw('count(*) as total, count(*) filter (where activo) as activos, count(*) filter (where not activo) as bajas')->first();
+
+        return response()->json([
+            ...$pagina->toArray(),
+            'resumen' => ['total' => (int) $resumen->total, 'activos' => (int) $resumen->activos, 'bajas' => (int) $resumen->bajas],
+            'por_categoria' => (object) $porCategoria->map(fn ($cantidad) => (int) $cantidad)->all(),
+        ]);
     }
 
     /** Busca un equipo por su código de barras (escaneo en préstamo). */
@@ -115,29 +145,66 @@ class EquipoController extends Controller
             'motivo.required' => 'Indica el motivo de la baja: queda registrado en el inventario y en la bitácora.',
         ]);
 
-        // No se puede dar de baja un recurso actualmente prestado (mismo criterio que
-        // LibroController::cambiarEstado con 'de_baja') — primero debe devolverse.
         $activo = (bool) $data['activo'];
-        if (! $activo && ! $equipo->disponible) {
-            return response()->json(['message' => 'No se puede dar de baja un recurso que está prestado: primero tiene que devolverse.'], 409);
-        }
 
-        if ($equipo->activo !== $activo) {
-            // Al reactivarlo se limpia el motivo: el de cada baja sigue en la bitácora.
-            $equipo->update($activo
-                ? ['activo' => true, 'motivo_baja' => null, 'dado_de_baja_el' => null]
-                : ['activo' => false, 'motivo_baja' => $data['motivo'], 'dado_de_baja_el' => now()]);
+        return DB::transaction(function () use ($equipo, $data, $activo) {
+            $equipo = Equipo::whereKey($equipo->id)->lockForUpdate()->firstOrFail();
 
+            // No se puede dar de baja un recurso actualmente prestado (mismo criterio que
+            // LibroController::cambiarEstado con 'de_baja') — primero debe devolverse.
+            if (! $activo && ! $equipo->disponible) {
+                return response()->json(['message' => 'No se puede dar de baja un recurso que está prestado: primero tiene que devolverse.'], 409);
+            }
+
+            if ($equipo->activo !== $activo) {
+                // Al reactivarlo se limpia el motivo: el de cada baja sigue en la bitácora.
+                $equipo->update($activo
+                    ? ['activo' => true, 'motivo_baja' => null, 'dado_de_baja_el' => null]
+                    : ['activo' => false, 'motivo_baja' => $data['motivo'], 'dado_de_baja_el' => now()]);
+
+                Bitacora::registrar(
+                    $activo ? 'equipos.reactivar' : 'equipos.dar_de_baja',
+                    $activo
+                        ? "Reactivó el recurso {$equipo->codigo_inventario}"
+                        : "Dio de baja el recurso {$equipo->codigo_inventario}. Motivo: {$data['motivo']}",
+                    entidad: $equipo,
+                    datos: $activo ? [] : ['motivo' => $data['motivo']],
+                );
+            }
+
+            return response()->json($equipo);
+        });
+    }
+
+    /** Oculta del inventario un recurso de baja, conservando sus préstamos y su bitácora. */
+    public function eliminar(Request $request, Equipo $equipo)
+    {
+        $request->validate([
+            'confirmacion' => ['required', 'string', 'max:50', function ($campo, $valor, $falla) {
+                if (mb_strtolower(trim($valor)) !== 'confirmar') {
+                    $falla('Escribe «confirmar» para eliminar el recurso.');
+                }
+            }],
+        ], ['confirmacion.required' => 'Escribe «confirmar» para eliminar el recurso.']);
+
+        return DB::transaction(function () use ($equipo) {
+            $equipo = Equipo::whereKey($equipo->id)->lockForUpdate()->firstOrFail();
+            if ($equipo->activo) {
+                return response()->json(['message' => 'Da de baja el recurso antes de eliminarlo del inventario.'], 409);
+            }
+            if (! $equipo->disponible || $equipo->prestamos()->whereNull('fecha_devolucion_real')->where('estado', 'activo')->exists()) {
+                return response()->json(['message' => 'No se puede eliminar un recurso que tiene un préstamo sin devolver.'], 409);
+            }
+
+            $equipo->delete();
             Bitacora::registrar(
-                $activo ? 'equipos.reactivar' : 'equipos.dar_de_baja',
-                $activo
-                    ? "Reactivó el recurso {$equipo->codigo_inventario}"
-                    : "Dio de baja el recurso {$equipo->codigo_inventario}. Motivo: {$data['motivo']}",
+                'equipos.eliminar',
+                "Eliminó del inventario el recurso {$equipo->codigo_inventario} (código {$equipo->codigo_barras}). Su historial se conserva.",
                 entidad: $equipo,
-                datos: $activo ? [] : ['motivo' => $data['motivo']],
+                datos: $equipo->only(['codigo_inventario', 'codigo_barras', 'tipo', 'motivo_baja', 'dado_de_baja_el']),
             );
-        }
 
-        return response()->json($equipo);
+            return response()->noContent();
+        });
     }
 }

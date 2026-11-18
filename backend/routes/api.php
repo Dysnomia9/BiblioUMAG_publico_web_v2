@@ -209,6 +209,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::post('/equipos', [EquipoController::class, 'store']);
         Route::post('/equipos/lote', [EquipoController::class, 'storeLote']);
         Route::patch('/equipos/{equipo}/activo', [EquipoController::class, 'cambiarActivo']);
+        Route::delete('/equipos/{equipo}', [EquipoController::class, 'eliminar'])->whereNumber('equipo');
     });
 
     Route::get('/libros/historial', [LibroController::class, 'historial'])->middleware('permiso:historiales.ver');

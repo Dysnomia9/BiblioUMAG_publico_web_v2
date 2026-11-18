@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import StaffLayout from '@/components/layout/StaffLayout.vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import FondoRecursos from '@/components/ui/FondoRecursos.vue'
+import Paginador from '@/components/ui/Paginador.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { categoriaDe, COLORES_RECURSO, ICONOS_RECURSO, useCategoriasRecurso } from '@/utils/recursos'
 import { fechaCorta } from '@/utils/prestamos'
-import type { Equipo } from '@/types'
+import type { Equipo, InventarioEquipos } from '@/types'
 
 const toast = useToast()
 
@@ -22,7 +23,14 @@ const auth = useAuthStore()
 const { categorias, cargar: cargarCategorias } = useCategoriasRecurso()
 const categoriasActivas = computed(() => categorias.value.filter((c) => c.activo))
 const filtroCategoria = ref('')
-const visibles = computed(() => (filtroCategoria.value ? equipos.value.filter((e) => e.tipo === filtroCategoria.value) : equipos.value))
+const filtroEstado = ref<'activos' | 'bajas' | 'todos'>('activos')
+const busqueda = ref('')
+const pagina = ref(1)
+const porPagina = ref(25)
+const meta = ref({ current_page: 1, last_page: 1, total: 0, from: null as number | null, to: null as number | null })
+const resumen = ref({ total: 0, activos: 0, bajas: 0 })
+const porCategoria = ref<Record<string, number>>({})
+const totalCategorias = computed(() => Object.values(porCategoria.value).reduce((total, cantidad) => total + cantidad, 0))
 
 const equipos = ref<Equipo[]>([])
 const cargando = ref(true)
@@ -135,23 +143,69 @@ const textoRegistrar = computed(() => {
 const creando = ref(false)
 const confirmandoCrear = ref(false)
 
+let ultimaCarga = 0
 async function cargar() {
+  const carga = ++ultimaCarga
   cargando.value = true
   try {
-    const { data } = await api.get<Equipo[]>('/equipos')
-    equipos.value = data
+    const { data } = await api.get<InventarioEquipos>('/equipos', {
+      params: {
+        page: pagina.value,
+        por_pagina: porPagina.value,
+        tipo: filtroCategoria.value || undefined,
+        activo: filtroEstado.value === 'todos' ? undefined : filtroEstado.value === 'activos' ? 1 : 0,
+        q: busqueda.value.trim() || undefined,
+      },
+    })
+    if (carga !== ultimaCarga) return
+    // Al dar de baja o reactivar el último recurso de una página, volver a una
+    // página existente en vez de dejar el inventario vacío.
+    if (data.current_page > data.last_page) {
+      pagina.value = data.last_page
+      await cargar()
+      return
+    }
+    equipos.value = data.data
+    resumen.value = data.resumen
+    porCategoria.value = data.por_categoria
+    meta.value = { current_page: data.current_page, last_page: data.last_page, total: data.total, from: data.from, to: data.to }
     apiError.value = false
   } catch {
+    if (carga !== ultimaCarga) return
     apiError.value = true
     equipos.value = []
+    meta.value = { current_page: 1, last_page: 1, total: 0, from: null, to: null }
   } finally {
-    cargando.value = false
+    if (carga === ultimaCarga) cargando.value = false
   }
+}
+
+let busquedaTimer: ReturnType<typeof setTimeout> | undefined
+watch(busqueda, () => {
+  clearTimeout(busquedaTimer)
+  busquedaTimer = setTimeout(() => {
+    pagina.value = 1
+    cargar()
+  }, 300)
+})
+watch([filtroEstado, filtroCategoria, porPagina], () => {
+  clearTimeout(busquedaTimer)
+  pagina.value = 1
+  cargar()
+})
+
+function irAPagina(nueva: number) {
+  pagina.value = nueva
+  cargar()
 }
 
 onMounted(() => {
   cargar()
   cargarCategorias(true)
+})
+onUnmounted(() => {
+  clearTimeout(busquedaTimer)
+  ultimaCarga++
 })
 
 function pedirConfirmacionCrear() {
@@ -236,10 +290,42 @@ async function cambiarActivo() {
   }
 }
 
+const equipoAEliminar = ref<Equipo | null>(null)
+const confirmacionEliminar = ref('')
+const eliminando = ref(false)
+const campoConfirmacionEliminar = ref<HTMLInputElement | null>(null)
+const puedeEliminar = computed(() => !!equipoAEliminar.value && !equipoAEliminar.value.activo
+  && equipoAEliminar.value.disponible && confirmacionEliminar.value.trim().toLowerCase() === 'confirmar')
+
+async function pedirEliminar(equipo: Equipo) {
+  if (equipo.activo || !equipo.disponible) return
+  confirmacionEliminar.value = ''
+  equipoAEliminar.value = equipo
+  await nextTick()
+  campoConfirmacionEliminar.value?.focus()
+}
+
+async function eliminarEquipo() {
+  const equipo = equipoAEliminar.value
+  if (!equipo || !puedeEliminar.value || eliminando.value) return
+  eliminando.value = true
+  try {
+    await api.delete(`/equipos/${equipo.id}`, { data: { confirmacion: confirmacionEliminar.value.trim() } })
+    toast.success('Recurso eliminado del inventario. Su historial se conserva')
+    equipoAEliminar.value = null
+    confirmacionEliminar.value = ''
+    await cargar()
+  } catch (e: any) {
+    toast.error(mensajeDeError(e, 'No se pudo eliminar el recurso'))
+  } finally {
+    eliminando.value = false
+  }
+}
+
 const nombreCategoria = (clave: string) => categoriaDe(clave)?.nombre ?? clave
 const fondoDe = (clave: string) => (COLORES_RECURSO[categoriaDe(clave)?.color ?? 'slate'] ?? COLORES_RECURSO.slate).fondo
 const iconoDe = (clave: string) => (ICONOS_RECURSO[categoriaDe(clave)?.icono ?? 'caja'] ?? ICONOS_RECURSO.caja).trazo
-const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave && e.activo).length
+const cuantos = (clave: string) => porCategoria.value[clave] ?? 0
 </script>
 
 <template>
@@ -260,8 +346,8 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
           </div>
           <div class="flex shrink-0 gap-2">
             <div class="rounded-xl border border-white/20 bg-blanco/10 px-4 py-1.5 text-center text-white">
-              <p class="font-serif text-xl font-bold tabular-nums leading-tight">{{ equipos.filter((e) => e.activo).length }}</p>
-              <p class="text-[11px] text-white/75">recursos</p>
+              <p class="font-serif text-xl font-bold tabular-nums leading-tight">{{ resumen.activos }}</p>
+              <p class="text-[11px] text-white/75">recursos activos</p>
             </div>
             <div class="rounded-xl border border-white/20 bg-blanco/10 px-4 py-1.5 text-center text-white">
               <p class="font-serif text-xl font-bold tabular-nums leading-tight">{{ categorias.length }}</p>
@@ -380,6 +466,38 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
 
       <ApiErrorBanner v-if="apiError" />
 
+      <div class="mb-4 grid grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_13rem_8rem] sm:gap-4">
+        <div class="col-span-2 min-w-0 sm:col-span-1">
+          <label for="buscar-recurso" class="mb-1.5 block text-sm font-semibold text-gray-900">Buscar recurso</label>
+          <div class="group relative">
+            <svg class="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-400 transition-colors group-focus-within:text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path stroke-linecap="round" d="m16 16 4.5 4.5" /></svg>
+            <input id="buscar-recurso" v-model="busqueda" type="search" placeholder="Nombre o código de barras" class="h-12 w-full rounded-xl border border-indigo-300 bg-white pl-11 pr-4 text-base text-gray-900 shadow-sm outline-none transition-colors placeholder:text-gray-400 hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm" />
+          </div>
+        </div>
+        <div class="min-w-0">
+          <label for="estado-recursos" class="mb-1.5 block text-sm font-semibold text-gray-900">Estado</label>
+          <div class="relative">
+            <select id="estado-recursos" v-model="filtroEstado" class="h-12 w-full cursor-pointer appearance-none rounded-xl border border-gray-300 bg-white pl-4 pr-10 text-base text-gray-900 shadow-sm outline-none transition-colors hover:border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm">
+              <option value="activos">Activos ({{ resumen.activos }})</option>
+              <option value="bajas">Dados de baja ({{ resumen.bajas }})</option>
+              <option value="todos">Todos ({{ resumen.total }})</option>
+            </select>
+            <svg class="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <label for="cantidad-recursos" class="mb-1.5 block text-sm font-semibold text-gray-900">Por página</label>
+          <div class="relative">
+            <select id="cantidad-recursos" v-model.number="porPagina" class="h-12 w-full cursor-pointer appearance-none rounded-xl border border-gray-300 bg-white pl-4 pr-10 text-base text-gray-900 shadow-sm outline-none transition-colors hover:border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm">
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+            <svg class="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+          </div>
+        </div>
+      </div>
+
       <div class="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoría">
         <button
           type="button"
@@ -390,7 +508,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
         >
           <span class="flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold" :class="!filtroCategoria ? 'bg-blanco/20 text-white' : 'bg-indigo-50 text-indigo-700'" aria-hidden="true">Σ</span>
           Todas
-          <span class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="!filtroCategoria ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ equipos.filter((e) => e.activo).length }}</span>
+          <span class="rounded-full px-2 text-[11px] font-bold tabular-nums" :class="!filtroCategoria ? 'bg-blanco/20 text-white' : 'bg-gray-100 text-gray-600'">{{ totalCategorias }}</span>
         </button>
         <button
           v-for="c in categorias"
@@ -407,7 +525,7 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
         </button>
       </div>
 
-      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" :aria-busy="cargando">
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead>
@@ -421,7 +539,8 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr v-for="e in visibles" :key="e.id" class="even:bg-gray-50/50">
+              <tr v-if="cargando"><td colspan="6" class="px-5 py-8 text-center text-sm text-gray-400">Cargando recursos…</td></tr>
+              <tr v-for="e in (cargando ? [] : equipos)" :key="e.id" class="even:bg-gray-50/50">
                 <td class="px-5 py-2.5">
                   <span class="flex items-center gap-2.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="fondoDe(e.tipo)" aria-hidden="true">
@@ -462,16 +581,58 @@ const cuantos = (clave: string) => equipos.value.filter((e) => e.tipo === clave 
                     <svg v-if="e.activo" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M18.16 19.673A2.25 2.25 0 0115.916 21.75H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                     {{ e.activo ? 'Dar de baja' : 'Reactivar' }}
                   </button>
+                  <button
+                    v-if="!e.activo && auth.puede('equipos.gestionar')"
+                    type="button"
+                    :disabled="!e.disponible"
+                    :title="!e.disponible ? 'Primero debe devolverse el recurso' : 'Eliminar del inventario conservando su historial'"
+                    class="ml-2 inline-flex items-center whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    @click="pedirEliminar(e)"
+                  >Eliminar</button>
                 </td>
               </tr>
-              <tr v-if="!cargando && !visibles.length">
-                <td colspan="6" class="px-5 py-8 text-center text-sm text-gray-400">Sin recursos registrados{{ filtroCategoria ? ' en esta categoría' : '' }}.</td>
+              <tr v-if="!cargando && !equipos.length">
+                <td colspan="6" class="px-5 py-8 text-center text-sm text-gray-400">No hay recursos que coincidan con los filtros.</td>
               </tr>
             </tbody>
           </table>
         </div>
+        <div class="border-t border-gray-200 px-5 py-3">
+          <Paginador
+            :pagina="meta.current_page" :paginas="meta.last_page" :total="meta.total"
+            :desde="meta.from" :hasta="meta.to" :cargando="cargando" unidad="recursos"
+            @update:pagina="irAPagina"
+          />
+        </div>
       </div>
     </div>
+
+    <DialogoConfirmacion
+      :abierto="!!equipoAEliminar"
+      titulo="¿Eliminar este recurso del inventario?"
+      confirmar="Sí, eliminar"
+      tono="peligro"
+      :cargando="eliminando"
+      :deshabilitado="!puedeEliminar"
+      @confirmar="eliminarEquipo"
+      @cancelar="equipoAEliminar = null"
+    >
+      <template v-if="equipoAEliminar">
+        <p><strong class="text-gray-900">{{ equipoAEliminar.codigo_inventario }}</strong> · <span class="font-mono">{{ equipoAEliminar.codigo_barras }}</span></p>
+        <p class="mt-2">Dejará de aparecer en el inventario, incluso al elegir «Todos». Sus préstamos y su historial se conservan.</p>
+        <label for="confirmar-eliminar-recurso" class="mb-1.5 mt-4 block font-medium text-gray-700">Para continuar, escribe <strong>confirmar</strong>:</label>
+        <input
+          id="confirmar-eliminar-recurso"
+          ref="campoConfirmacionEliminar"
+          v-model="confirmacionEliminar"
+          autocomplete="off"
+          maxlength="50"
+          :disabled="eliminando"
+          class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-red-500"
+          @keydown.enter.prevent="eliminarEquipo"
+        />
+      </template>
+    </DialogoConfirmacion>
 
     <DialogoConfirmacion
       :abierto="confirmandoCrear"

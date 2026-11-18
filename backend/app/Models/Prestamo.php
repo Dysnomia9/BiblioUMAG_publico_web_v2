@@ -70,7 +70,7 @@ class Prestamo extends Model
 
     public function equipo()
     {
-        return $this->belongsTo(Equipo::class);
+        return $this->belongsTo(Equipo::class)->withTrashed();
     }
 
     public function multas(): HasMany

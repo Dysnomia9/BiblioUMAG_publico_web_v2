@@ -956,6 +956,12 @@ export type Paginado<T> = {
   to: number | null
 }
 
+/** Inventario de recursos: una página y contadores calculados sobre todos los registros. */
+export type InventarioEquipos = Paginado<Equipo> & {
+  resumen: { total: number; activos: number; bajas: number }
+  por_categoria: Record<string, number>
+}
+
 /** Historial de libros: una fila de la lista (el detalle de préstamos se pide aparte). */
 export type LibroHistorialItem = {
   libro: Pick<Libro, 'id' | 'numero_ficha' | 'titulo' | 'isbn' | 'clasificacion'>
