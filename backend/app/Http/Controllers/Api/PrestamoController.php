@@ -275,10 +275,10 @@ class PrestamoController extends Controller
                 $ejemplar->loadMissing('libro');
             } else {
                 $categoria = CategoriaRecurso::where('clave', $data['tipo_item'])->first();
-                $equipo = Equipo::whereIn('codigo_barras', Ejemplar::variantesCodigo($data['codigo_barras']))->where('tipo', $data['tipo_item'])->lockForUpdate()->first();
+                $equipo = Equipo::porCodigo($data['codigo_barras'])->where('tipo', $data['tipo_item'])->lockForUpdate()->first();
 
                 if (! $equipo) {
-                    $deOtraCategoria = Equipo::with('categoria')->whereIn('codigo_barras', Ejemplar::variantesCodigo($data['codigo_barras']))->first();
+                    $deOtraCategoria = Equipo::with('categoria')->porCodigo($data['codigo_barras'])->first();
 
                     return $deOtraCategoria
                         ? [['message' => "Ese código es de {$deOtraCategoria->categoria?->nombre} ({$deOtraCategoria->codigo_inventario}), no de {$categoria->nombre}."], 422]

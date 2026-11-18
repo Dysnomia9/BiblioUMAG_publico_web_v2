@@ -35,6 +35,7 @@ const filtros = reactive({
   tipo_usuario: '',
   // Solo en la pestaña Préstamos: bibliografico | en_sala | recursos_apoyo | interbibliotecario | sin_rut.
   tipo_prestamo: '',
+  recurso: '',
   // Préstamos y material más prestado: id del tipo de material (libro, tesis, juego…).
   tipo_material: '',
 })
@@ -103,7 +104,7 @@ const DORADO_SUAVE = computed(() => (oscuro.value ? '#5c4f3b' : '#EADFC9'))
 const UNIDAD: Record<ReporteTab, { plural: string; titulo: string; quien: string }> = {
   prestamos: { plural: 'préstamos', titulo: 'Préstamos', quien: 'pidió el préstamo' },
   ingresos: { plural: 'ingresos', titulo: 'Ingresos', quien: 'ingresó' },
-  logias: { plural: 'reservas', titulo: 'Reservas', quien: 'usó la sala' },
+  logias: { plural: 'usos', titulo: 'Usos confirmados', quien: 'usó la sala' },
   libros: { plural: 'préstamos', titulo: 'Préstamos de material', quien: 'pidió el material' },
 }
 const unidad = computed(() => UNIDAD[tab.value])
@@ -138,8 +139,11 @@ const VISTAS = [
 ]
 
 const filtrosPildora = computed(() => [
-  ...(tab.value === 'prestamos'
+  ...(['prestamos', 'libros'].includes(tab.value)
     ? [{ campo: 'tipo_prestamo' as const, nombre: 'Préstamo', todos: 'Todos', valores: Object.entries(FILTROS_TIPO_PRESTAMO).map(([valor, texto]) => ({ valor, texto })) }]
+    : []),
+  ...(['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo === 'recursos_apoyo'
+    ? [{ campo: 'recurso' as const, nombre: 'Recurso', todos: 'Todos', valores: Object.entries(opciones.value.recursos).filter(([clave]) => clave !== 'libro').map(([valor, texto]) => ({ valor, texto })) }]
     : []),
   { campo: 'carrera' as const, nombre: 'Carrera', todos: 'Todas', valores: opciones.value.carreras.map((c) => ({ valor: c, texto: c })) },
   { campo: 'anio_ingreso' as const, nombre: 'Ingreso', todos: 'Todos', valores: opciones.value.aniosIngreso.map((a) => ({ valor: String(a), texto: String(a) })) },
@@ -172,9 +176,13 @@ watch(soloSinCarrera, (sinCarrera) => {
 watch(tab, (t) => {
   if (t !== 'ingresos' && filtros.tipo_usuario === 'externo') filtros.tipo_usuario = ''
 })
+watch(() => filtros.tipo_prestamo, (tipo) => {
+  if (tipo === 'recursos_apoyo') filtros.tipo_material = ''
+  else filtros.recurso = ''
+})
 
 // Botones de tipo de material: «Todo» y cada tipo, con Libro y Juego educativo primero (los más consultados).
-const mostrarMaterial = computed(() => tab.value === 'prestamos' || tab.value === 'libros')
+const mostrarMaterial = computed(() => ['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo !== 'recursos_apoyo')
 const opcionesMaterial = computed(() => {
   const primeros = ['Libro', 'Juego educativo']
   const peso = (nombre: string) => (primeros.includes(nombre) ? primeros.indexOf(nombre) : primeros.length)
@@ -248,7 +256,8 @@ async function cargarResumen() {
         anio_ingreso: filtros.anio_ingreso || undefined,
         sexo: filtros.sexo || undefined,
         tipo_usuario: filtros.tipo_usuario || undefined,
-        tipo_prestamo: (tab.value === 'prestamos' && filtros.tipo_prestamo) || undefined,
+        tipo_prestamo: (['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo) || undefined,
+        recurso: (['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo === 'recursos_apoyo' && filtros.recurso) || undefined,
         tipo_material: ((tab.value === 'prestamos' || tab.value === 'libros') && filtros.tipo_material) || undefined,
       },
     })
@@ -276,6 +285,8 @@ const diferencia = computed(() => resumen.value.total - resumen.value.totalAnter
 const totalPersonas = computed(() => resumen.value.personas ?? resumen.value.total)
 // En Préstamos, el ranking de títulos es solo de la colección: sus porcentajes, sobre esos préstamos.
 const prestamosDeColeccion = computed(() => resumen.value.porLibro.reduce((suma, d) => suma + d.value, 0))
+const prestamosDeRecursos = computed(() => (resumen.value.porEquipo ?? []).reduce((suma, d) => suma + d.value, 0))
+const rankingMaterial = computed(() => [...resumen.value.porLibro, ...(resumen.value.porEquipo ?? [])].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'es')))
 // El préstamo interbibliotecario se muestra si hubo movimiento en el período o se está filtrando por él.
 const interbibliotecario = computed(() => resumen.value.interbibliotecario ?? null)
 const verInterbibliotecario = computed(() => {
@@ -286,7 +297,7 @@ const verInterbibliotecario = computed(() => {
 const destacado = computed(() => {
   const r = resumen.value
   if (tab.value === 'logias') return { titulo: 'Sala más usada', item: r.porSala[0] ?? null }
-  if (tab.value === 'libros') return { titulo: 'Material más prestado', item: r.porLibro[0] ?? null }
+  if (tab.value === 'libros') return { titulo: 'Material más prestado', item: rankingMaterial.value[0] ?? null }
   return { titulo: `Carrera con más ${unidad.value.plural}`, item: r.porCarrera[0] ?? null }
 })
 
@@ -365,13 +376,16 @@ const agrupaciones = computed<Agrupacion[]>(() => {
       { id: 'tipoMaterial', label: 'Tipo de material', color: INDIGO.value, datos: r.porTipoMaterial, columna: 'Tipo de material' },
       { id: 'recurso', label: 'Recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Recurso' },
       { id: 'libro', label: 'Título', color: INDIGO.value, datos: r.porLibro, columna: 'Título' },
+      { id: 'equipo', label: 'Recurso de apoyo', color: DORADO, datos: r.porEquipo ?? [], columna: 'Recurso de apoyo' },
     )
   }
   if (tab.value === 'logias') lista.push({ id: 'sala', label: 'Sala', color: DORADO, datos: r.porSala, columna: 'Sala' })
   if (tab.value === 'libros') {
     lista.push(
       { id: 'tipoMaterial', label: 'Tipo de material', color: DORADO, datos: r.porTipoMaterial, columna: 'Tipo de material' },
-      { id: 'libro', label: 'Título', color: INDIGO.value, datos: r.porLibro, columna: 'Título' },
+      { id: 'recurso', label: 'Categoría de recurso', color: DORADO, datos: conNombres(r.porRecurso, NOMBRES_RECURSO.value), columna: 'Categoría de recurso' },
+      { id: 'libro', label: 'Material o recurso', color: INDIGO.value, datos: rankingMaterial.value, columna: 'Material o recurso' },
+      { id: 'equipo', label: 'Recurso de apoyo', color: DORADO, datos: r.porEquipo ?? [], columna: 'Recurso de apoyo' },
     )
   }
   return lista
@@ -418,12 +432,13 @@ const exportando = ref(false)
 
 /** «12,5 h» de los minutos de uso de una sala. */
 const horasDeUso = (minutos: number) => `${(minutos / 60).toLocaleString('es-CL', { maximumFractionDigits: 1 })} h`
-/** Qué parte de las reservas de la sala terminaron con el grupo presente. */
-const asistencia = (s: { reservas: number; presentes: number }) => (s.reservas ? Math.round((s.presentes / s.reservas) * 100) : 0)
+/** Asistencia entre resultados conocidos; las reservas pendientes no entran al porcentaje. */
+const asistencia = (s: { presentes: number; no_llegaron: number }) => (s.presentes + s.no_llegaron ? Math.round((s.presentes / (s.presentes + s.no_llegaron)) * 100) : 0)
 
 const descripcionFiltros = computed(() => {
   const partes: string[] = []
-  if (tab.value === 'prestamos' && filtros.tipo_prestamo) partes.push(`préstamo ${FILTROS_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
+  if (['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo) partes.push(`préstamo ${FILTROS_TIPO_PRESTAMO[filtros.tipo_prestamo].toLowerCase()}`)
+  if (['prestamos', 'libros'].includes(tab.value) && filtros.tipo_prestamo === 'recursos_apoyo' && filtros.recurso) partes.push(`recurso "${opciones.value.recursos[filtros.recurso] ?? filtros.recurso}"`)
   if ((tab.value === 'prestamos' || tab.value === 'libros') && filtros.tipo_material) {
     const tipo = opciones.value.tiposMaterial.find((t) => String(t.id) === filtros.tipo_material)
     if (tipo) partes.push(`material "${tipo.nombre}"`)
@@ -483,8 +498,8 @@ async function confirmarExportar() {
   if (tab.value === 'logias') {
     secciones.push({
       titulo: 'Detalle por sala',
-      columnas: ['Código', 'Sala', 'Reservas', 'Llegaron', 'No llegaron', 'Horas de uso', 'Liberadas antes'],
-      filas: r.porSalaDetalle.map((s) => [s.codigo, s.nombre, s.reservas, s.presentes, s.no_llegaron, horasDeUso(s.minutos_uso), s.liberadas]),
+      columnas: ['Código', 'Sala', 'Programadas', 'Usos confirmados', 'Sin confirmar', 'No llegaron', 'Horas de uso', 'Liberadas antes'],
+      filas: r.porSalaDetalle.map((s) => [s.codigo, s.nombre, s.reservas, s.presentes, s.pendientes ?? 0, s.no_llegaron, horasDeUso(s.minutos_uso), s.liberadas]),
     })
     secciones.push({
       titulo: 'Horas por sala',
@@ -763,7 +778,7 @@ async function confirmarExportar() {
           </SeccionReporte>
 
           <SeccionReporte
-            v-if="tab === 'prestamos'"
+            v-if="tab === 'prestamos' || tab === 'libros'"
             titulo="Por tipo de préstamo"
             subtitulo="Material de la colección (libros, tesis, revistas, juegos…) que se llevan o leen en la sala, o recursos de apoyo (notebooks, audífonos, bicicletas…)"
           >
@@ -777,6 +792,11 @@ async function confirmarExportar() {
                 <BarrasRanking :datos="conNombres(resumen.porRecurso, NOMBRES_RECURSO)" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" />
               </div>
             </div>
+          </SeccionReporte>
+
+          <SeccionReporte v-if="tab === 'prestamos' || tab === 'libros'" titulo="Recursos de apoyo más prestados" subtitulo="PCs, bicicletas, mouse y demás recursos: cantidad de préstamos registrados en BiblioUMAG durante el período">
+            <BarrasRanking v-if="prestamosDeRecursos" :datos="resumen.porEquipo ?? []" :total="prestamosDeRecursos" :color="DORADO" :color-primero="DORADO_DESTACADO" :limite="10" numerado />
+            <p v-else class="text-sm text-gray-500">No hay préstamos de recursos de apoyo con estos filtros.</p>
           </SeccionReporte>
 
           <SeccionReporte v-if="tab === 'prestamos' && resumen.porLibro.length" titulo="Material más prestado">
@@ -824,7 +844,7 @@ async function confirmarExportar() {
           <div class="grid grid-cols-1 gap-5 lg:grid-cols-5">
             <SeccionReporte class="lg:col-span-3" titulo="Por carrera">
               <template #subtitulo>
-                <template v-if="tab === 'logias'">Cada integrante de la reserva, no solo quien la hizo · </template>Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ tab === 'logias' ? 'personas' : unidad.plural }} (todas en la vista Tabla)</template>
+                <template v-if="tab === 'logias'">Integrantes de las reservas con asistencia confirmada · </template>Ordenado de mayor a menor<template v-if="resumen.porCarrera.length > 8"> · las 8 con más {{ tab === 'logias' ? 'personas' : unidad.plural }} (todas en la vista Tabla)</template>
               </template>
               <BarrasRanking :datos="resumen.porCarrera" :total="totalPersonas" :color="INDIGO" :color-primero="INDIGO_DESTACADO" />
             </SeccionReporte>
@@ -847,7 +867,7 @@ async function confirmarExportar() {
             </SeccionReporte>
             <SeccionReporte class="lg:col-span-3" titulo="Por hora del día">
               <template #subtitulo>
-                {{ textoHorario }}<template v-if="tab === 'logias'"> · cada reserva cuenta en todas las horas en que tuvo la sala</template><template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
+                {{ textoHorario }}<template v-if="tab === 'logias'"> · solo los horarios de reservas con asistencia confirmada</template><template v-if="horasPico.length"> · en color fuerte, las horas de mayor uso</template>
               </template>
               <div class="h-48">
                 <GraficoColumnas
@@ -864,21 +884,22 @@ async function confirmarExportar() {
             </SeccionReporte>
           </div>
 
-          <SeccionReporte v-if="tab === 'logias'" titulo="Salas más usadas" subtitulo="Ordenado de mayor a menor">
+          <SeccionReporte v-if="tab === 'logias'" titulo="Salas más usadas" subtitulo="Solo reservas con asistencia confirmada; las pendientes, futuras y no concretadas no cuentan como uso">
             <BarrasRanking :datos="resumen.porSala" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" :limite="10" numerado />
           </SeccionReporte>
           <SeccionReporte
             v-if="tab === 'logias'"
             titulo="Detalle por sala"
-            subtitulo="Cada sala por su código: cuántas reservas tuvo, a cuántas llegó el grupo, las horas que de verdad se usó y cuántos bloques se liberaron porque devolvieron la llave antes"
+            subtitulo="Las reservas programadas se separan de los usos confirmados. Las reservas futuras o pendientes no cuentan como uso ni como inasistencia"
           >
             <div v-if="resumen.porSalaDetalle.length" class="-mx-5 overflow-x-auto px-5">
               <table class="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr class="border-b border-gray-200 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <th class="py-2 pr-3">Sala</th>
-                    <th class="py-2 px-3 text-right">Reservas</th>
-                    <th class="py-2 px-3 text-right">Llegaron</th>
+                    <th class="py-2 px-3 text-right">Programadas</th>
+                    <th class="py-2 px-3 text-right">Usos confirmados</th>
+                    <th class="py-2 px-3 text-right">Sin confirmar</th>
                     <th class="py-2 px-3 text-right">No llegaron</th>
                     <th class="py-2 px-3 text-right">Horas de uso</th>
                     <th class="py-2 pl-3 text-right">Liberadas antes</th>
@@ -892,8 +913,9 @@ async function confirmarExportar() {
                     </td>
                     <td class="py-2 px-3 text-right tabular-nums text-gray-900">{{ s.reservas }}</td>
                     <td class="py-2 px-3 text-right tabular-nums text-gray-700">
-                      {{ s.presentes }} <span class="text-xs text-gray-400">({{ asistencia(s) }}%)</span>
+                      {{ s.presentes }} <span v-if="s.presentes + s.no_llegaron" class="text-xs text-gray-400">({{ asistencia(s) }}%)</span>
                     </td>
+                    <td class="py-2 px-3 text-right tabular-nums text-gray-700">{{ s.pendientes ?? 0 }}</td>
                     <td class="py-2 px-3 text-right tabular-nums" :class="s.no_llegaron ? 'text-red-700' : 'text-gray-400'">{{ s.no_llegaron }}</td>
                     <td class="py-2 px-3 text-right tabular-nums text-gray-700">{{ horasDeUso(s.minutos_uso) }}</td>
                     <td class="py-2 pl-3 text-right tabular-nums" :class="s.liberadas ? 'text-emerald-700' : 'text-gray-400'">{{ s.liberadas }}</td>
@@ -903,12 +925,12 @@ async function confirmarExportar() {
             </div>
             <p v-else class="py-6 text-center text-sm text-gray-400">Sin reservas en este período.</p>
           </SeccionReporte>
-          <SeccionReporte v-if="tab === 'logias'" titulo="Horas más solicitadas por sala" subtitulo="Reservas en curso en cada hora, en cada sala (una de 16:30 a 18:30 cuenta a las 16, 17 y 18)">
+          <SeccionReporte v-if="tab === 'logias'" titulo="Horas de uso por sala" subtitulo="Horarios de las reservas con asistencia confirmada; una de 16:30 a 18:30 cuenta a las 16, 17 y 18">
             <Heatmap :data="resumen.porHoraPorSala" />
           </SeccionReporte>
           <template v-if="tab === 'libros'">
-            <SeccionReporte titulo="Material más prestado" subtitulo="Libros, tesis, revistas, juegos y demás: ranking por cantidad de préstamos (cada copia cuenta por separado)">
-              <BarrasRanking :datos="resumen.porLibro" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" numerado />
+            <SeccionReporte titulo="Material y recursos más prestados" subtitulo="Colección y recursos de apoyo: ranking por cantidad de préstamos durante el período">
+              <BarrasRanking :datos="rankingMaterial" :total="resumen.total" :color="INDIGO" :color-primero="INDIGO_DESTACADO" :limite="10" numerado />
             </SeccionReporte>
             <SeccionReporte titulo="Por tipo de material" subtitulo="Cuántos préstamos fueron de cada tipo de material">
               <BarrasRanking :datos="resumen.porTipoMaterial" :total="resumen.total" :color="DORADO" :color-primero="DORADO_DESTACADO" :color-fondo="DORADO_SUAVE" />

@@ -35,7 +35,7 @@ class EquipoController extends Controller
     /** Busca un equipo por su código de barras (escaneo en préstamo). */
     public function buscarPorCodigo(string $codigo)
     {
-        $equipo = Equipo::where('codigo_barras', $codigo)->first();
+        $equipo = Equipo::porCodigo($codigo)->first();
 
         if (! $equipo) {
             return response()->json(['message' => 'Código de barras no encontrado en el sistema'], 404);

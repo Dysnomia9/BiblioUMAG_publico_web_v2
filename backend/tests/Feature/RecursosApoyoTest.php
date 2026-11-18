@@ -25,8 +25,20 @@ class RecursosApoyoTest extends TestCase
 
         $claves = collect($this->getJson('/api/categorias-recurso')->assertOk()->json())->pluck('clave')->sort()->values()->all();
 
-        $this->assertSame(['audifonos', 'bicicleta', 'cargador', 'notebook'], $claves);
+        $this->assertSame(['audifonos', 'bicicleta', 'cargador', 'casco', 'chaleco', 'notebook'], $claves);
         $this->assertSame(1, CategoriaRecurso::where('clave', 'bicicleta')->value('limite_por_persona'));
+    }
+
+    public function test_bicicleta_casco_y_chaleco_se_prestan_por_sus_propios_codigos(): void
+    {
+        Sanctum::actingAs(Staff::factory()->create());
+        $usuario = Usuario::factory()->create();
+        foreach (['bicicleta' => '03234396', 'chaleco' => '03234167', 'casco' => '03234242'] as $tipo => $codigo) {
+            $equipo = Equipo::factory()->create(['tipo' => $tipo, 'codigo_barras' => $codigo]);
+            $this->postJson('/api/prestamos', ['usuario_id' => $usuario->id, 'tipo_item' => $tipo, 'codigo_barras' => $codigo])
+                ->assertCreated()->assertJsonPath('tipo_item', $tipo)->assertJsonPath('equipo_id', $equipo->id);
+        }
+        $this->assertSame(3, Prestamo::where('usuario_id', $usuario->id)->count());
     }
 
     public function test_administracion_crea_una_categoria_nueva_y_queda_en_la_bitacora(): void
@@ -83,7 +95,7 @@ class RecursosApoyoTest extends TestCase
 
         $this->postJson('/api/prestamos', ['usuario_id' => $usuario->id, 'tipo_item' => 'bicicleta', 'codigo_barras' => 'BICI-02'])
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Este usuario ya tiene 1 bicicleta + kit sin devolver: se presta un máximo de 1 por persona a la vez.');
+            ->assertJsonPath('message', 'Este usuario ya tiene 1 bicicleta sin devolver: se presta un máximo de 1 por persona a la vez.');
 
         // Al devolverla, puede llevarse otra.
         $this->patchJson('/api/prestamos/'.Prestamo::sole()->id.'/devolver')->assertOk();
@@ -123,7 +135,7 @@ class RecursosApoyoTest extends TestCase
 
         $this->postJson('/api/prestamos', ['usuario_id' => $usuario->id, 'tipo_item' => 'bicicleta', 'codigo_barras' => 'NB-07'])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Ese código es de Notebook (Notebook 07), no de Bicicleta + kit.');
+            ->assertJsonPath('message', 'Ese código es de Notebook (Notebook 07), no de Bicicleta.');
     }
 
     public function test_la_base_rechaza_un_recurso_o_prestamo_de_una_categoria_que_no_existe(): void
@@ -138,7 +150,7 @@ class RecursosApoyoTest extends TestCase
 
         $this->getJson('/api/reportes/opciones')->assertOk()
             ->assertJsonPath('recursos.libro', 'Material de la colección')
-            ->assertJsonPath('recursos.bicicleta', 'Bicicletas + kit');
+            ->assertJsonPath('recursos.bicicleta', 'Bicicletas');
     }
 
     public function test_registrar_un_recurso_queda_en_la_bitacora_con_su_categoria(): void
@@ -147,15 +159,15 @@ class RecursosApoyoTest extends TestCase
 
         $this->postJson('/api/equipos', ['codigo_inventario' => 'Bicicleta 09', 'codigo_barras' => 'BICI-09', 'tipo' => 'bicicleta'])->assertCreated();
 
-        $this->assertSame('Agregó el recurso Bicicleta 09 (Bicicleta + kit, código BICI-09)', Bitacora::sole()->descripcion);
+        $this->assertSame('Agregó el recurso Bicicleta 09 (Bicicleta, código BICI-09)', Bitacora::sole()->descripcion);
     }
 
-    public function test_notebooks_audifonos_y_cargadores_se_prestan_por_3_horas_y_la_bicicleta_con_kit_por_24(): void
+    public function test_notebooks_audifonos_y_cargadores_se_prestan_por_3_horas_y_bicicleta_casco_y_chaleco_por_24(): void
     {
         $horas = CategoriaRecurso::pluck('horas_maximas', 'clave');
 
-        $this->assertSame(['audifonos' => 3, 'bicicleta' => 24, 'cargador' => 3, 'notebook' => 3], $horas->sortKeys()->all());
-        $this->assertSame('Bicicleta + kit', CategoriaRecurso::where('clave', 'bicicleta')->value('nombre'));
+        $this->assertSame(['audifonos' => 3, 'bicicleta' => 24, 'cargador' => 3, 'casco' => 24, 'chaleco' => 24, 'notebook' => 3], $horas->sortKeys()->all());
+        $this->assertSame('Bicicleta', CategoriaRecurso::where('clave', 'bicicleta')->value('nombre'));
     }
 
     public function test_el_prestamo_de_un_recurso_vence_a_las_horas_de_su_categoria_y_despues_queda_vencido(): void

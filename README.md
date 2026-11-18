@@ -118,11 +118,22 @@ npm run dev
   registran **varios a la vez** (una fila por recurso, pensado para el lector de
   códigos) y se dan de baja **con su motivo**, que queda en el inventario y en la
   bitácora. Al prestar, cada recuadro sugiere los recursos libres de su categoría,
-  y un recurso escaneado por error en «Nuevo préstamo» pasa solo a su recuadro.
+  y un recurso escaneado en «Nuevo préstamo» pasa a su recuadro y abre directamente
+  la confirmación, sin tener que pulsar antes «Prestar». El préstamo se registra
+  únicamente después de confirmar.
+  Los recursos importados de Horizon aceptan también el código corto al buscarlos,
+  prestarlos y devolverlos: por ejemplo, `03222720` y `30000003222720` identifican
+  el mismo recurso. Se conserva el código original en el inventario y el préstamo.
+  **Bicicleta**, **Casco** y **Chaleco** son categorías separadas: cada recurso se
+  registra y presta con su propio código; la categoría de bicicleta se llama
+  simplemente «Bicicleta».
 - **Uso en sala**: un libro se presta para leerlo en la biblioteca y se devuelve
   el mismo día antes del cierre (`prestamos.en_sala`). No pide fechas, no cuenta
   para el máximo de libros a domicilio y sirve para el material que no se presta
   a domicilio (referencia); si no vuelve ese día, queda atrasado y se multa.
+  Al escanear material que la regla permite solo en sala (por ejemplo, juegos
+  educativos), cambia automáticamente a «Uso en sala» y muestra un aviso. Tras
+  registrar el préstamo vuelve a «Para llevar».
 - **Reglas de préstamo** (`reglas_prestamo`): plazo, cantidad máxima de libros y
   multa por tipo de usuario, tipo de material y ubicación. Se aplica la regla más
   específica que calce (en empate manda el material, luego la ubicación y luego
@@ -271,12 +282,21 @@ verdad: no se puede reservar ni prestar algo ya ocupado.
   (quién hizo qué y cuándo, con el antes y el después), en la tabla `bitacora`,
   que no se edita ni se borra (`App\Support\Bitacora::registrar()`).
 - **Reportes** por día, semana, mes, semestre o año, comparados con el período
-  anterior: préstamos, ingresos, uso de salas y libros más prestados, con
+  anterior: préstamos, ingresos, uso de salas y material más prestado, con
   gráficos o tablas, filtros por carrera, año de ingreso y sexo, y exportación a
   Excel o CSV. El filtro **«Quiénes»** separa estudiantes, docentes, funcionarios,
   docentes y funcionarios juntos y, en Ingresos, externos y visitas, como se piden
   para la acreditación. Los préstamos de la colección se separan en a domicilio y
-  en sala.
+  en sala. «Material más prestado» incluye también PCs, bicicletas, mouse y demás
+  recursos de apoyo prestados en BiblioUMAG: desglose por categoría, ranking por
+  recurso y filtro para consultar una categoría. Cuenta tanto los préstamos en
+  curso como los ya devueltos dentro del período; no incorpora su uso histórico
+  de Horizon.
+  En **Uso de salas**, los totales, el ranking y los gráficos cuentan solo reservas
+  con asistencia confirmada, tanto en curso como finalizadas. Las futuras y las
+  inasistencias no cuentan como uso. El detalle separa programadas, usos confirmados,
+  pendientes e inasistencias; cancelar las fechas futuras de una serie conserva los
+  usos ya confirmados.
 - **Panel de Administración**: firmante de la Constancia de No Multa, estados
   personalizados, ubicaciones, tipos de material, categorías de recursos y
   estudiantes.

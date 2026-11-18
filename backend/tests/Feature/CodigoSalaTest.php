@@ -91,6 +91,7 @@ class CodigoSalaTest extends TestCase
 
     public function test_reportes_muestran_cada_sala_con_su_codigo_y_su_detalle(): void
     {
+        Carbon::setTestNow('2026-08-14 20:00:00');
         $this->reservaEn('L04', ['estado' => 'finalizada', 'hora_prestamo_real' => '2026-08-14 10:02:00', 'hora_devolucion_real' => '2026-08-14 12:00:00']);
         $this->reservaEn('L04', ['hora_inicio' => '14:00:00', 'hora_fin' => '14:40:00', 'hora_fin_reservada' => '16:00:00', 'estado' => 'finalizada', 'hora_prestamo_real' => '2026-08-14 14:01:00', 'hora_devolucion_real' => '2026-08-14 14:40:00']);
         $this->reservaEn('L04', ['hora_inicio' => '17:00:00', 'hora_fin' => '18:00:00', 'estado' => 'no_show']);
@@ -98,9 +99,9 @@ class CodigoSalaTest extends TestCase
 
         $resumen = $this->getJson('/api/reportes/resumen?tab=logias&periodo=mes&fecha=2026-08-14')->assertOk();
 
-        $resumen->assertJsonPath('porSala.0', ['label' => 'L04 · Logia 04', 'value' => 3]);
+        $resumen->assertJsonPath('porSala.0', ['label' => 'L04 · Logia 04', 'value' => 2]);
         $resumen->assertJsonPath('porSalaDetalle', [[
-            'codigo' => 'L04', 'nombre' => 'Logia 04', 'reservas' => 3, 'presentes' => 2, 'no_llegaron' => 1, 'minutos_uso' => 160, 'liberadas' => 1,
+            'codigo' => 'L04', 'nombre' => 'Logia 04', 'reservas' => 3, 'presentes' => 2, 'pendientes' => 0, 'no_llegaron' => 1, 'minutos_uso' => 160, 'liberadas' => 1,
         ]]);
     }
 }

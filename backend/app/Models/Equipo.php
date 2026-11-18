@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -28,6 +29,12 @@ class Equipo extends Model
             'activo' => 'boolean',
             'dado_de_baja_el' => 'datetime',
         ];
+    }
+
+    /** Acepta el código guardado y su versión corta de Horizon, conservando los ceros. */
+    public function scopePorCodigo(Builder $query, string $codigo): Builder
+    {
+        return $query->whereIn('codigo_barras', Ejemplar::variantesCodigo($codigo));
     }
 
     public function prestamos()

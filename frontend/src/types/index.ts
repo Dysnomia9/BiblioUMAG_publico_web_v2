@@ -760,6 +760,8 @@ export type ReporteResumen = {
   /** Uso de salas: el seguimiento de cada sala, por su código. */
   porSalaDetalle: SalaDetalle[]
   porLibro: SerieItem[]
+  /** Recursos de apoyo prestados en BiblioUMAG, por su nombre de inventario. */
+  porEquipo?: SerieItem[]
   porHoraPorSala: HoraPorSala[]
   /** Préstamos: lo que llegó de otras bibliotecas, lo que volvió a ellas y lo que se prestó de eso en el período. */
   interbibliotecario?: ReporteInterbibliotecario | null
@@ -779,6 +781,8 @@ export type SalaDetalle = {
   reservas: number
   /** A cuántas llegó el grupo (se entregó la llave). */
   presentes: number
+  /** Reservas todavía sin asistencia confirmada, incluidas las futuras. */
+  pendientes?: number
   no_llegaron: number
   /** Minutos que de verdad se usó (si devolvieron antes y se liberó el resto, solo lo usado). */
   minutos_uso: number

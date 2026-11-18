@@ -96,27 +96,31 @@ class ReporteController extends Controller
 
             match ($tab) {
                 'ingresos' => $query->whereBetween('entradas.fecha_hora_entrada', [$desde, $hasta]),
-                // Las reservas canceladas no cuentan como uso de la sala.
+                // Las canceladas sin asistencia no cuentan. Una cancelación posterior
+                // a la llegada no borra el uso que ya quedó confirmado.
                 'logias' => $query->leftJoin('salas', 'salas.id', '=', 'reservas.sala_id')
-                    ->where('reservas.estado', '!=', 'cancelada')
+                    ->where(fn ($q) => $q->where('reservas.estado', '!=', 'cancelada')->orWhereNotNull('reservas.hora_prestamo_real'))
                     ->whereBetween('reservas.fecha', [$desde->toDateString(), $hasta->toDateString()]),
-                'libros' => $query->where('prestamos.tipo_item', 'libro')->whereBetween('prestamos.fecha_prestamo', [$desde, $hasta]),
+                'libros' => $query->whereBetween('prestamos.fecha_prestamo', [$desde, $hasta]),
                 default => $query->whereBetween('prestamos.fecha_prestamo', [$desde, $hasta]),
             };
 
             // Préstamos de recurso bibliográfico (libros) o de recursos de apoyo (notebooks, bicicletas…).
-            if ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'bibliografico') {
+            if (in_array($tab, ['prestamos', 'libros'], true) && $request->query('tipo_prestamo') === 'bibliografico') {
                 $query->where('prestamos.tipo_item', 'libro');
-            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'en_sala') {
+            } elseif (in_array($tab, ['prestamos', 'libros'], true) && $request->query('tipo_prestamo') === 'en_sala') {
                 $query->where('prestamos.tipo_item', 'libro')->where('prestamos.en_sala', true);
-            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'recursos_apoyo') {
+            } elseif (in_array($tab, ['prestamos', 'libros'], true) && $request->query('tipo_prestamo') === 'recursos_apoyo') {
                 $query->where('prestamos.tipo_item', '!=', 'libro');
-            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'sin_rut') {
+            } elseif (in_array($tab, ['prestamos', 'libros'], true) && $request->query('tipo_prestamo') === 'sin_rut') {
                 // Los usos sin RUT no son préstamos: se cuentan aparte (usosSinRut()).
                 $query->whereRaw('false');
-            } elseif ($tab === 'prestamos' && $request->query('tipo_prestamo') === 'interbibliotecario') {
+            } elseif (in_array($tab, ['prestamos', 'libros'], true) && $request->query('tipo_prestamo') === 'interbibliotecario') {
                 // Lo que otra biblioteca nos prestó, también lo que ya volvió a ella.
                 $query->where('prestamos.tipo_item', 'libro')->whereIn('prestamos.ejemplar_id', DB::table('prestamos_interbibliotecarios')->select('ejemplar_id'));
+            }
+            if (in_array($tab, ['prestamos', 'libros'], true) && ($recurso = $request->query('recurso'))) {
+                $query->where('prestamos.tipo_item', $recurso);
             }
 
             foreach (['carrera' => 'carrera', 'anio_ingreso' => 'anio_ingreso', 'sexo' => 'sexo'] as $parametro => $columna) {
@@ -143,10 +147,17 @@ class ReporteController extends Controller
             ? DB::table('reservas')->leftJoin('salas', 'salas.id', '=', 'reservas.sala_id')->whereIn('reservas.id', (clone $filas)->select('reservas.id'))
             : $filas;
 
-        $base = $consulta($inicio, $fin);
+        $ahora = now();
+        $soloUsoConfirmado = fn (QueryBuilder $filas) => $tab === 'logias'
+            ? (clone $filas)->whereNotNull('reservas.hora_prestamo_real')
+                ->where('reservas.hora_prestamo_real', '<=', $ahora)
+                ->where('reservas.fecha', '<=', $ahora->toDateString())
+            : $filas;
+        $programadas = $tab === 'logias' ? $porReserva($consulta($inicio, $fin)) : null;
+        $base = $soloUsoConfirmado($consulta($inicio, $fin));
         $registros = $porReserva($base);
         $total = (clone $registros)->count();
-        $totalAnterior = $porReserva($consulta($inicioAnterior, $finAnterior))->count();
+        $totalAnterior = $porReserva($soloUsoConfirmado($consulta($inicioAnterior, $finAnterior)))->count();
 
         // Antes de BiblioUMAG, lo que registró Horizon (usosHorizon()), con los mismos filtros: en
         // Uso de salas, cada logia es una reserva de una persona; en Ingresos, cada uso de un
@@ -309,30 +320,34 @@ class ReporteController extends Controller
                 ->sortBy('sala')
                 ->values();
 
-            // El seguimiento de cada sala: cuántas reservas tuvo, a cuántas llegó el grupo, a
-            // cuántas no, las horas que de verdad se usó (si devolvieron antes y se liberó el
-            // resto, cuenta solo lo usado) y cuántos bloques se liberaron antes.
-            $porSalaDetalle = (clone $registros)
-                ->whereNotNull('salas.id')
+            // El ranking y los desgloses cuentan usos; el detalle permite comparar
+            // esos usos con las reservas programadas, sin sumar las pendientes al uso.
+            $usoPorSala = (clone $registros)->whereNotNull('salas.id')
                 ->selectRaw(<<<'SQL'
-                    salas.codigo, salas.nombre,
-                    count(*) as reservas,
-                    count(reservas.hora_prestamo_real) as presentes,
-                    count(*) filter (where reservas.estado = 'no_show') as no_llegaron,
-                    coalesce(sum(extract(epoch from (reservas.hora_fin - reservas.hora_inicio)) / 60) filter (where reservas.hora_prestamo_real is not null), 0) as minutos_uso,
+                    salas.id as sala_id, count(*) as presentes,
+                    coalesce(sum(extract(epoch from (reservas.hora_fin - reservas.hora_inicio)) / 60), 0) as minutos_uso,
                     count(reservas.hora_fin_reservada) as liberadas
                     SQL)
-                ->groupBy('salas.codigo', 'salas.nombre')
+                ->groupBy('salas.id')->get()->keyBy('sala_id');
+            $porSalaDetalle = (clone $programadas)
+                ->whereNotNull('salas.id')
+                ->selectRaw(<<<'SQL'
+                    salas.id as sala_id, salas.codigo, salas.nombre,
+                    count(*) as reservas,
+                    count(*) filter (where reservas.estado = 'no_show' and reservas.hora_prestamo_real is null) as no_llegaron
+                    SQL)
+                ->groupBy('salas.id', 'salas.codigo', 'salas.nombre')
                 ->orderBy('salas.codigo')
                 ->get()
                 ->map(fn ($fila) => [
                     'codigo' => $fila->codigo,
                     'nombre' => $fila->nombre,
                     'reservas' => (int) $fila->reservas,
-                    'presentes' => (int) $fila->presentes,
+                    'presentes' => (int) ($usoPorSala->get($fila->sala_id)?->presentes ?? 0),
+                    'pendientes' => max(0, (int) $fila->reservas - (int) ($usoPorSala->get($fila->sala_id)?->presentes ?? 0) - (int) $fila->no_llegaron),
                     'no_llegaron' => (int) $fila->no_llegaron,
-                    'minutos_uso' => (int) round((float) $fila->minutos_uso),
-                    'liberadas' => (int) $fila->liberadas,
+                    'minutos_uso' => (int) round((float) ($usoPorSala->get($fila->sala_id)?->minutos_uso ?? 0)),
+                    'liberadas' => (int) ($usoPorSala->get($fila->sala_id)?->liberadas ?? 0),
                 ])
                 // Las logias de Horizon: todas con la llave entregada.
                 ->concat((clone $usosHorizon)
@@ -344,6 +359,7 @@ class ReporteController extends Controller
                         'nombre' => self::LOGIAS_HORIZON,
                         'reservas' => (int) $fila->usos,
                         'presentes' => (int) $fila->usos,
+                        'pendientes' => 0,
                         'no_llegaron' => 0,
                         'minutos_uso' => (int) round((float) $fila->minutos),
                         'liberadas' => 0,
@@ -374,11 +390,11 @@ class ReporteController extends Controller
             // bibliografico (de la colección, a domicilio), en_sala (de la colección, leído en la
             // biblioteca) o recursos_apoyo (notebook, bicicleta…), y el recurso.
             // sin_rut: los libros usados y dejados en la mesa sin préstamo.
-            'porTipoPrestamo' => $tab === 'prestamos' ? self::sumar($agrupar("case when prestamos.tipo_item <> 'libro' then 'recursos_apoyo' when prestamos.en_sala then 'en_sala' else 'bibliografico' end"), $this->agruparHorizon($sinRut, "'sin_rut'")) : [],
+            'porTipoPrestamo' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agrupar("case when prestamos.tipo_item <> 'libro' then 'recursos_apoyo' when prestamos.en_sala then 'en_sala' else 'bibliografico' end"), $this->agruparHorizon($sinRut, "'sin_rut'")) : [],
             'usosSinRut' => $cantidadSinRut,
             // Lo del catálogo va por su tipo de material (Libro, Tesis, Juego educativo…); los
             // recursos de apoyo, por la clave de su categoría.
-            'porRecurso' => $tab === 'prestamos' ? self::sumar($agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end"), $this->agruparHorizon($sinRut, $tipoDeMaterial)) : [],
+            'porRecurso' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agrupar("case when prestamos.tipo_item = 'libro' then {$tipoDeMaterial} else prestamos.tipo_item end"), $this->agruparHorizon($sinRut, $tipoDeMaterial)) : [],
             'porTipoMaterial' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agruparMaterial($tipoDeMaterial), $this->agruparHorizon($sinRut, $tipoDeMaterial)) : [],
             'porSala' => $tab === 'logias' ? self::sumar($agrupar($salaConCodigo, $registros), $this->agruparHorizon($usosHorizon, "'".self::LOGIAS_HORIZON."'")) : [],
             'porSalaDetalle' => $porSalaDetalle,
@@ -386,6 +402,8 @@ class ReporteController extends Controller
             // correcto aunque la copia ya no exista o el libro haya cambiado de título. En
             // Préstamos, solo el material de la colección (sin los recursos de apoyo).
             'porLibro' => in_array($tab, ['prestamos', 'libros'], true) ? self::sumar($agruparMaterial("coalesce(prestamos.libro_titulo, '')"), $this->agruparHorizon($sinRut, "coalesce(usr.libro_titulo, '')")) : [],
+            // Solo préstamos registrados en BiblioUMAG, incluidos los ya devueltos y las categorías desactivadas.
+            'porEquipo' => in_array($tab, ['prestamos', 'libros'], true) ? $agrupar("coalesce(prestamos.libro_titulo, 'Recurso sin nombre')", (clone $base)->where('prestamos.tipo_item', '!=', 'libro')) : [],
             'porHoraPorSala' => $porHoraPorSala,
             'interbibliotecario' => $tab === 'prestamos' ? $this->interbibliotecario($base, $inicio, $fin) : null,
         ]);
@@ -456,7 +474,8 @@ class ReporteController extends Controller
     private function usosSinRut(Request $request, string $tab, Carbon $desde, Carbon $hasta): ?QueryBuilder
     {
         if (! in_array($tab, ['prestamos', 'libros'], true)
-            || ($tab === 'prestamos' && ! in_array($request->query('tipo_prestamo'), [null, '', 'sin_rut'], true))
+            || $request->filled('recurso')
+            || ! in_array($request->query('tipo_prestamo'), [null, '', 'sin_rut'], true)
             || collect(['carrera', 'anio_ingreso', 'sexo', 'tipo_usuario'])->contains(fn ($p) => filled($request->query($p)))) {
             return null;
         }

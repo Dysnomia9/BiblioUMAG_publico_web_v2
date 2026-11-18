@@ -64,6 +64,7 @@ const fechaDevolucion = ref('')
 // devuelve hoy. Después de prestar en sala (un juego, una obra de referencia) vuelve a «Para llevar».
 const modoPrestamo = ref<'domicilio' | 'sala'>('domicilio')
 const enSala = computed(() => modoPrestamo.value === 'sala')
+const avisoCambioASala = ref('')
 
 const codigoBarras = ref('')
 const libroEncontrado = ref('')
@@ -198,7 +199,7 @@ function tomarFichaPendiente(): string | null {
 
 onMounted(() => {
   cargarRecursosDisponibles()
-  cargarCategorias()
+  cargarCategorias(true)
   cargarHorario()
   cargarPrestadosAhora()
   const pendiente = tomarFichaPendiente()
@@ -241,6 +242,7 @@ function buscarOtroUsuario() {
   showForm.value = false
   showReservaForm.value = false
   modoPrestamo.value = 'domicilio'
+  avisoCambioASala.value = ''
   mostrarDevueltos.value = false
   mostrarTerminadas.value = false
   activeTab.value = 'recientes'
@@ -434,6 +436,7 @@ function buscarLibroPorCodigoPrestamo(valor: string) {
   libroEnEstantePrestamo.value = true
   ubicacionPrestamo.value = null
   condiciones.value = null
+  avisoCambioASala.value = ''
   clearTimeout(buscarLibroPrestamoTimer)
   if (!codigoCompleto(codigoBarrasPrestamo.value)) return
   buscarLibroPrestamoTimer = setTimeout(async () => {
@@ -476,10 +479,11 @@ let recursoResaltadoTimer: ReturnType<typeof setTimeout> | undefined
 /**
  * Escanearon un recurso de apoyo en "Nuevo préstamo" (que es de libros): en vez de decir que el
  * código no existe, se abre Recursos de apoyo con el código ya puesto en el recuadro de su categoría.
- * No se presta solo: el mesón confirma con «Prestar».
+ * Abre directamente la confirmación del recurso, conservando la validación del mesón.
  */
 async function pasarARecursos(recurso: RecursoEscaneado) {
-  if (!categoriasActivas.value.some((c) => c.clave === recurso.tipo)) {
+  const categoria = categoriasActivas.value.find((c) => c.clave === recurso.tipo)
+  if (!categoria) {
     toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero su categoría está desactivada`)
     return
   }
@@ -488,7 +492,6 @@ async function pasarARecursos(recurso: RecursoEscaneado) {
   codigos[recurso.tipo] = recurso.codigo_barras
   if (!recurso.activo) toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero está dado de baja`)
   else if (!recurso.disponible) toast.error(`Es un recurso de apoyo (${nombreRecurso(recurso)}), pero ya está prestado`)
-  else toast.info(`Es un recurso de apoyo (${nombreRecurso(recurso)}): lo pasé a Recursos de apoyo, solo falta «Prestar»`)
   await nextTick()
   recursoResaltado.value = recurso.tipo
   clearTimeout(recursoResaltadoTimer)
@@ -496,6 +499,7 @@ async function pasarARecursos(recurso: RecursoEscaneado) {
   const entrada = document.getElementById(`recurso-${recurso.tipo}`)
   entrada?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   entrada?.focus({ preventScroll: true })
+  if (usuario.value && recurso.activo && recurso.disponible) pedirPrestamoRecurso(categoria)
 }
 
 // ---------- Regla de préstamo (Administración → Reglas de préstamo) ----------
@@ -508,12 +512,19 @@ let fechaPropuesta = ''
 async function cargarCondiciones() {
   if (!usuario.value || !codigoBarrasPrestamo.value) return
   const codigo = codigoBarrasPrestamo.value
+  const usuarioId = usuario.value.id
   try {
     const { data } = await api.get<CondicionesPrestamo>('/prestamos/condiciones', {
-      params: { usuario_id: usuario.value.id, codigo_barras: codigo, fecha_prestamo: fechaPrestamo.value || undefined },
+      params: { usuario_id: usuarioId, codigo_barras: codigo, fecha_prestamo: fechaPrestamo.value || undefined },
     })
-    if (codigo !== codigoBarrasPrestamo.value) return
+    if (codigo !== codigoBarrasPrestamo.value || usuarioId !== usuario.value?.id) return
     condiciones.value = data
+    // Solo las restricciones del material cambian el modo. Multas o máximos por
+    // persona siguen mostrando su bloqueo y no se confunden con «solo en sala».
+    if (!data.prestable && !enSala.value) {
+      modoPrestamo.value = 'sala'
+      avisoCambioASala.value = 'Cambiado a uso en sala: este tipo de material solo se permite en préstamo en sala.'
+    }
     // Solo se reemplaza una fecha vacía o la que propuso la regla antes, no la que eligió el mesón.
     if (data.fecha_devolucion && (!fechaDevolucion.value || fechaDevolucion.value === fechaPropuesta)) {
       fechaDevolucion.value = data.fecha_devolucion
@@ -636,6 +647,7 @@ async function confirmarPrestamo() {
     })
     toast.success(`${prestamoPendiente.value.enSala ? 'Uso en sala registrado' : 'Préstamo registrado'}: "${prestamoPendiente.value.titulo}"`)
     modoPrestamo.value = 'domicilio'
+    avisoCambioASala.value = ''
     codigoBarrasPrestamo.value = ''
     libroEncontradoPrestamo.value = ''
     copiaEncontradaPrestamo.value = null
@@ -891,6 +903,7 @@ const prestamoRecursoPendiente = ref<{ categoria: CategoriaRecurso; codigo: stri
 const prestandoRecurso = ref(false)
 
 function pedirPrestamoRecurso(c: CategoriaRecurso) {
+  if (!usuario.value || prestandoRecurso.value || prestamoRecursoPendiente.value) return
   if (bloqueadoPorMultas.value) {
     toast.error(MENSAJE_BLOQUEO)
     return
@@ -904,8 +917,9 @@ function pedirPrestamoRecurso(c: CategoriaRecurso) {
     toast.error(`Escanee o ingrese el código de barras (${c.nombre.toLowerCase()})`)
     return
   }
-  const inventario = libresDe(c.clave).find((e) => e.codigo_barras === codigo)?.codigo_inventario ?? null
-  prestamoRecursoPendiente.value = { categoria: c, codigo, inventario }
+  const largoHorizon = /^\d{1,13}$/.test(codigo) ? `3${codigo.padStart(13, '0')}` : codigo
+  const recurso = libresDe(c.clave).find((e) => e.codigo_barras === codigo || e.codigo_barras === largoHorizon)
+  prestamoRecursoPendiente.value = { categoria: c, codigo: recurso?.codigo_barras ?? codigo, inventario: recurso?.codigo_inventario ?? null }
 }
 
 async function confirmarPrestamoRecurso() {
@@ -1400,6 +1414,9 @@ function formatHora(iso: string | null) {
             <template v-if="enSala">Para leer aquí mismo: escanee el libro y confirme; se devuelve hoy antes del cierre. Sirve también para lo que no se presta a domicilio (referencia).</template>
             <template v-else>Escanee el código de barras de la etiqueta del libro (si el lector no funciona, escriba los números) y elija hasta cuándo se lo lleva.</template>
             Si escanea un recurso de apoyo (notebook, audífonos, bicicleta…), se pasa solo a Recursos de apoyo.
+          </p>
+          <p v-if="avisoCambioASala" class="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800" role="status">
+            {{ avisoCambioASala }}
           </p>
           <div class="space-y-3">
             <div class="relative">

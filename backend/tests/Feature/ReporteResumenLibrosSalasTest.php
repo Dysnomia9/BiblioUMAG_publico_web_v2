@@ -11,6 +11,7 @@ use App\Models\Staff;
 use App\Models\TipoMaterial;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -18,6 +19,12 @@ use Tests\TestCase;
 class ReporteResumenLibrosSalasTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
 
     public function test_tab_libros_rankea_por_titulo_prestado(): void
     {
@@ -87,11 +94,14 @@ class ReporteResumenLibrosSalasTest extends TestCase
             ->assertOk()
             ->assertJsonPath('total', 4);
 
-        // En las otras pestañas el desglose va vacío.
+        // Material más prestado incluye también los recursos de apoyo.
         $this->getJson('/api/reportes/resumen?tab=libros')
             ->assertOk()
-            ->assertJsonPath('porTipoPrestamo', [])
-            ->assertJsonPath('porRecurso', []);
+            ->assertJsonPath('total', 7)
+            ->assertJsonPath('porTipoPrestamo', [
+                ['label' => 'bibliografico', 'value' => 4],
+                ['label' => 'recursos_apoyo', 'value' => 3],
+            ]);
     }
 
     public function test_los_reportes_separan_los_juegos_de_los_libros_por_tipo_de_material(): void
@@ -168,8 +178,8 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $salaPopular = Sala::factory()->create(['nombre' => 'Logia Popular', 'codigo' => 'LPO']);
         $salaTranquila = Sala::factory()->create(['nombre' => 'Logia Tranquila', 'codigo' => 'LTR']);
 
-        Reserva::factory()->count(2)->create(['sala_id' => $salaPopular->id, 'usuario_id' => Usuario::factory()]);
-        Reserva::factory()->create(['sala_id' => $salaTranquila->id, 'usuario_id' => Usuario::factory()]);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->count(2)->create(['sala_id' => $salaPopular->id, 'usuario_id' => Usuario::factory()]);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create(['sala_id' => $salaTranquila->id, 'usuario_id' => Usuario::factory()]);
 
         $response = $this->getJson('/api/reportes/resumen?tab=logias');
 
@@ -186,7 +196,7 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $funcionario = Usuario::factory()->create(['tipo' => 'funcionario']);
         $otro = Usuario::factory()->create(['tipo' => 'estudiante']);
         // La hizo el estudiante; el funcionario va de invitado.
-        Reserva::factory()->conParticipantes([$estudiante, $funcionario, $otro])->create(['usuario_id' => $estudiante->id, 'cantidad_personas' => 3]);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->conParticipantes([$estudiante, $funcionario, $otro])->create(['usuario_id' => $estudiante->id, 'cantidad_personas' => 3]);
 
         $todos = $this->getJson('/api/reportes/resumen?tab=logias')->assertOk();
         $this->assertSame(1, $todos->json('total'));
@@ -205,8 +215,9 @@ class ReporteResumenLibrosSalasTest extends TestCase
     public function test_tab_logias_cuenta_cada_hora_ocupada_y_el_horario_de_mayor_uso_es_el_de_mas_salas_a_la_vez(): void
     {
         Sanctum::actingAs(Staff::factory()->create());
+        Carbon::setTestNow('2026-10-30 20:00:00');
         $dia = ['fecha' => '2026-10-30', 'usuario_id' => Usuario::factory()];
-        Reserva::factory()->create($dia + ['hora_inicio' => '16:30', 'hora_fin' => '18:30']);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create($dia + ['hora_inicio' => '16:30', 'hora_fin' => '18:30']);
 
         $uno = $this->getJson('/api/reportes/resumen?tab=logias&periodo=dia&fecha=2026-10-30')->assertOk();
         $porHora = collect($uno->json('porHora'))->pluck('value', 'label');
@@ -216,7 +227,7 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $this->assertSame(1, collect($uno->json('serie'))->firstWhere('label', '17')['value']);
 
         // Con dos reservas que se cruzan, el horario de mayor uso es donde coinciden.
-        Reserva::factory()->create($dia + ['hora_inicio' => '17:00', 'hora_fin' => '19:00']);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create($dia + ['hora_inicio' => '17:00', 'hora_fin' => '19:00']);
         $dos = $this->getJson('/api/reportes/resumen?tab=logias&periodo=dia&fecha=2026-10-30')->assertOk();
         $this->assertSame(['desde' => '17:00', 'hasta' => '18:30', 'value' => 2], $dos->json('horarioPico'));
         $this->assertSame(2, $dos->json('total'));
@@ -238,7 +249,7 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $this->assertSame(1, $salas->json('totalAnterior'));
         $this->assertSame(2, $salas->json('usosHorizon'));
         $this->assertSame([['label' => 'Logias (Horizon, sin sala)', 'value' => 2]], $salas->json('porSala'));
-        $this->assertSame([['codigo' => 'HZ', 'nombre' => 'Logias (Horizon, sin sala)', 'reservas' => 2, 'presentes' => 2, 'no_llegaron' => 0, 'minutos_uso' => 210, 'liberadas' => 0]], $salas->json('porSalaDetalle'));
+        $this->assertSame([['codigo' => 'HZ', 'nombre' => 'Logias (Horizon, sin sala)', 'reservas' => 2, 'presentes' => 2, 'pendientes' => 0, 'no_llegaron' => 0, 'minutos_uso' => 210, 'liberadas' => 0]], $salas->json('porSalaDetalle'));
         $this->assertSame(['Docentes (sin carrera)' => 1, 'Enfermería' => 1], collect($salas->json('porCarrera'))->sortBy('label')->pluck('value', 'label')->all());
         // Las dos logias coinciden de 11:00 a 12:00.
         $this->assertSame(['desde' => '11:00', 'hasta' => '12:00', 'value' => 2], $salas->json('horarioPico'));
@@ -267,9 +278,9 @@ class ReporteResumenLibrosSalasTest extends TestCase
         $logiaA = Sala::factory()->create(['nombre' => 'Logia A', 'codigo' => 'LA']);
         $logiaB = Sala::factory()->create(['nombre' => 'Logia B', 'codigo' => 'LB']);
 
-        Reserva::factory()->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
-        Reserva::factory()->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
-        Reserva::factory()->create(['sala_id' => $logiaB->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '16:00', 'hora_fin' => '18:00']);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create(['sala_id' => $logiaA->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '10:00', 'hora_fin' => '12:00']);
+        Reserva::factory()->state(['hora_prestamo_real' => now()])->create(['sala_id' => $logiaB->id, 'usuario_id' => Usuario::factory(), 'hora_inicio' => '16:00', 'hora_fin' => '18:00']);
 
         $response = $this->getJson('/api/reportes/resumen?tab=logias');
 

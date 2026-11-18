@@ -151,7 +151,7 @@ async function cargar() {
 
 onMounted(() => {
   cargar()
-  cargarCategorias()
+  cargarCategorias(true)
 })
 
 function pedirConfirmacionCrear() {
