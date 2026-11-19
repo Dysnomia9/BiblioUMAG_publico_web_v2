@@ -36,7 +36,7 @@ class PestanaSala extends Model
 
     /**
      * Las pestañas de partida, como venían fijas en el mesón: un piso por cada piso del plano
-     * (frontend/src/utils/mapaSalas.ts), la del hospital y, apartada, la de la administración
+     * (frontend/src/utils/mapaSalas.ts), la del hospital (HCM) y, apartada, la de la administración
      * (toda sala solo_administracion). Solo crea las que faltan y solo asigna salas que no
      * tienen pestaña: lo que ya se ajustó en el mesón no se toca.
      */
@@ -46,7 +46,7 @@ class PestanaSala extends Model
         $iniciales = [
             ['Piso 1', false, [...$logias(range(1, 13)), 'AGA', 'POS', 'TPG', 'SM1']],
             ['Piso 2', false, [...$logias(range(22, 30)), 'COO', 'SM2']],
-            ['Hospital', false, ['HCM1', 'HCM2']],
+            ['HCM', false, ['HCM1', 'HCM2']],
             ['Administración', true, null],
         ];
 

@@ -333,7 +333,7 @@ const filteredSalas = computed(() => {
   return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q))
 })
 
-// Una página por pestaña del mesón (Piso 1, Piso 2, Hospital, Administración…), que se crean,
+// Una página por pestaña del mesón (Piso 1, Piso 2, HCM, Administración…), que se crean,
 // ordenan y llenan en Administración › Salas (tabla pestanas_salas). Las apartadas (como
 // Administración) van al final y separadas de las demás. Una sala sin pestaña va en «Otras»,
 // que solo aparece si tiene alguna. Antes eran fijas: un piso por cada piso del plano.

@@ -21,11 +21,11 @@ class PestanasSalasTest extends TestCase
 
     public function test_las_pestanas_iniciales_son_las_de_siempre(): void
     {
-        $this->assertSame(['Piso 1', 'Piso 2', 'Hospital', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
+        $this->assertSame(['Piso 1', 'Piso 2', 'HCM', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
         $this->assertTrue($this->pestana('Administración')->apartada);
 
         $codigos = fn (string $nombre) => $this->pestana($nombre)->salas()->pluck('codigo')->sort()->values()->all();
-        $this->assertSame(['HCM1', 'HCM2'], $codigos('Hospital'));
+        $this->assertSame(['HCM1', 'HCM2'], $codigos('HCM'));
         $this->assertEqualsCanonicalizing(['SM1', 'SM2', 'TPG', 'COO', 'L09', 'ATEC'], $codigos('Administración'));
         $this->assertContains('L01', $codigos('Piso 1'));
         $this->assertNotContains('L09', $codigos('Piso 1'));
@@ -39,9 +39,9 @@ class PestanasSalasTest extends TestCase
         Sanctum::actingAs(Staff::factory()->create());
 
         $respuesta = $this->getJson('/api/salas')->assertOk();
-        $this->assertSame(['Piso 1', 'Piso 2', 'Hospital', 'Administración'], array_column($respuesta->json('pestanas'), 'nombre'));
+        $this->assertSame(['Piso 1', 'Piso 2', 'HCM', 'Administración'], array_column($respuesta->json('pestanas'), 'nombre'));
         $hcm1 = collect($respuesta->json('salas'))->firstWhere('codigo', 'HCM1');
-        $this->assertSame($this->pestana('Hospital')->id, $hcm1['pestana_id']);
+        $this->assertSame($this->pestana('HCM')->id, $hcm1['pestana_id']);
     }
 
     public function test_administracion_salas_trae_las_pestanas_para_gestionarlas(): void
@@ -49,9 +49,9 @@ class PestanasSalasTest extends TestCase
         Sanctum::actingAs(Staff::factory()->admin()->create());
 
         $respuesta = $this->getJson('/api/mantenedor-salas')->assertOk();
-        $this->assertSame(['Piso 1', 'Piso 2', 'Hospital', 'Administración'], array_column($respuesta->json('pestanas'), 'nombre'));
+        $this->assertSame(['Piso 1', 'Piso 2', 'HCM', 'Administración'], array_column($respuesta->json('pestanas'), 'nombre'));
         $hcm1 = collect($respuesta->json('salas'))->firstWhere('codigo', 'HCM1');
-        $this->assertSame($this->pestana('Hospital')->id, $hcm1['pestana_id']);
+        $this->assertSame($this->pestana('HCM')->id, $hcm1['pestana_id']);
     }
 
     public function test_se_crea_una_pestana_y_se_le_pasan_salas(): void
@@ -61,7 +61,7 @@ class PestanasSalasTest extends TestCase
         $this->postJson('/api/pestanas-salas', ['nombre' => 'Subterráneo'])->assertCreated();
         $nueva = $this->pestana('Subterráneo');
         // Va después de las de siempre y antes de las apartadas.
-        $this->assertSame(['Piso 1', 'Piso 2', 'Hospital', 'Subterráneo', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
+        $this->assertSame(['Piso 1', 'Piso 2', 'HCM', 'Subterráneo', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
 
         $l01 = Sala::where('codigo', 'L01')->sole();
         $this->putJson("/api/pestanas-salas/{$nueva->id}/salas", ['sala_ids' => [$l01->id]])->assertOk();
@@ -75,21 +75,21 @@ class PestanasSalasTest extends TestCase
     public function test_se_renombra_y_se_reordena(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());
-        $hospital = $this->pestana('Hospital');
+        $hospital = $this->pestana('HCM');
 
-        $this->putJson("/api/pestanas-salas/{$hospital->id}", ['nombre' => 'Hospital Clínico'])->assertOk();
+        $this->putJson("/api/pestanas-salas/{$hospital->id}", ['nombre' => 'HCM Clínico'])->assertOk();
         $this->putJson("/api/pestanas-salas/{$hospital->id}", ['nombre' => 'Piso 1'])->assertUnprocessable()->assertJsonValidationErrors('nombre');
         $this->postJson('/api/pestanas-salas', ['nombre' => 'Otras'])->assertUnprocessable();
 
         $ids = PestanaSala::enOrden()->pluck('id', 'nombre');
-        $this->putJson('/api/pestanas-salas/orden', ['ids' => [$ids['Hospital Clínico'], $ids['Piso 1'], $ids['Piso 2'], $ids['Administración']]])->assertOk();
-        $this->assertSame(['Hospital Clínico', 'Piso 1', 'Piso 2', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
+        $this->putJson('/api/pestanas-salas/orden', ['ids' => [$ids['HCM Clínico'], $ids['Piso 1'], $ids['Piso 2'], $ids['Administración']]])->assertOk();
+        $this->assertSame(['HCM Clínico', 'Piso 1', 'Piso 2', 'Administración'], PestanaSala::enOrden()->pluck('nombre')->all());
     }
 
     public function test_eliminar_una_pestana_deja_sus_salas_en_otras(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());
-        $hospital = $this->pestana('Hospital');
+        $hospital = $this->pestana('HCM');
 
         $this->deleteJson("/api/pestanas-salas/{$hospital->id}")->assertOk();
 
@@ -102,6 +102,6 @@ class PestanasSalasTest extends TestCase
         Sanctum::actingAs(Staff::factory()->asistente()->create());
 
         $this->postJson('/api/pestanas-salas', ['nombre' => 'Nueva'])->assertForbidden();
-        $this->deleteJson("/api/pestanas-salas/{$this->pestana('Hospital')->id}")->assertForbidden();
+        $this->deleteJson("/api/pestanas-salas/{$this->pestana('HCM')->id}")->assertForbidden();
     }
 }

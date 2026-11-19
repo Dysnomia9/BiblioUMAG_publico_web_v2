@@ -6,7 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Las pestañas del mesón de salas (Piso 1, Piso 2, Hospital, Administración…) dejan de estar
+ * Las pestañas del mesón de salas (Piso 1, Piso 2, HCM, Administración…) dejan de estar
  * fijas en el código: se crean, renombran, ordenan y eliminan desde la misma pantalla, y cada
  * sala va en una (o en ninguna: entonces sale en «Otras»). Una pestaña «apartada» va al final,
  * separada de las demás, como la de Administración. Al eliminar una pestaña sus salas quedan

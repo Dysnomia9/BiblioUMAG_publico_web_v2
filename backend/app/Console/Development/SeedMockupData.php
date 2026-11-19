@@ -725,7 +725,7 @@ class SeedMockupData extends Command
             ]));
         }
 
-        // Las logias del Hospital Clínico de Magallanes (pestaña «Hospital» del mesón).
+        // Las logias del Hospital Clínico de Magallanes (pestaña «HCM» del mesón).
         foreach (['HCM1' => 'Hospital Logia 1', 'HCM2' => 'Hospital Logia 2'] as $codigo => $nombre) {
             $salas->push(Sala::updateOrCreate(['codigo' => $codigo], ['nombre' => $nombre, 'capacidad' => 4, 'tipo' => 'logia']));
         }
@@ -751,7 +751,7 @@ class SeedMockupData extends Command
             ]));
         }
 
-        // Las que se acaban de crear van en su pestaña del mesón (Piso 1, Hospital…).
+        // Las que se acaban de crear van en su pestaña del mesón (Piso 1, HCM…).
         PestanaSala::crearIniciales();
 
         $this->line('  · '.$salas->count().' salas listas (las del plano: 22 logias y 6 salas con nombre propio, más las 2 logias del hospital)');

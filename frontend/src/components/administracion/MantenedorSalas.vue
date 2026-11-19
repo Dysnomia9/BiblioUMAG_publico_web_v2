@@ -17,7 +17,7 @@ import type { PestanaSala, SalaAdministrada } from '@/types'
 const toast = useToast()
 
 const salas = ref<SalaAdministrada[]>([])
-// Las pestañas del mesón de salas (Piso 1, Hospital, Administración…), con su ventana.
+// Las pestañas del mesón de salas (Piso 1, HCM, Administración…), con su ventana.
 const pestanas = ref<PestanaSala[]>([])
 const pestanasAbierta = ref(false)
 const salasActivas = computed(() => salas.value.filter((s) => s.activa !== false))

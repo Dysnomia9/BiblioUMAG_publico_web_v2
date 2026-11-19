@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Las pestañas del mesón de salas (Piso 1, Hospital, Administración…): crearlas, renombrarlas,
+// Las pestañas del mesón de salas (Piso 1, HCM, Administración…): crearlas, renombrarlas,
 // ordenarlas, elegir sus salas y eliminarlas (con confirmación). Al eliminar una pestaña sus
 // salas no se tocan: pasan a «Otras». Se abre desde Administración › Salas (catalogos.gestionar).
 import { computed, ref, watch } from 'vue'

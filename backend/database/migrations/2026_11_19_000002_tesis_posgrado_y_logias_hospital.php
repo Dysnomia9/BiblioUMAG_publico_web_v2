@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
  * La Sala Moraga pasa a ser la Sala Tesis/Posgrado (código TPG), con su mismo id y todo su
  * historial; sigue siendo solo de la administración. Además se agregan las dos logias del
  * Hospital Clínico de Magallanes (HCM1 y HCM2), que se prestan como cualquier logia y en el
- * mesón van en su propia pestaña («Hospital»).
+ * mesón van en su propia pestaña («HCM»).
  *
  * Solo crea lo que falta (por código): lo que ya se ajustó en Administración › Salas no se toca.
  */

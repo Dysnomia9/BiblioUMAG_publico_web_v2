@@ -543,7 +543,7 @@ export type TramoReserva = {
   es_mia?: boolean
 }
 
-/** Una pestaña del mesón de salas (Piso 1, Hospital, Administración…). */
+/** Una pestaña del mesón de salas (Piso 1, HCM, Administración…). */
 export type PestanaSala = {
   id: number
   nombre: string
