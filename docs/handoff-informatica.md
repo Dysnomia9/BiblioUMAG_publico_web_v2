@@ -49,11 +49,12 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
 4. **Códigos de salas y asistencias**: las nuevas asistencias se registran sin
    código de puesto de Horizon; se retiró el valor ficticio usado durante el desarrollo.
    Los códigos de barras del historial importado se conservan. Las salas tienen su
-   código propio (L01 a L13 y L22 a L30, SEM, SEM2, POS, AGA, MOR, COO), que se
+   código propio (L01 a L13 y L22 a L30, SM1, SM2, POS, AGA, TPG, COO, y las del hospital HCM1 y HCM2), que se
    escribe en el mesón para entregar o recibir la llave. Las salas no hay que
    crearlas: al migrar una base nueva quedan las del plano de la biblioteca (22
-   logias, Seminario 1 y 2, Postgrado, AGACI, Moraga y Cooperación), cada una con
-   su código. Los seminarios, Moraga y Cooperación son solo de la administración.
+   logias, Seminario 1 y 2, Postgrado, AGACI, Tesis/Posgrado y Cooperación, más las
+   logias 1 y 2 del Hospital Clínico de Magallanes), cada una con
+   su código. Los seminarios, Tesis/Posgrado y Cooperación son solo de la administración.
 5. **Quién será el primer administrador**: en producción el sistema
    arranca sin cuentas: los datos de prueba (que traen `admin@umag.cl` /
    `admin123` con acceso total) solo se cargan en desarrollo (`APP_ENV=local`,

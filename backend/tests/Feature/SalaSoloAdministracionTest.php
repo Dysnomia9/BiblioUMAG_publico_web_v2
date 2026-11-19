@@ -55,7 +55,7 @@ class SalaSoloAdministracionTest extends TestCase
     public function test_la_sala_de_seminarios_viene_marcada(): void
     {
         $this->assertTrue($this->seminarios()->solo_administracion);
-        $this->assertEqualsCanonicalizing(['SM1', 'SM2', 'COO', 'MOR', 'L09', 'ATEC'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
+        $this->assertEqualsCanonicalizing(['SM1', 'SM2', 'COO', 'TPG', 'L09', 'ATEC'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
     }
 
     public function test_no_aparece_en_el_portal_ni_se_puede_reservar_desde_ahi(): void
@@ -65,7 +65,7 @@ class SalaSoloAdministracionTest extends TestCase
         Sanctum::actingAs($yo);
 
         $codigos = collect($this->getJson('/api/mi/salas')->assertOk()->json('salas'))->pluck('codigo');
-        foreach (['SM1', 'SM2', 'COO', 'MOR', 'L09', 'ATEC'] as $deLaAdministracion) {
+        foreach (['SM1', 'SM2', 'COO', 'TPG', 'L09', 'ATEC'] as $deLaAdministracion) {
             $this->assertNotContains($deLaAdministracion, $codigos);
         }
         $this->assertContains('L01', $codigos);
@@ -103,7 +103,7 @@ class SalaSoloAdministracionTest extends TestCase
         $docente = Usuario::factory()->create(['tipo' => 'docente']);
         $estudiante = Usuario::factory()->create(['tipo' => 'estudiante']);
         $this->assertTrue($this->seminarios()->solo_responsable);
-        $this->assertEqualsCanonicalizing(['SM1', 'SM2', 'COO', 'MOR', 'ATEC'], Sala::where('solo_responsable', true)->pluck('codigo')->all());
+        $this->assertEqualsCanonicalizing(['SM1', 'SM2', 'COO', 'TPG', 'ATEC'], Sala::where('solo_responsable', true)->pluck('codigo')->all());
 
         // Los asistentes no se anotan: con más de un RUT no se reserva.
         $this->postJson('/api/reservas', $this->reserva($this->seminarios(), [$docente->rut, $estudiante->rut]))

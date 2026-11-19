@@ -39,7 +39,7 @@ class SalaAdministracionSinVencimientoTest extends TestCase
 
     public static function salasAdministrativas(): iterable
     {
-        foreach (['SM1', 'SM2', 'MOR', 'COO', 'L09', 'ATEC'] as $codigo) {
+        foreach (['SM1', 'SM2', 'TPG', 'COO', 'L09', 'ATEC'] as $codigo) {
             yield $codigo => [$codigo];
         }
     }

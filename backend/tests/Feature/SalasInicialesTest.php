@@ -25,17 +25,18 @@ class SalasInicialesTest extends TestCase
     public function test_una_base_nueva_trae_las_salas_del_plano(): void
     {
         // Las logias del plano: de la 1 a la 13 en el primer piso y de la 22 a la 30 en el segundo.
+        // Más las dos del Hospital Clínico de Magallanes.
         $logias = [...range(1, 13), ...range(22, 30)];
         $this->assertSame(
-            array_map(fn ($n) => 'L'.str_pad((string) $n, 2, '0', STR_PAD_LEFT), $logias),
+            ['HCM1', 'HCM2', ...array_map(fn ($n) => 'L'.str_pad((string) $n, 2, '0', STR_PAD_LEFT), $logias)],
             Sala::where('tipo', 'logia')->enOrden()->pluck('codigo')->all(),
         );
         $this->assertSame(
-            ['SM1' => 'Seminario 1', 'POS' => 'Sala de Postgrado', 'AGA' => 'Sala AGACI', 'MOR' => 'Sala Moraga', 'COO' => 'Sala Cooperación', 'SM2' => 'Seminario 2', 'ATEC' => 'Aula Tecnología'],
+            ['SM1' => 'Seminario 1', 'POS' => 'Sala de Postgrado', 'AGA' => 'Sala AGACI', 'TPG' => 'Sala Tesis/Posgrado', 'COO' => 'Sala Cooperación', 'SM2' => 'Seminario 2', 'ATEC' => 'Aula Tecnología'],
             Sala::where('tipo', 'sala')->orderBy('id')->pluck('nombre', 'codigo')->all(),
         );
         // Las salas de administración no se solicitan desde el portal.
-        $this->assertEqualsCanonicalizing(['SM1', 'MOR', 'COO', 'SM2', 'L09', 'ATEC'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
+        $this->assertEqualsCanonicalizing(['SM1', 'TPG', 'COO', 'SM2', 'L09', 'ATEC'], Sala::where('solo_administracion', true)->pluck('codigo')->all());
         $this->assertTrue(Sala::where('activa', false)->doesntExist());
     }
 

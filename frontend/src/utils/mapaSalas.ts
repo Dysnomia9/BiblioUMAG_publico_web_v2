@@ -36,7 +36,7 @@ export const PISOS_MAPA: PisoMapa[] = [
     izquierda: {
       borde: 'pared',
       tramos: [
-        [logia(10), logia(11), logia(12), logia(13), { codigo: 'AGA', etiqueta: 'AGACI' }, { codigo: 'MOR', etiqueta: 'Moraga', soloAdministracion: true }],
+        [logia(10), logia(11), logia(12), logia(13), { codigo: 'AGA', etiqueta: 'AGACI' }, { codigo: 'TPG', etiqueta: 'Tesis/Posgrado', soloAdministracion: true }],
         [{ codigo: 'SM1', etiqueta: 'Seminario 1', soloAdministracion: true }],
       ],
     },

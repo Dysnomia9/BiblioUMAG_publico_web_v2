@@ -50,7 +50,7 @@ class IniciarSistemaTest extends TestCase
 
         // Lo que crean las migraciones sigue ahí: roles y salas.
         $this->assertSame(3, Rol::count());
-        $this->assertSame(29, Sala::count());
+        $this->assertSame(31, Sala::count());
     }
 
     public function test_se_puede_elegir_otro_correo_y_nombre(): void

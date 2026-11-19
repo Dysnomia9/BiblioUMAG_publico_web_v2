@@ -55,8 +55,8 @@ class CodigoSalaTest extends TestCase
         $this->assertSame('POS', $codigos['Sala de Postgrado']);
         $this->assertSame('AGA', $codigos['Sala AGACI']);
         $this->assertSame('ATEC', $codigos['Aula Tecnología']);
-        // Las del plano y Aula Tecnología: 22 logias y 7 salas con nombre propio.
-        $this->assertCount(29, $codigos->unique());
+        // Las del plano, Aula Tecnología y las 2 logias del hospital: 24 logias y 7 salas con nombre propio.
+        $this->assertCount(31, $codigos->unique());
     }
 
     public function test_la_llave_se_entrega_y_se_recibe_con_el_codigo_o_el_numero(): void

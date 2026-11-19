@@ -33,7 +33,7 @@ class SalaMesonAdministracionTest extends TestCase
 
     public static function salas(): iterable
     {
-        foreach (['SM1', 'SM2', 'MOR', 'COO', 'L09', 'ATEC'] as $codigo) {
+        foreach (['SM1', 'SM2', 'TPG', 'COO', 'L09', 'ATEC'] as $codigo) {
             yield $codigo => [$codigo, false];
         }
         yield 'exclusiva' => ['COO', true];
