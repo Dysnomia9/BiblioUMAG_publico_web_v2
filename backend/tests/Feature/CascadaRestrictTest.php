@@ -86,7 +86,7 @@ class CascadaRestrictTest extends TestCase
         Prestamo::factory()->create(['equipo_id' => $equipo->id, 'tipo_item' => $equipo->tipo]);
 
         $this->expectException(QueryException::class);
-        $equipo->delete();
+        $equipo->forceDelete();
     }
 
     public function test_se_puede_borrar_un_usuario_sin_historial_asociado(): void
