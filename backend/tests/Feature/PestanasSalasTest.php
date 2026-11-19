@@ -44,6 +44,16 @@ class PestanasSalasTest extends TestCase
         $this->assertSame($this->pestana('Hospital')->id, $hcm1['pestana_id']);
     }
 
+    public function test_administracion_salas_trae_las_pestanas_para_gestionarlas(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+
+        $respuesta = $this->getJson('/api/mantenedor-salas')->assertOk();
+        $this->assertSame(['Piso 1', 'Piso 2', 'Hospital', 'Administración'], array_column($respuesta->json('pestanas'), 'nombre'));
+        $hcm1 = collect($respuesta->json('salas'))->firstWhere('codigo', 'HCM1');
+        $this->assertSame($this->pestana('Hospital')->id, $hcm1['pestana_id']);
+    }
+
     public function test_se_crea_una_pestana_y_se_le_pasan_salas(): void
     {
         Sanctum::actingAs(Staff::factory()->admin()->create());

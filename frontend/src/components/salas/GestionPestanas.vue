@@ -1,15 +1,18 @@
 <script setup lang="ts">
 // Las pestañas del mesón de salas (Piso 1, Hospital, Administración…): crearlas, renombrarlas,
 // ordenarlas, elegir sus salas y eliminarlas (con confirmación). Al eliminar una pestaña sus
-// salas no se tocan: pasan a «Otras». Requiere catalogos.gestionar, como Administración › Salas.
+// salas no se tocan: pasan a «Otras». Se abre desde Administración › Salas (catalogos.gestionar).
 import { computed, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
-import type { PestanaSala, Sala } from '@/types'
+import type { PestanaSala } from '@/types'
 
-const props = defineProps<{ abierto: boolean; pestanas: PestanaSala[]; salas: Sala[] }>()
+/** Lo que hace falta de cada sala: con qué se muestra y en qué pestaña está. */
+type SalaDePestana = { id: number; codigo: string; nombre: string; pestana_id?: number | null }
+
+const props = defineProps<{ abierto: boolean; pestanas: PestanaSala[]; salas: SalaDePestana[] }>()
 const emit = defineEmits<{ cerrar: []; actualizado: [] }>()
 const toast = useToast()
 

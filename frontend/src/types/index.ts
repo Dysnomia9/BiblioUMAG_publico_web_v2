@@ -599,7 +599,7 @@ export type VistaSalasDia = {
 }
 
 /** Una sala en Administración › Salas, con sus reservas de toda la historia y las que siguen activas. */
-export type SalaAdministrada = Pick<Sala, 'id' | 'nombre' | 'codigo' | 'capacidad' | 'tipo'> & {
+export type SalaAdministrada = Pick<Sala, 'id' | 'nombre' | 'codigo' | 'capacidad' | 'tipo' | 'pestana_id'> & {
   solo_administracion: boolean
   reserva_exclusiva: boolean
   solo_responsable: boolean

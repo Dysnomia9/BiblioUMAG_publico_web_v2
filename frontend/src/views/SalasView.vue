@@ -10,7 +10,6 @@ import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import EditorActividad from '@/components/salas/EditorActividad.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
-import GestionPestanas from '@/components/salas/GestionPestanas.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoHora from '@/components/ui/CampoHora.vue'
 import api from '@/services/api'
@@ -56,10 +55,8 @@ const cantidadMinima = ref(PERSONAS_MINIMAS_MESON)
 const cantidadMaxima = ref(PERSONAS_MAXIMAS_MESON)
 
 const salas = ref<Sala[]>([])
-/** Las pestañas del mesón (se gestionan con el botón junto a ellas). */
+/** Las pestañas del mesón (se gestionan en Administración › Salas). */
 const pestanas = ref<PestanaSala[]>([])
-const gestionPestanasAbierta = ref(false)
-const puedeGestionarPestanas = computed(() => auth.puede('catalogos.gestionar'))
 const apiError = ref(false)
 const selectedDate = ref(hoy.value)
 const busqueda = ref('')
@@ -337,7 +334,7 @@ const filteredSalas = computed(() => {
 })
 
 // Una página por pestaña del mesón (Piso 1, Piso 2, Hospital, Administración…), que se crean,
-// ordenan y llenan con «Gestionar pestañas» (tabla pestanas_salas). Las apartadas (como
+// ordenan y llenan en Administración › Salas (tabla pestanas_salas). Las apartadas (como
 // Administración) van al final y separadas de las demás. Una sala sin pestaña va en «Otras»,
 // que solo aparece si tiene alguna. Antes eran fijas: un piso por cada piso del plano.
 const paginas = computed(() => {
@@ -1368,7 +1365,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             {{ registrandoLlave ? 'Registrando…' : 'Registrar' }}
           </button>
         </div>
-        </div>
         <!-- Nota: los colores son los de la leyenda de la línea de tiempo (tramoClases). -->
         <p class="flex items-start gap-2 border-t border-dashed border-gray-200 bg-gray-50/70 px-4 py-2.5 text-xs leading-relaxed text-gray-600 sm:px-5">
           <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -1401,7 +1397,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             class="w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
-        <div class="flex flex-wrap items-center gap-2">
         <div v-if="paginas.length > 1" class="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           <button
             v-for="(p, i) in paginas"
@@ -1417,19 +1412,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <span class="text-xs font-medium tabular-nums opacity-70">{{ p.salas.length }}</span>
           </button>
         </div>
-        <button
-          v-if="puedeGestionarPestanas"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-          title="Crear, renombrar, ordenar o eliminar pestañas y elegir sus salas"
-          @click="gestionPestanasAbierta = true"
-        >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Pestañas
-        </button>
         </div>
       </div>
 
@@ -2434,6 +2416,5 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
 
     <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
     <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="detalleOpen = false; cargar()" />
-    <GestionPestanas :abierto="gestionPestanasAbierta" :pestanas="pestanas" :salas="salas" @cerrar="gestionPestanasAbierta = false" @actualizado="cargar" />
   </StaffLayout>
 </template>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ConfiguracionInstitucional;
+use App\Models\PestanaSala;
 use App\Models\Sala;
 use App\Services\ReservaSalaService;
 use App\Support\Bitacora;
@@ -36,6 +37,8 @@ class MantenedorSalasController extends Controller
                 'portal' => array_combine(['minimo', 'maximo'], Sala::personasDelPortal()),
             ],
             'minimo_logias' => $this->minimoLogias(),
+            // Las pestañas del mesón de salas, que se gestionan desde aquí.
+            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada']),
         ]);
     }
 

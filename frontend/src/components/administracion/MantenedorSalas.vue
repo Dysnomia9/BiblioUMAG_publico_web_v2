@@ -3,10 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import Modal from '@/components/ui/Modal.vue'
+import GestionPestanas from '@/components/salas/GestionPestanas.vue'
 import api from '@/services/api'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { CODIGOS_EN_EL_MAPA } from '@/utils/mapaSalas'
-import type { SalaAdministrada } from '@/types'
+import type { PestanaSala, SalaAdministrada } from '@/types'
 
 /**
  * Las salas de la biblioteca: crearlas, ajustarlas, darlas de baja y eliminarlas. Una sala
@@ -16,6 +17,10 @@ import type { SalaAdministrada } from '@/types'
 const toast = useToast()
 
 const salas = ref<SalaAdministrada[]>([])
+// Las pestañas del mesón de salas (Piso 1, Hospital, Administración…), con su ventana.
+const pestanas = ref<PestanaSala[]>([])
+const pestanasAbierta = ref(false)
+const salasActivas = computed(() => salas.value.filter((s) => s.activa !== false))
 type Rango = { minimo: number; maximo: number }
 // Personas por reserva de grupo: en el mesón el rango es más amplio que en el portal (config/salas.php).
 const personas = ref<{ meson: Rango; portal: Rango }>({ meson: { minimo: 1, maximo: 7 }, portal: { minimo: 3, maximo: 5 } })
@@ -48,10 +53,11 @@ async function guardarMinimoLogias(cambio: Partial<Pick<MinimoLogias, 'activo' |
 
 async function cargar() {
   try {
-    const { data } = await api.get<{ salas: SalaAdministrada[]; personas: { meson: Rango; portal: Rango }; minimo_logias: MinimoLogias }>('/mantenedor-salas')
+    const { data } = await api.get<{ salas: SalaAdministrada[]; personas: { meson: Rango; portal: Rango }; minimo_logias: MinimoLogias; pestanas: PestanaSala[] }>('/mantenedor-salas')
     salas.value = data.salas
     personas.value = data.personas
     minimoLogias.value = data.minimo_logias
+    pestanas.value = data.pestanas ?? []
     apiError.value = false
   } catch {
     apiError.value = true
@@ -240,7 +246,17 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
           ofrecerse y conserva sus reservas y reportes.
         </p>
       </div>
-      <button type="button" class="shrink-0 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="nueva">+ Nueva sala</button>
+      <div class="flex shrink-0 flex-wrap gap-2 self-start">
+        <button
+          type="button"
+          class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          title="Las pestañas del mesón de salas: crearlas, renombrarlas, ordenarlas, elegir sus salas o eliminarlas"
+          @click="pestanasAbierta = true"
+        >
+          Pestañas del mesón <span class="ml-0.5 text-xs font-medium tabular-nums text-gray-500">{{ pestanas.length }}</span>
+        </button>
+        <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.2)] transition-colors hover:bg-indigo-700" @click="nueva">+ Nueva sala</button>
+      </div>
     </header>
 
     <!-- Mínimo de personas para salas o logias: un interruptor y el número -->
@@ -469,5 +485,7 @@ const CAMPO = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outl
         <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-xs">No tiene reservas, así que no se pierde ningún historial.</p>
       </template>
     </DialogoConfirmacion>
+
+    <GestionPestanas :abierto="pestanasAbierta" :pestanas="pestanas" :salas="salasActivas" @cerrar="pestanasAbierta = false" @actualizado="cargar" />
   </section>
 </template>

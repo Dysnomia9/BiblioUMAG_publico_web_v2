@@ -11,16 +11,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * Las pestañas del mesón de salas: crearlas, renombrarlas, ordenarlas, elegir qué salas van
+ * Las pestañas del mesón de salas (se gestionan en Administración › Salas): crearlas, renombrarlas, ordenarlas, elegir qué salas van
  * en cada una y eliminarlas. Eliminar una pestaña no toca sus salas: quedan en «Otras».
  */
 class PestanaSalaController extends Controller
 {
-    public function index()
-    {
-        return response()->json($this->listado());
-    }
-
     public function store(Request $request)
     {
         $data = $this->validar($request);
