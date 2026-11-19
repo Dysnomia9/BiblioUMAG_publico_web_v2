@@ -42,10 +42,21 @@ class DatosDePruebaHorarioTest extends TestCase
         $this->comprobarHorario('2026-07-14 00:04:00');
     }
 
+    public function test_regenerar_datos_funciona_sin_credenciales_simuladas_ni_puestos_ficticios(): void
+    {
+        Carbon::setTestNow('2026-07-13 10:30:00');
+        $this->artisan('mockup:datos')->assertSuccessful();
+        $this->artisan('mockup:datos', ['--fresh' => true])->assertSuccessful();
+
+        $this->assertGreaterThan(0, Entrada::count());
+        $this->assertSame(0, Entrada::whereNotNull('codigo_barras')->count());
+    }
+
     private function comprobarHorario(string $ahora): void
     {
         Carbon::setTestNow($ahora);
         $this->artisan('mockup:datos')->assertSuccessful();
+        $this->assertSame(0, Entrada::whereNotNull('codigo_barras')->count());
 
         $momentos = Entrada::pluck('fecha_hora_entrada')
             ->merge(Prestamo::pluck('fecha_prestamo'))

@@ -152,7 +152,6 @@ class SeedMockupData extends Command
             // La bitácora va primero: apunta (RESTRICT) a las cuentas del personal y a los
             // usuarios, y en cuanto alguien usó el sistema ya tiene filas.
             DB::table('bitacora')->delete();
-            DB::table('credenciales_simuladas')->delete();
             DB::table('multas')->delete();
             DB::table('ejemplar_estado_historial')->delete();
             DB::table('reservas_libro')->delete();
@@ -189,8 +188,6 @@ class SeedMockupData extends Command
         $this->seedReservasLibro($ejemplares, $usuarios);
         $this->seedEscenarioDemostracion();
         $this->seedHistorialEstado();
-        // Correos simulados del login v2 (igcontre@umag.cl…), aparte de las credenciales reales.
-        $this->call('login-v2:correos');
 
         $this->info('Datos de prueba cargados correctamente.');
 
@@ -348,7 +345,6 @@ class SeedMockupData extends Command
                     'fecha_hora_entrada' => $entrada,
                     'fecha_hora_salida' => $conSalida ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
                     ...$via(),
-                    'codigo_barras' => config('horizon_barcodes.puesto_generico'),
                 ]);
                 $total++;
             }
@@ -369,7 +365,6 @@ class SeedMockupData extends Command
                 'fecha_hora_entrada' => $entrada,
                 'fecha_hora_salida' => random_int(0, 100) < 60 ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
                 ...$via(),
-                'codigo_barras' => config('horizon_barcodes.puesto_generico'),
             ]);
             $total++;
         }
@@ -388,7 +383,6 @@ class SeedMockupData extends Command
                 'fecha_hora_entrada' => $entrada,
                 'fecha_hora_salida' => random_int(0, 100) < 60 ? $entrada->copy()->addMinutes(random_int(30, 180)) : null,
                 'via' => 'manual',
-                'codigo_barras' => config('horizon_barcodes.puesto_generico'),
             ]);
             $total++;
         }

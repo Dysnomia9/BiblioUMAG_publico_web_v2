@@ -5,8 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Correos y claves simulados del login v2 (ver config/login_v2.php): una fila por cuenta
- * del personal o usuario, aparte de sus credenciales reales.
+ * Tabla histórica de credenciales de prueba, retirada por la migración del release
+ * del 19 de noviembre de 2026. Se conserva esta migración para las bases existentes.
  */
 return new class extends Migration
 {

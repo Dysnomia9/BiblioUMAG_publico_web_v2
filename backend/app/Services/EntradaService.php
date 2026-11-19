@@ -43,7 +43,7 @@ class EntradaService
     /**
      * Registra la entrada de un usuario del sistema, salvo que ya la tenga hoy.
      *
-     * @param  array<string, mixed>  $atributos  via, registrado_por_staff_id, codigo_barras
+     * @param  array<string, mixed>  $atributos  via, registrado_por_staff_id
      * @return array{0: Entrada, 1: bool} la entrada y si se creó recién (false = ya estaba presente)
      */
     public function registrarUsuario(Usuario $usuario, array $atributos): array
@@ -136,7 +136,6 @@ class EntradaService
             [$entrada, $creada] = $this->registrarUsuario($usuario, [
                 'via' => 'sala',
                 'registrado_por_staff_id' => $staff->id,
-                'codigo_barras' => config('horizon_barcodes.puesto_generico'),
             ]);
 
             $nombre = trim("{$usuario->nombre} {$usuario->apellido}");

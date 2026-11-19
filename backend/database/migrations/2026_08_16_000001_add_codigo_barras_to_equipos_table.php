@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
  * codigo_barras como el campo que realmente se escanea/tipea al prestar;
  * codigo_inventario se mantiene como el identificador legible ("Notebook 01").
  * Los códigos reales de los equipos no estaban disponibles al implementar esto —
- * el backfill usa un placeholder largo (mismo criterio que horizon_barcodes.php).
+ * el backfill usa un placeholder largo.
  */
 return new class extends Migration
 {

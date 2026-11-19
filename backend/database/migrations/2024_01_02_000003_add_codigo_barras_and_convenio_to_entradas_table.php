@@ -9,9 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('entradas', function (Blueprint $table) {
-            // Toda asistencia se registra en Horizon con el código de barras del puesto de
-            // trabajo — se completa siempre automáticamente en el backend (config
-            // horizon_barcodes.puesto_generico), nunca se tipea a mano.
+            // Código de puesto del historial importado de Horizon. Las nuevas
+            // asistencias del sistema se registran sin un código ficticio.
             $table->string('codigo_barras')->nullable()->after('via');
             $table->boolean('es_convenio')->default(false)->after('nombre_externo');
         });

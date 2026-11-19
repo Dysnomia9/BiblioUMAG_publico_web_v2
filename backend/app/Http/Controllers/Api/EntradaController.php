@@ -147,16 +147,12 @@ class EntradaController extends Controller
             ], 403);
         }
 
-        // Horizon gestiona toda la asistencia (usuarios, docentes, funcionarios) con el
-        // código de barras del puesto de trabajo: se estampa siempre automáticamente, nunca
-        // se tipea a mano. La salida se marca en el mismo instante que la entrada — Horizon
-        // no registra un evento de salida por separado, así que no tiene sentido modelar un
-        // estado "activo" que dependa de fecha_hora_salida. Lo que sí se controla es que la
-        // persona quede presente una sola vez por día (ver EntradaService).
+        // Cada persona queda presente una sola vez por día (ver EntradaService).
+        // Las nuevas asistencias no llevan un código de puesto ficticio. La salida
+        // se registra en el mismo instante que la entrada, como en el historial legado.
         [$entrada, $creada] = $entradas->registrarUsuario($usuario, [
             'registrado_por_staff_id' => $request->user()->id,
             'via' => $data['via'] ?? 'manual',
-            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
         ]);
 
         $entrada->load('usuario:id,nombre,apellido,rut,tipo,tipo_documento,pais');
@@ -238,7 +234,6 @@ class EntradaController extends Controller
             'nombre_externo' => $data['nombre'] ?? null,
             'registrado_por_staff_id' => $request->user()->id,
             'via' => 'manual',
-            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
         ]);
 
         $quien = $entrada->nombre_externo ?: Documento::describir($entrada->rut_externo, $entrada->tipo_documento_externo, $entrada->pais_externo);
@@ -270,7 +265,6 @@ class EntradaController extends Controller
             'nombre_externo' => $data['nombre'] ?? null,
             'registrado_por_staff_id' => $request->user()->id,
             'via' => 'manual',
-            'codigo_barras' => config('horizon_barcodes.puesto_generico'),
         ]);
 
         Bitacora::registrar(

@@ -54,6 +54,7 @@ class AsistenciaSalaTest extends TestCase
             'via' => 'sala',
             'registrado_por_staff_id' => $staff->id,
             'fecha_hora_entrada' => '2026-08-14 14:05:00',
+            'codigo_barras' => null,
         ]);
     }
 
@@ -89,5 +90,6 @@ class AsistenciaSalaTest extends TestCase
             ->assertJsonMissingPath('asistencia');
 
         $this->assertDatabaseCount('entradas', 2);
+        $this->assertSame(0, Entrada::whereNotNull('codigo_barras')->count());
     }
 }

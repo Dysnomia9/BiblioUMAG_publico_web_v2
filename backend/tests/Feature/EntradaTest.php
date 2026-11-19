@@ -36,7 +36,7 @@ class EntradaTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonPath('rut_externo', $rutExterno);
 
-        $this->assertDatabaseHas('entradas', ['rut_externo' => $rutExterno]);
+        $this->assertDatabaseHas('entradas', ['rut_externo' => $rutExterno, 'codigo_barras' => null]);
     }
 
     public function test_una_visita_se_registra_sin_documento_y_cada_persona_cuenta(): void
@@ -49,6 +49,7 @@ class EntradaTest extends TestCase
 
         $this->assertSame(4, Entrada::whereNull('rut_externo')->whereNull('usuario_id')->count());
         $this->assertSame(3, Entrada::where('nombre_externo', 'Colegio San José')->where('es_visita', true)->count());
+        $this->assertSame(0, Entrada::whereNotNull('codigo_barras')->count());
         $this->getJson('/api/entrada')->assertOk()->assertJsonPath('hoy.personas', 4);
     }
 
@@ -84,6 +85,7 @@ class EntradaTest extends TestCase
         $this->assertNotNull($response->json('fecha_hora_salida'));
 
         $entrada = Entrada::first();
+        $this->assertNull($entrada->codigo_barras);
         $this->assertNotNull($entrada->fecha_hora_salida);
         $this->assertTrue($entrada->fecha_hora_entrada->equalTo($entrada->fecha_hora_salida));
     }

@@ -16,13 +16,6 @@ class IngresoTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        // Solo las credenciales reales: los correos simulados son otra cosa (CredencialesSimuladasTest).
-        config(['login_v2.correos_simulados' => false]);
-    }
-
     private function ingresar(string $identificador, string $password, ?string $como = null)
     {
         $this->app['auth']->forgetGuards();

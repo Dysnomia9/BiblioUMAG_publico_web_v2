@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CredencialSimulada;
 use App\Models\Staff;
 use App\Models\Usuario;
 use App\Services\LoginUnificadoService;
@@ -18,9 +17,6 @@ use Illuminate\Validation\ValidationException;
  * el pasaporte o DNI) no sirve para entrar. El servidor busca de quién es el correo y
  * responde a qué sesión corresponde; si la misma persona tiene cuenta del personal y de
  * usuario con esa clave, le pregunta con cuál entra (LoginUnificadoService::resolver()).
- *
- * En desarrollo también valen los correos y la clave simulados de credenciales_simuladas
- * (config/login_v2.php); nunca en producción.
  */
 class IngresoController extends Controller
 {
@@ -66,9 +62,9 @@ class IngresoController extends Controller
 
     /**
      * Las cuentas de ese correo cuya contraseña es la que se escribió: la del personal, la
-     * del usuario (por su correo principal o uno adicional) y, en desarrollo, la del correo
-     * simulado. Sin ninguna, la clave igual se compara una vez (Credenciales): que no se
-     * note por el tiempo qué cuentas existen.
+     * del usuario (por su correo principal o uno adicional). Sin ninguna, la clave
+     * igual se compara una vez (Credenciales): que no se note por el tiempo qué
+     * cuentas existen.
      *
      * @return list<Staff|Usuario>
      */
@@ -78,17 +74,11 @@ class IngresoController extends Controller
         $usuario = Usuario::buscarPorCorreo($correo);
         $intentos = [[$staff, $staff?->password], [$usuario, $usuario?->password]];
 
-        if (config('login_v2.correos_simulados') && ! app()->isProduction()) {
-            $simulada = CredencialSimulada::with('cuenta')->where('correo', $correo)->first();
-            $intentos[] = [$simulada?->cuenta, $simulada?->clave];
-        }
-
         $intentos = array_filter($intentos, fn (array $intento) => $intento[0] !== null);
         $cuentas = [];
 
         foreach ($intentos ?: [[null, null]] as [$cuenta, $hash]) {
             if (Credenciales::coinciden($clave, $hash)) {
-                // La misma cuenta por su correo real y el simulado cuenta una sola vez.
                 $cuentas[LoginUnificadoService::tipoDe($cuenta).':'.$cuenta->getKey()] = $cuenta;
             }
         }

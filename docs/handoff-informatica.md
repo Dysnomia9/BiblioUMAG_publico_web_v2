@@ -46,10 +46,9 @@ en la universidad y la forma de publicar la aplicación en su infraestructura
    tiene SSL y con `require` el backend no se conectaría.
 3. **Dominio/URL reales**: `APP_URL` (backend), `FRONTEND_URL`,
    `SANCTUM_STATEFUL_DOMAINS` (dominio del frontend, sin protocolo).
-4. **Código de puesto de trabajo de Horizon** (opcional): las entradas llevan
-   el código de puesto genérico de Horizon, hoy un valor **inventado como
-   placeholder** (`'62572'` en `config/horizon_barcodes.php`); si se quiere el
-   real, se cambia ahí. Las salas no usan códigos de barras: cada una tiene su
+4. **Códigos de salas y asistencias**: las nuevas asistencias se registran sin
+   código de puesto de Horizon; se retiró el valor ficticio usado durante el desarrollo.
+   Los códigos de barras del historial importado se conservan. Las salas tienen su
    código propio (L01 a L13 y L22 a L30, SEM, SEM2, POS, AGA, MOR, COO), que se
    escribe en el mesón para entregar o recibir la llave. Las salas no hay que
    crearlas: al migrar una base nueva quedan las del plano de la biblioteca (22
