@@ -168,4 +168,31 @@ class RegistroAbsolutoTest extends TestCase
         $this->assertStringEndsWith('(12-11-2026, 17:00–19:00)', $sala['detalle']);
         $this->assertTrue($filas->contains(fn ($f) => str_ends_with((string) $f['detalle'], '(14-11-2026, 09:00–10:00)')));
     }
+
+    public function test_una_serie_de_reservas_es_una_sola_fila_con_la_persona_a_cargo(): void
+    {
+        Sanctum::actingAs(Staff::factory()->admin()->create());
+        Carbon::setTestNow('2026-11-19 11:01:00');
+        $sala = \App\Models\Sala::where('codigo', 'SM1')->sole();
+        foreach (['2026-11-23', '2026-11-30', '2026-12-07', '2026-12-14', '2026-12-21'] as $i => $fecha) {
+            Reserva::factory()->create([
+                'sala_id' => $sala->id, 'usuario_id' => null, 'rut_usuario' => null, 'serie' => '6f1c8a52-0d5e-4b7a-9d1e-3a2b4c5d6e7f',
+                'nombre_actividad' => 'Luis Medina', 'fecha' => $fecha, 'hora_inicio' => '08:00', 'hora_fin' => '11:10',
+                'estado' => $i === 0 ? 'cancelada' : 'activa',
+            ]);
+        }
+        // Una reserva suelta por nombre también muestra a la persona a cargo.
+        Reserva::factory()->create(['usuario_id' => null, 'rut_usuario' => null, 'nombre_actividad' => 'Reunión de facultad', 'fecha' => '2026-11-20']);
+
+        $filas = collect($this->getJson('/api/registro-absoluto?tipo[]=reserva_sala')->assertOk()->json('operaciones'));
+
+        $this->assertCount(2, $filas);
+        $serie = $filas->firstWhere('usuario_nombre', 'Luis Medina');
+        $this->assertSame('Seminario 1 · serie de 5 fechas, del 23-11-2026 al 21-12-2026, 08:00–11:10 (1 cancelada)', $serie['detalle']);
+        $this->assertSame('activa', $serie['estado']);
+        $this->assertTrue($filas->contains('usuario_nombre', 'Reunión de facultad'));
+
+        // Se encuentra buscando por la persona a cargo.
+        $this->assertCount(1, $this->getJson('/api/registro-absoluto?tipo[]=reserva_sala&q=medina')->json('operaciones'));
+    }
 }

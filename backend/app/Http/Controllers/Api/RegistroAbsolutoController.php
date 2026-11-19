@@ -115,34 +115,88 @@ class RegistroAbsolutoController extends Controller
         return $query;
     }
 
-    private function reservasSala(Carbon $desde, Carbon $hasta, string $busqueda): Builder
+    /** «13-11-2026» a partir de una fecha (o expresión de fecha) de la base. */
+    private static function ddmmaaaa(string $fecha): string
+    {
+        return "CONCAT(SUBSTRING(CAST({$fecha} AS CHAR(10)), 9, 2), '-', SUBSTRING(CAST({$fecha} AS CHAR(10)), 6, 2), '-', SUBSTRING(CAST({$fecha} AS CHAR(10)), 1, 4))";
+    }
+
+    /** «17:00–19:00» a partir de las horas de inicio y de término. */
+    private static function tramo(string $inicio, string $fin): string
+    {
+        return "CONCAT(SUBSTRING(CAST({$inicio} AS CHAR(8)), 1, 5), '–', SUBSTRING(CAST({$fin} AS CHAR(8)), 1, 5))";
+    }
+
+    /** Las reservas de sala que se hicieron entre esas fechas, con quién y la sala. */
+    private function baseReservasSala(Carbon $desde, Carbon $hasta, string $busqueda): Builder
     {
         $query = DB::table('reservas as r')
             ->leftJoin('usuarios as u', 'u.id', '=', 'r.usuario_id')
             ->leftJoin('salas as sa', 'sa.id', '=', 'r.sala_id')
-            // prestado_por_staff_id es la fuente de verdad (FK real, desde 2026-08-17); el
-            // texto prestado_por cubre reservas anteriores a esa migración.
-            ->leftJoin('staff as s', 's.id', '=', 'r.prestado_por_staff_id')
             // La hora de la fila es cuándo se hizo la reserva, no a qué hora es la sala: una
             // reserva para las 17:00 hecha (o cancelada) a las 14:00 no puede aparecer arriba
             // de lo que pasó a las 15:00. El día y el tramo reservados van en el detalle.
             ->where(fn ($q) => $q->whereBetween('r.created_at', [$desde, $hasta])
-                ->orWhere(fn ($q) => $q->whereNull('r.created_at')->whereBetween('r.fecha', [$desde->toDateString(), $hasta->toDateString()])))
+                ->orWhere(fn ($q) => $q->whereNull('r.created_at')->whereBetween('r.fecha', [$desde->toDateString(), $hasta->toDateString()])));
+
+        if ($busqueda !== '') {
+            // También la persona a cargo de una reserva por nombre (salas de la administración, sin RUT).
+            $query->where(fn ($q) => $q->where(fn ($u) => $this->buscarUsuario($u, $busqueda, 'r.rut_usuario'))
+                ->orWhere(fn ($a) => $a->whereCadaPalabra('r.nombre_actividad', $busqueda)));
+        }
+
+        return $query;
+    }
+
+    /**
+     * Las reservas de sala de a una, y cada serie (la misma reserva semana a semana,
+     * SalaController::repetirReserva) en una sola fila: se pidió una vez, no una por fecha.
+     */
+    private function reservasSala(Carbon $desde, Carbon $hasta, string $busqueda): Builder
+    {
+        // La persona con RUT o, si se reservó por nombre, la persona a cargo / grupo.
+        $quien = 'COALESCE('.self::NOMBRE_USUARIO.', r.nombre_actividad)';
+
+        $sueltas = $this->baseReservasSala($desde, $hasta, $busqueda)
+            ->whereNull('r.serie')
+            // prestado_por_staff_id es la fuente de verdad (FK real, desde 2026-08-17); el
+            // texto prestado_por cubre reservas anteriores a esa migración.
+            ->leftJoin('staff as s', 's.id', '=', 'r.prestado_por_staff_id')
             ->selectRaw("'reserva_sala' AS tipo")
             ->selectRaw("COALESCE(CAST(r.created_at AS CHAR(19)), CONCAT(CAST(r.fecha AS CHAR(10)), ' ', CAST(r.hora_inicio AS CHAR(8)))) AS fecha_hora")
-            ->selectRaw(self::NOMBRE_USUARIO.' AS usuario_nombre')
+            ->selectRaw("{$quien} AS usuario_nombre")
             ->selectRaw('r.rut_usuario AS usuario_rut')
             // «Logia 02 (13-11-2026, 17:00–19:00)»: el día reservado, que puede no ser el de la fila.
-            ->selectRaw("CONCAT(COALESCE(sa.nombre, 'Sala eliminada'), ' (', SUBSTRING(CAST(r.fecha AS CHAR(10)), 9, 2), '-', SUBSTRING(CAST(r.fecha AS CHAR(10)), 6, 2), '-', SUBSTRING(CAST(r.fecha AS CHAR(10)), 1, 4), ', ', SUBSTRING(CAST(r.hora_inicio AS CHAR(8)), 1, 5), '–', SUBSTRING(CAST(r.hora_fin AS CHAR(8)), 1, 5), ')') AS detalle")
+            ->selectRaw("CONCAT(COALESCE(sa.nombre, 'Sala eliminada'), ' (', ".self::ddmmaaaa('r.fecha').", ', ', ".self::tramo('r.hora_inicio', 'r.hora_fin').", ')') AS detalle")
             ->selectRaw('r.estado AS estado')
             ->selectRaw('COALESCE(s.nombre, r.prestado_por) AS atendido_por')
             ->selectRaw('r.id AS origen_id');
 
-        if ($busqueda !== '') {
-            $this->buscarUsuario($query, $busqueda, 'r.rut_usuario');
-        }
+        // «Seminario 1 · serie de 5 fechas, del 23-11-2026 al 21-12-2026, 08:00–11:10 (1 cancelada)».
+        // Si una fecha se movió a otra sala u horario, la fila lo dice en vez de mostrar solo uno.
+        // La llave se entrega fecha a fecha: quién la entregó se ve en el Listado de reservas.
+        $activas = "SUM(CASE WHEN r.estado = 'activa' THEN 1 ELSE 0 END)";
+        $canceladas = "SUM(CASE WHEN r.estado = 'cancelada' THEN 1 ELSE 0 END)";
+        $series = $this->baseReservasSala($desde, $hasta, $busqueda)
+            ->whereNotNull('r.serie')
+            ->groupBy('r.serie')
+            ->selectRaw("'reserva_sala' AS tipo")
+            ->selectRaw('CAST(MIN(r.created_at) AS CHAR(19)) AS fecha_hora')
+            ->selectRaw("MIN({$quien}) AS usuario_nombre")
+            ->selectRaw('MIN(r.rut_usuario) AS usuario_rut')
+            ->selectRaw("CONCAT("
+                ."CASE WHEN COUNT(DISTINCT r.sala_id) > 1 THEN 'Varias salas' ELSE COALESCE(MIN(sa.nombre), 'Sala eliminada') END, "
+                ."' · serie de ', TRIM(CAST(COUNT(*) AS CHAR(10))), ' fechas, del ', ".self::ddmmaaaa('MIN(r.fecha)').", ' al ', ".self::ddmmaaaa('MAX(r.fecha)').", ', ', "
+                ."CASE WHEN COUNT(DISTINCT CONCAT(CAST(r.hora_inicio AS CHAR(8)), CAST(r.hora_fin AS CHAR(8)))) > 1 THEN 'horario variable' ELSE ".self::tramo('MIN(r.hora_inicio)', 'MIN(r.hora_fin)').' END, '
+                ."CASE WHEN {$canceladas} = 0 THEN '' WHEN {$canceladas} = 1 THEN ' (1 cancelada)' ELSE CONCAT(' (', TRIM(CAST({$canceladas} AS CHAR(10))), ' canceladas)') END"
+                .') AS detalle')
+            // Activa mientras le quede alguna fecha por usar; si no, cancelada si se cancelaron todas.
+            ->selectRaw("CASE WHEN {$activas} > 0 THEN 'activa' WHEN {$canceladas} = COUNT(*) THEN 'cancelada' ELSE 'finalizada' END AS estado")
+            ->selectRaw('CAST(NULL AS CHAR(100)) AS atendido_por')
+            ->selectRaw('MIN(r.id) AS origen_id');
 
-        return $query;
+        // En una subconsulta, para que se una al resto del registro como cualquier otra parte.
+        return DB::query()->fromSub($sueltas->unionAll($series), 'reservas_sala');
     }
 
     private function reservasLibro(Carbon $desde, Carbon $hasta, string $busqueda): Builder
