@@ -153,6 +153,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::patch('/reservas/{reserva}/liberar-resto', [SalaController::class, 'liberarRestoDelBloque']);
         Route::post('/reservas/{reserva}/multa-atraso', [SalaController::class, 'multarAtraso']);
         Route::put('/reservas/{reserva}/integrantes', [SalaController::class, 'actualizarIntegrantes']);
+        Route::put('/reservas/{reserva}/actividad', [SalaController::class, 'actualizarActividad']);
     });
 
     Route::get('/usuarios', [UsuarioController::class, 'index'])->middleware('permiso:usuarios.ver,usuarios.gestionar');

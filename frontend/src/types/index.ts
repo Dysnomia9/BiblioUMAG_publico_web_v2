@@ -918,6 +918,13 @@ export type IntegrantesReserva = {
   asistencia: AsistenciaSala | null
 }
 
+/** Respuesta al corregir la persona a cargo / actividad de una reserva por nombre. */
+export type ActividadReserva = {
+  reserva_id: number
+  nombre_actividad: string
+  descripcion_actividad: string | null
+}
+
 export type OpcionesUsuarios = {
   carreras: string[]
   trabajo?: Partial<Record<Usuario['tipo'], { unidades: string[]; cargos: string[] }>>

@@ -3,11 +3,12 @@ import { computed, reactive, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import DialogoConfirmacion from '@/components/ui/DialogoConfirmacion.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
+import EditorActividad from '@/components/salas/EditorActividad.vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { mensajeDeError, useToast } from '@/composables/useToast'
 import { SITUACIONES, duracion, fechaLargaReserva, horaDe, reservaEditable } from '@/utils/reservas'
-import type { AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado, TiempoSinUsar } from '@/types'
+import type { ActividadReserva, AtrasoDevolucion, IntegrantesReserva, ListadoReservas, ReservaListado, TiempoSinUsar } from '@/types'
 
 /**
  * Detalle de una reserva del Listado de reservas. Con el permiso de editar reservas,
@@ -33,6 +34,7 @@ const actual = ref<ReservaListado | null>(null)
 const form = reactive({ sala_id: 0, fecha: '', hora_inicio: '', hora_fin: '' })
 const guardando = ref(false)
 const editandoIntegrantes = ref(false)
+const editandoActividad = ref(false)
 const confirmando = ref<'cancelar' | 'devolver' | null>(null)
 const procesando = ref(false)
 
@@ -45,6 +47,7 @@ watch(
   (r) => {
     actual.value = r ? { ...r } : null
     editandoIntegrantes.value = false
+    editandoActividad.value = false
     confirmando.value = null
     if (r) llenarFormulario(r)
   },
@@ -93,6 +96,14 @@ async function guardar() {
   } finally {
     guardando.value = false
   }
+}
+
+function actividadGuardada(resultado: ActividadReserva) {
+  if (actual.value) {
+    actual.value = { ...actual.value, nombre_actividad: resultado.nombre_actividad, descripcion_actividad: resultado.descripcion_actividad }
+  }
+  editandoActividad.value = false
+  emit('actualizada')
 }
 
 function integrantesGuardados(resultado: IntegrantesReserva) {
@@ -254,8 +265,31 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
 
       <!-- Integrantes -->
       <section>
-        <div v-if="actual.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Nombre / actividad</p>
+        <EditorActividad
+          v-if="actual.nombre_actividad && editandoActividad"
+          class="mb-3"
+          :reserva-id="actual.id"
+          :nombre="actual.nombre_actividad"
+          :descripcion="actual.descripcion_actividad"
+          @guardado="actividadGuardada"
+          @cancelar="editandoActividad = false"
+        />
+        <div v-else-if="actual.nombre_actividad" class="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Persona a cargo / actividad</p>
+            <button
+              v-if="editable"
+              type="button"
+              :disabled="ocupado"
+              class="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
+              @click="editandoActividad = true"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+              Modificar
+            </button>
+          </div>
           <p class="mt-0.5 font-semibold text-indigo-950">{{ actual.nombre_actividad }}</p>
           <p v-if="actual.descripcion_actividad" class="mt-1 text-sm text-indigo-900">{{ actual.descripcion_actividad }}</p>
           <p class="mt-0.5 text-xs text-indigo-700">Sin RUT asociado</p>

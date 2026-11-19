@@ -7,6 +7,7 @@ import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import ListaConfirmacionAsistencia from '@/components/salas/ListaConfirmacionAsistencia.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
+import EditorActividad from '@/components/salas/EditorActividad.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
@@ -22,7 +23,7 @@ import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { largoSegunModo, modoSegunValor } from '@/utils/documento'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
-import type { AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TiempoSinUsar, TramoReserva } from '@/types'
+import type { ActividadReserva, AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TiempoSinUsar, TramoReserva } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -229,6 +230,7 @@ const confirmandoLlegada = ref(false)
 // Editando los integrantes ahí mismo: en el modal de llegada o en el detalle de la reserva.
 const editandoIntegrantesLlegada = ref(false)
 const editandoIntegrantesDetalle = ref(false)
+const editandoActividadDetalle = ref(false)
 const liberando = ref<number | null>(null)
 const liberacionPendiente = ref<{ reservaId: number; salaNombre: string; label: string } | null>(null)
 
@@ -680,12 +682,21 @@ function verDetalle(sala: Sala, tramo: TramoReserva) {
   detalleSala.value = sala
   detalleTramo.value = tramo
   editandoIntegrantesDetalle.value = false
+  editandoActividadDetalle.value = false
   detalleOpen.value = true
 }
 
 /** Los integrantes se pueden corregir mientras la reserva sigue en curso: no devuelta ni vencida sin confirmar. */
 function integrantesEditables(tramo: TramoReserva): boolean {
   return tramo.estado === 'activa' && !tramo.hora_devolucion_real && !tramo.vencida_sin_confirmar
+}
+
+function actividadGuardada(resultado: ActividadReserva) {
+  if (detalleTramo.value?.reserva_id === resultado.reserva_id) {
+    detalleTramo.value = { ...detalleTramo.value, nombre_actividad: resultado.nombre_actividad, descripcion_actividad: resultado.descripcion_actividad }
+  }
+  editandoActividadDetalle.value = false
+  cargar()
 }
 
 function integrantesGuardados(resultado: IntegrantesReserva) {
@@ -2017,9 +2028,30 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </div>
             </div>
             <div>
-              <div v-if="detalleTramo.nombre_actividad" class="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
+              <EditorActividad
+                v-if="detalleTramo.nombre_actividad && editandoActividadDetalle"
+                :reserva-id="detalleTramo.reserva_id"
+                :nombre="detalleTramo.nombre_actividad"
+                :descripcion="detalleTramo.descripcion_actividad"
+                @guardado="actividadGuardada"
+                @cancelar="editandoActividadDetalle = false"
+              />
+              <div v-else-if="detalleTramo.nombre_actividad" class="overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm">
                 <div class="border-l-4 border-indigo-500 bg-indigo-50/70 px-4 py-3">
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Persona a cargo / grupo</p>
+                  <div class="flex items-start justify-between gap-3">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600">Persona a cargo / grupo</p>
+                    <button
+                      v-if="puedeReservarSala(detalleSala) && integrantesEditables(detalleTramo)"
+                      type="button"
+                      class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+                      @click="editandoActividadDetalle = true"
+                    >
+                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                    </svg>
+                      Modificar
+                    </button>
+                  </div>
                   <p class="mt-1 text-base font-bold text-indigo-950">{{ detalleTramo.nombre_actividad }}</p>
                   <span class="mt-2 inline-block rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-600">Registro por nombre · sin RUT</span>
                 </div>

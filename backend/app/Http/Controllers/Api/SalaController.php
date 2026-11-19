@@ -736,6 +736,58 @@ class SalaController extends Controller
     }
 
     /**
+     * Corrige la persona a cargo y la actividad / descripción de una reserva por nombre
+     * (salas de la administración, sin RUT). Mientras siga activa y sin devolver la llave;
+     * el cambio queda en la bitácora con el antes y el después.
+     */
+    public function actualizarActividad(Request $request, Reserva $reserva)
+    {
+        $data = $request->validate([
+            'nombre_actividad' => ['required', 'string', 'max:120'],
+            'descripcion_actividad' => ['nullable', 'string', 'max:300'],
+        ], [
+            'nombre_actividad.required' => 'Escribe el nombre de la persona a cargo o del grupo.',
+        ]);
+
+        if (! $reserva->nombre_actividad) {
+            return response()->json(['message' => 'Esta reserva está a nombre de personas con RUT: corrige sus integrantes.'], 409);
+        }
+
+        if ($reserva->estado !== 'activa' || $reserva->hora_devolucion_real) {
+            return response()->json(['message' => 'Esta reserva ya no está activa (fue cancelada, finalizada, o no se presentaron a tiempo)'], 409);
+        }
+
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, null)) {
+            return $rechazo;
+        }
+
+        $nuevo = [
+            'nombre_actividad' => trim($data['nombre_actividad']),
+            'descripcion_actividad' => trim((string) ($data['descripcion_actividad'] ?? '')) ?: null,
+        ];
+        if ($nuevo['nombre_actividad'] === '') {
+            return response()->json(['message' => 'Escribe el nombre de la persona a cargo o del grupo.'], 422);
+        }
+
+        $antes = $reserva->only(['nombre_actividad', 'descripcion_actividad']);
+        if ($cambios = Bitacora::cambios($antes, $nuevo)) {
+            $reserva->update($nuevo);
+            Bitacora::registrar(
+                'salas.actividad',
+                "Modificó la persona a cargo / actividad de {$reserva->descripcion()}",
+                entidad: $reserva,
+                datos: $cambios,
+            );
+        }
+
+        return response()->json([
+            'reserva_id' => $reserva->id,
+            'nombre_actividad' => $reserva->nombre_actividad,
+            'descripcion_actividad' => $reserva->descripcion_actividad,
+        ]);
+    }
+
+    /**
      * Cancela la reserva sin borrar la fila (soft delete vía estado, no
      * DB::delete()) — así queda historial de qué se canceló y cuándo, en vez de
      * desaparecer sin dejar rastro. El resto del sistema (existeSolapamiento(),
