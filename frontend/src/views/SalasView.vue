@@ -419,7 +419,10 @@ function disponibilidadDesde(sala: Sala, desdeMin: number): number {
 /** Si se puede reservar `sala` desde este minuto: hoy, con la biblioteca abierta y la sala libre al menos lo mínimo. */
 const libreDesdeAhora = (sala: Sala) => esHoy.value && !diaCerrado.value && disponibilidadDesde(sala, ahoraMin.value) >= duracionMinima.value
 
+const renovacionDe = ref<{ tramo: TramoReserva; aviso: string | null } | null>(null)
+const continuarPrestamo = computed(() => !!renovacionDe.value?.tramo.hora_prestamo_real && !renovacionDe.value.tramo.hora_devolucion_real)
 const modalInicioMin = computed(() => {
+  if (continuarPrestamo.value) return timeToMinutes(renovacionDe.value!.tramo.hora_fin)
   if (inicioAMano.value) return modalHoraInicioEscrita.value ? timeToMinutes(modalHoraInicioEscrita.value) : ahoraMin.value
   return modalEsAhora.value ? ahoraMin.value : timeToMinutes(modalHoraInicio.value || apertura.value)
 })
@@ -532,9 +535,8 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
 // ---------- Renovación: el mismo grupo otra vez, sin volver a escribir los RUT ----------
 // Un grupo que usó la sala (o la está usando) vuelve al mesón y quiere seguir: se abre el
 // formulario de siempre con la misma sala y todos sus RUT ya puestos, desde que termina su
-// bloque (para extenderlo) o desde ahora si ya terminó. La hora y la duración se eligen como
-// en una reserva nueva, y el servidor revisa lo de siempre (que esté libre, el máximo y la cuota).
-const renovacionDe = ref<{ tramo: TramoReserva; aviso: string | null } | null>(null)
+// bloque si conserva la llave: se amplía el préstamo original. Si ya la devolvió, se
+// hace una reserva nueva. El servidor vuelve a revisar disponibilidad y cuota.
 /** La hora (de Punta Arenas) de una llegada o devolución registrada: «08:02». */
 const horaReal = (momento: string) => enPuntaArenas(new Date(momento)).hora
 watch(modalOpen, (abierto) => {
@@ -546,12 +548,16 @@ function renovar(sala: Sala, tramo: TramoReserva) {
     return
   }
   const finMin = timeToMinutes(tramo.hora_fin)
-  const sigueEnUso = !tramo.hora_devolucion_real && finMin > ahoraMin.value
+  const sigueEnUso = !tramo.hora_devolucion_real
   let inicio: number | typeof AHORA = sigueEnUso ? finMin : libreDesdeAhora(sala) ? AHORA : ahoraMin.value
   const desdeMin = inicio === AHORA ? ahoraMin.value : inicio
-  // Si el bloque siguiente está ocupado, igual se abre: se propone la primera hora libre y se avisa
+  // Continuar exige disponibilidad contigua. Tras una devolución se puede elegir otro horario.
   let aviso: string | null = null
   if (disponibilidadDesde(sala, desdeMin) < duracionMinima.value) {
+    if (sigueEnUso) {
+      toast.error('No se puede continuar el préstamo: no queda tiempo suficiente libre después de su bloque. Devuelva la llave para pedir otro horario o sala.')
+      return
+    }
     const libre = primeraHoraLibre(sala, desdeMin)
     if (libre === null) {
       toast.error(`${sala.nombre} no tiene más bloques libres hoy desde las ${minutesToTime(desdeMin)}: haga una reserva nueva en otra sala.`)
@@ -563,10 +569,12 @@ function renovar(sala: Sala, tramo: TramoReserva) {
   detalleOpen.value = false
   abrirModalProgramado(sala, inicio)
   const ruts = tramo.personas.map((p) => p.rut).filter(Boolean)
-  cantidadPersonas.value = Math.max(ruts.length, minimoDe(sala))
+  cantidadPersonas.value = sigueEnUso ? ruts.length : Math.max(ruts.length, minimoDe(sala))
   rutsReserva.value = [...ruts, ...Array.from({ length: Math.max(0, cantidadPersonas.value - ruts.length) }, () => '')]
   reiniciarModos(rutsReserva.value.map((r) => (r ? modoSegunValor(r) : 'rut')))
   renovacionDe.value = { tramo, aviso }
+  const duraciones = modalDuracionesValidas.value
+  modalDuracion.value = duraciones.length ? duraciones[duraciones.length - 1] : duracionMinima.value
 }
 
 /** La primera hora (en bloques de la grilla) desde la que la sala queda libre al menos el mínimo, o null. */
@@ -581,6 +589,7 @@ function primeraHoraLibre(sala: Sala, desdeMin: number): number | null {
 // La sala elegida, ese día: lo libre en verde, lo ocupado, lo que ya pasó y el bloque que se
 // está eligiendo. Un clic en lo libre elige esa hora de inicio, para no adivinar.
 function elegirEnTira(evento: MouseEvent) {
+  if (continuarPrestamo.value) return
   const sala = selectedSala.value
   if (!sala) return
   const rect = (evento.currentTarget as HTMLElement).getBoundingClientRect()
@@ -824,11 +833,11 @@ async function confirmarReserva(permitirSolape = false) {
     toast.error('Escriba un nombre o actividad')
     return
   }
-  if (!porActividad && rutsReserva.value.some((r) => !r.trim())) {
+  if (!continuarPrestamo.value && !porActividad && rutsReserva.value.some((r) => !r.trim())) {
     toast.error('Complete el RUT (o pasaporte/DNI) de cada persona')
     return
   }
-  const malas = porActividad ? {} : erroresFilas()
+  const malas = porActividad || continuarPrestamo.value ? {} : erroresFilas()
   if (Object.keys(malas).length) {
     rutErrores.value = malas
     toast.error(Object.keys(malas).length === 1 ? 'Revisa el RUT o documento marcado en rojo' : 'Revisa los RUT o documentos marcados en rojo')
@@ -843,6 +852,16 @@ async function confirmarReserva(permitirSolape = false) {
   rutErrores.value = {}
   if (enSerie) return confirmarSerie()
   try {
+    if (continuarPrestamo.value && renovacionDe.value) {
+      await api.patch(`/reservas/${renovacionDe.value.tramo.reserva_id}/renovar`, {
+        hora_fin_anterior: renovacionDe.value.tramo.hora_fin.slice(0, 5),
+        hora_fin: minutesToTime(modalFinMin.value),
+      })
+      toast.success(`${selectedSala.value.nombre} renovada hasta las ${minutesToTime(modalFinMin.value)}. Conservan la llave: confirme una sola devolución al terminar.`)
+      modalOpen.value = false
+      await cargar()
+      return
+    }
     const { data } = await api.post('/reservas', {
       sala_id: selectedSala.value.id,
       fecha: selectedDate.value,
@@ -1136,7 +1155,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
           `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); SM1 y SM2 las gestiona el personal autorizado y pueden quedar a cargo de cualquier persona registrada; Cooperación y Moraga conservan sus reglas de responsable. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio, excepto en salas de Administración, que no vencen por falta de confirmación. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
-          'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>: se abre el formulario con los mismos RUT ya puestos, desde que termina su bloque (o desde ahora). Solo elija la hora y la duración.',
+          'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>. Si conserva la llave, se amplía el préstamo original: solo elija cuánto tiempo más y confirme una sola devolución al terminar. Si ya devolvió la llave, se hace una reserva nueva con los mismos RUT.',
           'Fuera de Administración, si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
         ]"
         consejo="Haga clic en cualquier bloque de color para ver quiénes reservaron y las acciones disponibles."
@@ -1637,7 +1656,10 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <p v-if="renovacionDe.aviso" class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
                 {{ renovacionDe.aviso }}
               </p>
-              <p class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
+              <p v-if="continuarPrestamo" class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
+                El grupo conserva la llave. Elija cuánto tiempo más: se amplía este mismo préstamo, sin otra llegada y con una sola devolución al terminar. Para cambiar integrantes, modifique el préstamo antes de renovar.
+              </p>
+              <p v-else class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
                 Sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
                 Elija desde qué hora y por cuánto renuevan; si alguien se va o se suma, corrija la lista.
               </p>
@@ -1653,7 +1675,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 class="relative h-11 cursor-pointer overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
                 role="img"
                 :aria-label="`Disponibilidad de ${selectedSala.nombre}: ${selectedSala.tramos.map((t) => `ocupada de ${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}`).join(', ') || 'libre todo el día'}`"
-                title="Clic en lo verde para elegir la hora de inicio"
+                :title="continuarPrestamo ? 'La renovación continúa desde el término del préstamo actual' : 'Clic en lo verde para elegir la hora de inicio'"
                 @click="elegirEnTira($event)"
               >
                 <div v-for="h in horasIntermedias" :key="h" class="pointer-events-none absolute inset-y-0 border-l border-emerald-900/10" :style="{ left: pct(`${h}:00`) + '%' }" />
@@ -1691,7 +1713,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                 <span class="absolute right-0">{{ minutesToTime(cierreMin) }}</span>
               </div>
               <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
-                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre (clic para elegir)</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-emerald-300 bg-emerald-100"></span> Libre<template v-if="!continuarPrestamo"> (clic para elegir)</template></span>
                 <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-rose-300 bg-rose-200"></span> Ocupada</span>
                 <span v-if="renovacionDe" class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200"></span> Préstamo anterior</span>
                 <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm border-2 border-indigo-600 bg-indigo-500/15"></span> Su reserva</span>
@@ -1702,7 +1724,11 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <template v-if="inicioAMano">
+                  <template v-if="continuarPrestamo">
+                    <p class="mb-1 text-xs font-semibold text-gray-800">Continuar desde las</p>
+                    <p class="py-2 font-mono text-sm font-bold">{{ minutesToTime(modalInicioMin) }}</p>
+                  </template>
+                  <template v-else-if="inicioAMano">
                     <label for="reserva-hora-inicio" class="mb-1 block text-xs font-semibold text-gray-800">Desde las</label>
                     <CampoHora
                       id="reserva-hora-inicio"
@@ -1722,7 +1748,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                       <option v-for="h in horaInicioOpciones" :key="h" :value="h">{{ h }}</option>
                     </select>
                   </template>
-                  <label class="mt-1.5 flex cursor-pointer items-start gap-1.5 text-[11px] text-gray-600">
+                  <label v-if="!continuarPrestamo" class="mt-1.5 flex cursor-pointer items-start gap-1.5 text-[11px] text-gray-600">
                     <input v-model="inicioAMano" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                     Escribir a mano
                   </label>
@@ -1767,6 +1793,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               llegada confirmada. Entregue la llave al reservar.
             </p>
 
+            <template v-if="!continuarPrestamo">
             <section v-if="selectedSala.solo_administracion" aria-labelledby="identificar-reserva-titulo">
               <p id="identificar-reserva-titulo" class="mb-2 text-sm font-bold text-gray-950">Identificar reserva por</p>
               <div class="flex items-center gap-2" role="radiogroup" aria-label="Identificar reserva por">
@@ -1856,6 +1883,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               <p v-if="grupoFlexible(selectedSala)" class="text-xs font-semibold text-indigo-800">Reserva especial: de 1 a {{ maximoElegida }} personas (la capacidad de la sala), y también para estudiantes.</p>
             </section>
 
+            </template>
             <!-- Repetir cada semana (permiso «Reservas que se repiten») -->
             <section v-if="puedeRepetir && !renovacionDe" class="rounded-xl border p-3" :class="repetir ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200'">
               <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900">

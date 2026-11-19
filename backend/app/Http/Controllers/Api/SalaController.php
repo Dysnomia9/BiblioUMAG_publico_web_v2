@@ -365,6 +365,65 @@ class SalaController extends Controller
         });
     }
 
+    /** Continúa el préstamo con la misma llave: una llegada y una devolución al final. */
+    public function renovarReserva(Request $request, Reserva $reserva)
+    {
+        $data = $request->validate([
+            'hora_fin_anterior' => ['required', 'date_format:H:i'],
+            'hora_fin' => ['required', 'date_format:H:i'],
+        ]);
+
+        if ($rechazo = $this->rechazoSoloAdministracion($request, $reserva->sala_id, $reserva->rut_usuario)) {
+            return $rechazo;
+        }
+
+        return $this->reservaSalaService->conSalaEIntegrantesBloqueados($reserva->sala_id, $reserva->participantes()->pluck('usuarios.id'), function () use ($request, $reserva, $data) {
+            $reserva = Reserva::whereKey($reserva->id)->lockForUpdate()->firstOrFail();
+            if ($reserva->estado !== 'activa' || ! $reserva->hora_prestamo_real || $reserva->hora_devolucion_real || ! $reserva->fecha->isToday()) {
+                return response()->json(['message' => 'Solo se continúa un préstamo de hoy con la llave aún entregada.'], 409);
+            }
+            if (substr($reserva->hora_fin, 0, 5) !== $data['hora_fin_anterior']) {
+                return response()->json(['message' => 'El horario de la reserva cambió: vuelva a abrirla antes de renovar.'], 409);
+            }
+            if ($data['hora_fin'] <= now()->format('H:i')) {
+                return response()->json(['message' => 'La renovación debe terminar después de la hora actual.'], 422);
+            }
+
+            // Se valida y se suma a la cuota solo el tiempo añadido. El tiempo previo
+            // ya figura en la reserva; no se crea otro bloque ni otra entrega de llave.
+            $tramo = [
+                'fecha' => $reserva->fecha->toDateString(),
+                'hora_inicio' => substr($reserva->hora_fin, 0, 5),
+                'hora_fin' => $data['hora_fin'],
+            ];
+            if ($error = $this->reservaSalaService->validarTramo($tramo, false, permitirHoraPasada: true, alMinuto: true, sinMaximo: $request->user()->puede('salas.sin_limite'))) {
+                return response()->json(['message' => $error], 422);
+            }
+            if ($this->reservaSalaService->existeSolapamiento($reserva->sala_id, $tramo['fecha'], $tramo['hora_inicio'], $tramo['hora_fin'], $reserva->id)) {
+                return response()->json(['message' => 'Ese tramo ya se encuentra reservado en esa sala'], 409);
+            }
+            $ruts = $reserva->participantes()->pluck('usuarios.rut')->all();
+            if ($rut = $this->reservaSalaService->participanteConReservaSolapada($ruts, $tramo['fecha'], $tramo['hora_inicio'], $tramo['hora_fin'], $reserva->id)) {
+                return response()->json(['message' => "El RUT {$rut} ya tiene otra sala reservada en ese horario"], 409);
+            }
+            if ($cuota = $this->reservaSalaService->participanteExcedeCuotaDiaria($ruts, $tramo['fecha'], $tramo['hora_inicio'], $tramo['hora_fin'], incluirTramoLargo: true)) {
+                return response()->json(['message' => $this->reservaSalaService->mensajeCuotaExcedida($cuota)], 409);
+            }
+
+            $antes = substr($reserva->hora_fin, 0, 5);
+            $reserva->update(['hora_fin' => $tramo['hora_fin']]);
+            Bitacora::registrar(
+                'salas.renovar',
+                "Renovó {$reserva->descripcion()} (antes terminaba a las {$antes}; conserva la llave)",
+                entidad: $reserva,
+                datos: ['hora_fin_anterior' => $antes, 'hora_fin' => $data['hora_fin']],
+                afectado: $reserva->usuario,
+            );
+
+            return response()->json($reserva);
+        });
+    }
+
     /** Cuántas fechas puede tener una serie, y hasta cuán lejos llega: un año. */
     private const SERIE_MAXIMO_FECHAS = 200;
 

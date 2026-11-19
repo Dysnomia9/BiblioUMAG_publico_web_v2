@@ -428,14 +428,16 @@ class ReservaSalaService
      * personal con el permiso salas.sin_limite (validarTramo() la rechaza a todos los
      * demás, y siempre en el portal): no se mide con la cuota. Así tampoco se traba al
      * confirmar la llegada o corregir los integrantes, aunque lo haga otra persona.
+     * Al continuar un préstamo, $incluirTramoLargo suma también una extensión larga:
+     * la renovación mantiene la cuota y cuenta el tiempo ya reservado más el añadido.
      *
      * @return array{0: string, 1: int}|null
      */
-    public function participanteExcedeCuotaDiaria(array $ruts, string $fecha, string $horaInicio, string $horaFin, ?int $ignorarReservaId = null): ?array
+    public function participanteExcedeCuotaDiaria(array $ruts, string $fecha, string $horaInicio, string $horaFin, ?int $ignorarReservaId = null, bool $incluirTramoLargo = false): ?array
     {
         $idPorRut = Usuario::whereIn('rut', $ruts)->pluck('id', 'rut');
         $duracionSolicitada = Carbon::parse($horaInicio)->diffInMinutes(Carbon::parse($horaFin));
-        if ($duracionSolicitada > config('salas.duracion_maxima')) {
+        if (! $incluirTramoLargo && $duracionSolicitada > config('salas.duracion_maxima')) {
             return null;
         }
         $cuota = config('salas.cuota_diaria', 240);

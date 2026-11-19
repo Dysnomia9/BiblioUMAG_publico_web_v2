@@ -134,6 +134,7 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::get('/salas', [SalaController::class, 'index']);
         Route::post('/salas/llave', [SalaController::class, 'llave']);
         Route::post('/reservas', [SalaController::class, 'storeReserva']);
+        Route::patch('/reservas/{reserva}/renovar', [SalaController::class, 'renovarReserva']);
         // Reservas que se repiten semana a semana: además del mesón de salas, su propio permiso.
         Route::post('/reservas/repetir', [SalaController::class, 'repetirReserva'])->middleware('permiso:salas.repetir');
         Route::get('/reservas/series', [SalaController::class, 'series'])->middleware('permiso:salas.repetir');
