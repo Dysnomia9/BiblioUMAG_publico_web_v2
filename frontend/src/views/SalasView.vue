@@ -1365,6 +1365,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             {{ registrandoLlave ? 'Registrando…' : 'Registrar' }}
           </button>
         </div>
+        </div>
         <!-- Nota: los colores son los de la leyenda de la línea de tiempo (tramoClases). -->
         <p class="flex items-start gap-2 border-t border-dashed border-gray-200 bg-gray-50/70 px-4 py-2.5 text-xs leading-relaxed text-gray-600 sm:px-5">
           <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -1411,7 +1412,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             {{ p.titulo }}
             <span class="text-xs font-medium tabular-nums opacity-70">{{ p.salas.length }}</span>
           </button>
-        </div>
         </div>
       </div>
 
