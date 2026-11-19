@@ -25,10 +25,10 @@ class SalasInicialesTest extends TestCase
     public function test_una_base_nueva_trae_las_salas_del_plano(): void
     {
         // Las logias del plano: de la 1 a la 13 en el primer piso y de la 22 a la 30 en el segundo.
-        // Más las dos del Hospital Clínico de Magallanes.
+        // Más las dos del Hospital Clínico de Magallanes, al final.
         $logias = [...range(1, 13), ...range(22, 30)];
         $this->assertSame(
-            ['HCM1', 'HCM2', ...array_map(fn ($n) => 'L'.str_pad((string) $n, 2, '0', STR_PAD_LEFT), $logias)],
+            [...array_map(fn ($n) => 'L'.str_pad((string) $n, 2, '0', STR_PAD_LEFT), $logias), 'HCM1', 'HCM2'],
             Sala::where('tipo', 'logia')->enOrden()->pluck('codigo')->all(),
         );
         $this->assertSame(

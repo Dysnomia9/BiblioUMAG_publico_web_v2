@@ -38,6 +38,9 @@ class TesisPosgradoYHospitalTest extends TestCase
             Sala::whereIn('codigo', ['HCM1', 'HCM2'])->where('tipo', 'logia')->where('solo_administracion', false)->orderBy('codigo')->pluck('nombre', 'codigo')->all(),
         );
 
+        // Van al final, después de las logias y salas de la biblioteca (línea de tiempo del portal).
+        $this->assertSame(['HCM1', 'HCM2'], Sala::where('activa', true)->enOrden()->pluck('codigo')->take(-2)->values()->all());
+
         // Volver a correrla no las duplica.
         $this->migracion()->up();
         $this->assertSame(2, Sala::whereIn('codigo', ['HCM1', 'HCM2'])->count());

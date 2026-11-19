@@ -55,10 +55,15 @@ class Sala extends Model
         ];
     }
 
-    /** Las logias por su código (L16 queda después de L15) y luego las salas con nombre propio. */
+    /**
+     * Las logias de la biblioteca por su código (L16 queda después de L15), luego las salas con
+     * nombre propio y al final las demás logias, que están fuera de la biblioteca (las del
+     * hospital, HCM1 y HCM2).
+     */
     public function scopeEnOrden(Builder $salas): Builder
     {
-        return $salas->orderByRaw("tipo = 'logia' desc")->orderByRaw("case when tipo = 'logia' then codigo end")->orderBy('id');
+        return $salas->orderByRaw("case when tipo = 'logia' and codigo like 'L%' then 0 when tipo = 'logia' then 2 else 1 end")
+            ->orderByRaw("case when tipo = 'logia' then codigo end")->orderBy('id');
     }
 
     /** Regla de validación para reservar en una sala: que exista y no esté dada de baja. */

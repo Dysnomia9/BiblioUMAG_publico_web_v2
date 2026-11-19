@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
-import { CODIGOS_EN_EL_MAPA, PISOS_MAPA, type LugarMapa } from '@/utils/mapaSalas'
+import { CODIGOS_EN_EL_MAPA, GRUPOS_FUERA_DEL_PLANO, PISOS_MAPA, type LugarMapa } from '@/utils/mapaSalas'
 import { sinTildes } from '@/utils/texto'
 import type { Sala, TramoReserva } from '@/types'
 
@@ -111,7 +111,16 @@ const pisos = computed(() =>
     lados: [piso.izquierda, piso.derecha].map((lado) => ({ borde: lado.borde, tramos: lado.tramos.map((tramo) => tramo.map(lugares)) })),
   })),
 )
-const otras = computed(() => otrasSalas.value.map((sala) => ({ lugar: null, sala, ...estado(null, sala) })))
+const conEstado = (sala: Sala) => ({ lugar: null, sala, ...estado(null, sala) })
+// Bajo el mapa: un recuadro por cada grupo fuera de la biblioteca (el hospital) y, al final,
+// «Otras salas» con las que no están en el plano ni en un grupo.
+const CODIGOS_EN_GRUPOS = new Set(GRUPOS_FUERA_DEL_PLANO.flatMap((g) => g.codigos))
+const bajoElMapa = computed(() =>
+  [
+    ...GRUPOS_FUERA_DEL_PLANO.map((g) => ({ titulo: g.titulo, descripcion: g.descripcion, salas: otrasSalas.value.filter((s) => g.codigos.includes(s.codigo)).map(conEstado) })),
+    { titulo: 'Otras salas', descripcion: 'También se reservan, pero no están en el plano.', salas: otrasSalas.value.filter((s) => !CODIGOS_EN_GRUPOS.has(s.codigo)).map(conEstado) },
+  ].filter((g) => g.salas.length),
+)
 
 const TEXTO_NO_SE_ABRE: Partial<Record<TipoEstado, string>> = {
   administracion: 'Esta sala la reserva la administración de la biblioteca: pídela en el mesón.',
@@ -259,11 +268,11 @@ const LEYENDA: { tipo: TipoEstado; texto: string }[] = [
       </section>
     </div>
 
-    <section v-if="otras.length" class="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <h3 class="font-sans text-sm font-bold text-gray-900">Otras salas</h3>
-      <p class="mt-0.5 text-xs text-gray-500">También se reservan, pero no están en el plano.</p>
+    <section v-for="g in bajoElMapa" :key="g.titulo" class="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <h3 class="font-sans text-sm font-bold text-gray-900">{{ g.titulo }}</h3>
+      <p class="mt-0.5 text-xs text-gray-500">{{ g.descripcion }}</p>
       <ul class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <li v-for="o in otras" :key="o.sala.id">
+        <li v-for="o in g.salas" :key="o.sala.id">
           <button
             type="button"
             class="flex min-h-[3.25rem] w-full flex-col justify-center rounded-xl border-2 px-2.5 py-1.5 text-left transition-all"

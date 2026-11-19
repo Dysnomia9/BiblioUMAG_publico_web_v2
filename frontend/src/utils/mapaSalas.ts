@@ -58,6 +58,18 @@ export const PISOS_MAPA: PisoMapa[] = [
   },
 ]
 
+/**
+ * Salas fuera de la biblioteca, que en el portal van bajo el mapa en su propio recuadro (y no
+ * en «Otras salas»): las logias del Hospital Clínico de Magallanes.
+ */
+export const GRUPOS_FUERA_DEL_PLANO = [
+  {
+    titulo: 'Hospital Clínico de Magallanes',
+    descripcion: 'Logias del hospital: se reservan igual que las de la biblioteca, pero están en el hospital.',
+    codigos: ['HCM1', 'HCM2'],
+  },
+]
+
 /** Los códigos que tienen lugar en el plano: las demás salas van aparte, bajo el mapa. */
 export const CODIGOS_EN_EL_MAPA = new Set(
   PISOS_MAPA.flatMap((piso) => [piso.izquierda, piso.derecha]).flatMap((lado) => lado.tramos.flat()).map((lugar) => lugar.codigo),
