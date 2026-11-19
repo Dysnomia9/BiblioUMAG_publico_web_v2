@@ -109,6 +109,9 @@ class PrestamoMultaTest extends TestCase
         // Regresión: Carbon 3 (Laravel 12) devuelve diffInDays() como float con fracción
         // de día, así que una diferencia de p.ej. 4 días y 2 horas no debe cobrarse como
         // 4.09 días — el monto siempre debe ser un múltiplo exacto de monto_dia.
+        // Hora fija: el atraso se cuenta en días calendario, y entre 00:00 y 02:00
+        // «hace 4 días y 2 horas» cae un día antes y cobraría 5.
+        $this->travelTo(now()->setDate(2026, 11, 18)->setTime(12, 0));
         Sanctum::actingAs(Staff::factory()->create());
 
         $prestamo = $this->prestamoLibro(['fecha_devolucion' => now()->subDays(4)->subHours(2)]);
