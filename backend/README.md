@@ -1,7 +1,6 @@
-# Backend: pruebas y benchmark de rendimiento
+# Backend: pruebas funcionales
 
-Esta guía documenta cómo reproducir, durante la defensa de la tesis, los resultados
-de las pruebas funcionales (Cuadro 9.1) y de latencia de la API (Cuadro 10.2).
+Esta guía documenta cómo ejecutar las pruebas funcionales del backend en desarrollo.
 
 ## Requisitos previos
 
@@ -13,7 +12,7 @@ docker compose up --build
 
 Todos los comandos siguientes se ejecutan dentro del contenedor `backend`.
 
-## Pruebas funcionales (Cuadro 9.1)
+## Pruebas funcionales
 
 ### Base de datos de pruebas
 
@@ -26,7 +25,7 @@ correctamente. SQLite en memoria no reproduce ese comportamiento, así que **no 
 usa** para estos tests (ver `phpunit.xml`).
 
 `docker-entrypoint.sh` crea `biblioteca_test` automáticamente (de forma
-idempotente) cada vez que el contenedor `backend` arranca, así que no hace falta
+idempotente) cuando el contenedor `backend` arranca en desarrollo, así que no hace falta
 ningún paso manual: basta con `docker compose up`.
 
 Los tests usan una conexión de Eloquent dedicada, `pgsql_testing`
@@ -63,44 +62,12 @@ docker compose exec backend vendor/bin/phpunit --testdox
 `RefreshDatabase` migra `biblioteca_test` antes de cada clase de test y la limpia
 después, así que no afecta los datos de `biblioteca` (la base de desarrollo/demo).
 
-## Benchmark de latencia de la API (Cuadro 10.2)
+## Datos de demostración
 
-El comando `benchmark:api` autentica como staff contra el backend ya levantado (vía
-HTTP real, no en proceso) y mide la latencia de:
+El comando `mockup:datos` se registra únicamente con `APP_ENV=local` o
+`APP_ENV=testing`. Su implementación está en
+`app/Console/Development/SeedMockupData.php`, fuera del directorio de comandos
+de registro automático. Admite `--fresh` para regenerar los datos de desarrollo.
 
-- `GET /api/usuarios` (la primera página del listado, 25 usuarios: el
-  endpoint entrega de a una página desde que se cargó el reporte de matrícula)
-- `POST /api/entrada` (cada request se cierra de inmediato con
-  `PATCH /entrada/{id}/salida` para no dejar la entrada activa antes de la
-  siguiente iteración; esa llamada de cierre no se incluye en la medición)
-- `GET /api/reportes/resumen`
-
-Crea un usuario temporal ("Benchmark API") para el endpoint de entradas y lo
-elimina al finalizar (elimina en cascada sus entradas de prueba), así que no deja datos
-residuales en `biblioteca`.
-
-### Ejecutar el benchmark
-
-```bash
-docker compose exec backend php artisan benchmark:api
-```
-
-Opciones disponibles (todas con valor por defecto razonable):
-
-```bash
-docker compose exec backend php artisan benchmark:api \
-  --host=http://localhost:8000 \
-  --n=100 \
-  --email=admin@umag.cl \
-  --password=admin123
-```
-
-- `--host`: URL base del backend a medir. Por defecto apunta al propio backend
-  dentro del contenedor (`http://localhost:8000`, donde corre
-  `php artisan serve`). Si se ejecuta desde fuera de Docker contra el puerto
-  publicado, sigue siendo `http://localhost:8000`.
-- `--n`: cantidad de requests por endpoint (100 para el Cuadro 10.2 de la tesis).
-- `--email` / `--password`: credenciales de staff usadas para autenticar.
-
-El comando imprime directamente una tabla en formato Markdown con promedio,
-mediana, p95 y máximo (en ms) por endpoint, lista para pegar como Cuadro 10.2.
+En producción y en otros entornos no está disponible y no admite `--force`.
+Para iniciar una instalación real se usa `php artisan sistema:iniciar`.

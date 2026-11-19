@@ -66,8 +66,10 @@ Una por cada rol de fábrica:
 | Bibliotecario/a | `bibliotecaria@umag.cl` | `biblio123` |
 | Atención de público | `meson@umag.cl` | `meson123` |
 
-Todos entran por el mismo login (`/login`). Los usuarios de ejemplo, con su RUT y
-la contraseña `umag123`, llegan al portal.
+Todos entran por el mismo login (`/login`), con el correo de su cuenta y su
+contraseña. Los usuarios de ejemplo usan su correo y la clave `umag123` para
+entrar al portal; el RUT, el pasaporte y el DNI sirven para identificar usuarios
+en el mesón, no para iniciar sesión.
 
 Estos datos se cargan **solo la primera vez** (si la tabla `staff` está vacía);
 después tus datos persisten entre arranques. En una base que ya existía, la
@@ -378,7 +380,7 @@ Bibliomag_publico_web_v2/
   implementadas; sin SMTP configurado quedan en `storage/logs/laravel.log`.
   Activarlas es configurar `MAIL_MAILER`/`MAIL_HOST` en `.env`.
 - **Un solo login** (`/login`) para el personal y los usuarios: correo
-  institucional o RUT (también pasaporte o DNI) y contraseña, y el sistema lleva a
+  institucional y contraseña, y el sistema lleva a
   cada uno al panel o al portal (`IngresoController`). Si la misma persona tiene
   cuenta del personal y de usuario con esos datos (una bibliotecaria que también
   estudia), elige con cuál entra. Google y LDAP institucional están en el mismo
@@ -450,18 +452,19 @@ docker compose exec backend php artisan mockup:datos            # solo si no hay
 docker compose exec backend php artisan mockup:datos --fresh    # borra todo y regenera
 ```
 
-`mockup:datos` (`app/Console/Commands/SeedMockupData.php`) crea las 3 cuentas
+`mockup:datos` (`app/Console/Development/SeedMockupData.php`) crea las 3 cuentas
 de personal, 30 usuarios con RUT válido, carrera, año de ingreso y sexo, multas,
-entradas y préstamos de los últimos días, 13 recursos de apoyo, reservas en las
-18 salas, libros con varias copias y un **escenario de demostración fijo**: seis
+entradas y préstamos de los últimos días, recursos de apoyo, reservas en las
+salas de la biblioteca, libros con varias copias y un **escenario de demostración fijo**: seis
 usuarios con RUT fáciles de recordar (11.111.111-1 a 66.666.666-6), cada uno
 preparado para mostrar una función, y dos estudiantes extranjeros (DNI argentino
 38456123 y pasaporte brasileño FT482913).
 
-Los datos de prueba solo se cargan con `APP_ENV=local` (lo pone
-`docker-compose.yml`); en producción `mockup:datos` se niega a correr. Lo que el
-sistema necesita para funcionar (roles, catálogos base y salas) lo crean las
-migraciones.
+La carga automática de datos de prueba requiere `APP_ENV=local` (lo pone
+`docker-compose.yml`). El comando solo está disponible en desarrollo y pruebas
+(`APP_ENV=local` o `APP_ENV=testing`); en producción no se registra y no tiene
+opción `--force`. Lo que el sistema necesita para funcionar (roles, catálogos base
+y salas) lo crean las migraciones.
 
 ### Empezar sin datos de prueba
 
@@ -515,17 +518,15 @@ falta para publicar está en
 docker compose exec backend php artisan test
 ```
 
-La suite de Feature tests (`backend/tests/Feature/`, 662 tests al 2026-10-28)
+La suite de Feature tests (`backend/tests/Feature/`)
 cubre autenticación y permisos por rol, entradas, préstamos y reservas (incluida
 la protección contra condiciones de carrera con `lockForUpdate()`), salas,
 multas y bloqueos, catalogación y estados de ejemplares, fichas bibliográficas,
 carga masiva de estudiantes, documentos extranjeros, bitácora, notificaciones
 (`Notification::fake()`) y restricciones de la base (CHECK y `RESTRICT`). Corre
 contra una base Postgres dedicada (`biblioteca_test`) que `docker-entrypoint.sh`
-crea al levantar el backend.
-
-`php artisan benchmark:api` mide la latencia real de la API (promedio, mediana,
-p95, máximo). Detalles en [`backend/README.md`](backend/README.md).
+crea al levantar el backend en desarrollo. Detalles en
+[`backend/README.md`](backend/README.md).
 
 ---
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Development;
 
 use App\Models\Autor;
 use App\Models\Carrera;
@@ -31,8 +31,7 @@ use Illuminate\Support\Str;
 class SeedMockupData extends Command
 {
     protected $signature = 'mockup:datos
-        {--fresh : Borra los datos de prueba existentes antes de crear los nuevos}
-        {--force : Permite correrlo aunque APP_ENV sea production}';
+        {--fresh : Borra los datos de prueba existentes antes de crear los nuevos}';
 
     protected $description = 'Carga datos de prueba (mockup) para desarrollo: staff, usuarios con carrera, salas, entradas, préstamos y reservas.';
 
@@ -132,8 +131,8 @@ class SeedMockupData extends Command
     {
         // Crea cuentas con contraseñas conocidas (admin@umag.cl / admin123 tiene
         // acceso total) y 30 personas ficticias: nunca en producción por descuido.
-        if (app()->isProduction() && ! $this->option('force')) {
-            $this->error('mockup:datos carga datos ficticios y cuentas con contraseñas conocidas: no se corre en producción.');
+        if (! app()->environment(['local', 'testing'])) {
+            $this->error('mockup:datos solo se permite en desarrollo y pruebas: no se corre en producción.');
             $this->line('Para crear la primera cuenta real: php artisan personal:crear-admin <correo> --nombre="Nombre Apellido"');
 
             return self::FAILURE;

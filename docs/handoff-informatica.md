@@ -110,7 +110,8 @@ reconstruir el backend (`docker compose -f docker-compose.prod.yml up -d
   reportes (horas y días sin atención), el estado «Abierta / Cerrada» de
   Entradas y del portal, las salas (solo se reservan dentro de ese horario),
   las fechas de devolución y de retiro (no pueden caer en un día sin
-  atención) y los datos de prueba de `mockup:datos`. En el mismo archivo
+  atención). En desarrollo y pruebas también lo usa la carga de datos de
+  demostración, cuyo comando no está disponible en producción. En el mismo archivo
   está el **aforo** (220) que muestran Entradas, el inicio y el portal.
 - **Horario y reglas de las salas**: `backend/config/salas.php` (cada día se
   recorta además al horario de atención).

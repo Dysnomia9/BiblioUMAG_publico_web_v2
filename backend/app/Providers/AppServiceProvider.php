@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Console\Development\SeedMockupData;
 use App\Support\Busqueda;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Query\Builder;
@@ -17,7 +18,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Los comandos de demostración no forman parte de la consola de producción.
+        if ($this->app->runningInConsole() && $this->app->environment(['local', 'testing'])) {
+            $this->commands([SeedMockupData::class]);
+        }
     }
 
     /**

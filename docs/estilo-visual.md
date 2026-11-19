@@ -28,8 +28,8 @@ Se usa en:
 
 - la barra superior del personal (`components/layout/TopBar.vue`);
 - la barra superior del portal (`components/layout/PortalLayout.vue`);
-- el encabezado de cada pantalla (`components/ui/EncabezadoPagina.vue`),
-  salvo las que usan `EncabezadoGestion` (sección 3);
+- el encabezado de las pantallas, con `components/ui/EncabezadoPagina.vue` o
+  un encabezado propio con el mismo degradado (sección 3);
 - los logins.
 
 Sobre el degradado, el texto va en blanco o `indigo-100/200`, y el secundario en
@@ -346,9 +346,9 @@ mantiene la banda de encabezado del panel del personal.
 ### Módulo de libros y Listado de préstamos
 
 Catalogación, Listado de libros, Historial de libros, Estado de ejemplares y
-Listado de préstamos usan `EncabezadoGestion` en vez de la banda: la ruta
-«Gestión › sección» (pulsar «Gestión» abre el menú), el título serif sin banda
-y, a la derecha desde `xl` (abajo antes), las acciones. Las cuatro pantallas
+Listado de préstamos tienen encabezados propios con el degradado institucional,
+la ruta «Gestión › sección» (pulsar «Gestión» abre el menú), el título serif
+y las acciones correspondientes a cada pantalla. Las cuatro pantallas
 del libro llevan ahí `PestanasLibros`: Catalogar, Listado, Historial y Estado
 de ejemplares, solo las que el rol puede abrir.
 
@@ -390,7 +390,6 @@ de ejemplares, solo las que el rol puede abrir.
 | Componente | Para qué | Notas |
 |---|---|---|
 | `ui/EncabezadoPagina.vue` | Encabezado de cada pantalla del personal y de Salas en el portal | Banda con el degradado, `titulo`, `descripcion` opcional y slot `acciones` para botones a la derecha (abajo en celular). |
-| `ui/EncabezadoGestion.vue` | Encabezado sin banda del módulo de libros y del Listado de préstamos | Ruta «Gestión › `seccion`» (abre el menú), título serif `text-3xl sm:text-4xl`, `descripcion` opcional, slot `debajo` (bajo el título) y slot `acciones` (a la derecha desde `xl`). |
 | `libros/PestanasLibros.vue` | Pestañas Catalogar, Listado, Historial y Estado de ejemplares | `actual` = nombre de la ruta. Muestra solo las que el rol puede abrir; en pantallas angostas se deslizan de lado y la activa queda centrada. |
 | `ui/GuiaUso.vue` | Pasos de "¿Cómo se usa esta pantalla?" para personal nuevo | **Siempre parte oculta** (solo se ve el botón con forma de píldora) y se despliega al pulsarlo; no recuerda si quedó abierta. Admite `consejo` al pie. Con `:con-boton="false"` y `v-model:abierta`, la pantalla pone su propio botón (Entradas y Préstamos). |
 | `ui/Modal.vue` | Ventanas de formulario o detalle | Fondo `bg-black/40 backdrop-blur-sm`, tarjeta `rounded-2xl shadow-2xl`. Anchos `sm`/`md`/`lg`/`xl`. Se cierra con Esc o con un clic afuera, salvo con `bloqueado` (mientras guarda). |
