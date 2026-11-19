@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PeriodoPlazoSala;
 use App\Models\Reserva;
+use App\Models\PestanaSala;
 use App\Models\Sala;
 use App\Models\Usuario;
 use App\Notifications\MultaGeneradaNotification;
@@ -207,6 +208,8 @@ class SalaController extends Controller
             'minutos_para_presentarse' => PeriodoPlazoSala::minutosPara($fecha),
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
+            // Las pestañas del mesón, de izquierda a derecha (las apartadas al final).
+            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada']),
         ]);
     }
 

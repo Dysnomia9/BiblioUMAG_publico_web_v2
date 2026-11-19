@@ -22,6 +22,7 @@ final class TraspasoEsquema
         'staff' => ['email'],
         'usuarios' => ['rut'],
         'usuario_correos' => ['email'],
+        'pestanas_salas' => ['nombre'],
         'salas' => ['codigo'],
         'reglas_prestamo' => ['tipo_usuario', 'tipo_material_id', 'ubicacion_id'],
         'dias_sin_atencion' => ['fecha', 'ubicacion_id'],
@@ -50,7 +51,7 @@ final class TraspasoEsquema
         'roles', 'roles_autor', 'categorias_recurso', 'tipos_material',
         'ubicaciones', 'estados_libro_personalizados', 'carreras', 'categorias',
         'configuracion_institucional', 'politicas_vigencia', 'staff', 'usuarios',
-        'salas', 'reglas_prestamo', 'dias_sin_atencion', 'periodos_plazo_sala',
+        'pestanas_salas', 'salas', 'reglas_prestamo', 'dias_sin_atencion', 'periodos_plazo_sala',
     ];
 
     public const MOVIMIENTOS = [
@@ -92,7 +93,7 @@ final class TraspasoEsquema
         'Ubicacion' => 'ubicaciones', 'EstadoLibroPersonalizado' => 'estados_libro_personalizados',
         'CategoriaRecurso' => 'categorias_recurso', 'RolAutor' => 'roles_autor',
         'ReglaPrestamo' => 'reglas_prestamo', 'DiaSinAtencion' => 'dias_sin_atencion',
-        'PoliticaVigencia' => 'politicas_vigencia', 'PeriodoPlazoSala' => 'periodos_plazo_sala',
+        'PoliticaVigencia' => 'politicas_vigencia', 'PeriodoPlazoSala' => 'periodos_plazo_sala', 'PestanaSala' => 'pestanas_salas',
         'ConfiguracionInstitucional' => 'configuracion_institucional',
         'EjemplarEstadoHistorial' => 'ejemplar_estado_historial', 'UsuarioCorreo' => 'usuario_correos',
     ];

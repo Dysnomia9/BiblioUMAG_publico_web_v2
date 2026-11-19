@@ -13,6 +13,7 @@ use App\Models\Libro;
 use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\ReservaLibro;
+use App\Models\PestanaSala;
 use App\Models\Sala;
 use App\Models\Staff;
 use App\Models\TipoMaterial;
@@ -724,13 +725,18 @@ class SeedMockupData extends Command
             ]));
         }
 
+        // Las logias del Hospital Clínico de Magallanes (pestaña «Hospital» del mesón).
+        foreach (['HCM1' => 'Hospital Logia 1', 'HCM2' => 'Hospital Logia 2'] as $codigo => $nombre) {
+            $salas->push(Sala::updateOrCreate(['codigo' => $codigo], ['nombre' => $nombre, 'capacidad' => 4, 'tipo' => 'logia']));
+        }
+
         // Salas con nombre propio: se reservan con el mismo flujo de bloques horarios. Los
-        // seminarios, Moraga y Cooperación son de la administración, a nombre de una persona.
+        // seminarios, Tesis/Posgrado y Cooperación son de la administración, a nombre de una persona.
         $salasEspeciales = [
             ['codigo' => 'SM1', 'nombre' => 'Seminario 1', 'capacidad' => 30, 'administracion' => true],
             ['codigo' => 'POS', 'nombre' => 'Sala de Postgrado', 'capacidad' => 20, 'administracion' => false],
             ['codigo' => 'AGA', 'nombre' => 'Sala AGACI', 'capacidad' => 10, 'administracion' => false],
-            ['codigo' => 'MOR', 'nombre' => 'Sala Moraga', 'capacidad' => 10, 'administracion' => true],
+            ['codigo' => 'TPG', 'nombre' => 'Sala Tesis/Posgrado', 'capacidad' => 10, 'administracion' => true],
             ['codigo' => 'COO', 'nombre' => 'Sala Cooperación', 'capacidad' => 20, 'administracion' => true],
             ['codigo' => 'SM2', 'nombre' => 'Seminario 2', 'capacidad' => 30, 'administracion' => true],
         ];
@@ -745,7 +751,10 @@ class SeedMockupData extends Command
             ]));
         }
 
-        $this->line('  · '.$salas->count().' salas listas (las del plano: 22 logias y 6 salas con nombre propio)');
+        // Las que se acaban de crear van en su pestaña del mesón (Piso 1, Hospital…).
+        PestanaSala::crearIniciales();
+
+        $this->line('  · '.$salas->count().' salas listas (las del plano: 22 logias y 6 salas con nombre propio, más las 2 logias del hospital)');
 
         return $salas;
     }

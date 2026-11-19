@@ -633,6 +633,8 @@ class ReservaSalaService
                 'capacidad' => $sala->capacidad,
                 'tipo' => $sala->tipo,
                 'codigo' => $sala->codigo,
+                // La pestaña del mesón en que va (null: «Otras»).
+                'pestana_id' => $sala->pestana_id,
                 'solo_administracion' => $sala->solo_administracion,
                 'reserva_exclusiva' => $sala->reserva_exclusiva,
                 // Los seminarios: se reservan a nombre de quien la pide, sin los asistentes.

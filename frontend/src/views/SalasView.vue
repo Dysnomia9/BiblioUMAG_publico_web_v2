@@ -10,11 +10,11 @@ import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import EditorActividad from '@/components/salas/EditorActividad.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
 import AvisoTiempoSinUsar from '@/components/salas/AvisoTiempoSinUsar.vue'
+import GestionPestanas from '@/components/salas/GestionPestanas.vue'
 import SelectorDocumento from '@/components/ui/SelectorDocumento.vue'
 import CampoHora from '@/components/ui/CampoHora.vue'
 import api from '@/services/api'
 import { diaEnPlural, enPuntaArenas } from '@/utils/horario'
-import { PISOS_MAPA } from '@/utils/mapaSalas'
 import { sinTildes } from '@/utils/texto'
 import { duracion, PERSONAS_MAXIMAS_MESON, PERSONAS_MINIMAS_MESON, textoMinutos } from '@/utils/reservas'
 import { useToast } from '@/composables/useToast'
@@ -23,7 +23,7 @@ import { useHorarioSalas } from '@/composables/useHorarioSalas'
 import { largoSegunModo, modoSegunValor } from '@/utils/documento'
 import { useModosPorFila } from '@/composables/useModoDocumento'
 import { useAuthStore } from '@/stores/auth'
-import type { ActividadReserva, AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, Sala, TiempoSinUsar, TramoReserva } from '@/types'
+import type { ActividadReserva, AsistenciaSala, AtrasoDevolucion, IntegrantesReserva, PestanaSala, Sala, TiempoSinUsar, TramoReserva } from '@/types'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -56,6 +56,10 @@ const cantidadMinima = ref(PERSONAS_MINIMAS_MESON)
 const cantidadMaxima = ref(PERSONAS_MAXIMAS_MESON)
 
 const salas = ref<Sala[]>([])
+/** Las pestañas del mesón (se gestionan con el botón junto a ellas). */
+const pestanas = ref<PestanaSala[]>([])
+const gestionPestanasAbierta = ref(false)
+const puedeGestionarPestanas = computed(() => auth.puede('catalogos.gestionar'))
 const apiError = ref(false)
 const selectedDate = ref(hoy.value)
 const busqueda = ref('')
@@ -258,6 +262,7 @@ async function cargar() {
   try {
     const { data } = await api.get('/salas', { params: { fecha: selectedDate.value } })
     salas.value = data.salas
+    pestanas.value = data.pestanas ?? []
     // Las ventanas abiertas siguen a la sala recién cargada: si alguien reserva mientras se
     // ajusta la hora, su bloque aparece en la tira.
     if (selectedSala.value) selectedSala.value = data.salas.find((x: Sala) => x.id === selectedSala.value?.id) ?? selectedSala.value
@@ -331,17 +336,19 @@ const filteredSalas = computed(() => {
   return salas.value.filter((s) => sinTildes(s.nombre).includes(q) || sinTildes(s.codigo).includes(q))
 })
 
-// Una página por piso, como el plano (utils/mapaSalas.ts), con las salas que se prestan; las de
-// la administración (seminarios, Cooperación, Moraga) van en la suya («Administración»). Antes eran 10 salas por
-// página, sin orden de piso. Una sala que no está en el plano va en «Otras».
-const CODIGOS_POR_PISO = PISOS_MAPA.map((piso) => new Set([piso.izquierda, piso.derecha].flatMap((lado) => lado.tramos.flat()).map((lugar) => lugar.codigo)))
+// Una página por pestaña del mesón (Piso 1, Piso 2, Hospital, Administración…), que se crean,
+// ordenan y llenan con «Gestionar pestañas» (tabla pestanas_salas). Las apartadas (como
+// Administración) van al final y separadas de las demás. Una sala sin pestaña va en «Otras»,
+// que solo aparece si tiene alguna. Antes eran fijas: un piso por cada piso del plano.
 const paginas = computed(() => {
-  const prestables = salas.value.filter((s) => !s.solo_administracion)
+  const ids = new Set(pestanas.value.map((p) => p.id))
+  const pagina = (p: PestanaSala) => ({ titulo: p.nombre, apartada: p.apartada, salas: salas.value.filter((s) => s.pestana_id === p.id) })
+  const otras = { titulo: 'Otras', apartada: false, salas: salas.value.filter((s) => s.pestana_id == null || !ids.has(s.pestana_id)) }
   return [
-    ...PISOS_MAPA.map((_, i) => ({ titulo: `Piso ${i + 1}`, salas: prestables.filter((s) => CODIGOS_POR_PISO[i].has(s.codigo)) })),
-    { titulo: 'Otras', salas: prestables.filter((s) => !CODIGOS_POR_PISO.some((codigos) => codigos.has(s.codigo))) },
-    { titulo: 'Administración', salas: salas.value.filter((s) => s.solo_administracion) },
-  ].filter((p) => p.salas.length)
+    ...pestanas.value.filter((p) => !p.apartada).map(pagina),
+    ...(otras.salas.length ? [otras] : []),
+    ...pestanas.value.filter((p) => p.apartada).map(pagina),
+  ]
 })
 const paginaActual = computed(() => Math.min(page.value, Math.max(0, paginas.value.length - 1)))
 // Buscando, salen las que coinciden de todas las páginas.
@@ -1164,7 +1171,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
         :con-boton="false"
         :pasos="[
           `Para reservar, haga <strong>clic en el espacio verde</strong> de la sala a la hora que quieren. Si el grupo está en el mesón, haga clic en la media hora en curso (o elija <strong>Ahora</strong> como hora de inicio): la reserva parte en ese minuto, hasta por ${formatMinutos(duracionMaxima)}, y queda con la llegada confirmada.`,
-          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); SM1 y SM2 las gestiona el personal autorizado y pueden quedar a cargo de cualquier persona registrada; Cooperación y Moraga conservan sus reglas de responsable. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
+          `Ingrese el <strong>RUT de cada integrante</strong> del grupo (de ${cantidadMinima} a ${cantidadMaxima} personas, todas registradas en la biblioteca); SM1 y SM2 las gestiona el personal autorizado y pueden quedar a cargo de cualquier persona registrada; Cooperación y Tesis/Posgrado conservan sus reglas de responsable. Cada persona tiene <strong>una sola reserva pendiente por día</strong>: para entrar en otra ese mismo día, primero debe usar o cancelar la que tiene. Otro día no choca.`,
           `Cuando el grupo llegue, pulse <strong>Confirmar llegada</strong> y entréguele la llave: tienen <strong>${textoMinutos(minutosPresentarse)}</strong> desde la hora de inicio, excepto en salas de Administración, que no vencen por falta de confirmación. Si alguien no vino o se sumó otra persona, pulse <strong>Modificar</strong> para corregir los integrantes.`,
           'Si el grupo quiere <strong>seguir o volver a usar la sala</strong>, abra su reserva y pulse <strong>Renovación</strong>. Si conserva la llave, se amplía el préstamo original: solo elija cuánto tiempo más y confirme una sola devolución al terminar. Si ya devolvió la llave, se hace una reserva nueva con los mismos RUT.',
           'Fuera de Administración, si no llegan a tiempo, la sala se libera sola (o pulse <strong>Liberar ahora</strong>). Para entregar o recibir la llave, escriba el <strong>código de la sala</strong> (L04, SEM…) o el número de la logia, o pulse la reserva.',
@@ -1394,6 +1401,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             class="w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
+        <div class="flex flex-wrap items-center gap-2">
         <div v-if="paginas.length > 1" class="flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
           <button
             v-for="(p, i) in paginas"
@@ -1401,13 +1409,27 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             type="button"
             @click="irAPagina(i)"
             class="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
-            :class="!busqueda.trim() && !soloConReserva && paginaActual === i ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100'"
+            :class="[p.apartada && i > 0 && !paginas[i - 1].apartada ? 'ml-6 sm:ml-10' : '', !busqueda.trim() && !soloConReserva && paginaActual === i ? 'bg-indigo-600 text-white shadow' : 'text-gray-700 hover:bg-gray-100']"
             :aria-pressed="!busqueda.trim() && !soloConReserva && paginaActual === i"
-            :title="p.titulo.startsWith('Piso') ? `Las salas del ${p.titulo.toLowerCase()}, como en el plano` : p.titulo === 'Administración' ? 'Salas y logias reservadas por la administración' : 'Salas que no están en el plano'"
+            :title="p.titulo === 'Otras' && !pestanas.some((x) => x.nombre === 'Otras') ? 'Salas que no están en ninguna pestaña' : `Las salas de la pestaña «${p.titulo}»`"
           >
             {{ p.titulo }}
             <span class="text-xs font-medium tabular-nums opacity-70">{{ p.salas.length }}</span>
           </button>
+        </div>
+        <button
+          v-if="puedeGestionarPestanas"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+          title="Crear, renombrar, ordenar o eliminar pestañas y elegir sus salas"
+          @click="gestionPestanasAbierta = true"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Pestañas
+        </button>
         </div>
       </div>
 
@@ -2412,5 +2434,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
 
     <AvisoMultaAtraso :aviso="atrasoDevolucion" @cerrar="atrasoDevolucion = null" />
     <AvisoTiempoSinUsar :aviso="tiempoSinUsar" @cerrar="tiempoSinUsar = null" @liberado="detalleOpen = false; cargar()" />
+    <GestionPestanas :abierto="gestionPestanasAbierta" :pestanas="pestanas" :salas="salas" @cerrar="gestionPestanasAbierta = false" @actualizado="cargar" />
   </StaffLayout>
 </template>

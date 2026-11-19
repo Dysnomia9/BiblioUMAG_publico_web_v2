@@ -32,6 +32,12 @@ class Sala extends Model
 
     public const TIPOS = ['logia', 'sala'];
 
+    /** La pestaña del mesón en que va; sin pestaña, sale en «Otras». */
+    public function pestana(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(PestanaSala::class, 'pestana_id');
+    }
+
     public function esSeminario(): bool
     {
         return in_array($this->codigo, ['SM1', 'SM2'], true);

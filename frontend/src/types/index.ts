@@ -543,6 +543,15 @@ export type TramoReserva = {
   es_mia?: boolean
 }
 
+/** Una pestaña del mesón de salas (Piso 1, Hospital, Administración…). */
+export type PestanaSala = {
+  id: number
+  nombre: string
+  orden: number
+  /** Va al final de la barra, separada de las demás. */
+  apartada: boolean
+}
+
 export type Sala = {
   id: number
   nombre: string
@@ -550,6 +559,8 @@ export type Sala = {
   tipo: 'logia' | 'puesto' | 'sala'
   /** Código propio de la sala (L04, SEM…): el del mesón y los reportes. */
   codigo: string
+  /** La pestaña del mesón en que va; null o ausente: «Otras». */
+  pestana_id?: number | null
   /** No se solicita desde el portal: requiere salas.administracion, o salas.seminarios para SM1 y SM2. */
   solo_administracion?: boolean
   /** De la administración y además exclusiva: la reserva solo quien tiene salas.exclusivas. */

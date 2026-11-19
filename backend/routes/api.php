@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\LibroController;
 use App\Http\Controllers\Api\MantenedorSalasController;
 use App\Http\Controllers\Api\MultaController;
 use App\Http\Controllers\Api\PersonalController;
+use App\Http\Controllers\Api\PestanaSalaController;
 use App\Http\Controllers\Api\PlazoSalaController;
 use App\Http\Controllers\Api\PortalController;
 use App\Http\Controllers\Api\PortalReservaLibroController;
@@ -45,7 +46,7 @@ use Illuminate\Support\Facades\Route;
 // Los parámetros que son el id de un registro solo aceptan dígitos: «/mi/reservas/abc» llegaba
 // a Postgres como bigint y respondía 500; así es un 404. ({codigo} y {rut} son texto.)
 foreach (['categoria', 'categoriaRecurso', 'diaSinAtencion', 'ejemplar', 'equipo', 'estadoLibroPersonalizado', 'fasciculo',
-    'libro', 'multa', 'periodoPlazoSala', 'prestamo', 'prestamoInterbibliotecario', 'reglaPrestamo', 'reserva', 'reservaLibro',
+    'libro', 'multa', 'periodoPlazoSala', 'pestana', 'prestamo', 'prestamoInterbibliotecario', 'reglaPrestamo', 'reserva', 'reservaLibro',
     'rol', 'rolAutor', 'sala', 'staff', 'tipoMaterial', 'ubicacion', 'usuario'] as $parametro) {
     Route::pattern($parametro, '[0-9]+');
 }
@@ -258,6 +259,12 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
         Route::put('/plazo-salas', [PlazoSalaController::class, 'actualizar']);
         Route::post('/plazo-salas/periodos', [PlazoSalaController::class, 'crearPeriodo']);
         Route::delete('/plazo-salas/periodos/{periodoPlazoSala}', [PlazoSalaController::class, 'eliminarPeriodo']);
+        // Las pestañas del mesón de salas (Piso 1, Hospital, Administración…).
+        Route::post('/pestanas-salas', [PestanaSalaController::class, 'store']);
+        Route::put('/pestanas-salas/orden', [PestanaSalaController::class, 'ordenar']);
+        Route::put('/pestanas-salas/{pestana}', [PestanaSalaController::class, 'update']);
+        Route::put('/pestanas-salas/{pestana}/salas', [PestanaSalaController::class, 'salas']);
+        Route::delete('/pestanas-salas/{pestana}', [PestanaSalaController::class, 'destroy']);
         Route::get('/mantenedor-salas', [MantenedorSalasController::class, 'index']);
         Route::put('/mantenedor-salas/minimo-logias', [MantenedorSalasController::class, 'minimoLogiasActualizar']);
         Route::post('/mantenedor-salas', [MantenedorSalasController::class, 'store']);
