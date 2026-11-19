@@ -187,7 +187,7 @@ class SalaController extends Controller
     public function index(Request $request)
     {
         $fecha = $request->query('fecha', now()->toDateString());
-        $salas = Sala::where('activa', true)->enOrden()->get();
+        $salas = Sala::with('pestana')->where('activa', true)->enOrden()->get();
         [$apertura, $cierre] = $this->reservaSalaService->rangoDeLaSemana();
         $atencion = $this->reservaSalaService->ventanaDelDia(Carbon::parse($fecha));
 
@@ -209,7 +209,7 @@ class SalaController extends Controller
             'cerrado' => $atencion === null,
             'salas' => $this->reservaSalaService->vistaDelDia($salas, $fecha),
             // Las pestañas del mesón, de izquierda a derecha (las apartadas al final).
-            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada']),
+            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada', 'admite_sin_registro']),
         ]);
     }
 
@@ -223,11 +223,11 @@ class SalaController extends Controller
     {
         // Los seminarios llevan solo a quien queda a cargo; las demás salas, el grupo.
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
-        // Solo las salas marcadas para administración admiten una actividad institucional
-        // sin responsable personal. Las salas comunes y el portal siempre usan RUT.
+        // Las salas de la administración y las de una pestaña que admite personas no registradas
+        // (HCM) se reservan también con un nombre, sin RUT. Las demás y el portal siempre usan RUT.
         $solicitaActividad = $request->input('modo_responsable') === 'actividad'
             || trim((string) $request->input('nombre_actividad')) !== '';
-        $porActividad = (bool) $sala?->solo_administracion && $solicitaActividad;
+        $porActividad = (bool) $sala?->admiteNombreLibre() && $solicitaActividad;
         [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
         $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 
@@ -247,7 +247,7 @@ class SalaController extends Controller
             'ruts' => [Rule::requiredIf(! $porActividad), 'array'],
             'ruts.*' => ['required', 'string'],
         ], [
-            'ruts.required' => 'Seleccione RUT e ingrese a las personas, o elija Nombre / actividad si esta sala es administrativa.',
+            'ruts.required' => 'Seleccione RUT e ingrese a las personas, o elija Nombre / actividad si la sala lo permite.',
             'cantidad_personas.min' => $soloResponsable ?? $sala?->mensajePersonas($minimo - 1) ?? "La reserva necesita al menos {$minimo} personas.",
             'cantidad_personas.max' => $soloResponsable ?? "La reserva admite como máximo {$maximo} personas.",
         ]);
@@ -443,7 +443,7 @@ class SalaController extends Controller
     public function repetirReserva(Request $request)
     {
         $sala = is_numeric($request->input('sala_id')) ? Sala::find((int) $request->input('sala_id')) : null;
-        $porActividad = (bool) $sala?->solo_administracion && $request->input('modo_responsable') === 'actividad';
+        $porActividad = (bool) $sala?->admiteNombreLibre() && $request->input('modo_responsable') === 'actividad';
         [$minimo, $maximo] = $sala?->personasPermitidas($request->user()->puede('salas.repetir')) ?? Sala::personasDelMeson();
         $soloResponsable = $sala?->solo_responsable && $minimo === $maximo ? $sala->mensajePersonas(0) : null;
 

@@ -635,6 +635,8 @@ class ReservaSalaService
                 'codigo' => $sala->codigo,
                 // La pestaña del mesón en que va (null: «Otras»).
                 'pestana_id' => $sala->pestana_id,
+                // En el mesón se puede reservar con un nombre, sin RUT (administración y HCM).
+                'admite_nombre_libre' => $sala->admiteNombreLibre(),
                 'solo_administracion' => $sala->solo_administracion,
                 'reserva_exclusiva' => $sala->reserva_exclusiva,
                 // Los seminarios: se reservan a nombre de quien la pide, sin los asistentes.

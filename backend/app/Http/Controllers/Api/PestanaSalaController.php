@@ -108,6 +108,7 @@ class PestanaSalaController extends Controller
         return $request->validate([
             'nombre' => [$pestana ? 'sometimes' : 'required', 'string', 'max:40', Rule::notIn(['Otras', 'otras', 'OTRAS', 'Búsqueda']), Rule::unique('pestanas_salas', 'nombre')->ignore($pestana?->id)],
             'apartada' => ['sometimes', 'boolean'],
+            'admite_sin_registro' => ['sometimes', 'boolean'],
         ], [
             'nombre.unique' => 'Ya hay una pestaña con ese nombre.',
             'nombre.not_in' => '«Otras» es la pestaña de las salas que no están en ninguna: elija otro nombre.',
@@ -115,9 +116,9 @@ class PestanaSalaController extends Controller
         ]);
     }
 
-    /** @return list<array{id: int, nombre: string, orden: int, apartada: bool}> */
+    /** @return list<array{id: int, nombre: string, orden: int, apartada: bool, admite_sin_registro: bool}> */
     private function listado(): array
     {
-        return PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada'])->toArray();
+        return PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada', 'admite_sin_registro'])->toArray();
     }
 }

@@ -550,6 +550,8 @@ export type PestanaSala = {
   orden: number
   /** Va al final de la barra, separada de las demás. */
   apartada: boolean
+  /** En sus salas se puede reservar con el nombre de quien no está registrado (HCM). */
+  admite_sin_registro?: boolean
 }
 
 export type Sala = {
@@ -561,6 +563,8 @@ export type Sala = {
   codigo: string
   /** La pestaña del mesón en que va; null o ausente: «Otras». */
   pestana_id?: number | null
+  /** En el mesón se puede reservar con un nombre, sin RUT: administración y pestañas como HCM. */
+  admite_nombre_libre?: boolean
   /** No se solicita desde el portal: requiere salas.administracion, o salas.seminarios para SM1 y SM2. */
   solo_administracion?: boolean
   /** De la administración y además exclusiva: la reserva solo quien tiene salas.exclusivas. */

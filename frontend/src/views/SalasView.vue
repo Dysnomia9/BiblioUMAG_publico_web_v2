@@ -207,6 +207,10 @@ watch(terminoAMano, async (aMano) => {
 const cantidadPersonas = ref(cantidadMinima.value)
 const rutsReserva = ref<string[]>(Array.from({ length: cantidadMinima.value }, () => ''))
 const modoResponsable = ref<'rut' | 'actividad'>('rut')
+/** Algún RUT del formulario no está registrado en una sala que admite reservar con un nombre (HCM). */
+const rutNoRegistrado = ref(false)
+/** Se puede reservar escribiendo un nombre, sin RUT: administración y pestañas que lo admiten. */
+const admiteNombre = (sala: Sala | null) => !!sala && (!!sala.solo_administracion || !!sala.admite_nombre_libre)
 const nombreActividad = ref('')
 const descripcionActividad = ref('')
 // Cada integrante con su RUT o, si es extranjero, su pasaporte/DNI.
@@ -533,6 +537,7 @@ function abrirModalProgramado(sala: Sala, inicioSugeridoMin: number | typeof AHO
   reiniciarModos()
   rutErrores.value = {}
   modoResponsable.value = 'rut'
+  rutNoRegistrado.value = false
   nombreActividad.value = ''
   descripcionActividad.value = ''
   modalOpen.value = true
@@ -916,6 +921,7 @@ async function confirmarReserva(permitirSolape = false) {
         mapa[idx] = mensajes[0]
       }
       rutErrores.value = mapa
+      rutNoRegistrado.value = admiteNombre(selectedSala.value) && erroresRuts.some(([, mensajes]) => mensajes[0]?.includes('no corresponde a un usuario registrado'))
       toast.error(erroresRuts.length === 1 ? 'Revisa el RUT marcado en rojo' : 'Revisa los RUT marcados en rojo')
     } else {
       toast.error(e?.response?.data?.message ?? 'No se pudo crear la reserva')
@@ -1809,7 +1815,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </p>
 
             <template v-if="!continuarPrestamo">
-            <section v-if="selectedSala.solo_administracion" aria-labelledby="identificar-reserva-titulo">
+            <section v-if="admiteNombre(selectedSala)" aria-labelledby="identificar-reserva-titulo">
               <p id="identificar-reserva-titulo" class="mb-2 text-sm font-bold text-gray-950">Identificar reserva por</p>
               <div class="flex items-center gap-2" role="radiogroup" aria-label="Identificar reserva por">
                 <button
@@ -1893,7 +1899,12 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
                   <p v-if="rutErrores[idx]" class="mt-1 text-xs text-red-600">{{ rutErrores[idx] }}</p>
                 </div>
               </div>
+              <div v-if="modoResponsable === 'rut' && rutNoRegistrado" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+                <span>Esa persona no está registrada en el sistema. En {{ selectedSala.nombre }} se puede reservar escribiendo su nombre.</span>
+                <button type="button" class="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white hover:bg-amber-700" @click="modoResponsable = 'actividad'; rutNoRegistrado = false">Escribir el nombre</button>
+              </div>
               <p v-if="modoResponsable === 'actividad'" class="text-xs text-gray-500">No se asociará ningún RUT ni usuario a esta reserva.</p>
+              <p v-else-if="selectedSala.admite_nombre_libre && !selectedSala.solo_administracion && !rutNoRegistrado" class="text-xs text-gray-500">¿Académico o docente que no está registrado? Elija «Nombre / actividad» y escriba su nombre.</p>
               <p v-else class="text-xs text-gray-500">{{ soloResponsableElegida ? 'Solo quien está a cargo.' : 'Un campo por persona.' }} Extranjeros: pasaporte o DNI.</p>
               <p v-if="grupoFlexible(selectedSala)" class="text-xs font-semibold text-indigo-800">Reserva especial: de 1 a {{ maximoElegida }} personas (la capacidad de la sala), y también para estudiantes.</p>
             </section>

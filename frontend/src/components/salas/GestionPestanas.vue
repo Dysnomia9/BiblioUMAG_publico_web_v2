@@ -87,6 +87,14 @@ async function renombrar(p: PestanaSala) {
   if (!ok) nombres.value[p.id] = p.nombre
 }
 
+function cambiarSinRegistro(p: PestanaSala) {
+  ejecutar(
+    () => api.put(`/pestanas-salas/${p.id}`, { admite_sin_registro: !p.admite_sin_registro }),
+    p.admite_sin_registro ? `En «${p.nombre}» vuelve a pedirse el RUT de un usuario registrado` : `En «${p.nombre}» se puede reservar con el nombre de quien no está registrado`,
+    'No se pudo cambiar la pestaña',
+  )
+}
+
 function cambiarApartada(p: PestanaSala) {
   ejecutar(
     () => api.put(`/pestanas-salas/${p.id}`, { apartada: !p.apartada }),
@@ -160,6 +168,10 @@ async function eliminar() {
           <label class="inline-flex items-center gap-1.5 text-xs text-gray-600" title="Va al final de la barra, separada de las demás (como Administración)">
             <input type="checkbox" :checked="p.apartada" :disabled="guardando" class="rounded border-gray-300 text-indigo-600" @change="cambiarApartada(p)" />
             Apartada
+          </label>
+          <label class="inline-flex items-center gap-1.5 text-xs text-gray-600" title="En sus salas, el mesón puede reservar escribiendo el nombre de quien no está registrado en el sistema (académicos o docentes externos)">
+            <input type="checkbox" :checked="!!p.admite_sin_registro" :disabled="guardando" class="rounded border-gray-300 text-indigo-600" @change="cambiarSinRegistro(p)" />
+            Sin registro
           </label>
           <button
             type="button"

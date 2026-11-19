@@ -38,6 +38,15 @@ class Sala extends Model
         return $this->belongsTo(PestanaSala::class, 'pestana_id');
     }
 
+    /**
+     * En el mesón se puede reservar escribiendo el nombre de la persona a cargo, sin RUT: las
+     * salas de la administración y las de una pestaña que admite personas no registradas (HCM).
+     */
+    public function admiteNombreLibre(): bool
+    {
+        return $this->solo_administracion || (bool) $this->pestana?->admite_sin_registro;
+    }
+
     public function esSeminario(): bool
     {
         return in_array($this->codigo, ['SM1', 'SM2'], true);

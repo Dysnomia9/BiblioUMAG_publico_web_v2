@@ -14,13 +14,16 @@ class PestanaSala extends Model
 {
     protected $table = 'pestanas_salas';
 
-    protected $fillable = ['nombre', 'orden', 'apartada'];
+    // admite_sin_registro: en sus salas se puede reservar con el nombre de quien no está registrado.
+    protected $fillable = ['nombre', 'orden', 'apartada', 'admite_sin_registro'];
 
+    // Sin admite_sin_registro: lo pone la base (false). La migración create_pestanas_salas usa este
+    // modelo antes de que exista esa columna.
     protected $attributes = ['orden' => 0, 'apartada' => false];
 
     protected function casts(): array
     {
-        return ['orden' => 'integer', 'apartada' => 'boolean'];
+        return ['orden' => 'integer', 'apartada' => 'boolean', 'admite_sin_registro' => 'boolean'];
     }
 
     public function salas(): HasMany
@@ -38,7 +41,8 @@ class PestanaSala extends Model
      * Las pestañas de partida, como venían fijas en el mesón: un piso por cada piso del plano
      * (frontend/src/utils/mapaSalas.ts), la del hospital (HCM) y, apartada, la de la administración
      * (toda sala solo_administracion). Solo crea las que faltan y solo asigna salas que no
-     * tienen pestaña: lo que ya se ajustó en el mesón no se toca.
+     * tienen pestaña: lo que ya se ajustó en el mesón no se toca. (Que HCM admita personas no
+     * registradas lo marca la migración pestanas_admiten_sin_registro.)
      */
     public static function crearIniciales(): void
     {

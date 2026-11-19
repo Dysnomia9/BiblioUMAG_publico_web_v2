@@ -38,7 +38,7 @@ class MantenedorSalasController extends Controller
             ],
             'minimo_logias' => $this->minimoLogias(),
             // Las pestañas del mesón de salas, que se gestionan desde aquí.
-            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada']),
+            'pestanas' => PestanaSala::enOrden()->get(['id', 'nombre', 'orden', 'apartada', 'admite_sin_registro']),
         ]);
     }
 
