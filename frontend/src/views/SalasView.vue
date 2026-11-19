@@ -741,6 +741,8 @@ function labelTramo(inicio: string, fin: string): string {
 function tramoClases(tramo: TramoReserva): string {
   if (tramo.hora_devolucion_real) return 'bg-gray-100 border-gray-300 text-gray-500'
   if (tramo.hora_prestamo_real) return 'bg-red-100 border-red-300 text-red-700'
+  // Terminó sin que nadie confirmara la llegada (salas que no vencen): no se sabe si se usó.
+  if (tramo.uso_desconocido) return 'bg-slate-100 border-dashed border-slate-400 text-slate-500'
   if (tramo.vencida_sin_confirmar) return 'bg-orange-100 border-orange-300 text-orange-700'
   return 'bg-amber-100 border-amber-300 text-amber-700'
 }
@@ -1082,7 +1084,8 @@ const pendientesConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return []
   return salas.value
     .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
-    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
+    // Las que ya terminaron sin confirmar no se confirman: quedan como «Uso sin registrar».
+    .filter(({ tramo }) => tramo.estado === 'activa' && !tramo.hora_prestamo_real && !tramo.uso_desconocido && timeToMinutes(tramo.hora_inicio) <= ahoraMin.value)
     .map(({ sala, tramo }) => ({
       sala,
       tramo,
@@ -1116,9 +1119,10 @@ const BOTON_PRINCIPAL = 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-
 const FILA_INTEGRANTE = 'flex items-center gap-2.5 rounded-lg border border-l-[3px] border-gray-200 border-l-indigo-600 bg-white px-3 py-2'
 
 /** Reservada (aún sin el grupo), ocupada (con la llave) o con la llave devuelta. */
-function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_real?: string | null; vencida_sin_confirmar?: boolean }) {
+function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_real?: string | null; vencida_sin_confirmar?: boolean; uso_desconocido?: boolean }) {
   if (t.hora_devolucion_real) return { texto: 'Llave devuelta', clase: 'border-emerald-300 bg-emerald-50/60 text-emerald-700' }
   if (t.hora_prestamo_real) return { texto: 'Ocupada', clase: 'border-red-300 bg-red-50/60 text-red-700' }
+  if (t.uso_desconocido) return { texto: 'Uso sin registrar', clase: 'border-slate-300 bg-slate-50 text-slate-600' }
   if (t.vencida_sin_confirmar) return { texto: 'No llegó', clase: 'border-red-300 bg-red-50/60 text-red-700' }
   return { texto: 'Reservada', clase: 'border-indigo-300 bg-indigo-50/60 text-indigo-700' }
 }
@@ -1519,6 +1523,7 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
           <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-orange-300 bg-orange-100"></span>Plazo vencido</span>
           <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-red-300 bg-red-100"></span>Confirmada / en uso</span>
           <span class="flex items-center gap-1.5"><span class="h-3 w-4 rounded border border-gray-300 bg-gray-100"></span>Llave devuelta</span>
+          <span class="flex items-center gap-1.5" title="Su horario terminó y nadie confirmó la llegada: no se sabe si se usó porque no se actualizó en el sistema"><span class="h-3 w-4 rounded border border-dashed border-slate-400 bg-slate-100"></span>Uso sin registrar</span>
           <span class="flex items-center gap-1.5"><span class="franja-pasada h-3 w-4 rounded border border-slate-200"></span>Ya pasó o fuera de horario</span>
           <span class="flex items-center gap-1.5"><span class="h-3 w-[3px] rounded-full bg-indigo-600"></span>Ahora</span>
         </div>

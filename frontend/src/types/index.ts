@@ -537,6 +537,8 @@ export type TramoReserva = {
   /** Sin vencimiento por falta de confirmación en salas de Administración. */
   plazo_confirmacion: string | null
   vencida_sin_confirmar: boolean
+  /** Terminó su horario sin que nadie confirmara la llegada: no se sabe si se usó. */
+  uso_desconocido?: boolean
   /** Devolvieron la llave antes y el resto del bloque se puede liberar. */
   tiempo_sin_usar?: TiempoSinUsar | null
   /** Solo en el portal: la hizo la persona o la incluyeron como integrante. */
@@ -1002,7 +1004,7 @@ export type VistaReservas = 'activas' | 'finalizadas' | 'no_show' | 'canceladas'
  * En qué está una reserva de sala: pendiente de llegada, en uso, con la llave sin
  * devolver (ya terminó su horario) o su estado final (ReservaSalaService::situacion()).
  */
-export type SituacionReserva = 'pendiente' | 'en_uso' | 'sin_devolver' | 'finalizada' | 'no_show' | 'cancelada'
+export type SituacionReserva = 'pendiente' | 'uso_desconocido' | 'en_uso' | 'sin_devolver' | 'finalizada' | 'no_show' | 'cancelada'
 
 /** Una reserva de sala en el Listado de reservas (ReservaSalaService::paraListado()). */
 export type ReservaListado = {

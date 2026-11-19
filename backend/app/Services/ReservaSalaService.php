@@ -619,6 +619,8 @@ class ReservaSalaService
                 'hora_devolucion_real' => $r->hora_devolucion_real,
                 'plazo_confirmacion' => $r->plazoConfirmacion(),
                 'vencida_sin_confirmar' => $r->estaVencidaSinConfirmar(),
+                // Terminó sin confirmar la llegada (salas que no vencen): gris, «Uso sin registrar».
+                'uso_desconocido' => self::usoDesconocido($r),
                 'tiempo_sin_usar' => self::tiempoSinUsar($r),
                 'personas' => self::personas($r),
             ])->sortBy('hora_inicio')->values()
@@ -701,9 +703,11 @@ class ReservaSalaService
     }
 
     /**
-     * En qué está la reserva: 'pendiente' (activa, sin llegada), 'en_uso' (llegaron y
-     * aún no termina su horario), 'sin_devolver' (ya terminó y nadie registró la
-     * devolución de la llave), o su estado final: 'finalizada', 'no_show', 'cancelada'.
+     * En qué está la reserva: 'pendiente' (activa, sin llegada, y su horario no ha terminado),
+     * 'uso_desconocido' (terminó su horario y nadie confirmó la llegada: no se sabe si se usó;
+     * pasa en las salas de la administración, que no vencen), 'en_uso' (llegaron y aún no
+     * termina su horario), 'sin_devolver' (ya terminó y nadie registró la devolución de la
+     * llave), o su estado final: 'finalizada', 'no_show', 'cancelada'.
      */
     public static function situacion(Reserva $reserva): string
     {
@@ -711,13 +715,19 @@ class ReservaSalaService
             return $reserva->estado;
         }
 
-        if (! $reserva->hora_prestamo_real) {
-            return 'pendiente';
-        }
-
         $termino = Carbon::parse($reserva->fecha->toDateString().' '.$reserva->hora_fin);
 
+        if (! $reserva->hora_prestamo_real) {
+            return now()->greaterThan($termino) ? 'uso_desconocido' : 'pendiente';
+        }
+
         return now()->greaterThan($termino) ? 'sin_devolver' : 'en_uso';
+    }
+
+    /** Terminó su horario sin que nadie confirmara la llegada: no se sabe si se usó. */
+    public static function usoDesconocido(Reserva $reserva): bool
+    {
+        return self::situacion($reserva) === 'uso_desconocido';
     }
 
     /**

@@ -105,6 +105,7 @@ const VISTAS = [
 // El borde izquierdo de cada fila: el color de su situación.
 const BARRA_SITUACION: Record<SituacionReserva, string> = {
   pendiente: 'bg-amber-500',
+  uso_desconocido: 'bg-slate-300',
   en_uso: 'bg-indigo-500',
   sin_devolver: 'bg-red-500',
   finalizada: 'bg-sky-500',

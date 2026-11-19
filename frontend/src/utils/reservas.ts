@@ -14,6 +14,8 @@ export const PERSONAS_MAXIMAS_MESON = 7
 /** Cómo se muestra cada situación de una reserva de sala en el Listado de reservas. */
 export const SITUACIONES: Record<SituacionReserva, { texto: string; clase: string }> = {
   pendiente: { texto: 'Pendiente de llegada', clase: 'bg-amber-50 text-amber-800' },
+  // Terminó su horario y nadie confirmó la llegada: no se sabe si se usó.
+  uso_desconocido: { texto: 'Uso sin registrar', clase: 'bg-slate-100 text-slate-600' },
   en_uso: { texto: 'En uso', clase: 'bg-indigo-50 text-indigo-700' },
   sin_devolver: { texto: 'Llave sin devolver', clase: 'bg-red-50 text-red-700' },
   finalizada: { texto: 'Finalizada', clase: 'bg-emerald-50 text-emerald-700' },

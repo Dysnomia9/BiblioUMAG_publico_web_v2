@@ -344,6 +344,10 @@ const titular = (rut: string) => actual.value?.titular.rut === rut
               <template v-else-if="actual.situacion === 'pendiente'">
                 Aún no llegan · <template v-if="actual.plazo_confirmacion">tienen hasta las {{ horaDe(actual.plazo_confirmacion) }}</template><template v-else>sin vencimiento por falta de confirmación</template>
               </template>
+              <template v-else-if="actual.situacion === 'uso_desconocido'">
+                <span class="text-slate-600">Nadie confirmó la llegada</span>
+                <span class="block text-xs font-normal text-gray-500">Su horario ya terminó: no se sabe si se usó, porque no se actualizó en el sistema.</span>
+              </template>
               <span v-else class="font-normal text-gray-400">Sin registro</span>
             </dd>
           </div>

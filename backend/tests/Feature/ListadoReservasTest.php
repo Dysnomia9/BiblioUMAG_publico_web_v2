@@ -109,6 +109,27 @@ class ListadoReservasTest extends TestCase
         $this->assertSame('sin_devolver', $situaciones[$sinDevolver->id]);
     }
 
+    public function test_una_reserva_de_la_administracion_que_termino_sin_confirmar_queda_como_uso_sin_registrar(): void
+    {
+        Sanctum::actingAs(Staff::factory()->asistente()->create());
+        $sala = Sala::factory()->create(['solo_administracion' => true]);
+        [$ana] = Usuario::factory()->count(1)->create();
+        $ayer = $this->reserva($sala, [$ana], ['fecha' => '2026-08-13']);
+        $estaManana = $this->reserva($sala, [$ana], ['hora_inicio' => '10:00', 'hora_fin' => '12:00']);
+        $estaTarde = $this->reserva($sala, [$ana]);
+
+        $situaciones = collect($this->getJson('/api/reservas')->assertOk()->json('data'))->pluck('situacion', 'id');
+        $this->assertSame('uso_desconocido', $situaciones[$ayer->id]);
+        $this->assertSame('uso_desconocido', $situaciones[$estaManana->id]);
+        $this->assertSame('pendiente', $situaciones[$estaTarde->id]);
+
+        // En el mesón se pinta en gris: la de la mañana sí, la de la tarde todavía no.
+        $tramos = collect($this->getJson('/api/salas?fecha=2026-08-14')->json('salas'))->firstWhere('id', $sala->id)['tramos'];
+        $this->assertSame([true, false], array_column($tramos, 'uso_desconocido'));
+        // El estado de la reserva no cambia: solo cómo se muestra.
+        $this->assertSame('activa', $ayer->fresh()->estado);
+    }
+
     public function test_busca_por_cualquier_integrante_o_la_sala_y_filtra_por_sala_y_fechas(): void
     {
         Sanctum::actingAs(Staff::factory()->asistente()->create());
