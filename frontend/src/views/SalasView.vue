@@ -429,8 +429,13 @@ function disponibilidadDesde(sala: Sala, desdeMin: number): number {
 /** Si se puede reservar `sala` desde este minuto: hoy, con la biblioteca abierta y la sala libre al menos lo mínimo. */
 const libreDesdeAhora = (sala: Sala) => esHoy.value && !diaCerrado.value && disponibilidadDesde(sala, ahoraMin.value) >= duracionMinima.value
 
-const renovacionDe = ref<{ tramo: TramoReserva; aviso: string | null } | null>(null)
-const continuarPrestamo = computed(() => !!renovacionDe.value?.tramo.hora_prestamo_real && !renovacionDe.value.tramo.hora_devolucion_real)
+/**
+ * `aparte`: el grupo conserva la llave, pero renueva a otra hora (lo que sigue a su bloque
+ * está ocupado, o lo prefieren): es una reserva nueva con los mismos RUT, no una ampliación.
+ */
+const renovacionDe = ref<{ tramo: TramoReserva; aviso: string | null; aparte: boolean } | null>(null)
+const conservaLlave = computed(() => !!renovacionDe.value?.tramo.hora_prestamo_real && !renovacionDe.value.tramo.hora_devolucion_real)
+const continuarPrestamo = computed(() => conservaLlave.value && !renovacionDe.value!.aparte)
 const modalInicioMin = computed(() => {
   if (continuarPrestamo.value) return timeToMinutes(renovacionDe.value!.tramo.hora_fin)
   if (inicioAMano.value) return modalHoraInicioEscrita.value ? timeToMinutes(modalHoraInicioEscrita.value) : ahoraMin.value
@@ -562,30 +567,57 @@ function renovar(sala: Sala, tramo: TramoReserva) {
   const sigueEnUso = !tramo.hora_devolucion_real
   let inicio: number | typeof AHORA = sigueEnUso ? finMin : libreDesdeAhora(sala) ? AHORA : ahoraMin.value
   const desdeMin = inicio === AHORA ? ahoraMin.value : inicio
-  // Continuar exige disponibilidad contigua. Tras una devolución se puede elegir otro horario.
+  // Continuar exige disponibilidad contigua. Si lo que sigue está ocupado, se propone la
+  // primera hora libre después, como reserva aparte con los mismos RUT (conserven o no la llave).
   let aviso: string | null = null
+  let aparte = false
   if (disponibilidadDesde(sala, desdeMin) < duracionMinima.value) {
-    if (sigueEnUso) {
-      toast.error('No se puede continuar el préstamo: no queda tiempo suficiente libre después de su bloque. Devuelva la llave para pedir otro horario o sala.')
-      return
-    }
-    const libre = primeraHoraLibre(sala, desdeMin)
+    const libre = primeraHoraLibre(sala, Math.max(desdeMin, ahoraMin.value))
     if (libre === null) {
       toast.error(`${sala.nombre} no tiene más bloques libres hoy desde las ${minutesToTime(desdeMin)}: haga una reserva nueva en otra sala.`)
       return
     }
     inicio = libre
-    aviso = `Desde las ${minutesToTime(desdeMin)} la sala está ocupada: se propone desde las ${minutesToTime(libre)}. Ajuste la hora mirando la tira de abajo.`
+    aparte = sigueEnUso
+    aviso = `No hay disponibilidad a continuación: la sala está ocupada desde las ${minutesToTime(desdeMin)}. Puede renovar en otro horario con los mismos RUT: se propone desde las ${minutesToTime(libre)} (ajústelo en la tira de abajo).`
   }
   detalleOpen.value = false
   abrirModalProgramado(sala, inicio)
   const ruts = tramo.personas.map((p) => p.rut).filter(Boolean)
-  cantidadPersonas.value = sigueEnUso ? ruts.length : Math.max(ruts.length, minimoDe(sala))
+  cantidadPersonas.value = sigueEnUso && !aparte ? ruts.length : Math.max(ruts.length, minimoDe(sala))
   rutsReserva.value = [...ruts, ...Array.from({ length: Math.max(0, cantidadPersonas.value - ruts.length) }, () => '')]
   reiniciarModos(rutsReserva.value.map((r) => (r ? modoSegunValor(r) : 'rut')))
-  renovacionDe.value = { tramo, aviso }
+  renovacionDe.value = { tramo, aviso, aparte }
   const duraciones = modalDuracionesValidas.value
   modalDuracion.value = duraciones.length ? duraciones[duraciones.length - 1] : duracionMinima.value
+}
+
+/**
+ * Con la llave aún entregada y tiempo libre tras su bloque, el grupo igual puede preferir
+ * otra hora (por ejemplo, después de la reserva que viene). Se propone la primera hora libre
+ * tras la reserva siguiente; con `false` se vuelve a continuar el mismo préstamo.
+ */
+function renovarAparte(aparte: boolean) {
+  const r = renovacionDe.value
+  const sala = selectedSala.value
+  if (!r || !sala) return
+  if (aparte) {
+    const finMin = timeToMinutes(r.tramo.hora_fin)
+    const siguiente = sala.tramos
+      .filter((t) => t.reserva_id !== r.tramo.reserva_id && timeToMinutes(t.hora_inicio) >= finMin)
+      .sort((a, b) => timeToMinutes(a.hora_inicio) - timeToMinutes(b.hora_inicio))[0]
+    const desde = Math.max(siguiente ? timeToMinutes(siguiente.hora_fin) : finMin, ahoraMin.value)
+    const libre = primeraHoraLibre(sala, desde) ?? primeraHoraLibre(sala, Math.max(finMin, ahoraMin.value))
+    if (libre === null) {
+      toast.error(`${sala.nombre} no tiene más bloques libres hoy: haga una reserva nueva en otra sala.`)
+      return
+    }
+    inicioAMano.value = false
+    modalHoraInicio.value = minutesToTime(libre)
+  }
+  renovacionDe.value = { ...r, aparte }
+  const duraciones = modalDuracionesValidas.value
+  if (duraciones.length) modalDuracion.value = duraciones[duraciones.length - 1]
 }
 
 /** La primera hora (en bloques de la grilla) desde la que la sala queda libre al menos el mínimo, o null. */
@@ -1684,6 +1716,17 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
               </p>
               <p v-if="continuarPrestamo" class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
                 El grupo conserva la llave. Elija cuánto tiempo más: se amplía este mismo préstamo, sin otra llegada y con una sola devolución al terminar. Para cambiar integrantes, modifique el préstamo antes de renovar.
+                <button type="button" class="ml-1 font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900" @click="renovarAparte(true)">Elegir otra hora</button>
+              </p>
+              <p v-else-if="conservaLlave" class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
+                Sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
+                Será una reserva aparte: al terminar su bloque de las {{ renovacionDe.tramo.hora_fin }} devuelven la llave, y a la nueva hora se confirma otra llegada.
+                <button
+                  v-if="disponibilidadDesde(selectedSala, timeToMinutes(renovacionDe.tramo.hora_fin)) >= duracionMinima"
+                  type="button"
+                  class="ml-1 font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900"
+                  @click="renovarAparte(false)"
+                >Mejor continuar desde las {{ renovacionDe.tramo.hora_fin }}</button>
               </p>
               <p v-else class="border-t border-violet-100 px-3 py-2 text-xs text-violet-900">
                 Sus {{ renovacionDe.tramo.personas.length }} {{ renovacionDe.tramo.personas.length === 1 ? 'RUT ya está puesto' : 'RUT ya están puestos' }} abajo.
