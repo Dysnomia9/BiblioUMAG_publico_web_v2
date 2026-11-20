@@ -21,6 +21,7 @@ use App\Support\Bitacora;
 use App\Support\Busqueda;
 use App\Support\BusquedaLibros;
 use App\Support\Documento;
+use App\Support\Enlace;
 use App\Support\FichaBibliografica;
 use App\Support\HorarioBiblioteca;
 use App\Support\OpcionesCatalogo;
@@ -266,8 +267,9 @@ class PortalController extends Controller
             'titulo_alternativo' => $libro->titulo_alternativo,
             'tipo_material' => $libro->tipoMaterial?->nombre,
             // Digital: se abre con el enlace; no tiene copias que prestar ni reservar.
-            'digital' => $libro->tipoMaterial?->nombre === self::LIBRO_ELECTRONICO && filled($libro->url_acceso),
-            'url_acceso' => $libro->url_acceso,
+            // Solo con una dirección web: el portal la pone tal cual en el botón «Leer en línea».
+            'digital' => $libro->tipoMaterial?->nombre === self::LIBRO_ELECTRONICO && Enlace::esWeb($libro->url_acceso),
+            'url_acceso' => Enlace::web($libro->url_acceso),
             'autores' => $libro->autores->map->only(['id', 'nombre'])->values(),
             'categorias' => $libro->categorias->map->only(['id', 'nombre'])->values(),
             'ejemplares_total' => $libro->ejemplares_total,

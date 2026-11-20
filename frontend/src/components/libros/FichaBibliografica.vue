@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { FilaFicha, ItemFicha } from '@/types'
 import NotaContenido from './NotaContenido.vue'
+import { enlaceWeb } from '@/utils/enlace'
 
 /**
  * Ficha bibliográfica de un título. El personal la ve con los números de etiqueta
@@ -15,7 +16,7 @@ const emit = defineEmits<{ filtrar: [item: ItemFicha] }>()
 
 const sePuedeFiltrar = (item: ItemFicha) => props.filtrable && !!(item.autor_id || item.categoria_id || item.carrera_id || item.buscar || item.entidad)
 
-const esEnlace = (fila: FilaFicha) => fila.etiqueta === '856' && /^https?:\/\//.test(fila.valor)
+const esEnlace = (fila: FilaFicha) => fila.etiqueta === '856' && !!enlaceWeb(fila.valor)
 // ISBN, ISSN y clasificación se leen mejor en letra de código.
 const MONO = new Set(['020', '022', '082', '090', '092'])
 
@@ -33,11 +34,11 @@ const verInternas = ref(true)
         <dt class="text-gray-500">{{ f.campo }}</dt>
         <dd class="col-start-2 whitespace-pre-line break-words font-medium text-gray-900 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
           <NotaContenido v-if="f.etiqueta === '505'" :valor="f.valor" />
-          <a v-else-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">Abrir recurso electrónico</a>
+          <a v-else-if="esEnlace(f)" :href="enlaceWeb(f.valor)" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">Abrir recurso electrónico</a>
           <!-- Varios valores (autores, materias…): una etiqueta cada uno, no unidos con «;». -->
           <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
             <template v-for="(item, k) in f.items" :key="k">
-              <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
+              <a v-if="enlaceWeb(item.url)" :href="enlaceWeb(item.url)" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
               <button
                 v-else-if="sePuedeFiltrar(item)"
                 type="button"
@@ -73,7 +74,7 @@ const verInternas = ref(true)
           <dd class="col-start-2 whitespace-pre-line break-words text-gray-600 sm:col-start-auto" :class="MONO.has(f.etiqueta) ? 'font-mono text-[13px]' : ''">
             <span v-if="f.items?.length" class="flex flex-wrap gap-1.5">
               <template v-for="(item, k) in f.items" :key="k">
-                <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline">{{ item.texto }}</a>
+                <a v-if="enlaceWeb(item.url)" :href="enlaceWeb(item.url)" target="_blank" rel="noopener noreferrer" class="text-[13px] text-indigo-700 underline">{{ item.texto }}</a>
                 <span v-else class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[13px]">{{ item.texto }}</span>
               </template>
             </span>
@@ -91,12 +92,12 @@ const verInternas = ref(true)
       <dt class="text-gray-500">{{ f.campo }}</dt>
       <dd class="whitespace-pre-line break-words text-gray-900">
         <NotaContenido v-if="f.etiqueta === '505'" :valor="f.valor" />
-        <a v-else-if="esEnlace(f)" :href="f.valor" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">
+        <a v-else-if="esEnlace(f)" :href="enlaceWeb(f.valor)" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">
           Abrir recurso electrónico
         </a>
         <span v-else-if="f.items?.length" class="flex flex-wrap gap-1.5">
           <template v-for="(item, k) in f.items" :key="k">
-            <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
+            <a v-if="enlaceWeb(item.url)" :href="enlaceWeb(item.url)" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline hover:text-indigo-800">{{ item.texto }}</a>
             <span v-else class="rounded-md bg-gray-100 px-2 py-0.5">{{ item.texto }}</span>
           </template>
         </span>

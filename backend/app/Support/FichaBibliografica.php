@@ -229,9 +229,17 @@ final class FichaBibliografica
         return match ($clave) {
             'autor_principal' => self::itemsAutores(collect([self::principal($libro)])),
             'materias' => $libro->categorias->map(fn ($c) => ['texto' => $c->nombre, 'categoria_id' => $c->id])->values()->all(),
-            // Cada enlace con su texto, o «Abrir enlace»
+            // Cada enlace con su texto, o «Abrir enlace». Lo que no es una dirección web (un
+            // dato viejo de Horizon, o algo que no pasó por la validación) queda como texto.
             'otros_enlaces' => collect(preg_split('/\R/', (string) $libro->otros_enlaces))->map(fn ($l) => trim($l))->filter()
-                ->map(fn ($l) => ['texto' => trim(substr($l, strlen(strtok($l, ' ')))) ?: 'Abrir enlace', 'url' => strtok($l, ' ')])->values()->all(),
+                ->map(function ($l) {
+                    $url = strtok($l, ' ');
+                    $texto = trim(substr($l, strlen($url)));
+
+                    return Enlace::esWeb($url)
+                        ? ['texto' => $texto ?: 'Abrir enlace', 'url' => $url]
+                        : ['texto' => $l];
+                })->values()->all(),
             // Las entidades (110 y cada una del 710) se pulsan para ver sus títulos en el listado.
             'entidad_corporativa', 'entidad_secundaria' => collect(preg_split('/\s*;\s*/u', $valor))->map(fn ($e) => trim($e))->filter()
                 ->map(fn ($e) => ['texto' => $e, 'entidad' => $e])->values()->all(),

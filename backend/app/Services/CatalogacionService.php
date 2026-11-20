@@ -7,6 +7,7 @@ use App\Models\Carrera;
 use App\Models\Categoria;
 use App\Models\Ejemplar;
 use App\Models\Libro;
+use App\Support\Enlace;
 use App\Support\Materia;
 use Illuminate\Validation\Rule;
 
@@ -126,12 +127,12 @@ class CatalogacionService
             'entidad_secundaria' => ['nullable', 'string', 'max:255'],
             'materias_personales' => ['nullable', 'string'],
             'materias_geograficas' => ['nullable', 'string'],
-            'url_acceso' => ['nullable', 'url', 'max:2048'],
+            'url_acceso' => ['nullable', 'string', 'max:2048', Enlace::regla()],
             // Los demás 856, uno por línea: «URL» o «URL texto»
             'otros_enlaces' => ['nullable', 'string', 'max:10000', function (string $campo, mixed $valor, \Closure $falla) {
                 foreach (preg_split('/\R/', (string) $valor) as $linea) {
                     $url = strtok(trim($linea), ' ');
-                    if ($url !== false && trim($linea) !== '' && ! filter_var($url, FILTER_VALIDATE_URL)) {
+                    if ($url !== false && trim($linea) !== '' && ! Enlace::esWeb($url)) {
                         $falla("Cada línea de «Otros enlaces» empieza con una dirección web (https://…): «{$url}» no lo es.");
                     }
                 }

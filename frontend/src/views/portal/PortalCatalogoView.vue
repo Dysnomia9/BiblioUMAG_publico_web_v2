@@ -12,6 +12,7 @@ import apiUsuario from '@/services/apiUsuario'
 import { esBusquedaCorta, tituloAlternativoEncontrado } from '@/utils/busqueda'
 import { useToast } from '@/composables/useToast'
 import PortadaMaterial from '@/components/libros/PortadaMaterial.vue'
+import { enlaceWeb } from '@/utils/enlace'
 import type { CondicionesReservaLibro, LibroCatalogo, Paginado, ReservaLibro } from '@/types'
 
 const router = useRouter()
@@ -600,7 +601,7 @@ async function cancelar(reserva: ReservaLibro) {
                   <div class="shrink-0 sm:text-right">
                     <a
                       v-if="fila.libro.digital"
-                      :href="fila.libro.url_acceso ?? undefined"
+                      :href="enlaceWeb(fila.libro.url_acceso)"
                       target="_blank"
                       rel="noopener"
                       class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.18)] transition-colors hover:bg-emerald-700 sm:w-full"
@@ -683,7 +684,7 @@ async function cancelar(reserva: ReservaLibro) {
         </button>
         <a
           v-if="filaFicha?.libro.digital"
-          :href="filaFicha.libro.url_acceso ?? undefined"
+          :href="enlaceWeb(filaFicha.libro.url_acceso)"
           target="_blank"
           rel="noopener"
           class="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
