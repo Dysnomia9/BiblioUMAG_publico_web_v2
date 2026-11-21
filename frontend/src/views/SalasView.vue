@@ -6,6 +6,7 @@ import ApiErrorBanner from '@/components/ApiErrorBanner.vue'
 import GuiaUso from '@/components/ui/GuiaUso.vue'
 import Modal from '@/components/ui/Modal.vue'
 import ListaConfirmacionAsistencia from '@/components/salas/ListaConfirmacionAsistencia.vue'
+import ListaDevolucionSalas from '@/components/salas/ListaDevolucionSalas.vue'
 import EditorIntegrantes from '@/components/salas/EditorIntegrantes.vue'
 import EditorActividad from '@/components/salas/EditorActividad.vue'
 import AvisoMultaAtraso from '@/components/salas/AvisoMultaAtraso.vue'
@@ -1133,6 +1134,41 @@ const CONFIRMACION_VISIBLES = 5
 const verTodasConfirmacion = ref(false)
 const vencidasConfirmacion = computed(() => pendientesConfirmacion.value.filter((p) => p.vencida).length)
 
+/**
+ * Pestaña «Devolución»: salas de hoy con la llave entregada y sin devolver cuyo bloque
+ * termina dentro de AVISO_DEVOLUCION_MIN minutos o ya terminó. De la más atrasada a la que expira después.
+ */
+const AVISO_DEVOLUCION_MIN = 15
+const pendientesDevolucion = computed(() => {
+  if (selectedDate.value !== hoy.value) return []
+  return salas.value
+    .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
+    .filter(({ tramo }) => tramo.estado === 'activa' && tramo.hora_prestamo_real && !tramo.hora_devolucion_real)
+    .map(({ sala, tramo }) => ({ sala, tramo, minutosRestantes: timeToMinutes(tramo.hora_fin) - ahoraMin.value }))
+    .filter((p) => p.minutosRestantes <= AVISO_DEVOLUCION_MIN)
+    .sort((a, b) => a.minutosRestantes - b.minutosRestantes)
+})
+const expiradasDevolucion = computed(() => pendientesDevolucion.value.filter((p) => p.minutosRestantes <= 0).length)
+const pestanaMenu = ref<'todos' | 'asistencia' | 'devolucion'>('todos')
+/** Desde el menú, «Confirmar devolución» abre la ficha de la reserva: se ve quién la tiene antes de recibir la llave. */
+function abrirDevolucion(sala: Sala, tramo: TramoReserva) {
+  verTodasDevolucion.value = false
+  verDetalle(sala, tramo)
+}
+const verTodasDevolucion = ref(false)
+
+/** La próxima sala ocupada que entrará a la pestaña de devolución. */
+const proximaDevolucion = computed(() => {
+  if (selectedDate.value !== hoy.value) return null
+  const proximas = salas.value
+    .flatMap((sala) => sala.tramos.map((tramo) => ({ sala, tramo })))
+    .filter(({ tramo }) => tramo.estado === 'activa' && tramo.hora_prestamo_real && !tramo.hora_devolucion_real && timeToMinutes(tramo.hora_fin) - ahoraMin.value > AVISO_DEVOLUCION_MIN)
+    .sort((a, b) => a.tramo.hora_fin.localeCompare(b.tramo.hora_fin))
+  if (!proximas.length) return null
+  const hora = proximas[0].tramo.hora_fin
+  return { hora, sala: proximas[0].sala.nombre, otras: proximas.filter((p) => p.tramo.hora_fin === hora).length - 1 }
+})
+
 /** Las próximas reservas de hoy sin llegada: entran al menú a su hora de inicio. */
 const proximaConfirmacion = computed(() => {
   if (selectedDate.value !== hoy.value) return null
@@ -1279,6 +1315,44 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
       </div>
 
       <div v-if="selectedDate === hoy" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <!-- Dos pestañas: la llegada de las que empiezan y la devolución de las que terminan -->
+        <div class="mb-3 flex flex-wrap gap-1.5" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="pestanaMenu === 'todos'"
+            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            :class="pestanaMenu === 'todos' ? 'bg-gray-800 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+            @click="pestanaMenu = 'todos'"
+          >
+            Todos
+            <span v-if="pendientesConfirmacion.length + pendientesDevolucion.length" class="rounded-full px-1.5 text-[11px]" :class="pestanaMenu === 'todos' ? 'bg-white/20' : 'bg-gray-100 text-gray-700'">{{ pendientesConfirmacion.length + pendientesDevolucion.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="pestanaMenu === 'asistencia'"
+            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            :class="pestanaMenu === 'asistencia' ? 'bg-indigo-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+            @click="pestanaMenu = 'asistencia'"
+          >
+            Préstamos
+            <span v-if="pendientesConfirmacion.length" class="rounded-full px-1.5 text-[11px]" :class="pestanaMenu === 'asistencia' ? 'bg-white/20' : vencidasConfirmacion ? 'bg-red-100 text-red-700' : 'bg-indigo-50 text-indigo-700'">{{ pendientesConfirmacion.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="pestanaMenu === 'devolucion'"
+            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            :class="pestanaMenu === 'devolucion' ? 'bg-emerald-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'"
+            @click="pestanaMenu = 'devolucion'"
+          >
+            Devoluciones
+            <span v-if="pendientesDevolucion.length" class="rounded-full px-1.5 text-[11px]" :class="pestanaMenu === 'devolucion' ? 'bg-white/20' : expiradasDevolucion ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'">{{ pendientesDevolucion.length }}</span>
+          </button>
+        </div>
+
+        <template v-if="pestanaMenu !== 'devolucion'">
         <div class="mb-3 flex items-start justify-between gap-3">
           <div class="flex items-stretch gap-3">
             <span class="w-1 shrink-0 rounded-full bg-indigo-600" aria-hidden="true"></span>
@@ -1299,7 +1373,6 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             </span>
           </div>
         </div>
-
         <template v-if="pendientesConfirmacion.length">
           <ListaConfirmacionAsistencia
             :pendientes="pendientesConfirmacion.slice(0, CONFIRMACION_VISIBLES)"
@@ -1332,7 +1405,89 @@ function estadoDetalle(t: { hora_prestamo_real?: string | null; hora_devolucion_
             Próxima: {{ proximaConfirmacion.sala }} a las {{ proximaConfirmacion.hora }}; aparecerá aquí a esa hora.
           </template>
         </p>
+        </template>
+
+        <template v-if="pestanaMenu !== 'asistencia'">
+          <div class="mb-3 flex items-start justify-between gap-3" :class="pestanaMenu === 'todos' && 'mt-5 border-t border-gray-100 pt-4'">
+            <div class="flex items-stretch gap-3">
+              <span class="w-1 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
+              <div>
+                <h2 class="text-base font-serif font-bold text-gray-900">Devolución de salas</h2>
+                <p class="mt-0.5 text-xs text-gray-600">
+                  Salas con la llave entregada que expiran en los próximos {{ AVISO_DEVOLUCION_MIN }} minutos o ya expiraron.
+                  Si el grupo quiere seguir, renueve; si entrega la llave, confirme la devolución.
+                </p>
+              </div>
+            </div>
+            <div v-if="pendientesDevolucion.length" class="flex shrink-0 items-center gap-1.5">
+              <span v-if="expiradasDevolucion" class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                {{ expiradasDevolucion }} {{ expiradasDevolucion === 1 ? 'expirada' : 'expiradas' }}
+              </span>
+              <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                {{ pendientesDevolucion.length }} por devolver
+              </span>
+            </div>
+          </div>
+
+          <template v-if="pendientesDevolucion.length">
+            <ListaDevolucionSalas
+              :pendientes="pendientesDevolucion.slice(0, CONFIRMACION_VISIBLES)"
+              :puede-renovar="puedeReservarSala"
+              @renovar="renovar"
+              @devolver="abrirDevolucion"
+            />
+            <button
+              v-if="pendientesDevolucion.length > CONFIRMACION_VISIBLES"
+              @click="verTodasDevolucion = true"
+              class="mt-3 w-full rounded-lg border border-gray-200 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
+            >
+              Ver las {{ pendientesDevolucion.length }} salas por devolver
+            </button>
+          </template>
+          <div v-else class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/30 px-4 py-2.5 text-center">
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            </span>
+            <p class="text-sm text-gray-600">Ninguna sala por expirar por ahora.</p>
+          </div>
+          <p v-if="proximaDevolucion" class="mt-3 text-xs text-gray-500">
+            <template v-if="proximaDevolucion.otras">
+              Próximas: {{ proximaDevolucion.sala }} y {{ proximaDevolucion.otras }} más expiran a las {{ proximaDevolucion.hora }};
+              aparecerán aquí {{ AVISO_DEVOLUCION_MIN }} minutos antes.
+            </template>
+            <template v-else>
+              Próxima: {{ proximaDevolucion.sala }} expira a las {{ proximaDevolucion.hora }}; aparecerá aquí {{ AVISO_DEVOLUCION_MIN }} minutos antes.
+            </template>
+          </p>
+        </template>
       </div>
+
+      <Modal
+        :abierto="verTodasDevolucion"
+        titulo="Devolución de salas"
+        :descripcion="pendientesDevolucion.length ? `${pendientesDevolucion.length} por devolver, de la más atrasada a la que expira después.` : undefined"
+        ancho="lg"
+        pie-fijo
+        :bloqueado="devolucionPendiente !== null"
+        @cerrar="verTodasDevolucion = false"
+      >
+        <ListaDevolucionSalas
+          v-if="pendientesDevolucion.length"
+          :pendientes="pendientesDevolucion"
+          :puede-renovar="puedeReservarSala"
+          @renovar="(sala, tramo) => { verTodasDevolucion = false; renovar(sala, tramo) }"
+          @devolver="abrirDevolucion"
+        />
+        <p v-else class="text-sm text-gray-400 text-center py-4">Ya no quedan salas por devolver.</p>
+        <template #pie>
+          <button
+            @click="verTodasDevolucion = false"
+            class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm"
+          >
+            Cerrar
+          </button>
+        </template>
+      </Modal>
 
       <Modal
         :abierto="verTodasConfirmacion"
